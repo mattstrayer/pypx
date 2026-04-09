@@ -18,7 +18,7 @@ function onSearch() {
 
 const { searchPackages } = useApi()
 const { data: results, status } = await useAsyncData(
-  () => `search-${query.value}`,
+  'search',
   () => searchPackages(query.value),
   { watch: [query] },
 )

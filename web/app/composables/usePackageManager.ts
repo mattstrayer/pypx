@@ -1,7 +1,8 @@
 type PackageManager = 'pip' | 'uv' | 'poetry' | 'pipx'
-const activeManager = ref<PackageManager>('pip')
 
 export function usePackageManager() {
+  const activeManager = useState<PackageManager>('package-manager', () => 'pip')
+
   function getInstallCommand(packageName: string): string {
     switch (activeManager.value) {
       case 'pip': return `pip install ${packageName}`
