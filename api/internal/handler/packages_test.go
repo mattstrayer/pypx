@@ -86,6 +86,16 @@ func TestGetPackage(t *testing.T) {
 	if got := body["name"]; got != "requests" {
 		t.Errorf("expected name=requests, got %v", got)
 	}
+
+	// install_size should equal the wheel size from the mock (62574).
+	if got, ok := body["install_size"].(float64); !ok || got != 62574 {
+		t.Errorf("expected install_size=62574, got %v", body["install_size"])
+	}
+
+	// module_format should be a non-empty string.
+	if got, ok := body["module_format"].(string); !ok || got == "" {
+		t.Errorf("expected non-empty module_format, got %v", body["module_format"])
+	}
 }
 
 func TestGetPackageCached(t *testing.T) {

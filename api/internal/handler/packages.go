@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
+	"github.com/pypx/api/internal/enrichment"
 	"github.com/pypx/api/internal/pypi"
 )
 
@@ -24,20 +25,24 @@ type FileInfo struct {
 
 // PackageResponse is the flattened package metadata returned by the API.
 type PackageResponse struct {
-	Name           string            `json:"name"`
-	Version        string            `json:"version"`
-	Summary        string            `json:"summary"`
-	Description    string            `json:"description"`
-	DescType       string            `json:"description_content_type"`
-	License        string            `json:"license"`
-	Author         string            `json:"author"`
-	AuthorEmail    string            `json:"author_email"`
-	HomePage       string            `json:"home_page"`
-	RequiresPython string            `json:"requires_python"`
-	RequiresDist   []string          `json:"requires_dist"`
-	ProjectURLs    map[string]string `json:"project_urls"`
-	Classifiers    []string          `json:"classifiers"`
-	LatestFiles    []FileInfo        `json:"latest_files"`
+	Name           string                      `json:"name"`
+	Version        string                      `json:"version"`
+	Summary        string                      `json:"summary"`
+	Description    string                      `json:"description"`
+	DescType       string                      `json:"description_content_type"`
+	License        string                      `json:"license"`
+	Author         string                      `json:"author"`
+	AuthorEmail    string                      `json:"author_email"`
+	HomePage       string                      `json:"home_page"`
+	RequiresPython string                      `json:"requires_python"`
+	RequiresDist   []string                    `json:"requires_dist"`
+	ProjectURLs    map[string]string           `json:"project_urls"`
+	Classifiers    []string                    `json:"classifiers"`
+	LatestFiles    []FileInfo                  `json:"latest_files"`
+	InstallSize    int64                       `json:"install_size"`
+	ModuleFormat   string                      `json:"module_format"`
+	PythonVersions enrichment.PythonVersionInfo `json:"python_versions"`
+	Dependencies   enrichment.DependencyTree   `json:"dependencies"`
 }
 
 // PackageHandler serves package metadata requests.
@@ -124,5 +129,9 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 		ProjectURLs:    info.ProjectURLs,
 		Classifiers:    info.Classifiers,
 		LatestFiles:    files,
+		InstallSize:    enrichment.ExtractInstallSize(r.URLs),
+		ModuleFormat:   enrichment.ExtractModuleFormat(r.URLs),
+		PythonVersions: enrichment.ExtractPythonVersions(info.RequiresPython),
+		Dependencies:   enrichment.ParseDependencies(info.RequiresDist),
 	}
 }
