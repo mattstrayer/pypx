@@ -32,10 +32,11 @@ func main() {
 		sqlitePath = "pypx.db"
 	}
 
-	c, err := cache.New(sqlitePath)
+	sqliteCache, err := cache.New(sqlitePath)
 	if err != nil {
 		log.Fatalf("failed to open cache: %v", err)
 	}
+	c := cache.NewMemoryCache(sqliteCache, 1000)
 	defer c.Close()
 
 	pypiClient := pypi.NewClient()

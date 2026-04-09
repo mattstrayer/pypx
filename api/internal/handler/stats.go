@@ -25,11 +25,11 @@ type CombinedStats struct {
 // StatsHandler serves package download statistics requests.
 type StatsHandler struct {
 	stats *stats.Client
-	cache *cache.Cache
+	cache cache.Cacher
 }
 
 // NewStatsHandler creates a new StatsHandler.
-func NewStatsHandler(statsClient *stats.Client, c *cache.Cache) *StatsHandler {
+func NewStatsHandler(statsClient *stats.Client, c cache.Cacher) *StatsHandler {
 	return &StatsHandler{stats: statsClient, cache: c}
 }
 

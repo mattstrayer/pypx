@@ -7,6 +7,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Cacher is the interface that both Cache and MemoryCache implement.
+type Cacher interface {
+	Get(key string, ttl time.Duration) (data []byte, fresh bool, err error)
+	Set(key string, value []byte, ttl time.Duration) error
+	Close() error
+}
+
 // Cache is a SQLite-backed key/value cache with TTL-based freshness.
 type Cache struct {
 	db *sql.DB

@@ -23,7 +23,7 @@ type Config struct {
 // Worker periodically syncs the PyPI Simple API index into the search index.
 type Worker struct {
 	pypi   *pypi.Client
-	cache  *cache.Cache
+	cache  cache.Cacher
 	index  *search.Index
 	config Config
 }
@@ -32,7 +32,7 @@ var packageNameRe = regexp.MustCompile(`href="/simple/([^/]+)/"`)
 
 // New creates a new Worker. Zero-value Config fields are filled with defaults:
 // SimpleAPIURL defaults to "https://pypi.org/simple/", IndexSyncEvery defaults to 6h.
-func New(pypiClient *pypi.Client, c *cache.Cache, idx *search.Index, cfg Config) *Worker {
+func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config) *Worker {
 	if cfg.SimpleAPIURL == "" {
 		cfg.SimpleAPIURL = "https://pypi.org/simple/"
 	}

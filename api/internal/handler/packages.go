@@ -50,11 +50,11 @@ type PackageResponse struct {
 // PackageHandler serves package metadata requests.
 type PackageHandler struct {
 	pypiClient *pypi.Client
-	cache      *cache.Cache
+	cache      cache.Cacher
 }
 
 // NewPackageHandler creates a new PackageHandler.
-func NewPackageHandler(pypiClient *pypi.Client, c *cache.Cache) *PackageHandler {
+func NewPackageHandler(pypiClient *pypi.Client, c cache.Cacher) *PackageHandler {
 	return &PackageHandler{pypiClient: pypiClient, cache: c}
 }
 
