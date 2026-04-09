@@ -12,7 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/handler"
+	"github.com/pypx/api/internal/pypi"
 )
 
 func main() {
@@ -21,6 +23,20 @@ func main() {
 		port = "8080"
 	}
 
+	sqlitePath := os.Getenv("SQLITE_PATH")
+	if sqlitePath == "" {
+		sqlitePath = "pypx.db"
+	}
+
+	c, err := cache.New(sqlitePath)
+	if err != nil {
+		log.Fatalf("failed to open cache: %v", err)
+	}
+	defer c.Close()
+
+	pypiClient := pypi.NewClient()
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -28,6 +44,7 @@ func main() {
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	r.Get("/api/health", handler.Health)
+	r.Get("/api/packages/{name}", pkgHandler.Get)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
