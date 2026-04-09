@@ -3,16 +3,22 @@ const route = useRoute()
 const name = computed(() => route.params.name as string)
 const version = computed(() => route.params.version as string)
 
-const { fetchPackage, fetchVersions } = useApi()
+const { fetchPackage, fetchVersions, fetchChangelog } = useApi()
 
-const [{ data: pkg }, { data: versions }] = await Promise.all([
+const [{ data: pkg }, { data: versions }, { data: changelog }] = await Promise.all([
   useAsyncData(`package-${name.value}`, () => fetchPackage(name.value)),
   useAsyncData(`versions-${name.value}`, () => fetchVersions(name.value)),
+  useAsyncData(`changelog-${name.value}`, () => fetchChangelog(name.value)),
 ])
 
 const matchedVersion = computed(() =>
   versions.value?.find(v => v.version === version.value) ?? null,
 )
+
+const changelogEntry = computed(() => {
+  if (!changelog.value?.entries) return null
+  return changelog.value.entries.find(e => e.version === version.value) || null
+})
 
 function formatSize(bytes: number): string {
   if (!bytes) return '—'
@@ -104,6 +110,24 @@ useHead({
             <span class="ml-4 shrink-0 font-mono text-xs text-emerald-400">{{ formatSize(file.size) }}</span>
           </li>
         </ul>
+      </div>
+
+      <!-- Changelog entry -->
+      <div v-if="changelogEntry" class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+        <h2 class="mb-1 text-base font-semibold text-zinc-100">{{ changelogEntry.title }}</h2>
+        <div class="mb-4 flex items-center gap-3 text-sm text-zinc-500">
+          <span>{{ formatDate(changelogEntry.published_at) }}</span>
+          <a
+            v-if="changelogEntry.url"
+            :href="changelogEntry.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="transition-colors hover:text-zinc-300"
+          >GitHub Release ↗</a>
+        </div>
+        <div class="prose prose-invert prose-sm max-w-none">
+          <MDC :value="changelogEntry.body" />
+        </div>
       </div>
     </div>
 
