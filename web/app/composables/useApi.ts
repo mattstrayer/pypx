@@ -1,4 +1,4 @@
-import type { PackageData, VersionInfo, DependencyTree, StatsData, SearchResult } from '~/types/api'
+import type { PackageData, VersionInfo, DependencyTree, StatsData, SearchResult, ChangelogData } from '~/types/api'
 
 export function useApi() {
   const config = useRuntimeConfig()
@@ -26,5 +26,9 @@ export function useApi() {
     })
   }
 
-  return { fetchPackage, fetchVersions, fetchDependencies, fetchStats, searchPackages }
+  async function fetchChangelog(name: string): Promise<ChangelogData> {
+    return $fetch<ChangelogData>(`${baseURL}/packages/${name}/changelog`)
+  }
+
+  return { fetchPackage, fetchVersions, fetchDependencies, fetchStats, searchPackages, fetchChangelog }
 }

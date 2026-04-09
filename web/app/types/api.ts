@@ -67,3 +67,19 @@ export interface SearchResult {
   summary: string
   downloads: number
 }
+
+export interface ChangelogEntry {
+  version: string
+  tag_name: string
+  title: string
+  body: string
+  published_at: string
+  url: string
+}
+
+export interface ChangelogData {
+  package: string
+  source: string
+  repo_url: string
+  entries: ChangelogEntry[]
+}
