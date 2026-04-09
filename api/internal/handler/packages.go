@@ -91,6 +91,11 @@ func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
 	return resp, nil
 }
 
+// FetchPackage is an exported wrapper around fetchPackage for use by other handlers.
+func (h *PackageHandler) FetchPackage(name string) (*pypi.PyPIResponse, error) {
+	return h.fetchPackage(name)
+}
+
 // fetchPackageForce fetches from PyPI and updates the raw cache, bypassing any
 // cached value. Used for background revalidation.
 func (h *PackageHandler) fetchPackageForce(name string) (*pypi.PyPIResponse, error) {

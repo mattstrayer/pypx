@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"github.com/pypx/api/internal/cache"
+	"github.com/pypx/api/internal/github"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/api/internal/search"
@@ -41,6 +42,14 @@ func main() {
 
 	pypiClient := pypi.NewClient()
 	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	var ghOpts []github.Option
+	if ghToken != "" {
+		ghOpts = append(ghOpts, github.WithToken(ghToken))
+	}
+	ghClient := github.NewClient(ghOpts...)
+	changelogHandler := handler.NewChangelogHandler(ghClient, c, pkgHandler)
 
 	statsClient := stats.NewClient()
 	statsHandler := handler.NewStatsHandler(statsClient, c)
@@ -74,6 +83,7 @@ func main() {
 	r.Get("/api/packages/{name}", pkgHandler.Get)
 	r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 	r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 	r.Get("/api/packages/{name}/stats", statsHandler.Get)
 	r.Get("/api/search", searchHandler.Search)
 
