@@ -4,6 +4,24 @@ import (
 	"testing"
 )
 
+// sanitizeFTSQueryTests are table-driven unit tests for the sanitizer itself.
+var sanitizeFTSQueryTests = []struct {
+	name  string
+	input string
+	want  string
+}{
+	{"plain", "requests", "requests"},
+	{"trims space", "  flask  ", "flask"},
+	{"strips quotes", `test "injection`, "test injection"},
+	{"strips all quotes", `"quoted"`, "quoted"},
+	{"removes OR operator", "test OR *", "test *"},
+	{"removes AND operator", "foo AND bar", "foo bar"},
+	{"removes NOT operator", "foo NOT bar", "foo bar"},
+	{"removes NEAR operator", "foo NEAR bar", "foo bar"},
+	{"empty after strip", `""`, ""},
+	{"only whitespace", "   ", ""},
+}
+
 func mustNewIndex(t *testing.T) *Index {
 	t.Helper()
 	idx, err := NewIndex(":memory:")
@@ -71,6 +89,55 @@ func TestSearchPrefix(t *testing.T) {
 	}
 	if results[0].Name != "flask" {
 		t.Errorf("expected first result to be %q (highest downloads + exact match), got %q", "flask", results[0].Name)
+	}
+}
+
+// TestSanitizeFTSQuery verifies the sanitizer in isolation.
+func TestSanitizeFTSQuery(t *testing.T) {
+	for _, tc := range sanitizeFTSQueryTests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sanitizeFTSQuery(tc.input)
+			if got != tc.want {
+				t.Errorf("sanitizeFTSQuery(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSearchInjection verifies that queries containing FTS5 special syntax
+// do not cause errors and return sensible (possibly empty) results.
+func TestSearchInjection(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	packages := []PackageEntry{
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}
+	for _, p := range packages {
+		mustUpsert(t, idx, p)
+	}
+
+	cases := []struct {
+		name  string
+		query string
+	}{
+		{"double quote injection", `test "injection`},
+		{"FTS5 OR operator", `test OR *`},
+		{"FTS5 AND operator", `requests AND flask`},
+		{"unbalanced quotes", `"`},
+		{"only operators", `OR AND NOT`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := idx.Search(tc.query, 10)
+			if err != nil {
+				t.Errorf("Search(%q) returned error: %v", tc.query, err)
+			}
+			// Results may be empty or non-empty — both are valid.
+			// The critical invariant is no error (no crash / parse failure).
+			_ = results
+		})
 	}
 }
 

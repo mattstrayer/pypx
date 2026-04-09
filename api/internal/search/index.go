@@ -3,6 +3,7 @@ package search
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -92,6 +93,30 @@ func (idx *Index) Upsert(entry PackageEntry) error {
 	return tx.Commit()
 }
 
+// sanitizeFTSQuery strips characters and keywords that have special meaning in
+// FTS5 MATCH expressions so that raw user input cannot inject query syntax.
+//
+// Strategy:
+//  1. Trim surrounding whitespace.
+//  2. Remove double-quotes (they delimit FTS5 phrases; unbalanced quotes cause
+//     parse errors).
+//  3. Remove the FTS5 boolean/proximity operators OR, AND, NOT and NEAR (case-
+//     insensitive, whole-word).  These are always upper-case in FTS5 syntax but
+//     we normalise to be safe.
+func sanitizeFTSQuery(q string) string {
+	q = strings.TrimSpace(q)
+	// Strip all double-quote characters to prevent phrase-injection.
+	q = strings.ReplaceAll(q, `"`, "")
+	// Remove FTS5 operator keywords (whole word, case-insensitive).
+	for _, op := range []string{"OR", "AND", "NOT", "NEAR"} {
+		// Replace both upper and lower case variants surrounded by word
+		// boundaries (spaces or start/end of string).
+		q = strings.ReplaceAll(q, " "+op+" ", " ")
+		q = strings.ReplaceAll(q, " "+strings.ToLower(op)+" ", " ")
+	}
+	return strings.TrimSpace(q)
+}
+
 // Search performs a prefix-aware full-text search and returns up to limit
 // results ordered by exact-name match first, then downloads descending.
 func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
@@ -99,9 +124,15 @@ func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
 		limit = 10
 	}
 
+	// Sanitize user input before embedding in the FTS5 MATCH expression.
+	clean := sanitizeFTSQuery(query)
+	if clean == "" {
+		return nil, nil
+	}
+
 	// Wrap in quotes and append * for prefix matching (typeahead behaviour).
 	// sqlite fts5 treats "foo"* as a prefix query on the phrase "foo".
-	ftsQuery := fmt.Sprintf(`"%s"*`, query)
+	ftsQuery := fmt.Sprintf(`"%s"*`, clean)
 
 	rows, err := idx.db.Query(`
 		SELECT m.name, m.summary, m.downloads
