@@ -45,9 +45,67 @@ const mockRequestsResponse = `{
 	]
 }`
 
+// mockRequestsVersionsResponse returns a PyPI JSON response with two releases.
+const mockRequestsVersionsResponse = `{
+	"info": {
+		"name": "requests",
+		"version": "2.31.0",
+		"summary": "HTTP for Humans",
+		"description": "",
+		"description_content_type": "",
+		"license": "",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
+		"project_urls": null,
+		"classifiers": null
+	},
+	"releases": {
+		"2.31.0": [
+			{
+				"filename": "requests-2.31.0-py3-none-any.whl",
+				"url": "https://files.pythonhosted.org/packages/requests-2.31.0-py3-none-any.whl",
+				"size": 62574,
+				"packagetype": "bdist_wheel",
+				"python_version": "py3",
+				"requires_python": ">=3.7",
+				"upload_time_iso_8601": "2023-05-22T15:12:01.000Z",
+				"digests": {"sha256": "abc123"}
+			}
+		],
+		"2.30.0": [
+			{
+				"filename": "requests-2.30.0-py3-none-any.whl",
+				"url": "https://files.pythonhosted.org/packages/requests-2.30.0-py3-none-any.whl",
+				"size": 62000,
+				"packagetype": "bdist_wheel",
+				"python_version": "py3",
+				"requires_python": ">=3.7",
+				"upload_time_iso_8601": "2023-04-26T10:00:00.000Z",
+				"digests": {"sha256": "def456"}
+			}
+		]
+	},
+	"urls": [
+		{
+			"filename": "requests-2.31.0-py3-none-any.whl",
+			"url": "https://files.pythonhosted.org/packages/requests-2.31.0-py3-none-any.whl",
+			"size": 62574,
+			"packagetype": "bdist_wheel",
+			"python_version": "py3",
+			"requires_python": ">=3.7",
+			"upload_time_iso_8601": "2023-05-22T15:12:01.000Z",
+			"digests": {"sha256": "abc123"}
+		}
+	]
+}`
+
 func setupRouter(h *handler.PackageHandler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/api/packages/{name}", h.Get)
+	r.Get("/api/packages/{name}/versions", h.GetVersions)
 	return r
 }
 
@@ -162,5 +220,41 @@ func TestGetPackageNotFound(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestGetVersions(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockRequestsVersionsResponse)) //nolint:errcheck
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := setupRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/versions", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var versions []map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&versions); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(versions) != 2 {
+		t.Errorf("expected 2 versions, got %d", len(versions))
 	}
 }

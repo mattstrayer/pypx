@@ -45,6 +45,7 @@ func main() {
 
 	r.Get("/api/health", handler.Health)
 	r.Get("/api/packages/{name}", pkgHandler.Get)
+	r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

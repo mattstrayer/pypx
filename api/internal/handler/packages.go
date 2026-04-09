@@ -56,6 +56,39 @@ func NewPackageHandler(pypiClient *pypi.Client, c *cache.Cache) *PackageHandler 
 	return &PackageHandler{pypiClient: pypiClient, cache: c}
 }
 
+// VersionInfo is a summary of a single release version.
+type VersionInfo struct {
+	Version      string     `json:"version"`
+	InstallSize  int64      `json:"install_size"`
+	ModuleFormat string     `json:"module_format"`
+	UploadTime   string     `json:"upload_time"`
+	Files        []FileInfo `json:"files"`
+}
+
+// fetchPackage retrieves a PyPIResponse, using the raw cache to avoid redundant
+// upstream requests from both Get and GetVersions.
+func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
+	cacheKey := "raw:" + strings.ToLower(name)
+
+	if data, _, err := h.cache.Get(cacheKey, packageTTL); err == nil && data != nil {
+		var resp pypi.PyPIResponse
+		if err := json.Unmarshal(data, &resp); err == nil {
+			return &resp, nil
+		}
+	}
+
+	resp, err := h.pypiClient.FetchPackage(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if encoded, err := json.Marshal(resp); err == nil {
+		h.cache.Set(cacheKey, encoded, packageTTL) //nolint:errcheck
+	}
+
+	return resp, nil
+}
+
 // Get handles GET /api/packages/{name}.
 func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
@@ -75,7 +108,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache miss — fetch from PyPI.
-	resp, err := h.pypiClient.FetchPackage(name)
+	resp, err := h.fetchPackage(name)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			http.Error(w, "package not found", http.StatusNotFound)
@@ -95,6 +128,60 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	// Cache for future requests.
 	h.cache.Set(cacheKey, encoded, packageTTL) //nolint:errcheck
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(encoded) //nolint:errcheck
+}
+
+// GetVersions handles GET /api/packages/{name}/versions.
+func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	resp, err := h.fetchPackage(name)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "package not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to fetch package", http.StatusBadGateway)
+		return
+	}
+
+	versions := make([]VersionInfo, 0, len(resp.Releases))
+	for version, releaseFiles := range resp.Releases {
+		if len(releaseFiles) == 0 {
+			continue
+		}
+
+		files := make([]FileInfo, 0, len(releaseFiles))
+		uploadTime := ""
+		for _, f := range releaseFiles {
+			files = append(files, FileInfo{
+				Filename:    f.Filename,
+				Size:        f.Size,
+				PackageType: f.PackageType,
+				PythonVer:   f.PythonVer,
+				UploadTime:  f.UploadTime,
+			})
+			if uploadTime == "" {
+				uploadTime = f.UploadTime
+			}
+		}
+
+		versions = append(versions, VersionInfo{
+			Version:      version,
+			InstallSize:  enrichment.ExtractInstallSize(releaseFiles),
+			ModuleFormat: enrichment.ExtractModuleFormat(releaseFiles),
+			UploadTime:   uploadTime,
+			Files:        files,
+		})
+	}
+
+	encoded, err := json.Marshal(versions)
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
