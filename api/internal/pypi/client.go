@@ -4,8 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 )
+
+// validPackageName matches valid PyPI package names: alphanumeric, hyphens,
+// underscores, and dots, starting and ending with an alphanumeric character.
+var validPackageName = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$`)
+
+// ValidateName returns an error if name is not a valid PyPI package name.
+// It rejects empty strings, consecutive dots (path traversal), and any
+// characters outside the allowed set (alphanumeric, hyphen, underscore, dot).
+func ValidateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("pypi: package name must not be empty")
+	}
+	// Block consecutive dots before regex to catch "foo..bar" style traversal.
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("pypi: invalid package name %q", name)
+	}
+	if !validPackageName.MatchString(name) {
+		return fmt.Errorf("pypi: invalid package name %q", name)
+	}
+	return nil
+}
 
 // PackageInfo holds the metadata from the PyPI "info" field.
 type PackageInfo struct {
@@ -78,6 +101,10 @@ func NewClient(opts ...Option) *Client {
 
 // FetchPackage retrieves the PyPI JSON API response for the named package.
 func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+
 	url := fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
 
 	resp, err := c.httpClient.Get(url)

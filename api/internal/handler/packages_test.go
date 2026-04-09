@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -283,6 +284,47 @@ func TestGetVersions(t *testing.T) {
 
 	if len(versions) != 2 {
 		t.Errorf("expected 2 versions, got %d", len(versions))
+	}
+}
+
+func TestGetPackageInvalidName(t *testing.T) {
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	// No mock PyPI server needed — validation must short-circuit before any HTTP call.
+	client := pypi.NewClient(pypi.WithBaseURL("http://127.0.0.1:0"))
+	h := handler.NewPackageHandler(client, c)
+	router := setupRouter(h)
+
+	// Names that are routable by chi but fail our validation.
+	// (Slash/space characters can't be used in httptest URLs, but are
+	// covered by TestValidateName at the unit level.)
+	invalidNames := []string{
+		"-leading-hyphen",
+		"trailing-hyphen-",
+		".hidden",
+	}
+
+	endpoints := []string{
+		"/api/packages/%s",
+		"/api/packages/%s/versions",
+		"/api/packages/%s/dependencies",
+	}
+
+	for _, name := range invalidNames {
+		for _, endpointFmt := range endpoints {
+			path := fmt.Sprintf(endpointFmt, name)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("GET %s (name=%q): expected 400, got %d", path, name, rr.Code)
+			}
+		}
 	}
 }
 

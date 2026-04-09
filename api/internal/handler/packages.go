@@ -89,9 +89,22 @@ func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
 	return resp, nil
 }
 
+// validateName rejects invalid package names with a 400 response and returns
+// false so the caller can return immediately.
+func validateName(w http.ResponseWriter, name string) bool {
+	if err := pypi.ValidateName(name); err != nil {
+		http.Error(w, "invalid package name", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // Get handles GET /api/packages/{name}.
 func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
 	cacheKey := "pkg:" + strings.ToLower(name)
 
 	// Check cache.
@@ -136,6 +149,9 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 // GetDependencies handles GET /api/packages/{name}/dependencies.
 func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
 
 	pkg, err := h.fetchPackage(name)
 	if err != nil {
@@ -162,6 +178,9 @@ func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request)
 // GetVersions handles GET /api/packages/{name}/versions.
 func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
 
 	resp, err := h.fetchPackage(name)
 	if err != nil {

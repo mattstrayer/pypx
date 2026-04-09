@@ -101,6 +101,51 @@ func TestFetchPackage(t *testing.T) {
 	}
 }
 
+func TestValidateName(t *testing.T) {
+	valid := []string{
+		"requests",
+		"flask-cors",
+		"python_dateutil",
+		"Jinja2",
+		"A",         // single character
+		"a1",        // alphanumeric
+		"pkg.name",  // dot separator
+	}
+	for _, name := range valid {
+		if err := ValidateName(name); err != nil {
+			t.Errorf("ValidateName(%q): expected nil error, got %v", name, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"../etc/passwd",
+		"foo/bar",
+		"foo bar",
+		".hidden",
+		"-leading-hyphen",
+		"trailing-hyphen-",
+		"foo\\bar",
+		"foo..bar",
+	}
+	for _, name := range invalid {
+		if err := ValidateName(name); err == nil {
+			t.Errorf("ValidateName(%q): expected error, got nil", name)
+		}
+	}
+}
+
+func TestFetchPackageInvalidName(t *testing.T) {
+	client := NewClient()
+	got, err := client.FetchPackage("../etc/passwd")
+	if err == nil {
+		t.Fatal("expected error for invalid package name, got nil")
+	}
+	if got != nil {
+		t.Errorf("expected nil response on error, got %+v", got)
+	}
+}
+
 func TestFetchPackageNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
