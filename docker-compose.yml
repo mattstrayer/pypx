@@ -1,0 +1,42 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+
+  api:
+    build:
+      context: ./api
+    environment:
+      - API_PORT=8080
+      - SQLITE_PATH=/data/pypx.db
+    volumes:
+      - api_data:/data
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: ./web
+    environment:
+      - API_BASE=http://api:8080
+      - NUXT_PUBLIC_API_BASE=/api
+    expose:
+      - "3000"
+    depends_on:
+      - api
+
+volumes:
+  caddy_data:
+  caddy_config:
+  api_data:

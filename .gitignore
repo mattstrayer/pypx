@@ -1,0 +1,22 @@
+# Dependencies
+web/node_modules/
+web/.nuxt/
+web/.output/
+
+# Data
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Environment
+.env
+
+# Superpowers
+.superpowers/
