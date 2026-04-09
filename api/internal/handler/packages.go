@@ -2,7 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,24 +27,24 @@ type FileInfo struct {
 
 // PackageResponse is the flattened package metadata returned by the API.
 type PackageResponse struct {
-	Name           string                      `json:"name"`
-	Version        string                      `json:"version"`
-	Summary        string                      `json:"summary"`
-	Description    string                      `json:"description"`
-	DescType       string                      `json:"description_content_type"`
-	License        string                      `json:"license"`
-	Author         string                      `json:"author"`
-	AuthorEmail    string                      `json:"author_email"`
-	HomePage       string                      `json:"home_page"`
-	RequiresPython string                      `json:"requires_python"`
-	RequiresDist   []string                    `json:"requires_dist"`
-	ProjectURLs    map[string]string           `json:"project_urls"`
-	Classifiers    []string                    `json:"classifiers"`
-	LatestFiles    []FileInfo                  `json:"latest_files"`
-	InstallSize    int64                       `json:"install_size"`
-	ModuleFormat   string                      `json:"module_format"`
+	Name           string                       `json:"name"`
+	Version        string                       `json:"version"`
+	Summary        string                       `json:"summary"`
+	Description    string                       `json:"description"`
+	DescType       string                       `json:"description_content_type"`
+	License        string                       `json:"license"`
+	Author         string                       `json:"author"`
+	AuthorEmail    string                       `json:"author_email"`
+	HomePage       string                       `json:"home_page"`
+	RequiresPython string                       `json:"requires_python"`
+	RequiresDist   []string                     `json:"requires_dist"`
+	ProjectURLs    map[string]string            `json:"project_urls"`
+	Classifiers    []string                     `json:"classifiers"`
+	LatestFiles    []FileInfo                   `json:"latest_files"`
+	InstallSize    int64                        `json:"install_size"`
+	ModuleFormat   string                       `json:"module_format"`
 	PythonVersions enrichment.PythonVersionInfo `json:"python_versions"`
-	Dependencies   enrichment.DependencyTree   `json:"dependencies"`
+	Dependencies   enrichment.DependencyTree    `json:"dependencies"`
 }
 
 // PackageHandler serves package metadata requests.
@@ -89,6 +91,22 @@ func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
 	return resp, nil
 }
 
+// fetchPackageForce fetches from PyPI and updates the raw cache, bypassing any
+// cached value. Used for background revalidation.
+func (h *PackageHandler) fetchPackageForce(name string) (*pypi.PyPIResponse, error) {
+	resp, err := h.pypiClient.FetchPackage(name)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := "raw:" + strings.ToLower(name)
+	if encoded, err := json.Marshal(resp); err == nil {
+		h.cache.Set(cacheKey, encoded, packageTTL) //nolint:errcheck
+	}
+
+	return resp, nil
+}
+
 // validateName rejects invalid package names with a 400 response and returns
 // false so the caller can return immediately.
 func validateName(w http.ResponseWriter, name string) bool {
@@ -109,14 +127,29 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	// Check cache.
 	if data, fresh, err := h.cache.Get(cacheKey, packageTTL); err == nil && data != nil {
-		if fresh {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(data) //nolint:errcheck
-			return
-		}
-		// Stale: serve stale data; background refresh is handled elsewhere.
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data) //nolint:errcheck
+
+		if !fresh {
+			// Serve stale data immediately and refresh in the background.
+			go func() {
+				resp, err := h.fetchPackageForce(name)
+				if err != nil {
+					log.Printf("background refresh failed for package %q: %v", name, err)
+					return
+				}
+				pkg := buildPackageResponse(resp)
+				encoded, err := json.Marshal(pkg)
+				if err != nil {
+					log.Printf("background refresh encode failed for package %q: %v", name, err)
+					return
+				}
+				if err := h.cache.Set(cacheKey, encoded, packageTTL); err != nil {
+					log.Printf("background refresh cache set failed for package %q: %v", name, err)
+				}
+			}()
+		}
 		return
 	}
 
@@ -142,6 +175,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// Cache for future requests.
 	h.cache.Set(cacheKey, encoded, packageTTL) //nolint:errcheck
 
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
 }
@@ -171,6 +205,7 @@ func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
 }
@@ -222,12 +257,18 @@ func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Sort by upload_time descending (newest first). Empty strings sort last.
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].UploadTime > versions[j].UploadTime
+	})
+
 	encoded, err := json.Marshal(versions)
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
 }

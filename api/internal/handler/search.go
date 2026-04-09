@@ -51,6 +51,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		results = []search.PackageEntry{}
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results) //nolint:errcheck
 }
