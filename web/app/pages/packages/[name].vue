@@ -72,7 +72,9 @@ useHead({
           <PackageDependencies :name="pkg.name" :dependencies="pkg.dependencies" />
         </div>
         <div v-else-if="activeTab === 'versions'">Versions content here</div>
-        <div v-else-if="activeTab === 'stats'">Stats content here</div>
+        <div v-else-if="activeTab === 'stats'">
+          <PackageStats :name="pkg.name" />
+        </div>
       </div>
     </div>
   </div>
