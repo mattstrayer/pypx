@@ -9,6 +9,10 @@ const maintainer = computed(() =>
   props.pkg.author || props.pkg.author_email || null
 )
 
+const isMarkdown = computed(() => {
+  return props.pkg.description_content_type?.includes('text/markdown') ?? false
+})
+
 const projectLinks = computed(() => {
   const urls = props.pkg.project_urls
   if (!urls) return []
@@ -31,7 +35,10 @@ const projectLinks = computed(() => {
         <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Description
         </h2>
-        <div class="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+        <div v-if="isMarkdown" class="prose prose-invert prose-sm max-w-none">
+          <MDC :value="pkg.description" />
+        </div>
+        <div v-else class="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
           {{ pkg.description }}
         </div>
       </div>
