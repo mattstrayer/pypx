@@ -15,7 +15,9 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/search"
 	"github.com/pypx/api/internal/stats"
+	"github.com/pypx/api/internal/worker"
 )
 
 func main() {
@@ -41,6 +43,18 @@ func main() {
 	statsClient := stats.NewClient()
 	statsHandler := handler.NewStatsHandler(statsClient, c)
 
+	searchIdx, err := search.NewIndex(sqlitePath + "-search")
+	if err != nil {
+		log.Fatalf("failed to create search index: %v", err)
+	}
+	defer searchIdx.Close()
+	searchHandler := handler.NewSearchHandler(searchIdx)
+
+	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	bgWorker.Start(workerCtx)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -52,6 +66,7 @@ func main() {
 	r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 	r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
 	r.Get("/api/packages/{name}/stats", statsHandler.Get)
+	r.Get("/api/search", searchHandler.Search)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
