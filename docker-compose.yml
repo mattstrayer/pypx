@@ -9,10 +9,15 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - api
-      - web
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   api:
     build:
@@ -20,10 +25,22 @@ services:
     environment:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
     volumes:
       - api_data:/data
     expose:
       - "8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   web:
     build:
@@ -34,7 +51,19 @@ services:
     expose:
       - "3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   caddy_data:
