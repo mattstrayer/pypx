@@ -102,10 +102,37 @@ const mockRequestsVersionsResponse = `{
 	]
 }`
 
+// mockDepsResponse returns a PyPI JSON response with requires_dist containing
+// 2 required deps and 1 extra ("socks").
+const mockDepsResponse = `{
+	"info": {
+		"name": "requests",
+		"version": "2.31.0",
+		"summary": "HTTP for Humans",
+		"description": "",
+		"description_content_type": "",
+		"license": "",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": ">=3.7",
+		"requires_dist": [
+			"charset-normalizer (<4,>=2)",
+			"urllib3 (>=1.21.1)",
+			"PySocks (>=1.5.6); extra == \"socks\""
+		],
+		"project_urls": null,
+		"classifiers": null
+	},
+	"releases": {},
+	"urls": []
+}`
+
 func setupRouter(h *handler.PackageHandler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/api/packages/{name}", h.Get)
 	r.Get("/api/packages/{name}/versions", h.GetVersions)
+	r.Get("/api/packages/{name}/dependencies", h.GetDependencies)
 	return r
 }
 
@@ -256,5 +283,52 @@ func TestGetVersions(t *testing.T) {
 
 	if len(versions) != 2 {
 		t.Errorf("expected 2 versions, got %d", len(versions))
+	}
+}
+
+func TestGetDependencies(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockDepsResponse)) //nolint:errcheck
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := setupRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/dependencies", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var tree struct {
+		Required []map[string]interface{}            `json:"required"`
+		Extras   map[string][]map[string]interface{} `json:"extras"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&tree); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(tree.Required) != 2 {
+		t.Errorf("expected 2 required deps, got %d", len(tree.Required))
+	}
+
+	socksDeps, ok := tree.Extras["socks"]
+	if !ok {
+		t.Fatal("expected extras to contain 'socks' key")
+	}
+	if len(socksDeps) != 1 {
+		t.Errorf("expected 1 dep in socks extra, got %d", len(socksDeps))
 	}
 }

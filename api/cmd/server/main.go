@@ -15,6 +15,7 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/stats"
 )
 
 func main() {
@@ -37,6 +38,9 @@ func main() {
 	pypiClient := pypi.NewClient()
 	pkgHandler := handler.NewPackageHandler(pypiClient, c)
 
+	statsClient := stats.NewClient()
+	statsHandler := handler.NewStatsHandler(statsClient, c)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -46,6 +50,8 @@ func main() {
 	r.Get("/api/health", handler.Health)
 	r.Get("/api/packages/{name}", pkgHandler.Get)
 	r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
+	r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
+	r.Get("/api/packages/{name}/stats", statsHandler.Get)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

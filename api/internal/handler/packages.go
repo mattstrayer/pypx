@@ -133,6 +133,32 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Write(encoded) //nolint:errcheck
 }
 
+// GetDependencies handles GET /api/packages/{name}/dependencies.
+func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	pkg, err := h.fetchPackage(name)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "package not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to fetch package", http.StatusBadGateway)
+		return
+	}
+
+	tree := enrichment.ParseDependencies(pkg.Info.RequiresDist)
+
+	encoded, err := json.Marshal(tree)
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(encoded) //nolint:errcheck
+}
+
 // GetVersions handles GET /api/packages/{name}/versions.
 func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
