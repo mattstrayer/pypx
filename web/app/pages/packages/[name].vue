@@ -67,7 +67,7 @@ useHead({
 
       <!-- Tab content -->
       <div>
-        <div v-if="activeTab === 'overview'">Overview content here</div>
+        <div v-if="activeTab === 'overview'"><PackageOverview :pkg="pkg" /></div>
         <div v-else-if="activeTab === 'dependencies'">
           <PackageDependencies :name="pkg.name" :dependencies="pkg.dependencies" />
         </div>
