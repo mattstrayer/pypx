@@ -32,8 +32,9 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-useHead({
-  title: computed(() => `${name.value} ${version.value} — pypx`),
+useSeoMeta({
+  title: () => `${name.value} ${version.value} — pypx`,
+  description: () => `Version ${version.value} of ${name.value} on pypx.`,
 })
 </script>
 

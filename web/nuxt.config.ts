@@ -6,6 +6,7 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@vueuse/nuxt',
     '@nuxtjs/mdc',
+    '@nuxtjs/seo',
   ],
 
   css: ['~/assets/css/main.css'],
@@ -13,6 +14,21 @@ export default defineNuxtConfig({
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
+  },
+
+  site: {
+    url: 'https://pypx.app',
+    name: 'pypx',
+    description: 'The Python Package Index, reimagined. Fast search, dependency insights, download trends, and changelogs — all in one place.',
+    defaultLocale: 'en',
+  },
+
+  ogImage: {
+    enabled: false,
+  },
+
+  robots: {
+    allow: '/',
   },
 
   runtimeConfig: {

@@ -17,11 +17,11 @@ const trendingPackages = ref([
   { name: 'fastapi', summary: 'Modern, fast web framework for building APIs', downloads: 20000000 },
 ])
 
-useHead({
+useSeoMeta({
   title: 'pypx — A modern PyPI frontend',
-  meta: [
-    { name: 'description', content: 'Explore Python packages with enriched insights, fast search, and a modern interface.' },
-  ],
+  description: 'Explore Python packages with enriched insights, fast search, dependency analysis, and download trends.',
+  ogTitle: 'pypx — A modern PyPI frontend',
+  ogDescription: 'Explore Python packages with enriched insights, fast search, dependency analysis, and download trends.',
 })
 </script>
 

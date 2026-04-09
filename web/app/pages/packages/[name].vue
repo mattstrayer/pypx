@@ -16,8 +16,11 @@ const tabs = [
   { key: 'stats', label: 'Stats' },
 ]
 
-useHead({
-  title: computed(() => pkg.value ? `${pkg.value.name} — pypx` : 'Loading — pypx'),
+useSeoMeta({
+  title: () => pkg.value ? `${pkg.value.name} — pypx` : 'Loading — pypx',
+  description: () => pkg.value?.summary || '',
+  ogTitle: () => pkg.value ? `${pkg.value.name} ${pkg.value.version}` : 'pypx',
+  ogDescription: () => pkg.value?.summary || '',
 })
 </script>
 

@@ -23,10 +23,9 @@ const { data: results, status } = await useAsyncData(
   { watch: [query] },
 )
 
-useHead({
-  title: computed(() =>
-    query.value ? `"${query.value}" — pypx search` : 'Search — pypx',
-  ),
+useSeoMeta({
+  title: () => query.value ? `"${query.value}" — pypx search` : 'Search — pypx',
+  description: 'Search 500,000+ Python packages on pypx.',
 })
 </script>
 
