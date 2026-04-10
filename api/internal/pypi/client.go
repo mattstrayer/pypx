@@ -32,20 +32,21 @@ func ValidateName(name string) error {
 
 // PackageInfo holds the metadata from the PyPI "info" field.
 type PackageInfo struct {
-	Name            string            `json:"name"`
-	Version         string            `json:"version"`
-	Summary         string            `json:"summary"`
-	Description     string            `json:"description"`
-	DescriptionType string            `json:"description_content_type"`
-	License         string            `json:"license"`
-	Author          string            `json:"author"`
-	AuthorEmail     string            `json:"author_email"`
-	HomePage        string            `json:"home_page"`
-	RequiresPython  string            `json:"requires_python"`
-	RequiresDist    []string          `json:"requires_dist"`
-	ProjectURLs     map[string]string `json:"project_urls"`
-	Classifiers     []string          `json:"classifiers"`
-	Keywords        string            `json:"keywords"`
+	Name              string            `json:"name"`
+	Version           string            `json:"version"`
+	Summary           string            `json:"summary"`
+	Description       string            `json:"description"`
+	DescriptionType   string            `json:"description_content_type"`
+	License           string            `json:"license"`
+	LicenseExpression string            `json:"license_expression"`
+	Author            string            `json:"author"`
+	AuthorEmail       string            `json:"author_email"`
+	HomePage          string            `json:"home_page"`
+	RequiresPython    string            `json:"requires_python"`
+	RequiresDist      []string          `json:"requires_dist"`
+	ProjectURLs       map[string]string `json:"project_urls"`
+	Classifiers       []string          `json:"classifiers"`
+	Keywords          string            `json:"keywords"`
 }
 
 // ReleaseFile represents a single distribution file for a release.

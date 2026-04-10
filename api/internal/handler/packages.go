@@ -280,6 +280,51 @@ func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 	w.Write(encoded) //nolint:errcheck
 }
 
+// normalizeLicense extracts a short license name from PyPI metadata.
+// It prefers license_expression (SPDX), then classifiers, then the raw
+// license field (if short), and falls back to the first line of a long
+// license if it looks like a known name.
+func normalizeLicense(info pypi.PackageInfo) string {
+	// 1. Prefer the modern SPDX license_expression field.
+	if expr := strings.TrimSpace(info.LicenseExpression); expr != "" {
+		return expr
+	}
+
+	// 2. Extract from classifiers (e.g. "License :: OSI Approved :: BSD License").
+	for _, c := range info.Classifiers {
+		if strings.HasPrefix(c, "License :: ") {
+			parts := strings.Split(c, " :: ")
+			if len(parts) >= 3 {
+				// Use the most specific part (last segment).
+				return parts[len(parts)-1]
+			}
+		}
+	}
+
+	// 3. If the raw license field is short, use it as-is.
+	raw := strings.TrimSpace(info.License)
+	if raw != "" && len(raw) <= 128 {
+		return raw
+	}
+
+	// 4. For long license text, try the first non-empty line as a heuristic
+	//    (many packages put "BSD 3-Clause License\n\nCopyright ...").
+	if raw != "" {
+		for _, line := range strings.SplitN(raw, "\n", 5) {
+			line = strings.TrimSpace(line)
+			if line != "" && len(line) <= 80 {
+				return line
+			}
+			// Stop if we hit a long line — it's the license body.
+			if len(line) > 80 {
+				break
+			}
+		}
+	}
+
+	return ""
+}
+
 func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 	info := r.Info
 
@@ -306,7 +351,7 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 		Description:     info.Description,
 		DescType:        info.DescriptionType,
 		DescriptionHTML: descHTML,
-		License:         info.License,
+		License:         normalizeLicense(info),
 		Author:         info.Author,
 		AuthorEmail:    info.AuthorEmail,
 		HomePage:       info.HomePage,

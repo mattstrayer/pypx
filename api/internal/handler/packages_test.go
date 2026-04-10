@@ -151,6 +151,70 @@ const mockMarkdownDescriptionResponse = `{
 	"urls": []
 }`
 
+// mockLicenseExpressionResponse has a modern SPDX license_expression field.
+const mockLicenseExpressionResponse = `{
+	"info": {
+		"name": "flask",
+		"version": "3.0.0",
+		"summary": "A micro web framework",
+		"description": "",
+		"description_content_type": "",
+		"license": "",
+		"license_expression": "BSD-3-Clause",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
+		"project_urls": null,
+		"classifiers": null
+	},
+	"releases": {},
+	"urls": []
+}`
+
+// mockLicenseClassifierResponse has no license_expression but a License classifier.
+const mockLicenseClassifierResponse = `{
+	"info": {
+		"name": "pandas",
+		"version": "2.2.0",
+		"summary": "Data analysis toolkit",
+		"description": "",
+		"description_content_type": "",
+		"license": "BSD 3-Clause License\n\nCopyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team\nAll rights reserved.\n\nCopyright (c) 2011-2024, Open source contributors.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met...",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
+		"project_urls": null,
+		"classifiers": ["License :: OSI Approved :: BSD License", "Programming Language :: Python :: 3"]
+	},
+	"releases": {},
+	"urls": []
+}`
+
+// mockLicenseShortResponse has a short license field and no other sources.
+const mockLicenseShortResponse = `{
+	"info": {
+		"name": "httpx",
+		"version": "0.27.0",
+		"summary": "A next-gen HTTP client",
+		"description": "",
+		"description_content_type": "",
+		"license": "Apache-2.0",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
+		"project_urls": null,
+		"classifiers": []
+	},
+	"releases": {},
+	"urls": []
+}`
+
 func setupRouter(h *handler.PackageHandler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/api/packages/{name}", h.Get)
@@ -394,6 +458,58 @@ func TestGetDependencies(t *testing.T) {
 	}
 	if len(socksDeps) != 1 {
 		t.Errorf("expected 1 dep in socks extra, got %d", len(socksDeps))
+	}
+}
+
+func TestPackageGet_NormalizesLicense(t *testing.T) {
+	tests := []struct {
+		name     string
+		mockResp string
+		wantLic  string
+	}{
+		{"license_expression preferred", mockLicenseExpressionResponse, "BSD-3-Clause"},
+		{"classifier fallback for long license", mockLicenseClassifierResponse, "BSD License"},
+		{"short license used as-is", mockLicenseShortResponse, "Apache-2.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(tt.mockResp)) //nolint:errcheck
+			}))
+			defer mock.Close()
+
+			c, err := cache.New(":memory:")
+			if err != nil {
+				t.Fatalf("failed to create cache: %v", err)
+			}
+			defer c.Close()
+
+			client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+			h := handler.NewPackageHandler(client, c)
+			router := setupRouter(h)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/packages/test-pkg", nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+			}
+
+			var resp struct {
+				License string `json:"license"`
+			}
+			if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if resp.License != tt.wantLic {
+				t.Errorf("expected license=%q, got %q", tt.wantLic, resp.License)
+			}
+		})
 	}
 }
 
