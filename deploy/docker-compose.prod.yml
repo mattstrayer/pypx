@@ -45,7 +45,7 @@ services:
   web:
     image: ghcr.io/mattstrayer/pypx/web:latest
     environment:
-      - API_BASE=http://api:8080
+      - NUXT_API_BASE=http://api:8080
       - NUXT_PUBLIC_API_BASE=/api
     expose:
       - "3000"

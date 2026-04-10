@@ -44,9 +44,4 @@ export default defineNuxtConfig({
     },
   },
 
-  routeRules: {
-    '/api/**': {
-      proxy: { to: `${process.env.API_BASE || 'http://localhost:8080'}/**` },
-    },
-  },
 })
