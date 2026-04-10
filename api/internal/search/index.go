@@ -194,6 +194,8 @@ func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
 }
 
 // UpdateDownloadsBatch updates only the downloads column for existing packages.
+// It tries an exact-case match first, then falls back to case-insensitive for
+// packages like "Flask" (PyPI) vs "flask" (top packages dataset).
 func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
 	if len(entries) == 0 {
 		return nil
@@ -205,15 +207,28 @@ func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	stmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE lower(name) = lower(?)`)
+	exactStmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE name = ?`)
 	if err != nil {
 		return fmt.Errorf("search: prepare update downloads: %w", err)
 	}
-	defer stmt.Close()
+	defer exactStmt.Close()
+
+	ciStmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE name = ? COLLATE NOCASE`)
+	if err != nil {
+		return fmt.Errorf("search: prepare update downloads ci: %w", err)
+	}
+	defer ciStmt.Close()
 
 	for _, e := range entries {
-		if _, err := stmt.Exec(e.Downloads, e.Name); err != nil {
+		res, err := exactStmt.Exec(e.Downloads, e.Name)
+		if err != nil {
 			return fmt.Errorf("search: update downloads %q: %w", e.Name, err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			// Exact match missed — try case-insensitive.
+			if _, err := ciStmt.Exec(e.Downloads, e.Name); err != nil {
+				return fmt.Errorf("search: update downloads ci %q: %w", e.Name, err)
+			}
 		}
 	}
 
