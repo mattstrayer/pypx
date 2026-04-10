@@ -19,10 +19,6 @@
         reverse_proxy web:3000
     }
 
-    handle /api/_nuxt_icon/* {
-        reverse_proxy web:3000
-    }
-
     handle /api/* {
         reverse_proxy api:8080
     }

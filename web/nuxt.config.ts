@@ -3,17 +3,24 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   modules: [
-    '@nuxt/ui',
+    '@nuxtjs/color-mode',
     '@vueuse/nuxt',
     '@nuxtjs/mdc',
     '@nuxtjs/seo',
   ],
 
-  css: ['#build/ui.css', '~/assets/css/main.css'],
+  css: ['~/assets/css/main.css'],
 
   colorMode: {
+    classSuffix: '',
     preference: 'dark',
     fallback: 'dark',
+  },
+
+  vite: {
+    plugins: [
+      import('@tailwindcss/vite').then((m) => m.default()),
+    ],
   },
 
   site: {
@@ -40,7 +47,6 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/api/_mdc/**': {},
-    '/api/_nuxt_icon/**': {},
     '/api/**': {
       proxy: { to: `${process.env.API_BASE || 'http://localhost:8080'}/**` },
     },
