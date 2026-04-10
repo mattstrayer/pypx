@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/enrichment"
+	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/pypi"
 )
 
@@ -32,6 +33,7 @@ type PackageResponse struct {
 	Summary        string                       `json:"summary"`
 	Description    string                       `json:"description"`
 	DescType       string                       `json:"description_content_type"`
+	DescriptionHTML string                      `json:"description_html"`
 	License        string                       `json:"license"`
 	Author         string                       `json:"author"`
 	AuthorEmail    string                       `json:"author_email"`
@@ -292,13 +294,19 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 		})
 	}
 
+	var descHTML string
+	if strings.Contains(info.DescriptionType, "text/markdown") {
+		descHTML, _ = markdown.Render(info.Description)
+	}
+
 	return PackageResponse{
-		Name:           info.Name,
-		Version:        info.Version,
-		Summary:        info.Summary,
-		Description:    info.Description,
-		DescType:       info.DescriptionType,
-		License:        info.License,
+		Name:            info.Name,
+		Version:         info.Version,
+		Summary:         info.Summary,
+		Description:     info.Description,
+		DescType:        info.DescriptionType,
+		DescriptionHTML: descHTML,
+		License:         info.License,
 		Author:         info.Author,
 		AuthorEmail:    info.AuthorEmail,
 		HomePage:       info.HomePage,

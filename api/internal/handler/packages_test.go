@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -122,6 +123,27 @@ const mockDepsResponse = `{
 			"urllib3 (>=1.21.1)",
 			"PySocks (>=1.5.6); extra == \"socks\""
 		],
+		"project_urls": null,
+		"classifiers": null
+	},
+	"releases": {},
+	"urls": []
+}`
+
+// mockMarkdownDescriptionResponse returns a PyPI JSON response with a markdown description.
+const mockMarkdownDescriptionResponse = `{
+	"info": {
+		"name": "requests",
+		"version": "2.31.0",
+		"summary": "HTTP for Humans",
+		"description": "# Requests\n\nHTTP for **Humans**.",
+		"description_content_type": "text/markdown",
+		"license": "",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
 		"project_urls": null,
 		"classifiers": null
 	},
@@ -372,5 +394,55 @@ func TestGetDependencies(t *testing.T) {
 	}
 	if len(socksDeps) != 1 {
 		t.Errorf("expected 1 dep in socks extra, got %d", len(socksDeps))
+	}
+}
+
+func TestPackageGet_RendersMarkdownDescription(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockMarkdownDescriptionResponse)) //nolint:errcheck
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := setupRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Description     string `json:"description"`
+		DescriptionHTML string `json:"description_html"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Raw markdown should be preserved.
+	if resp.Description != "# Requests\n\nHTTP for **Humans**." {
+		t.Errorf("expected raw markdown in description, got %q", resp.Description)
+	}
+
+	// HTML should be non-empty.
+	if resp.DescriptionHTML == "" {
+		t.Fatal("expected non-empty description_html")
+	}
+
+	// HTML should contain rendered bold text.
+	if !strings.Contains(resp.DescriptionHTML, "<strong>Humans</strong>") {
+		t.Errorf("expected description_html to contain <strong>Humans</strong>, got %q", resp.DescriptionHTML)
 	}
 }
