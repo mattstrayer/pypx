@@ -46,10 +46,12 @@ func NewIndex(dsn string) (*Index, error) {
 		return nil, fmt.Errorf("search: create meta table: %w", err)
 	}
 
-	// packages_fts is the FTS5 virtual table.  downloads is UNINDEXED so it
-	// is stored but not tokenised; sorting happens via the meta JOIN.
+	// Rebuild the FTS5 table from meta on every startup to clear any dupes
+	// (FTS5 has no unique constraint) and ensure a clean 1:1 mapping.
+	db.Exec(`DROP TABLE IF EXISTS packages_fts`) //nolint:errcheck
+
 	if _, err := db.Exec(`
-		CREATE VIRTUAL TABLE IF NOT EXISTS packages_fts USING fts5(
+		CREATE VIRTUAL TABLE packages_fts USING fts5(
 			name,
 			summary,
 			downloads UNINDEXED,
@@ -58,6 +60,15 @@ func NewIndex(dsn string) (*Index, error) {
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("search: create fts table: %w", err)
+	}
+
+	// Populate FTS from existing meta data (fast local copy, no network).
+	if _, err := db.Exec(`
+		INSERT INTO packages_fts (name, summary, downloads)
+		SELECT name, summary, downloads FROM packages_meta
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("search: populate fts from meta: %w", err)
 	}
 
 	return &Index{db: db}, nil
@@ -69,8 +80,9 @@ func (idx *Index) Upsert(entry PackageEntry) error {
 }
 
 // UpsertBatch inserts new packages into both the meta and FTS tables,
-// skipping any that already exist. This avoids expensive FTS5 delete+reinsert
-// operations on the 781k+ package index.
+// skipping any that already exist. Only inserts into FTS when the meta row
+// is new (FTS5 tables have no unique constraint, so we guard against dupes
+// by checking the meta INSERT result).
 func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	if len(entries) == 0 {
 		return nil
@@ -88,18 +100,22 @@ func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	}
 	defer metaStmt.Close()
 
-	ftsStmt, err := tx.Prepare(`INSERT OR IGNORE INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
+	ftsStmt, err := tx.Prepare(`INSERT INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("search: prepare fts: %w", err)
 	}
 	defer ftsStmt.Close()
 
 	for _, e := range entries {
-		if _, err := metaStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
+		res, err := metaStmt.Exec(e.Name, e.Summary, e.Downloads)
+		if err != nil {
 			return fmt.Errorf("search: upsert meta %q: %w", e.Name, err)
 		}
-		if _, err := ftsStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
-			return fmt.Errorf("search: insert fts %q: %w", e.Name, err)
+		// Only insert into FTS if the meta row was actually inserted (not ignored).
+		if n, _ := res.RowsAffected(); n > 0 {
+			if _, err := ftsStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
+				return fmt.Errorf("search: insert fts %q: %w", e.Name, err)
+			}
 		}
 	}
 
