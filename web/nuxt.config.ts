@@ -9,7 +9,7 @@ export default defineNuxtConfig({
     '@nuxtjs/seo',
   ],
 
-  css: ['~/assets/css/main.css'],
+  css: ['#build/ui.css', '~/assets/css/main.css'],
 
   colorMode: {
     preference: 'dark',
@@ -39,6 +39,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    '/api/_mdc/**': {},
+    '/api/_nuxt_icon/**': {},
     '/api/**': {
       proxy: { to: `${process.env.API_BASE || 'http://localhost:8080'}/**` },
     },
