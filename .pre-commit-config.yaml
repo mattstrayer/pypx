@@ -1,4 +1,20 @@
 repos:
+  - repo: local
+    hooks:
+      - id: oxlint
+        name: oxlint
+        entry: bash -c 'cd web && npx oxlint --config oxlintrc.json app/'
+        language: system
+        files: '^web/app/.*\.(ts|vue|js)$'
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: oxfmt
+        name: oxfmt
+        entry: bash -c 'cd web && npx oxfmt --check app/'
+        language: system
+        files: '^web/app/.*\.(ts|vue|js|css)$'
+        pass_filenames: false
+        stages: [pre-commit]
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:

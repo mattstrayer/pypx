@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicksrandall/oxlint-config/main/oxlintrc.schema.json",
+  "plugins": ["typescript", "import", "unicorn"],
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "warn",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "unicorn/no-null": "off",
+    "typescript/no-explicit-any": "warn"
+  },
+  "ignorePatterns": [".nuxt", ".output", "node_modules", "dist"]
+}

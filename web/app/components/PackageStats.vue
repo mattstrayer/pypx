@@ -1,34 +1,33 @@
 <script setup lang="ts">
-import type { DataPoint } from '~/types/api'
+import type { DataPoint } from "~/types/api";
 
 const props = defineProps<{
-  name: string
-}>()
+  name: string;
+}>();
 
-const { fetchStats } = useApi()
-const { data: stats, status } = await useAsyncData(
-  `stats-${props.name}`,
-  () => fetchStats(props.name),
-)
+const { fetchStats } = useApi();
+const { data: stats, status } = await useAsyncData(`stats-${props.name}`, () =>
+  fetchStats(props.name),
+);
 
 function formatDownloads(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
-  return String(n)
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
 }
 
 function maxDownloads(data: DataPoint[]): number {
-  return Math.max(...data.map(d => d.downloads), 1)
+  return Math.max(...data.map((d) => d.downloads), 1);
 }
 
 function barWidth(downloads: number, max: number): string {
-  return `${(downloads / max) * 100}%`
+  return `${(downloads / max) * 100}%`;
 }
 
-const overallTrend = computed(() => stats.value?.overall?.slice(-12) ?? [])
-const pythonVersions = computed(() => stats.value?.python_versions?.slice(0, 8) ?? [])
-const systems = computed(() => stats.value?.systems ?? [])
+const overallTrend = computed(() => stats.value?.overall?.slice(-12) ?? []);
+const pythonVersions = computed(() => stats.value?.python_versions?.slice(0, 8) ?? []);
+const systems = computed(() => stats.value?.systems ?? []);
 </script>
 
 <template>
@@ -45,11 +44,7 @@ const systems = computed(() => stats.value?.systems ?? [])
           Download Trends
         </h2>
         <div class="space-y-2">
-          <div
-            v-for="point in overallTrend"
-            :key="point.category"
-            class="flex items-center gap-3"
-          >
+          <div v-for="point in overallTrend" :key="point.category" class="flex items-center gap-3">
             <span class="w-20 shrink-0 font-mono text-xs text-zinc-500">{{ point.category }}</span>
             <div class="flex-1">
               <div
@@ -75,7 +70,9 @@ const systems = computed(() => stats.value?.systems ?? [])
             :key="point.category"
             class="flex items-center gap-3"
           >
-            <span class="w-20 shrink-0 font-mono text-xs text-indigo-400">{{ point.category }}</span>
+            <span class="w-20 shrink-0 font-mono text-xs text-indigo-400">{{
+              point.category
+            }}</span>
             <div class="flex-1">
               <div
                 class="h-4 rounded-sm bg-indigo-500/30"
@@ -95,11 +92,7 @@ const systems = computed(() => stats.value?.systems ?? [])
           By Operating System
         </h2>
         <div class="space-y-2">
-          <div
-            v-for="point in systems"
-            :key="point.category"
-            class="flex items-center gap-3"
-          >
+          <div v-for="point in systems" :key="point.category" class="flex items-center gap-3">
             <span class="w-20 shrink-0 font-mono text-xs text-amber-400">{{ point.category }}</span>
             <div class="flex-1">
               <div

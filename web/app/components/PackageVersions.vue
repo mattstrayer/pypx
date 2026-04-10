@@ -1,57 +1,59 @@
 <script setup lang="ts">
-import type { ChangelogEntry } from '~/types/api'
+import type { ChangelogEntry } from "~/types/api";
 
 const props = defineProps<{
-  name: string
-}>()
+  name: string;
+}>();
 
-const { fetchVersions, fetchChangelog } = useApi()
-const { data: versions, status } = await useAsyncData(
-  `versions-${props.name}`,
-  () => fetchVersions(props.name),
-)
+const { fetchVersions, fetchChangelog } = useApi();
+const { data: versions, status } = await useAsyncData(`versions-${props.name}`, () =>
+  fetchVersions(props.name),
+);
 
-const { data: changelog } = await useAsyncData(
-  `changelog-${props.name}`,
-  () => fetchChangelog(props.name),
-)
+const { data: changelog } = await useAsyncData(`changelog-${props.name}`, () =>
+  fetchChangelog(props.name),
+);
 
 const sortedVersions = computed(() => {
-  if (!versions.value) return []
+  if (!versions.value) return [];
   return [...versions.value].sort(
     (a, b) => new Date(b.upload_time).getTime() - new Date(a.upload_time).getTime(),
-  )
-})
+  );
+});
 
 const changelogMap = computed(() => {
-  const map = new Map<string, ChangelogEntry>()
+  const map = new Map<string, ChangelogEntry>();
   if (changelog.value?.entries) {
     for (const entry of changelog.value.entries) {
-      map.set(entry.version, entry)
+      map.set(entry.version, entry);
     }
   }
-  return map
-})
+  return map;
+});
 
-const expandedVersions = ref(new Set<string>())
+const expandedVersions = ref(new Set<string>());
 
 function toggleVersion(version: string) {
-  const next = new Set(expandedVersions.value)
-  if (next.has(version)) next.delete(version)
-  else next.add(version)
-  expandedVersions.value = next
+  const next = new Set(expandedVersions.value);
+  if (next.has(version)) next.delete(version);
+  else next.add(version);
+  expandedVersions.value = next;
 }
 
 function formatSize(bytes: number): string {
-  if (!bytes) return '—'
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${bytes} B`
+  if (!bytes) return "—";
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
 }
 
 function formatDate(iso: string): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 </script>
 
@@ -84,7 +86,8 @@ function formatDate(iso: string): string {
                 <span
                   v-if="changelogMap.has(v.version)"
                   class="text-xs text-zinc-500 select-none"
-                >{{ expandedVersions.has(v.version) ? '▼' : '▶' }}</span>
+                  >{{ expandedVersions.has(v.version) ? "▼" : "▶" }}</span
+                >
                 <NuxtLink
                   :to="`/packages/${name}/${v.version}`"
                   class="font-mono hover:text-indigo-400 text-zinc-200 transition-colors"
@@ -96,7 +99,7 @@ function formatDate(iso: string): string {
             </td>
             <td class="py-3 pr-6 text-zinc-400">{{ formatDate(v.upload_time) }}</td>
             <td class="py-3 pr-6 font-mono text-emerald-400">{{ formatSize(v.install_size) }}</td>
-            <td class="py-3 font-mono text-xs text-zinc-500">{{ v.module_format || '—' }}</td>
+            <td class="py-3 font-mono text-xs text-zinc-500">{{ v.module_format || "—" }}</td>
           </tr>
           <tr v-if="expandedVersions.has(v.version) && changelogMap.has(v.version)">
             <td colspan="4" class="pb-4 pt-1">
@@ -115,7 +118,8 @@ function formatDate(iso: string): string {
                   :href="entry.url"
                   target="_blank"
                   class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                >View on GitHub →</a>
+                  >View on GitHub →</a
+                >
               </div>
             </td>
           </tr>

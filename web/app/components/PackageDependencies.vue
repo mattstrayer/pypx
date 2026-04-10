@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import type { DependencyTree } from '~/types/api'
+import type { DependencyTree } from "~/types/api";
 
 const props = defineProps<{
-  name: string
-  dependencies: DependencyTree
-}>()
+  name: string;
+  dependencies: DependencyTree;
+}>();
 
-const activeExtra = ref<string | null>(null)
+const activeExtra = ref<string | null>(null);
 
-const extraNames = computed(() => Object.keys(props.dependencies.extras))
+const extraNames = computed(() => Object.keys(props.dependencies.extras));
 
 function toggleExtra(extra: string) {
-  activeExtra.value = activeExtra.value === extra ? null : extra
+  activeExtra.value = activeExtra.value === extra ? null : extra;
 }
 </script>
 
@@ -42,17 +42,17 @@ function toggleExtra(extra: string) {
 
     <!-- Extras -->
     <div v-if="extraNames.length">
-      <h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-500">
-        Extras
-      </h2>
+      <h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-500">Extras</h2>
       <div class="mb-3 flex flex-wrap gap-2">
         <button
           v-for="extra in extraNames"
           :key="extra"
           class="rounded px-3 py-1 font-mono text-xs transition-colors"
-          :class="activeExtra === extra
-            ? 'bg-indigo-500/20 text-indigo-400'
-            : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'"
+          :class="
+            activeExtra === extra
+              ? 'bg-indigo-500/20 text-indigo-400'
+              : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+          "
           @click="toggleExtra(extra)"
         >
           {{ extra }}

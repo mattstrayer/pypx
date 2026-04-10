@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import type { PackageData } from '~/types/api'
+import type { PackageData } from "~/types/api";
 
 const props = defineProps<{
-  pkg: PackageData
-}>()
+  pkg: PackageData;
+}>();
 
-const maintainer = computed(() =>
-  props.pkg.author || props.pkg.author_email || null
-)
+const maintainer = computed(() => props.pkg.author || props.pkg.author_email || null);
 
 const projectLinks = computed(() => {
-  const urls = props.pkg.project_urls
-  if (!urls) return []
-  return Object.entries(urls).map(([label, url]) => ({ label, url }))
-})
+  const urls = props.pkg.project_urls;
+  if (!urls) return [];
+  return Object.entries(urls).map(([label, url]) => ({ label, url }));
+});
 </script>
 
 <template>
@@ -24,14 +22,15 @@ const projectLinks = computed(() => {
       <InstallCommand :package-name="pkg.name" />
 
       <!-- Description -->
-      <div
-        v-if="pkg.description"
-        class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
-      >
+      <div v-if="pkg.description" class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
         <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Description
         </h2>
-        <div v-if="pkg.description_html" class="prose prose-invert prose-sm max-w-none" v-html="pkg.description_html" />
+        <div
+          v-if="pkg.description_html"
+          class="prose prose-invert prose-sm max-w-none"
+          v-html="pkg.description_html"
+        />
         <div v-else class="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
           {{ pkg.description }}
         </div>
@@ -42,9 +41,7 @@ const projectLinks = computed(() => {
     <div class="space-y-4">
       <!-- Metadata card -->
       <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Details
-        </h2>
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Details</h2>
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between gap-2">
             <dt class="text-zinc-500">Version</dt>
@@ -66,10 +63,11 @@ const projectLinks = computed(() => {
       </div>
 
       <!-- Project links card -->
-      <div v-if="projectLinks.length > 0" class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Links
-        </h2>
+      <div
+        v-if="projectLinks.length > 0"
+        class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
+      >
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Links</h2>
         <ul class="space-y-1.5 text-sm">
           <li v-for="link in projectLinks" :key="link.label">
             <a
@@ -78,7 +76,16 @@ const projectLinks = computed(() => {
               rel="noopener noreferrer"
               class="flex items-center gap-1.5 text-zinc-400 transition-colors hover:text-zinc-200"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3.5 w-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                 <polyline points="15 3 21 3 21 9" />
                 <line x1="10" y1="14" x2="21" y2="3" />

@@ -1,27 +1,26 @@
 <script setup lang="ts">
-const route = useRoute()
-const name = computed(() => route.params.name as string)
-const activeTab = ref('overview')
+const route = useRoute();
+const name = computed(() => route.params.name as string);
+const activeTab = ref("overview");
 
-const { fetchPackage } = useApi()
-const { data: pkg, status } = await useAsyncData(
-  `package-${name.value}`,
-  () => fetchPackage(name.value),
-)
+const { fetchPackage } = useApi();
+const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
+  fetchPackage(name.value),
+);
 
 const tabs = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'dependencies', label: 'Dependencies' },
-  { key: 'versions', label: 'Versions' },
-  { key: 'stats', label: 'Stats' },
-]
+  { key: "overview", label: "Overview" },
+  { key: "dependencies", label: "Dependencies" },
+  { key: "versions", label: "Versions" },
+  { key: "stats", label: "Stats" },
+];
 
 useSeoMeta({
-  title: () => pkg.value ? `${pkg.value.name} — pypx` : 'Loading — pypx',
-  description: () => pkg.value?.summary || '',
-  ogTitle: () => pkg.value ? `${pkg.value.name} ${pkg.value.version}` : 'pypx',
-  ogDescription: () => pkg.value?.summary || '',
-})
+  title: () => (pkg.value ? `${pkg.value.name} — pypx` : "Loading — pypx"),
+  description: () => pkg.value?.summary || "",
+  ogTitle: () => (pkg.value ? `${pkg.value.name} ${pkg.value.version}` : "pypx"),
+  ogDescription: () => pkg.value?.summary || "",
+});
 </script>
 
 <template>
@@ -59,9 +58,9 @@ useSeoMeta({
           v-for="tab in tabs"
           :key="tab.key"
           class="rounded-t px-4 py-2 text-sm font-medium transition-colors"
-          :class="activeTab === tab.key
-            ? 'bg-zinc-800 text-zinc-50'
-            : 'text-zinc-500 hover:text-zinc-300'"
+          :class="
+            activeTab === tab.key ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'
+          "
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
