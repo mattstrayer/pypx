@@ -98,12 +98,17 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans
 
-            # Wait for health checks
-            sleep 10
-
-            # Verify API is responding
-            curl -sf http://localhost:80/api/health > /dev/null
-            echo "Deploy successful"
+            # Wait for services to become healthy
+            echo "Waiting for health check..."
+            for i in $(seq 1 30); do
+              if curl -sfk https://localhost/api/health > /dev/null 2>&1; then
+                echo "Deploy successful"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "Health check failed after 60s"
+            exit 1
           DEPLOY
 
       - name: Tag and release
