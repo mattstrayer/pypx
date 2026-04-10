@@ -1,0 +1,84 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    "docker:enableMajor",
+    ":separateMajorReleases"
+  ],
+  "labels": ["dependencies"],
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Group Nuxt ecosystem updates",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "nuxt",
+        "@nuxt/**",
+        "@nuxtjs/**"
+      ],
+      "groupName": "nuxt ecosystem"
+    },
+    {
+      "description": "Group Vue ecosystem updates",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "vue",
+        "vue-router",
+        "@vue/**",
+        "@vueuse/**"
+      ],
+      "groupName": "vue ecosystem"
+    },
+    {
+      "description": "Group test tooling updates",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "vitest",
+        "happy-dom",
+        "@vue/test-utils",
+        "@nuxt/test-utils"
+      ],
+      "groupName": "test tooling"
+    },
+    {
+      "description": "Group Go dependencies",
+      "matchManagers": ["gomod"],
+      "groupName": "go dependencies",
+      "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "description": "Group Docker-related updates",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "docker"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Automerge non-major updates for test tooling",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "vitest",
+        "happy-dom",
+        "@vue/test-utils",
+        "@nuxt/test-utils"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge patch-level Go dependency updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge GitHub Actions minor/patch updates",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}
