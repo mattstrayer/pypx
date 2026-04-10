@@ -68,7 +68,9 @@ func (idx *Index) Upsert(entry PackageEntry) error {
 	return idx.UpsertBatch([]PackageEntry{entry})
 }
 
-// UpsertBatch inserts or replaces multiple packages in a single transaction.
+// UpsertBatch inserts new packages into both the meta and FTS tables,
+// skipping any that already exist. This avoids expensive FTS5 delete+reinsert
+// operations on the 781k+ package index.
 func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	if len(entries) == 0 {
 		return nil
@@ -80,19 +82,13 @@ func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	metaStmt, err := tx.Prepare(`INSERT OR REPLACE INTO packages_meta (name, summary, downloads) VALUES (?, ?, ?)`)
+	metaStmt, err := tx.Prepare(`INSERT OR IGNORE INTO packages_meta (name, summary, downloads) VALUES (?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("search: prepare meta: %w", err)
 	}
 	defer metaStmt.Close()
 
-	delStmt, err := tx.Prepare(`DELETE FROM packages_fts WHERE name = ?`)
-	if err != nil {
-		return fmt.Errorf("search: prepare del: %w", err)
-	}
-	defer delStmt.Close()
-
-	ftsStmt, err := tx.Prepare(`INSERT INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
+	ftsStmt, err := tx.Prepare(`INSERT OR IGNORE INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("search: prepare fts: %w", err)
 	}
@@ -101,9 +97,6 @@ func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	for _, e := range entries {
 		if _, err := metaStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
 			return fmt.Errorf("search: upsert meta %q: %w", e.Name, err)
-		}
-		if _, err := delStmt.Exec(e.Name); err != nil {
-			return fmt.Errorf("search: delete fts %q: %w", e.Name, err)
 		}
 		if _, err := ftsStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
 			return fmt.Errorf("search: insert fts %q: %w", e.Name, err)
