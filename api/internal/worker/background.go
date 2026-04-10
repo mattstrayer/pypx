@@ -15,8 +15,9 @@ import (
 
 // Config holds configuration for the background worker.
 type Config struct {
-	SimpleAPIURL   string
-	IndexSyncEvery time.Duration
+	SimpleAPIURL      string
+	TopPackagesURL    string
+	IndexSyncEvery    time.Duration
 }
 
 // Worker periodically syncs the PyPI Simple API index into the search index.
@@ -32,6 +33,9 @@ type Worker struct {
 func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config) *Worker {
 	if cfg.SimpleAPIURL == "" {
 		cfg.SimpleAPIURL = "https://pypi.org/simple/"
+	}
+	if cfg.TopPackagesURL == "" {
+		cfg.TopPackagesURL = "https://hugovk.dev/top-pypi-packages/top-pypi-packages-30-days.min.json"
 	}
 	if cfg.IndexSyncEvery == 0 {
 		cfg.IndexSyncEvery = 6 * time.Hour
@@ -108,17 +112,15 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	return nil
 }
 
-const topPackagesURL = "https://hugovk.dev/top-pypi-packages/top-pypi-packages-30-days.min.json"
-
 // SyncDownloads fetches the top PyPI packages dataset and enriches the search
 // index with 30-day download counts so results rank by popularity.
 func (w *Worker) SyncDownloads(ctx context.Context) error {
-	log.Printf("worker: starting downloads sync from %s", topPackagesURL)
+	log.Printf("worker: starting downloads sync from %s", w.config.TopPackagesURL)
 
 	dlCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, topPackagesURL, nil)
+	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, w.config.TopPackagesURL, nil)
 	if err != nil {
 		return fmt.Errorf("worker: build downloads request: %w", err)
 	}

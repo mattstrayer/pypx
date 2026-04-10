@@ -254,6 +254,61 @@ func TestUpsertBatch_NoDuplicates(t *testing.T) {
 	}
 }
 
+// TestNewIndex_RebuildsFTSFromMeta verifies that opening an index with
+// existing meta data rebuilds the FTS table correctly, preserving
+// download counts and deduplicating any stale FTS rows.
+func TestNewIndex_RebuildsFTSFromMeta(t *testing.T) {
+	// Use a temp file so we can close and reopen the index.
+	tmpFile := t.TempDir() + "/test.db"
+
+	// First: create index, insert data, update downloads.
+	idx1, err := NewIndex(tmpFile)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "flask", Summary: "A web framework", Downloads: 0},
+		{Name: "django", Summary: "The web framework", Downloads: 0},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx1.UpdateDownloadsBatch([]PackageEntry{
+		{Name: "flask", Downloads: 220_000_000},
+		{Name: "django", Downloads: 100_000_000},
+	}); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+	idx1.Close()
+
+	// Second: reopen the index (triggers FTS rebuild from meta).
+	idx2, err := NewIndex(tmpFile)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	// Search should still work and downloads should be preserved.
+	results, err := idx2.Search("flask", 1)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("no results after FTS rebuild")
+	}
+	if results[0].Name != "flask" {
+		t.Errorf("expected 'flask', got %q", results[0].Name)
+	}
+	if results[0].Downloads != 220_000_000 {
+		t.Errorf("expected downloads=220000000 after rebuild, got %d", results[0].Downloads)
+	}
+
+	// No duplicates after rebuild.
+	results, _ = idx2.Search("django", 10)
+	if len(results) != 1 {
+		t.Errorf("expected 1 result for django after rebuild, got %d", len(results))
+	}
+}
+
 // TestSearchEmpty verifies that searching on an empty index returns zero
 // results without an error.
 func TestSearchEmpty(t *testing.T) {
