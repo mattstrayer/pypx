@@ -101,7 +101,7 @@ jobs:
             # Wait for services to become healthy
             echo "Waiting for health check..."
             for i in $(seq 1 30); do
-              if curl -sfk https://localhost/api/health > /dev/null 2>&1; then
+              if docker compose exec -T api wget -q --spider http://localhost:8080/api/health 2>/dev/null; then
                 echo "Deploy successful"
                 exit 0
               fi
