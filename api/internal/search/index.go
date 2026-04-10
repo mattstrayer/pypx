@@ -189,7 +189,7 @@ func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	stmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE name = ?`)
+	stmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE lower(name) = lower(?)`)
 	if err != nil {
 		return fmt.Errorf("search: prepare update downloads: %w", err)
 	}
