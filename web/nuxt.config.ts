@@ -3,18 +3,11 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   modules: [
-    '@nuxtjs/color-mode',
     '@vueuse/nuxt',
     '@nuxtjs/seo',
   ],
 
   css: ['~/assets/css/main.css'],
-
-  colorMode: {
-    classSuffix: '',
-    preference: 'dark',
-    fallback: 'dark',
-  },
 
   vite: {
     plugins: [
