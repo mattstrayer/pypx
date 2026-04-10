@@ -94,9 +94,9 @@ jobs:
             set -euo pipefail
             cd /opt/pypx
 
-            # Pull latest images and restart
+            # Pull latest images and recreate all services (including Caddy)
             docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose up -d --remove-orphans --force-recreate
 
             # Wait for services to become healthy
             echo "Waiting for health check..."
@@ -108,6 +108,7 @@ jobs:
               sleep 2
             done
             echo "Health check failed after 60s"
+            docker compose logs --tail=20
             exit 1
           DEPLOY
 
