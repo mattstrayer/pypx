@@ -1,13 +1,11 @@
 package worker
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/pypx/api/internal/cache"
@@ -29,8 +27,6 @@ type Worker struct {
 	config Config
 }
 
-var packageNameRe = regexp.MustCompile(`href="/simple/([^/]+)/"`)
-
 // New creates a new Worker. Zero-value Config fields are filled with defaults:
 // SimpleAPIURL defaults to "https://pypi.org/simple/", IndexSyncEvery defaults to 6h.
 func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config) *Worker {
@@ -48,15 +44,20 @@ func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config)
 	}
 }
 
-// SyncIndex fetches the PyPI Simple API index and upserts all package names
-// into the search index with empty summary and zero downloads.
+// SyncIndex fetches the PyPI Simple API index (JSON format) and upserts all
+// package names into the search index with empty summary and zero downloads.
 func (w *Worker) SyncIndex(ctx context.Context) error {
+	log.Printf("worker: starting index sync from %s", w.config.SimpleAPIURL)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, w.config.SimpleAPIURL, nil)
 	if err != nil {
 		return fmt.Errorf("worker: build request: %w", err)
 	}
+	// Request JSON format — much faster to parse than the 100MB+ HTML page.
+	req.Header.Set("Accept", "application/vnd.pypi.simple.v1+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch simple index: %w", err)
 	}
@@ -66,36 +67,32 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 		return fmt.Errorf("worker: simple index returned status %d", resp.StatusCode)
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	// The PyPI Simple index can have very long lines; use a 1 MiB buffer so
-	// we don't hit the default 64 KiB limit while still keeping per-line
-	// memory usage constant (as opposed to io.ReadAll on the 100 MB+ body).
-	scanner.Buffer(make([]byte, 1<<20), 1<<20)
+	var index struct {
+		Projects []struct {
+			Name string `json:"name"`
+		} `json:"projects"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
+		return fmt.Errorf("worker: decode simple index: %w", err)
+	}
 
 	const batchSize = 5000
 	batch := make([]search.PackageEntry, 0, batchSize)
 	count := 0
 
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("worker: context cancelled after %d packages: %w", count, err)
-		}
-		line := scanner.Bytes()
-		matches := packageNameRe.FindAllSubmatch(line, -1)
-		for _, m := range matches {
-			batch = append(batch, search.PackageEntry{
-				Name:      string(m[1]),
-				Summary:   "",
-				Downloads: 0,
-			})
-			if len(batch) >= batchSize {
-				if err := w.index.UpsertBatch(batch); err != nil {
-					log.Printf("worker: batch upsert failed at %d: %v", count, err)
-				} else {
-					count += len(batch)
-				}
-				batch = batch[:0]
+	for _, p := range index.Projects {
+		batch = append(batch, search.PackageEntry{
+			Name:      p.Name,
+			Summary:   "",
+			Downloads: 0,
+		})
+		if len(batch) >= batchSize {
+			if err := w.index.UpsertBatch(batch); err != nil {
+				log.Printf("worker: batch upsert failed at %d: %v", count, err)
+			} else {
+				count += len(batch)
 			}
+			batch = batch[:0]
 		}
 	}
 	// Flush remaining.
@@ -105,10 +102,6 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 		} else {
 			count += len(batch)
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("worker: reading response body: %w", err)
 	}
 
 	log.Printf("worker: index sync complete, upserted %d packages", count)

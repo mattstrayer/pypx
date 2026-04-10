@@ -17,9 +17,9 @@ func TestSimpleIndexSync(t *testing.T) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/simple/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "application/vnd.pypi.simple.v1+json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<a href="/simple/requests/">requests</a><a href="/simple/flask/">flask</a>`))
+		_, _ = w.Write([]byte(`{"projects":[{"name":"requests"},{"name":"flask"}]}`))
 	})
 
 	srv := httptest.NewServer(mux)
@@ -77,9 +77,9 @@ func TestSyncDownloads(t *testing.T) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/simple/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "application/vnd.pypi.simple.v1+json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<a href="/simple/flask/">flask</a><a href="/simple/django/">django</a><a href="/simple/obscure-pkg/">obscure-pkg</a>`))
+		_, _ = w.Write([]byte(`{"projects":[{"name":"flask"},{"name":"django"},{"name":"obscure-pkg"}]}`))
 	})
 
 	mux.HandleFunc("/top-packages.json", func(w http.ResponseWriter, r *http.Request) {
