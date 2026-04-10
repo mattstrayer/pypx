@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -170,5 +171,68 @@ func TestGetChangelogNoGitHub(t *testing.T) {
 
 	if len(body.Entries) != 0 {
 		t.Errorf("expected 0 entries, got %d", len(body.Entries))
+	}
+}
+
+func TestChangelogGet_RendersBodyHTML(t *testing.T) {
+	// Mock PyPI server returning a package with a GitHub URL.
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockRequestsWithGitHub)) //nolint:errcheck
+	}))
+	defer pypiSrv.Close()
+
+	// Mock GitHub server returning a release with markdown body.
+	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[{
+			"tag_name": "v2.31.0",
+			"name": "v2.31.0",
+			"body": "## What's Changed\n\n- Fixed **bug** in auth",
+			"published_at": "2023-05-22T15:12:01Z",
+			"html_url": "https://github.com/psf/requests/releases/tag/v2.31.0"
+		}]`)) //nolint:errcheck
+	}))
+	defer ghSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+	mc := cache.NewMemoryCache(c, 100)
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
+	changelogHandler := handler.NewChangelogHandler(ghClient, mc, pkgHandler)
+
+	router := setupChangelogRouter(changelogHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/changelog", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var body handler.ChangelogResponse
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(body.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(body.Entries))
+	}
+
+	entry := body.Entries[0]
+	if entry.BodyHTML == "" {
+		t.Fatal("expected body_html to be non-empty")
+	}
+	if !strings.Contains(entry.BodyHTML, "<strong>bug</strong>") {
+		t.Errorf("expected body_html to contain <strong>bug</strong>, got %q", entry.BodyHTML)
 	}
 }

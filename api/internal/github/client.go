@@ -85,6 +85,7 @@ type Release struct {
 	TagName     string `json:"tag_name"`
 	Title       string `json:"title"`
 	Body        string `json:"body"`
+	BodyHTML    string `json:"body_html"`
 	PublishedAt string `json:"published_at"`
 	URL         string `json:"url"`
 }

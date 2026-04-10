@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	gh "github.com/pypx/api/internal/github"
+	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/pypi"
 )
 
@@ -79,6 +80,13 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "failed to fetch releases", http.StatusBadGateway)
 			return
+		}
+
+		// Render markdown bodies to HTML.
+		for i := range releases {
+			if releases[i].Body != "" {
+				releases[i].BodyHTML, _ = markdown.Render(releases[i].Body)
+			}
 		}
 	}
 
