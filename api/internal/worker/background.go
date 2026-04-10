@@ -120,12 +120,18 @@ const topPackagesURL = "https://hugovk.dev/top-pypi-packages/top-pypi-packages-3
 // SyncDownloads fetches the top PyPI packages dataset and enriches the search
 // index with 30-day download counts so results rank by popularity.
 func (w *Worker) SyncDownloads(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, topPackagesURL, nil)
+	log.Printf("worker: starting downloads sync from %s", topPackagesURL)
+
+	dlCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, topPackagesURL, nil)
 	if err != nil {
 		return fmt.Errorf("worker: build downloads request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 2 * time.Minute}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch top packages: %w", err)
 	}
@@ -182,6 +188,7 @@ func (w *Worker) Start(ctx context.Context) {
 		if err := w.SyncIndex(ctx); err != nil {
 			log.Printf("worker: initial sync error: %v", err)
 		}
+		// Run downloads sync after name sync so the meta rows exist.
 		if err := w.SyncDownloads(ctx); err != nil {
 			log.Printf("worker: initial downloads sync error: %v", err)
 		}
