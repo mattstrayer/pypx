@@ -65,29 +65,49 @@ func NewIndex(dsn string) (*Index, error) {
 
 // Upsert inserts or replaces a package in both the meta and FTS tables.
 func (idx *Index) Upsert(entry PackageEntry) error {
+	return idx.UpsertBatch([]PackageEntry{entry})
+}
+
+// UpsertBatch inserts or replaces multiple packages in a single transaction.
+func (idx *Index) UpsertBatch(entries []PackageEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
 	tx, err := idx.db.Begin()
 	if err != nil {
 		return fmt.Errorf("search: begin tx: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.Exec(`
-		INSERT OR REPLACE INTO packages_meta (name, summary, downloads)
-		VALUES (?, ?, ?)
-	`, entry.Name, entry.Summary, entry.Downloads); err != nil {
-		return fmt.Errorf("search: upsert meta: %w", err)
+	metaStmt, err := tx.Prepare(`INSERT OR REPLACE INTO packages_meta (name, summary, downloads) VALUES (?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("search: prepare meta: %w", err)
 	}
+	defer metaStmt.Close()
 
-	// Remove old FTS row (if any) then insert fresh to avoid duplicates.
-	if _, err := tx.Exec(`DELETE FROM packages_fts WHERE name = ?`, entry.Name); err != nil {
-		return fmt.Errorf("search: delete fts: %w", err)
+	delStmt, err := tx.Prepare(`DELETE FROM packages_fts WHERE name = ?`)
+	if err != nil {
+		return fmt.Errorf("search: prepare del: %w", err)
 	}
+	defer delStmt.Close()
 
-	if _, err := tx.Exec(`
-		INSERT INTO packages_fts (name, summary, downloads)
-		VALUES (?, ?, ?)
-	`, entry.Name, entry.Summary, entry.Downloads); err != nil {
-		return fmt.Errorf("search: insert fts: %w", err)
+	ftsStmt, err := tx.Prepare(`INSERT INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("search: prepare fts: %w", err)
+	}
+	defer ftsStmt.Close()
+
+	for _, e := range entries {
+		if _, err := metaStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
+			return fmt.Errorf("search: upsert meta %q: %w", e.Name, err)
+		}
+		if _, err := delStmt.Exec(e.Name); err != nil {
+			return fmt.Errorf("search: delete fts %q: %w", e.Name, err)
+		}
+		if _, err := ftsStmt.Exec(e.Name, e.Summary, e.Downloads); err != nil {
+			return fmt.Errorf("search: insert fts %q: %w", e.Name, err)
+		}
 	}
 
 	return tx.Commit()

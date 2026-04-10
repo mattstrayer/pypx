@@ -70,7 +70,11 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	// we don't hit the default 64 KiB limit while still keeping per-line
 	// memory usage constant (as opposed to io.ReadAll on the 100 MB+ body).
 	scanner.Buffer(make([]byte, 1<<20), 1<<20)
+
+	const batchSize = 5000
+	batch := make([]search.PackageEntry, 0, batchSize)
 	count := 0
+
 	for scanner.Scan() {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("worker: context cancelled after %d packages: %w", count, err)
@@ -78,18 +82,30 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 		line := scanner.Bytes()
 		matches := packageNameRe.FindAllSubmatch(line, -1)
 		for _, m := range matches {
-			name := string(m[1])
-			if err := w.index.Upsert(search.PackageEntry{
-				Name:      name,
+			batch = append(batch, search.PackageEntry{
+				Name:      string(m[1]),
 				Summary:   "",
 				Downloads: 0,
-			}); err != nil {
-				log.Printf("worker: upsert %q failed: %v", name, err)
-			} else {
-				count++
+			})
+			if len(batch) >= batchSize {
+				if err := w.index.UpsertBatch(batch); err != nil {
+					log.Printf("worker: batch upsert failed at %d: %v", count, err)
+				} else {
+					count += len(batch)
+				}
+				batch = batch[:0]
 			}
 		}
 	}
+	// Flush remaining.
+	if len(batch) > 0 {
+		if err := w.index.UpsertBatch(batch); err != nil {
+			log.Printf("worker: final batch upsert failed: %v", err)
+		} else {
+			count += len(batch)
+		}
+	}
+
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("worker: reading response body: %w", err)
 	}
