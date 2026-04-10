@@ -3,6 +3,7 @@ package worker
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -114,12 +115,75 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	return nil
 }
 
+const topPackagesURL = "https://hugovk.dev/top-pypi-packages/top-pypi-packages-30-days.min.json"
+
+// SyncDownloads fetches the top PyPI packages dataset and enriches the search
+// index with 30-day download counts so results rank by popularity.
+func (w *Worker) SyncDownloads(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, topPackagesURL, nil)
+	if err != nil {
+		return fmt.Errorf("worker: build downloads request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("worker: fetch top packages: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("worker: top packages returned status %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Rows []struct {
+			Project       string `json:"project"`
+			DownloadCount int64  `json:"download_count"`
+		} `json:"rows"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return fmt.Errorf("worker: decode top packages: %w", err)
+	}
+
+	const batchSize = 5000
+	batch := make([]search.PackageEntry, 0, batchSize)
+	count := 0
+
+	for _, row := range data.Rows {
+		batch = append(batch, search.PackageEntry{
+			Name:      row.Project,
+			Downloads: row.DownloadCount,
+		})
+		if len(batch) >= batchSize {
+			if err := w.index.UpdateDownloadsBatch(batch); err != nil {
+				log.Printf("worker: downloads batch update failed at %d: %v", count, err)
+			} else {
+				count += len(batch)
+			}
+			batch = batch[:0]
+		}
+	}
+	if len(batch) > 0 {
+		if err := w.index.UpdateDownloadsBatch(batch); err != nil {
+			log.Printf("worker: downloads final batch failed: %v", err)
+		} else {
+			count += len(batch)
+		}
+	}
+
+	log.Printf("worker: downloads sync complete, updated %d packages", count)
+	return nil
+}
+
 // Start launches an initial SyncIndex in a goroutine and then re-syncs on
 // every IndexSyncEvery tick. It returns immediately; use the context to stop.
 func (w *Worker) Start(ctx context.Context) {
 	go func() {
 		if err := w.SyncIndex(ctx); err != nil {
 			log.Printf("worker: initial sync error: %v", err)
+		}
+		if err := w.SyncDownloads(ctx); err != nil {
+			log.Printf("worker: initial downloads sync error: %v", err)
 		}
 	}()
 
@@ -133,6 +197,9 @@ func (w *Worker) Start(ctx context.Context) {
 			case <-ticker.C:
 				if err := w.SyncIndex(ctx); err != nil {
 					log.Printf("worker: periodic sync error: %v", err)
+				}
+				if err := w.SyncDownloads(ctx); err != nil {
+					log.Printf("worker: periodic downloads sync error: %v", err)
 				}
 			}
 		}

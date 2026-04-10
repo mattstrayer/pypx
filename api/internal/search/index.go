@@ -184,6 +184,33 @@ func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
 	return results, nil
 }
 
+// UpdateDownloadsBatch updates only the downloads column for existing packages.
+func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	tx, err := idx.db.Begin()
+	if err != nil {
+		return fmt.Errorf("search: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	stmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE name = ?`)
+	if err != nil {
+		return fmt.Errorf("search: prepare update downloads: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, e := range entries {
+		if _, err := stmt.Exec(e.Downloads, e.Name); err != nil {
+			return fmt.Errorf("search: update downloads %q: %w", e.Name, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 // Close releases the underlying database connection.
 func (idx *Index) Close() error {
 	return idx.db.Close()

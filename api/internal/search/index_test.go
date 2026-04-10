@@ -141,6 +141,50 @@ func TestSearchInjection(t *testing.T) {
 	}
 }
 
+// TestUpdateDownloadsBatch verifies that downloads can be updated without
+// overwriting name/summary, and that search results re-rank accordingly.
+func TestUpdateDownloadsBatch(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	// Insert with zero downloads.
+	packages := []PackageEntry{
+		{Name: "flask", Summary: "A micro web framework", Downloads: 0},
+		{Name: "flask-cors", Summary: "CORS for Flask", Downloads: 0},
+		{Name: "flask-login", Summary: "User sessions for Flask", Downloads: 0},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	// Update downloads: flask-cors gets the most.
+	updates := []PackageEntry{
+		{Name: "flask", Downloads: 1_000_000},
+		{Name: "flask-cors", Downloads: 5_000_000},
+	}
+	if err := idx.UpdateDownloadsBatch(updates); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	results, err := idx.Search("flask", 10)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+
+	// "flask" should still be first (exact match), then flask-cors (5M), then flask-login (0).
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	if results[0].Name != "flask" {
+		t.Errorf("expected first result 'flask' (exact match), got %q", results[0].Name)
+	}
+	if results[1].Name != "flask-cors" {
+		t.Errorf("expected second result 'flask-cors' (5M downloads), got %q", results[1].Name)
+	}
+	if results[1].Summary != "CORS for Flask" {
+		t.Errorf("expected summary preserved after download update, got %q", results[1].Summary)
+	}
+}
+
 // TestSearchEmpty verifies that searching on an empty index returns zero
 // results without an error.
 func TestSearchEmpty(t *testing.T) {
