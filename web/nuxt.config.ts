@@ -5,7 +5,6 @@ export default defineNuxtConfig({
   modules: [
     '@nuxtjs/color-mode',
     '@vueuse/nuxt',
-    '@nuxtjs/mdc',
     '@nuxtjs/seo',
   ],
 
@@ -46,7 +45,6 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/api/_mdc/**': {},
     '/api/**': {
       proxy: { to: `${process.env.API_BASE || 'http://localhost:8080'}/**` },
     },

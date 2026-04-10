@@ -127,7 +127,8 @@ useSeoMeta({
           >GitHub Release ↗</a>
         </div>
         <div class="prose prose-invert prose-sm max-w-none">
-          <MDC :value="changelogEntry.body" />
+          <div v-if="changelogEntry.body_html" v-html="changelogEntry.body_html" />
+          <div v-else class="whitespace-pre-wrap">{{ changelogEntry.body }}</div>
         </div>
       </div>
     </div>

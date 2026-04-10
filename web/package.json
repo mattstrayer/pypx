@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@nuxtjs/color-mode": "^4.0.0",
-    "@nuxtjs/mdc": "^0.21.1",
     "@nuxtjs/seo": "^5.1.2",
     "@tailwindcss/vite": "^4.2.2",
     "@vueuse/nuxt": "^14.2.1",

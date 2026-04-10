@@ -4,6 +4,7 @@ export interface PackageData {
   summary: string
   description: string
   description_content_type: string
+  description_html: string
   license: string
   author: string
   author_email: string
@@ -73,6 +74,7 @@ export interface ChangelogEntry {
   tag_name: string
   title: string
   body: string
+  body_html: string
   published_at: string
   url: string
 }

@@ -108,7 +108,8 @@ function formatDate(iso: string): string {
                 <h4 class="text-sm font-semibold text-zinc-200 mb-1">{{ entry.title }}</h4>
                 <p class="text-xs text-zinc-500 mb-3">{{ formatDate(entry.published_at) }}</p>
                 <div class="prose prose-invert prose-sm max-w-none mb-3">
-                  <MDC :value="entry.body" />
+                  <div v-if="entry.body_html" v-html="entry.body_html" />
+                  <div v-else class="whitespace-pre-wrap">{{ entry.body }}</div>
                 </div>
                 <a
                   :href="entry.url"

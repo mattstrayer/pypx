@@ -15,10 +15,6 @@
         -Server
     }
 
-    handle /api/_mdc/* {
-        reverse_proxy web:3000
-    }
-
     handle /api/* {
         reverse_proxy api:8080
     }
