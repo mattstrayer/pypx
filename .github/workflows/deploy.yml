@@ -111,23 +111,20 @@ jobs:
             exit 1
           DEPLOY
 
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
       - name: Tag and release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v${{ steps.version.outputs.version }}"
-          PREV="${{ steps.version.outputs.prev }}"
 
           git tag "$VERSION"
           git push origin "$VERSION"
 
-          if [ "$PREV" != "v0.0.0" ]; then
-            CHANGES=$(git log --pretty=format:"- %s" "$PREV"..HEAD)
-          else
-            CHANGES=$(git log --pretty=format:"- %s")
-          fi
+          NOTES=$(git-cliff --latest --strip header)
 
           gh release create "$VERSION" \
             --title "$VERSION" \
-            --notes "## What's Changed
-          $CHANGES"
+            --notes "$NOTES"
