@@ -185,6 +185,75 @@ func TestUpdateDownloadsBatch(t *testing.T) {
 	}
 }
 
+// TestUpdateDownloadsBatch_CaseInsensitive verifies that download updates
+// match packages regardless of casing (e.g. PyPI has "Flask" but the top
+// packages dataset has "flask").
+func TestUpdateDownloadsBatch_CaseInsensitive(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	// Insert with mixed case (as PyPI Simple API returns).
+	packages := []PackageEntry{
+		{Name: "Flask", Summary: "A micro web framework", Downloads: 0},
+		{Name: "Jinja2", Summary: "A template engine", Downloads: 0},
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 0},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	// Update with lowercase names (as top packages dataset returns).
+	updates := []PackageEntry{
+		{Name: "flask", Downloads: 220_000_000},
+		{Name: "jinja2", Downloads: 300_000_000},
+		{Name: "requests", Downloads: 500_000_000}, // exact match
+	}
+	if err := idx.UpdateDownloadsBatch(updates); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	// All three should have non-zero downloads.
+	for _, name := range []string{"flask", "jinja2", "requests"} {
+		results, err := idx.Search(name, 1)
+		if err != nil {
+			t.Fatalf("Search(%q): %v", name, err)
+		}
+		if len(results) == 0 {
+			t.Fatalf("Search(%q): no results", name)
+		}
+		if results[0].Downloads == 0 {
+			t.Errorf("Search(%q): expected non-zero downloads after case-insensitive update, got 0 (name in index: %q)", name, results[0].Name)
+		}
+	}
+}
+
+// TestUpsertBatch_NoDuplicates verifies that calling UpsertBatch multiple
+// times with the same packages does not create duplicate FTS rows.
+func TestUpsertBatch_NoDuplicates(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	packages := []PackageEntry{
+		{Name: "flask", Summary: "A web framework", Downloads: 0},
+		{Name: "django", Summary: "The web framework", Downloads: 0},
+	}
+
+	// Insert twice.
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("first UpsertBatch: %v", err)
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("second UpsertBatch: %v", err)
+	}
+
+	// Search should return exactly 1 result for "django", not 2.
+	results, err := idx.Search("django", 10)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result for 'django', got %d (dupes in FTS)", len(results))
+	}
+}
+
 // TestSearchEmpty verifies that searching on an empty index returns zero
 // results without an error.
 func TestSearchEmpty(t *testing.T) {
