@@ -146,18 +146,19 @@ func aggregateByCategory(data []stats.DataPoint, topN int) []stats.DataPoint {
 // Returns nil if JSON marshalling fails.
 func (h *StatsHandler) fetchAndCache(name, cacheKey string) []byte {
 	var overall, pythonVersions, systems []stats.DataPoint
+	lower := strings.ToLower(name)
 
-	if resp, err := h.stats.FetchOverall(name); err != nil {
+	if resp, err := h.stats.FetchOverall(lower); err != nil {
 		log.Printf("stats: FetchOverall(%q) error: %v", name, err)
 	} else {
 		overall = aggregateByWeek(resp.Data, 12)
 	}
-	if resp, err := h.stats.FetchPythonVersions(name); err != nil {
+	if resp, err := h.stats.FetchPythonVersions(lower); err != nil {
 		log.Printf("stats: FetchPythonVersions(%q) error: %v", name, err)
 	} else {
 		pythonVersions = aggregateByCategory(resp.Data, 8)
 	}
-	if resp, err := h.stats.FetchSystem(name); err != nil {
+	if resp, err := h.stats.FetchSystem(lower); err != nil {
 		log.Printf("stats: FetchSystem(%q) error: %v", name, err)
 	} else {
 		systems = aggregateByCategory(resp.Data, 0)
