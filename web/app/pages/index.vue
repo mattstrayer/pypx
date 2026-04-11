@@ -30,7 +30,7 @@ useSeoMeta({
 <template>
   <div>
     <section class="flex flex-col items-center pt-16 pb-12 text-center">
-      <h1 class="text-5xl font-bold tracking-tight text-zinc-50">pypx</h1>
+      <h1 class="text-5xl font-bold tracking-tight text-[var(--color-brand)]">pypx</h1>
       <p class="mt-3 max-w-lg text-lg text-zinc-400">
         The Python Package Index, reimagined. Fast search, dependency insights, and download trends
         — all in one place.
