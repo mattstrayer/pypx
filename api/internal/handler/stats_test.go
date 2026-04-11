@@ -261,6 +261,65 @@ func TestStatsAggregatesSystemsByCategory(t *testing.T) {
 	}
 }
 
+// TestStatsDoesNotCacheEmptyResults verifies that when pypistats returns errors
+// (e.g., 404), the empty response is not cached — the next request retries.
+func TestStatsDoesNotCacheEmptyResults(t *testing.T) {
+	callCount := 0
+	// First request: server returns 404 for everything.
+	// Second request: server returns real data.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+
+		if callCount <= 3 {
+			// First round of 3 calls (overall, python_minor, system) → 404
+			http.NotFound(w, r)
+			return
+		}
+
+		// Second round → return data
+		resp := `{"package":"test","type":"test","data":[
+			{"category":"Linux","date":"2026-03-03","downloads":100}
+		]}`
+		w.Write([]byte(resp)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	statsClient := stats.NewClient(stats.WithBaseURL(srv.URL))
+	h := handler.NewStatsHandler(statsClient, c)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/stats", h.Get)
+
+	// First request — pypistats returns 404
+	req1 := httptest.NewRequest(http.MethodGet, "/api/packages/test/stats", nil)
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+
+	var body1 handler.CombinedStats
+	json.NewDecoder(rr1.Body).Decode(&body1) //nolint:errcheck
+
+	// Second request — pypistats now returns data; should NOT serve cached empty
+	req2 := httptest.NewRequest(http.MethodGet, "/api/packages/test/stats", nil)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+
+	var body2 handler.CombinedStats
+	if err := json.NewDecoder(rr2.Body).Decode(&body2); err != nil {
+		t.Fatalf("failed to decode second response: %v", err)
+	}
+
+	if len(body2.Systems) == 0 {
+		t.Error("second request returned empty systems — empty result was cached from first failed request")
+	}
+}
+
 // TestStatsPreservesOriginalCaseInResponse verifies that even though we
 // lowercase the name for pypistats, the response preserves the original casing.
 func TestStatsPreservesOriginalCaseInResponse(t *testing.T) {

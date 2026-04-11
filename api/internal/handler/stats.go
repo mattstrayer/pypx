@@ -177,6 +177,10 @@ func (h *StatsHandler) fetchAndCache(name, cacheKey string) []byte {
 		return nil
 	}
 
-	h.cache.Set(cacheKey, encoded, statsTTL) //nolint:errcheck
+	// Don't cache empty results — they're likely caused by transient upstream
+	// errors and would block retries for the entire TTL.
+	if len(overall) > 0 || len(pythonVersions) > 0 || len(systems) > 0 {
+		h.cache.Set(cacheKey, encoded, statsTTL) //nolint:errcheck
+	}
 	return encoded
 }

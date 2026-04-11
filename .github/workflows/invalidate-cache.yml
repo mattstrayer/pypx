@@ -1,0 +1,47 @@
+name: Invalidate Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: 'Cache key prefix to purge (e.g. "stats:", or "%" for all)'
+        required: true
+        default: 'stats:'
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  invalidate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Purge cache entries
+        env:
+          HOST: ${{ secrets.DROPLET_HOST }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@$HOST"
+          PREFIX="${{ inputs.prefix }}"
+
+          $SSH << PURGE
+            set -euo pipefail
+            cd /opt/pypx
+
+            # Use a temporary alpine container with sqlite3 to purge cache rows
+            # from the API's persistent volume.
+            docker run --rm \
+              -v pypx_api_data:/data \
+              alpine:3.20 \
+              sh -c "apk add --no-cache sqlite > /dev/null 2>&1 && \
+                     BEFORE=\\\$(sqlite3 /data/pypx.db 'SELECT count(*) FROM cache WHERE key LIKE \"${PREFIX}%\"') && \
+                     sqlite3 /data/pypx.db 'DELETE FROM cache WHERE key LIKE \"${PREFIX}%\"' && \
+                     echo \"Purged \\\$BEFORE cache entries matching '${PREFIX}%'\""
+          PURGE
