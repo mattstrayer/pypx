@@ -322,3 +322,63 @@ func TestSearchEmpty(t *testing.T) {
 		t.Errorf("expected 0 results, got %d", len(results))
 	}
 }
+
+// TestTopByDownloads verifies that the top packages are returned in descending
+// download order, filtered to only packages with downloads > 0.
+func TestTopByDownloads(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	packages := []PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "obscure-pkg", Summary: "Not in top list", Downloads: 0},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	results, err := idx.TopByDownloads(3)
+	if err != nil {
+		t.Fatalf("TopByDownloads: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	if results[0].Name != "numpy" {
+		t.Errorf("expected first result 'numpy', got %q", results[0].Name)
+	}
+	if results[1].Name != "requests" {
+		t.Errorf("expected second result 'requests', got %q", results[1].Name)
+	}
+	if results[2].Name != "flask" {
+		t.Errorf("expected third result 'flask', got %q", results[2].Name)
+	}
+	// obscure-pkg must not appear (downloads = 0)
+	for _, r := range results {
+		if r.Name == "obscure-pkg" {
+			t.Errorf("expected 'obscure-pkg' (downloads=0) to be excluded")
+		}
+	}
+}
+
+// TestTopByDownloads_Empty verifies an empty result set when no packages have
+// downloads > 0.
+func TestTopByDownloads_Empty(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	if err := idx.UpsertBatch([]PackageEntry{
+		{Name: "foo", Summary: "A package", Downloads: 0},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	results, err := idx.TopByDownloads(10)
+	if err != nil {
+		t.Fatalf("TopByDownloads: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(results))
+	}
+}

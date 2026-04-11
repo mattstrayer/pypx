@@ -193,6 +193,43 @@ func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
 	return results, nil
 }
 
+// TopByDownloads returns the top limit packages ordered by downloads descending,
+// excluding packages with zero downloads (those not yet synced from the top
+// packages dataset).
+func (idx *Index) TopByDownloads(limit int) ([]PackageEntry, error) {
+	if limit <= 0 {
+		limit = 12
+	}
+
+	rows, err := idx.db.Query(`
+		SELECT name, summary, downloads
+		FROM packages_meta
+		WHERE downloads > 0
+		ORDER BY downloads DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search: top by downloads: %w", err)
+	}
+	defer rows.Close()
+
+	var results []PackageEntry
+	for rows.Next() {
+		var e PackageEntry
+		if err := rows.Scan(&e.Name, &e.Summary, &e.Downloads); err != nil {
+			return nil, fmt.Errorf("search: top by downloads scan: %w", err)
+		}
+		results = append(results, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("search: top by downloads rows: %w", err)
+	}
+	if results == nil {
+		results = []PackageEntry{}
+	}
+	return results, nil
+}
+
 // UpdateDownloadsBatch updates only the downloads column for existing packages.
 // It tries an exact-case match first, then falls back to case-insensitive for
 // packages like "Flask" (PyPI) vs "flask" (top packages dataset).
