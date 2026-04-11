@@ -30,7 +30,7 @@ function toggleExtra(extra: string) {
         >
           <NuxtLink
             :to="`/packages/${dep.name}`"
-            class="font-mono text-sm text-zinc-50 hover:text-indigo-400"
+            class="font-mono text-sm text-zinc-50 hover:text-[var(--color-brand)]"
           >
             {{ dep.name }}
           </NuxtLink>
@@ -50,7 +50,7 @@ function toggleExtra(extra: string) {
           class="rounded px-3 py-1 font-mono text-xs transition-colors"
           :class="
             activeExtra === extra
-              ? 'bg-indigo-500/20 text-indigo-400'
+              ? 'bg-[var(--color-brand-border)] text-[var(--color-brand)]'
               : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
           "
           @click="toggleExtra(extra)"
@@ -66,7 +66,7 @@ function toggleExtra(extra: string) {
         >
           <NuxtLink
             :to="`/packages/${dep.name}`"
-            class="font-mono text-sm text-zinc-50 hover:text-indigo-400"
+            class="font-mono text-sm text-zinc-50 hover:text-[var(--color-brand)]"
           >
             {{ dep.name }}
           </NuxtLink>

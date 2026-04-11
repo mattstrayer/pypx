@@ -21,7 +21,7 @@ function formatDownloads(n: number): string {
       class="flex items-start justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 transition-colors hover:border-zinc-700 hover:bg-zinc-900"
     >
       <div class="min-w-0 flex-1 pr-4">
-        <span class="font-mono font-semibold text-zinc-50 hover:text-indigo-400">{{
+        <span class="font-mono font-semibold text-zinc-50 hover:text-[var(--color-brand)]">{{
           pkg.name
         }}</span>
         <p v-if="pkg.summary" class="mt-1 text-sm text-zinc-400 line-clamp-2">{{ pkg.summary }}</p>
