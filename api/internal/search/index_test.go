@@ -382,3 +382,44 @@ func TestTopByDownloads_Empty(t *testing.T) {
 		t.Errorf("expected 0 results, got %d", len(results))
 	}
 }
+
+// TestTopByDownloads_DefaultLimit verifies that calling TopByDownloads(0)
+// uses the default limit of 12 and returns results in correct order.
+func TestTopByDownloads_DefaultLimit(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	// Insert 15 packages with non-zero downloads.
+	packages := make([]PackageEntry, 15)
+	for i := range packages {
+		packages[i] = PackageEntry{
+			Name:      "pkg-" + string(rune('a'+i)),
+			Summary:   "A package",
+			Downloads: int64(1000 * (15 - i)), // descending: 15000, 14000, ..., 1000
+		}
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	results, err := idx.TopByDownloads(0)
+	if err != nil {
+		t.Fatalf("TopByDownloads(0): %v", err)
+	}
+
+	if len(results) != 12 {
+		t.Errorf("TopByDownloads(0) should default to 12 results, got %d", len(results))
+	}
+
+	// Verify first result has the highest downloads.
+	if results[0].Downloads != 15000 {
+		t.Errorf("expected first result downloads=15000, got %d", results[0].Downloads)
+	}
+
+	// Verify ordering is descending by downloads.
+	for i := 1; i < len(results); i++ {
+		if results[i].Downloads > results[i-1].Downloads {
+			t.Errorf("results not in descending order: results[%d]=%d > results[%d]=%d",
+				i, results[i].Downloads, i-1, results[i-1].Downloads)
+		}
+	}
+}
