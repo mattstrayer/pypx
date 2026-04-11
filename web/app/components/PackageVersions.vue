@@ -90,7 +90,7 @@ function formatDate(iso: string): string {
                 >
                 <NuxtLink
                   :to="`/packages/${name}/${v.version}`"
-                  class="font-mono hover:text-indigo-400 text-zinc-200 transition-colors"
+                  class="font-mono hover:text-[var(--color-brand)] text-zinc-200 transition-colors"
                   @click.stop
                 >
                   {{ v.version }}
@@ -98,7 +98,9 @@ function formatDate(iso: string): string {
               </div>
             </td>
             <td class="py-3 pr-6 text-zinc-400">{{ formatDate(v.upload_time) }}</td>
-            <td class="py-3 pr-6 font-mono text-emerald-400">{{ formatSize(v.install_size) }}</td>
+            <td class="py-3 pr-6 font-mono text-[var(--color-brand)]">
+              {{ formatSize(v.install_size) }}
+            </td>
             <td class="py-3 font-mono text-xs text-zinc-500">{{ v.module_format || "—" }}</td>
           </tr>
           <tr v-if="expandedVersions.has(v.version) && changelogMap.has(v.version)">
@@ -117,7 +119,7 @@ function formatDate(iso: string): string {
                 <a
                   :href="entry.url"
                   target="_blank"
-                  class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  class="text-xs text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
                   >View on GitHub →</a
                 >
               </div>
