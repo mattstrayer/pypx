@@ -35,6 +35,12 @@ export function useApi() {
     });
   }
 
+  async function fetchPopular(limit = 12): Promise<SearchResult[]> {
+    return $fetch<SearchResult[]>(`${baseURL}/popular`, {
+      params: { limit },
+    });
+  }
+
   async function fetchChangelog(name: string): Promise<ChangelogData> {
     return $fetch<ChangelogData>(`${baseURL}/packages/${name}/changelog`);
   }
@@ -45,6 +51,7 @@ export function useApi() {
     fetchDependencies,
     fetchStats,
     searchPackages,
+    fetchPopular,
     fetchChangelog,
   };
 }
