@@ -8,7 +8,7 @@ function onSearch() {
   }
 }
 
-const POPULAR_LIMIT = 12;
+const POPULAR_LIMIT = 24;
 
 const config = useRuntimeConfig();
 const { data: popularPackages, status } = await useFetch<
