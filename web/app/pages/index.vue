@@ -8,11 +8,13 @@ function onSearch() {
   }
 }
 
+const POPULAR_LIMIT = 12;
+
 const config = useRuntimeConfig();
 const { data: popularPackages, status } = await useFetch<
   Array<{ name: string; summary: string; downloads: number }>
 >(`${config.public.apiBase}/popular`, {
-  params: { limit: 12 },
+  params: { limit: POPULAR_LIMIT },
 });
 
 useSeoMeta({
@@ -51,7 +53,7 @@ useSeoMeta({
       <!-- Skeleton loading state -->
       <div v-if="status === 'pending'" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div
-          v-for="i in 12"
+          v-for="i in POPULAR_LIMIT"
           :key="i"
           class="h-20 animate-pulse rounded-lg border border-zinc-800 bg-zinc-800/50"
         />
@@ -64,6 +66,7 @@ useSeoMeta({
 
       <!-- Data -->
       <TrendingPackages v-else-if="popularPackages?.length" :packages="popularPackages" />
+      <p v-else class="text-sm text-zinc-500">No popular packages available.</p>
     </section>
   </div>
 </template>
