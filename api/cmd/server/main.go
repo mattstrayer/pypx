@@ -60,6 +60,7 @@ func main() {
 	}
 	defer searchIdx.Close()
 	searchHandler := handler.NewSearchHandler(searchIdx)
+	popularHandler := handler.NewPopularHandler(searchIdx, c)
 
 	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
@@ -86,6 +87,7 @@ func main() {
 	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 	r.Get("/api/packages/{name}/stats", statsHandler.Get)
 	r.Get("/api/search", searchHandler.Search)
+	r.Get("/api/popular", popularHandler.Get)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
