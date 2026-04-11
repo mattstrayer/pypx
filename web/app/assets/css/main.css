@@ -4,6 +4,12 @@
 :root {
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Brand */
+  --color-brand: #4ade80;
+  --color-brand-light: #86efac;
+  --color-brand-muted: rgba(74, 222, 128, 0.08);
+  --color-brand-border: rgba(74, 222, 128, 0.25);
 }
 
 body {
@@ -127,10 +133,10 @@ pre,
 .prose-invert {
   color: var(--color-zinc-300);
   & a {
-    color: var(--color-indigo-400);
+    color: var(--color-brand);
   }
   & a:hover {
-    color: var(--color-indigo-300);
+    color: var(--color-brand-light);
   }
   & h1,
   & h2,

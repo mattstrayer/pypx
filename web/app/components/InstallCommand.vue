@@ -22,7 +22,9 @@ const { copy, copied } = useClipboard({ source: command });
         :key="mgr"
         class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
         :class="
-          activeManager === mgr ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+          activeManager === mgr
+            ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
+            : 'text-zinc-500 hover:text-zinc-300'
         "
         @click="activeManager = mgr"
       >
@@ -36,14 +38,14 @@ const { copy, copied } = useClipboard({ source: command });
         <span class="text-zinc-500">$ </span>{{ command }}
       </code>
       <button
-        class="shrink-0 rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+        class="shrink-0 rounded p-1.5 text-zinc-500 transition-colors hover:bg-[var(--color-brand-muted)] hover:text-[var(--color-brand)]"
         :title="copied ? 'Copied!' : 'Copy'"
         @click="copy()"
       >
         <svg
           v-if="copied"
           xmlns="http://www.w3.org/2000/svg"
-          class="h-4 w-4 text-emerald-400"
+          class="h-4 w-4 text-[var(--color-brand)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

@@ -86,7 +86,7 @@ useSeoMeta({
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Install Size</p>
-          <p class="mt-1 font-mono text-sm text-emerald-400">
+          <p class="mt-1 font-mono text-sm text-[var(--color-brand)]">
             {{ formatSize(matchedVersion.install_size) }}
           </p>
         </div>
@@ -117,7 +117,7 @@ useSeoMeta({
             class="flex items-center justify-between px-4 py-3"
           >
             <span class="font-mono text-sm text-zinc-300">{{ file.filename }}</span>
-            <span class="ml-4 shrink-0 font-mono text-xs text-emerald-400">{{
+            <span class="ml-4 shrink-0 font-mono text-xs text-[var(--color-brand)]">{{
               formatSize(file.size)
             }}</span>
           </li>

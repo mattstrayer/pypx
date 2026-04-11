@@ -22,8 +22,11 @@ onUnmounted(() => {
 <template>
   <header class="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm">
     <div class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-      <NuxtLink to="/" class="flex items-center gap-2 text-zinc-50 hover:text-white">
-        <span class="text-lg font-bold tracking-tight">pypx</span>
+      <NuxtLink to="/" class="flex items-center gap-2">
+        <span
+          class="text-lg font-bold tracking-tight text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
+          >pypx</span
+        >
       </NuxtLink>
 
       <div ref="searchWrapper" class="relative flex-1 max-w-md">
@@ -46,7 +49,7 @@ onUnmounted(() => {
               v-model="query"
               type="text"
               placeholder="Search packages..."
-              class="w-full rounded-md border border-zinc-800 bg-zinc-900 py-1.5 pl-8 pr-12 text-sm text-zinc-50 placeholder-zinc-500 outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
+              class="w-full rounded-md border border-zinc-800 bg-zinc-900 py-1.5 pl-8 pr-12 text-sm text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"
             />

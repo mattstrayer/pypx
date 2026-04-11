@@ -14,19 +14,19 @@ function formatSize(bytes: number): string {
   <div class="flex flex-wrap gap-2">
     <span
       v-if="pkg.install_size"
-      class="inline-flex items-center rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-xs text-emerald-400 ring-1 ring-emerald-500/20"
+      class="inline-flex items-center rounded bg-[var(--color-brand-muted)] px-2 py-0.5 font-mono text-xs text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]"
     >
       {{ formatSize(pkg.install_size) }}
     </span>
     <span
       v-if="pkg.python_versions?.min_version"
-      class="inline-flex items-center rounded bg-indigo-500/10 px-2 py-0.5 font-mono text-xs text-indigo-400 ring-1 ring-indigo-500/20"
+      class="inline-flex items-center rounded bg-[var(--color-brand-muted)] px-2 py-0.5 font-mono text-xs text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]"
     >
       Python {{ pkg.python_versions.min_version }}+
     </span>
     <span
       v-if="pkg.module_format && pkg.module_format !== 'sdist-only'"
-      class="inline-flex items-center rounded bg-indigo-500/10 px-2 py-0.5 font-mono text-xs text-indigo-400 ring-1 ring-indigo-500/20"
+      class="inline-flex items-center rounded bg-[var(--color-brand-muted)] px-2 py-0.5 font-mono text-xs text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]"
     >
       {{ pkg.module_format }}
     </span>

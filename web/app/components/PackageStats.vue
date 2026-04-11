@@ -74,7 +74,9 @@ const dateRangeLabel = computed(() => {
         :key="opt.value"
         class="rounded-md px-3 py-1.5 font-mono text-xs transition-colors"
         :class="
-          period === opt.value ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+          period === opt.value
+            ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
+            : 'text-zinc-500 hover:text-zinc-300'
         "
         @click="setPeriod(opt.value)"
       >
@@ -101,7 +103,7 @@ const dateRangeLabel = computed(() => {
             <span class="w-20 shrink-0 font-mono text-xs text-zinc-500">{{ point.category }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-emerald-500/30"
+                class="h-4 rounded-sm bg-[var(--color-brand-border)]"
                 :style="{ width: barWidth(point.downloads, maxDownloads(overallTrend)) }"
               />
             </div>
