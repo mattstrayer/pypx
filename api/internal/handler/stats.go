@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -65,6 +66,80 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Write(encoded) //nolint:errcheck
 }
 
+// aggregateByWeek groups daily data points into ISO-week buckets, keeping only
+// the "without_mirrors" category and returning the last maxWeeks weeks.
+func aggregateByWeek(data []stats.DataPoint, maxWeeks int) []stats.DataPoint {
+	type weekKey struct {
+		year int
+		week int
+	}
+
+	totals := make(map[weekKey]int64)
+	for _, d := range data {
+		if d.Category != "without_mirrors" {
+			continue
+		}
+		t, err := time.Parse("2006-01-02", d.Date)
+		if err != nil {
+			continue
+		}
+		y, w := t.ISOWeek()
+		totals[weekKey{y, w}] += d.Downloads
+	}
+
+	keys := make([]weekKey, 0, len(totals))
+	for k := range totals {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].year != keys[j].year {
+			return keys[i].year < keys[j].year
+		}
+		return keys[i].week < keys[j].week
+	})
+
+	if len(keys) > maxWeeks {
+		keys = keys[len(keys)-maxWeeks:]
+	}
+
+	result := make([]stats.DataPoint, 0, len(keys))
+	for _, k := range keys {
+		// Label as "YYYY-Www" for clean display.
+		label := time.Date(k.year, 1, 1, 0, 0, 0, 0, time.UTC).
+			AddDate(0, 0, (k.week-1)*7).Format("Jan 02")
+		result = append(result, stats.DataPoint{
+			Category:  label,
+			Downloads: totals[k],
+		})
+	}
+	return result
+}
+
+// aggregateByCategory sums downloads per unique category, sorts descending by
+// downloads, and returns the top N entries.
+func aggregateByCategory(data []stats.DataPoint, topN int) []stats.DataPoint {
+	totals := make(map[string]int64)
+	for _, d := range data {
+		if d.Category == "null" || d.Category == "" {
+			continue
+		}
+		totals[d.Category] += d.Downloads
+	}
+
+	result := make([]stats.DataPoint, 0, len(totals))
+	for cat, dl := range totals {
+		result = append(result, stats.DataPoint{Category: cat, Downloads: dl})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Downloads > result[j].Downloads
+	})
+
+	if topN > 0 && len(result) > topN {
+		result = result[:topN]
+	}
+	return result
+}
+
 // fetchAndCache fetches all stat types from pypistats.org, builds a
 // CombinedStats, stores it in the cache, and returns the encoded JSON.
 // Errors from individual stat endpoints are logged but do not abort the call.
@@ -75,17 +150,17 @@ func (h *StatsHandler) fetchAndCache(name, cacheKey string) []byte {
 	if resp, err := h.stats.FetchOverall(name); err != nil {
 		log.Printf("stats: FetchOverall(%q) error: %v", name, err)
 	} else {
-		overall = resp.Data
+		overall = aggregateByWeek(resp.Data, 12)
 	}
 	if resp, err := h.stats.FetchPythonVersions(name); err != nil {
 		log.Printf("stats: FetchPythonVersions(%q) error: %v", name, err)
 	} else {
-		pythonVersions = resp.Data
+		pythonVersions = aggregateByCategory(resp.Data, 8)
 	}
 	if resp, err := h.stats.FetchSystem(name); err != nil {
 		log.Printf("stats: FetchSystem(%q) error: %v", name, err)
 	} else {
-		systems = resp.Data
+		systems = aggregateByCategory(resp.Data, 0)
 	}
 
 	combined := CombinedStats{

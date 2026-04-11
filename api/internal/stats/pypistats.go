@@ -10,6 +10,7 @@ import (
 // DataPoint represents a single download count entry.
 type DataPoint struct {
 	Category  string `json:"category"`
+	Date      string `json:"date,omitempty"`
 	Downloads int64  `json:"downloads"`
 }
 

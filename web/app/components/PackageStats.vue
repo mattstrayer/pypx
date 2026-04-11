@@ -25,8 +25,8 @@ function barWidth(downloads: number, max: number): string {
   return `${(downloads / max) * 100}%`;
 }
 
-const overallTrend = computed(() => stats.value?.overall?.slice(-12) ?? []);
-const pythonVersions = computed(() => stats.value?.python_versions?.slice(0, 8) ?? []);
+const overallTrend = computed(() => stats.value?.overall ?? []);
+const pythonVersions = computed(() => stats.value?.python_versions ?? []);
 const systems = computed(() => stats.value?.systems ?? []);
 </script>
 
