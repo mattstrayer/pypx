@@ -1,7 +1,7 @@
 type PackageManager = "pip" | "uv" | "poetry" | "pipx";
 
 export function usePackageManager() {
-  const activeManager = useState<PackageManager>("package-manager", () => "pip");
+  const activeManager = useState<PackageManager>("package-manager", () => "uv");
 
   function getInstallCommand(packageName: string): string {
     switch (activeManager.value) {

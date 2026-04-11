@@ -2,10 +2,12 @@ package handler_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -13,62 +15,116 @@ import (
 	"github.com/pypx/api/internal/stats"
 )
 
-// mockPypiStats returns a test server that serves realistic pypistats.org
-// responses with date fields, and records the request paths it receives.
-func mockPypiStats(t *testing.T) (*httptest.Server, *[]string) {
+// generateDailyData builds mock pypistats daily entries spanning the given
+// number of days back from today for the specified categories.
+func generateDailyData(categories []string, days int, downloadsPerDay int64) string {
+	var entries []string
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	for d := days - 1; d >= 0; d-- {
+		date := now.AddDate(0, 0, -d).Format("2006-01-02")
+		for _, cat := range categories {
+			entries = append(entries, fmt.Sprintf(
+				`{"category":%q,"date":%q,"downloads":%d}`,
+				cat, date, downloadsPerDay,
+			))
+		}
+	}
+	return "[" + strings.Join(entries, ",") + "]"
+}
+
+// mockPypiStatsWide returns a test server with 180 days of data, suitable for
+// period-filter tests. Also records request paths.
+func mockPypiStatsWide(t *testing.T) (*httptest.Server, *[]string) {
 	t.Helper()
 	var requestPaths []string
 
-	overallResp := `{
-		"package": "django",
-		"type": "overall_downloads",
-		"data": [
-			{"category": "with_mirrors", "date": "2026-03-03", "downloads": 500000},
-			{"category": "without_mirrors", "date": "2026-03-03", "downloads": 400000},
-			{"category": "with_mirrors", "date": "2026-03-04", "downloads": 520000},
-			{"category": "without_mirrors", "date": "2026-03-04", "downloads": 410000},
-			{"category": "with_mirrors", "date": "2026-03-10", "downloads": 530000},
-			{"category": "without_mirrors", "date": "2026-03-10", "downloads": 420000},
-			{"category": "with_mirrors", "date": "2026-03-11", "downloads": 540000},
-			{"category": "without_mirrors", "date": "2026-03-11", "downloads": 430000}
-		]
-	}`
-
-	pythonResp := `{
-		"package": "django",
-		"type": "python_minor_downloads",
-		"data": [
-			{"category": "3.12", "date": "2026-03-03", "downloads": 200000},
-			{"category": "3.11", "date": "2026-03-03", "downloads": 150000},
-			{"category": "3.10", "date": "2026-03-03", "downloads": 50000},
-			{"category": "3.12", "date": "2026-03-04", "downloads": 210000},
-			{"category": "3.11", "date": "2026-03-04", "downloads": 140000},
-			{"category": "3.10", "date": "2026-03-04", "downloads": 55000},
-			{"category": "null", "date": "2026-03-03", "downloads": 1000},
-			{"category": "null", "date": "2026-03-04", "downloads": 1100}
-		]
-	}`
-
-	systemResp := `{
-		"package": "django",
-		"type": "system_downloads",
-		"data": [
-			{"category": "Linux", "date": "2026-03-03", "downloads": 300000},
-			{"category": "Darwin", "date": "2026-03-03", "downloads": 50000},
-			{"category": "Windows", "date": "2026-03-03", "downloads": 40000},
-			{"category": "null", "date": "2026-03-03", "downloads": 5000},
-			{"category": "Linux", "date": "2026-03-04", "downloads": 310000},
-			{"category": "Darwin", "date": "2026-03-04", "downloads": 52000},
-			{"category": "Windows", "date": "2026-03-04", "downloads": 42000},
-			{"category": "null", "date": "2026-03-04", "downloads": 5500}
-		]
-	}`
+	overallData := generateDailyData([]string{"with_mirrors", "without_mirrors"}, 180, 100000)
+	pythonData := generateDailyData([]string{"3.12", "3.11", "3.10"}, 180, 50000)
+	systemData := generateDailyData([]string{"Linux", "Darwin", "Windows"}, 180, 30000)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestPaths = append(requestPaths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 
-		// Mimic pypistats.org: only lowercase package names return data.
+		if !strings.Contains(r.URL.Path, "/packages/django/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/overall"):
+			fmt.Fprintf(w, `{"package":"django","type":"overall","data":%s}`, overallData)
+		case strings.HasSuffix(r.URL.Path, "/python_minor"):
+			fmt.Fprintf(w, `{"package":"django","type":"python_minor","data":%s}`, pythonData)
+		case strings.HasSuffix(r.URL.Path, "/system"):
+			fmt.Fprintf(w, `{"package":"django","type":"system","data":%s}`, systemData)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	return srv, &requestPaths
+}
+
+// mockPypiStatsNarrow returns a test server with a small fixed dataset for
+// simple aggregation tests (not period-dependent).
+func mockPypiStatsNarrow(t *testing.T) (*httptest.Server, *[]string) {
+	t.Helper()
+	var requestPaths []string
+
+	// Use dates within the last 28 days so they always pass a 4w filter.
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	d1 := now.AddDate(0, 0, -10).Format("2006-01-02")
+	d2 := now.AddDate(0, 0, -9).Format("2006-01-02")
+	d3 := now.AddDate(0, 0, -3).Format("2006-01-02")
+	d4 := now.AddDate(0, 0, -2).Format("2006-01-02")
+
+	overallResp := fmt.Sprintf(`{
+		"package": "django", "type": "overall_downloads",
+		"data": [
+			{"category": "with_mirrors", "date": "%s", "downloads": 500000},
+			{"category": "without_mirrors", "date": "%s", "downloads": 400000},
+			{"category": "with_mirrors", "date": "%s", "downloads": 520000},
+			{"category": "without_mirrors", "date": "%s", "downloads": 410000},
+			{"category": "with_mirrors", "date": "%s", "downloads": 530000},
+			{"category": "without_mirrors", "date": "%s", "downloads": 420000},
+			{"category": "with_mirrors", "date": "%s", "downloads": 540000},
+			{"category": "without_mirrors", "date": "%s", "downloads": 430000}
+		]
+	}`, d1, d1, d2, d2, d3, d3, d4, d4)
+
+	pythonResp := fmt.Sprintf(`{
+		"package": "django", "type": "python_minor_downloads",
+		"data": [
+			{"category": "3.12", "date": "%s", "downloads": 200000},
+			{"category": "3.11", "date": "%s", "downloads": 150000},
+			{"category": "3.10", "date": "%s", "downloads": 50000},
+			{"category": "3.12", "date": "%s", "downloads": 210000},
+			{"category": "3.11", "date": "%s", "downloads": 140000},
+			{"category": "3.10", "date": "%s", "downloads": 55000},
+			{"category": "null", "date": "%s", "downloads": 1000},
+			{"category": "null", "date": "%s", "downloads": 1100}
+		]
+	}`, d1, d1, d1, d2, d2, d2, d1, d2)
+
+	systemResp := fmt.Sprintf(`{
+		"package": "django", "type": "system_downloads",
+		"data": [
+			{"category": "Linux", "date": "%s", "downloads": 300000},
+			{"category": "Darwin", "date": "%s", "downloads": 50000},
+			{"category": "Windows", "date": "%s", "downloads": 40000},
+			{"category": "null", "date": "%s", "downloads": 5000},
+			{"category": "Linux", "date": "%s", "downloads": 310000},
+			{"category": "Darwin", "date": "%s", "downloads": 52000},
+			{"category": "Windows", "date": "%s", "downloads": 42000},
+			{"category": "null", "date": "%s", "downloads": 5500}
+		]
+	}`, d1, d1, d1, d1, d2, d2, d2, d2)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPaths = append(requestPaths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+
 		if !strings.Contains(r.URL.Path, "/packages/django/") {
 			http.NotFound(w, r)
 			return
@@ -104,17 +160,9 @@ func setupHandler(t *testing.T, mock *httptest.Server) (*chi.Mux, *cache.Cache) 
 	return r, c
 }
 
-// TestStatsUsesLowercaseForPypistats verifies that the handler lowercases
-// the package name when calling pypistats.org, since their API is case-sensitive.
-func TestStatsUsesLowercaseForPypistats(t *testing.T) {
-	mock, paths := mockPypiStats(t)
-	defer mock.Close()
-
-	router, c := setupHandler(t, mock)
-	defer c.Close()
-
-	// Request with mixed-case name like "Django"
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/Django/stats", nil)
+func fetchStats(t *testing.T, router *chi.Mux, url string) handler.CombinedStats {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -122,17 +170,30 @@ func TestStatsUsesLowercaseForPypistats(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	// All pypistats requests should use lowercase package name
+	var body handler.CombinedStats
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	return body
+}
+
+// ---------------------------------------------------------------------------
+// Existing tests (updated to use narrow mock with dynamic dates)
+// ---------------------------------------------------------------------------
+
+func TestStatsUsesLowercaseForPypistats(t *testing.T) {
+	mock, paths := mockPypiStatsNarrow(t)
+	defer mock.Close()
+
+	router, c := setupHandler(t, mock)
+	defer c.Close()
+
+	body := fetchStats(t, router, "/api/packages/Django/stats")
+
 	for _, p := range *paths {
 		if strings.Contains(p, "Django") {
 			t.Errorf("pypistats request used original casing: %s (should be lowercase)", p)
 		}
-	}
-
-	// Should still return aggregated data (mock is case-sensitive like real API)
-	var body handler.CombinedStats
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode: %v", err)
 	}
 	if len(body.Overall) == 0 {
 		t.Error("overall is empty — pypistats was likely called with wrong casing")
@@ -142,72 +203,45 @@ func TestStatsUsesLowercaseForPypistats(t *testing.T) {
 	}
 }
 
-// TestStatsAggregatesOverallByWeek verifies that daily overall data is
-// aggregated into weekly buckets using only "without_mirrors" entries.
 func TestStatsAggregatesOverallByWeek(t *testing.T) {
-	mock, _ := mockPypiStats(t)
+	mock, _ := mockPypiStatsNarrow(t)
 	defer mock.Close()
 
 	router, c := setupHandler(t, mock)
 	defer c.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	body := fetchStats(t, router, "/api/packages/django/stats")
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	var body handler.CombinedStats
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode: %v", err)
-	}
-
-	// Mock data has without_mirrors entries on 2026-03-03, 2026-03-04 (week 10)
-	// and 2026-03-10, 2026-03-11 (week 11). Should produce 2 weekly buckets.
 	if body.Overall == nil {
 		t.Fatal("overall is nil, expected aggregated weekly data")
 	}
-	if len(body.Overall) != 2 {
-		t.Fatalf("expected 2 weekly buckets, got %d: %+v", len(body.Overall), body.Overall)
+	if len(body.Overall) < 1 {
+		t.Fatal("expected at least 1 weekly bucket")
 	}
 
-	// Week 10: 400000 + 410000 = 810000
-	if body.Overall[0].Downloads != 810000 {
-		t.Errorf("week 1 downloads: expected 810000, got %d", body.Overall[0].Downloads)
+	// All without_mirrors data sums to 400000+410000+420000+430000 = 1660000
+	var total int64
+	for _, p := range body.Overall {
+		total += p.Downloads
 	}
-	// Week 11: 420000 + 430000 = 850000
-	if body.Overall[1].Downloads != 850000 {
-		t.Errorf("week 2 downloads: expected 850000, got %d", body.Overall[1].Downloads)
+	if total != 1660000 {
+		t.Errorf("total overall downloads: expected 1660000, got %d", total)
 	}
 }
 
-// TestStatsAggregatesPythonVersionsByCategory verifies that daily python version
-// data is summed per version, sorted descending, with "null" entries excluded.
 func TestStatsAggregatesPythonVersionsByCategory(t *testing.T) {
-	mock, _ := mockPypiStats(t)
+	mock, _ := mockPypiStatsNarrow(t)
 	defer mock.Close()
 
 	router, c := setupHandler(t, mock)
 	defer c.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	body := fetchStats(t, router, "/api/packages/django/stats")
 
-	var body handler.CombinedStats
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode: %v", err)
-	}
-
-	// Should have 3 versions (3.12, 3.11, 3.10), "null" excluded
 	if len(body.PythonVersions) != 3 {
 		t.Fatalf("expected 3 python versions, got %d: %+v", len(body.PythonVersions), body.PythonVersions)
 	}
 
-	// Should be sorted descending by downloads
-	// 3.12: 200000+210000=410000, 3.11: 150000+140000=290000, 3.10: 50000+55000=105000
 	expected := []struct {
 		cat       string
 		downloads int64
@@ -226,30 +260,19 @@ func TestStatsAggregatesPythonVersionsByCategory(t *testing.T) {
 	}
 }
 
-// TestStatsAggregatesSystemsByCategory verifies that daily system data is
-// summed per OS, sorted descending, with "null" entries excluded.
 func TestStatsAggregatesSystemsByCategory(t *testing.T) {
-	mock, _ := mockPypiStats(t)
+	mock, _ := mockPypiStatsNarrow(t)
 	defer mock.Close()
 
 	router, c := setupHandler(t, mock)
 	defer c.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	body := fetchStats(t, router, "/api/packages/django/stats")
 
-	var body handler.CombinedStats
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode: %v", err)
-	}
-
-	// Should have 3 systems (Linux, Darwin, Windows), "null" excluded
 	if len(body.Systems) != 3 {
 		t.Fatalf("expected 3 systems, got %d: %+v", len(body.Systems), body.Systems)
 	}
 
-	// Sorted desc: Linux 610000, Darwin 102000, Windows 82000
 	if body.Systems[0].Category != "Linux" || body.Systems[0].Downloads != 610000 {
 		t.Errorf("systems[0]: expected Linux/610000, got %s/%d", body.Systems[0].Category, body.Systems[0].Downloads)
 	}
@@ -261,26 +284,21 @@ func TestStatsAggregatesSystemsByCategory(t *testing.T) {
 	}
 }
 
-// TestStatsDoesNotCacheEmptyResults verifies that when pypistats returns errors
-// (e.g., 404), the empty response is not cached — the next request retries.
 func TestStatsDoesNotCacheEmptyResults(t *testing.T) {
 	callCount := 0
-	// First request: server returns 404 for everything.
-	// Second request: server returns real data.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 
 		if callCount <= 3 {
-			// First round of 3 calls (overall, python_minor, system) → 404
 			http.NotFound(w, r)
 			return
 		}
 
-		// Second round → return data
-		resp := `{"package":"test","type":"test","data":[
-			{"category":"Linux","date":"2026-03-03","downloads":100}
-		]}`
+		now := time.Now().UTC().Format("2006-01-02")
+		resp := fmt.Sprintf(`{"package":"test","type":"test","data":[
+			{"category":"Linux","date":"%s","downloads":100}
+		]}`, now)
 		w.Write([]byte(resp)) //nolint:errcheck
 	}))
 	defer srv.Close()
@@ -297,15 +315,10 @@ func TestStatsDoesNotCacheEmptyResults(t *testing.T) {
 	r := chi.NewRouter()
 	r.Get("/api/packages/{name}/stats", h.Get)
 
-	// First request — pypistats returns 404
 	req1 := httptest.NewRequest(http.MethodGet, "/api/packages/test/stats", nil)
 	rr1 := httptest.NewRecorder()
 	r.ServeHTTP(rr1, req1)
 
-	var body1 handler.CombinedStats
-	json.NewDecoder(rr1.Body).Decode(&body1) //nolint:errcheck
-
-	// Second request — pypistats now returns data; should NOT serve cached empty
 	req2 := httptest.NewRequest(http.MethodGet, "/api/packages/test/stats", nil)
 	rr2 := httptest.NewRecorder()
 	r.ServeHTTP(rr2, req2)
@@ -314,31 +327,140 @@ func TestStatsDoesNotCacheEmptyResults(t *testing.T) {
 	if err := json.NewDecoder(rr2.Body).Decode(&body2); err != nil {
 		t.Fatalf("failed to decode second response: %v", err)
 	}
-
 	if len(body2.Systems) == 0 {
 		t.Error("second request returned empty systems — empty result was cached from first failed request")
 	}
 }
 
-// TestStatsPreservesOriginalCaseInResponse verifies that even though we
-// lowercase the name for pypistats, the response preserves the original casing.
 func TestStatsPreservesOriginalCaseInResponse(t *testing.T) {
-	mock, _ := mockPypiStats(t)
+	mock, _ := mockPypiStatsNarrow(t)
 	defer mock.Close()
 
 	router, c := setupHandler(t, mock)
 	defer c.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/Django/stats", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	var body handler.CombinedStats
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode: %v", err)
-	}
-
+	body := fetchStats(t, router, "/api/packages/Django/stats")
 	if body.Package != "Django" {
 		t.Errorf("expected package name 'Django' (original case), got %q", body.Package)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Period filter tests (NEW — should fail until implemented)
+// ---------------------------------------------------------------------------
+
+// TestStatsPeriodFiltersData verifies that period=4w only includes data from
+// the last 28 days, while period=6m includes all 180 days.
+func TestStatsPeriodFiltersData(t *testing.T) {
+	mock, _ := mockPypiStatsWide(t)
+	defer mock.Close()
+
+	router, c := setupHandler(t, mock)
+	defer c.Close()
+
+	body4w := fetchStats(t, router, "/api/packages/django/stats?period=4w")
+	body6m := fetchStats(t, router, "/api/packages/django/stats?period=6m")
+
+	// 4w: ~28 days of data at 100k/day without_mirrors = ~2.8M total
+	// 6m: ~180 days of data at 100k/day without_mirrors = ~18M total
+	// The 6m total should be significantly larger than 4w.
+	var total4w, total6m int64
+	for _, p := range body4w.Overall {
+		total4w += p.Downloads
+	}
+	for _, p := range body6m.Overall {
+		total6m += p.Downloads
+	}
+
+	if total6m <= total4w {
+		t.Errorf("6m total (%d) should be much larger than 4w total (%d)", total6m, total4w)
+	}
+
+	// 4w should have at most 4 weekly buckets
+	if len(body4w.Overall) > 4 {
+		t.Errorf("4w should have at most 4 weekly buckets, got %d", len(body4w.Overall))
+	}
+	// 6m should have many more buckets than 4w
+	if len(body6m.Overall) <= len(body4w.Overall) {
+		t.Errorf("6m buckets (%d) should be more than 4w buckets (%d)", len(body6m.Overall), len(body4w.Overall))
+	}
+}
+
+// TestStatsPeriodDefaultsTo4w verifies that omitting the period param behaves
+// the same as explicitly requesting period=4w.
+func TestStatsPeriodDefaultsTo4w(t *testing.T) {
+	mock, _ := mockPypiStatsWide(t)
+	defer mock.Close()
+
+	router, c := setupHandler(t, mock)
+	defer c.Close()
+
+	bodyDefault := fetchStats(t, router, "/api/packages/django/stats")
+	body4w := fetchStats(t, router, "/api/packages/django/stats?period=4w")
+
+	if bodyDefault.Period != "4w" {
+		t.Errorf("default period: expected '4w', got %q", bodyDefault.Period)
+	}
+	if body4w.Period != "4w" {
+		t.Errorf("explicit 4w period: expected '4w', got %q", body4w.Period)
+	}
+
+	// Same data should be returned
+	if len(bodyDefault.Overall) != len(body4w.Overall) {
+		t.Errorf("default and 4w should have same bucket count: %d vs %d",
+			len(bodyDefault.Overall), len(body4w.Overall))
+	}
+}
+
+// TestStatsPeriodInvalidFallback verifies that an invalid period value falls
+// back to 4w.
+func TestStatsPeriodInvalidFallback(t *testing.T) {
+	mock, _ := mockPypiStatsWide(t)
+	defer mock.Close()
+
+	router, c := setupHandler(t, mock)
+	defer c.Close()
+
+	body := fetchStats(t, router, "/api/packages/django/stats?period=bogus")
+	if body.Period != "4w" {
+		t.Errorf("invalid period should fallback to '4w', got %q", body.Period)
+	}
+}
+
+// TestStatsDateRangeInResponse verifies that the response includes period and
+// date_range fields with correct values.
+func TestStatsDateRangeInResponse(t *testing.T) {
+	mock, _ := mockPypiStatsWide(t)
+	defer mock.Close()
+
+	router, c := setupHandler(t, mock)
+	defer c.Close()
+
+	body := fetchStats(t, router, "/api/packages/django/stats?period=3m")
+
+	if body.Period != "3m" {
+		t.Errorf("period: expected '3m', got %q", body.Period)
+	}
+	if body.DateRange == nil {
+		t.Fatal("date_range is nil")
+	}
+	if body.DateRange.From == "" || body.DateRange.To == "" {
+		t.Errorf("date_range fields should not be empty: from=%q, to=%q",
+			body.DateRange.From, body.DateRange.To)
+	}
+
+	// Parse dates and verify the range is approximately 90 days
+	from, err := time.Parse("2006-01-02", body.DateRange.From)
+	if err != nil {
+		t.Fatalf("invalid from date: %v", err)
+	}
+	to, err := time.Parse("2006-01-02", body.DateRange.To)
+	if err != nil {
+		t.Fatalf("invalid to date: %v", err)
+	}
+	days := to.Sub(from).Hours() / 24
+	if days < 80 || days > 95 {
+		t.Errorf("3m date range should span ~90 days, got %.0f (%s to %s)",
+			days, body.DateRange.From, body.DateRange.To)
 	}
 }

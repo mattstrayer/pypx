@@ -6,7 +6,7 @@ const props = defineProps<{
 }>();
 
 const { activeManager, getInstallCommand } = usePackageManager();
-const managers = ["pip", "uv", "poetry", "pipx"] as const;
+const managers = ["uv", "pip", "poetry", "pipx"] as const;
 
 const command = computed(() => getInstallCommand(props.packageName));
 

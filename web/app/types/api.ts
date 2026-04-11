@@ -53,6 +53,8 @@ export interface VersionInfo {
 
 export interface StatsData {
   package: string;
+  period: string;
+  date_range?: { from: string; to: string };
   overall: DataPoint[];
   python_versions: DataPoint[];
   systems: DataPoint[];

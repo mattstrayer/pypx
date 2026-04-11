@@ -6,11 +6,11 @@ const props = defineProps<{
 }>();
 
 const { fetchVersions, fetchChangelog } = useApi();
-const { data: versions, status } = await useAsyncData(`versions-${props.name}`, () =>
+const { data: versions, status } = useAsyncData(`versions-${props.name}`, () =>
   fetchVersions(props.name),
 );
 
-const { data: changelog } = await useAsyncData(`changelog-${props.name}`, () =>
+const { data: changelog } = useAsyncData(`changelog-${props.name}`, () =>
   fetchChangelog(props.name),
 );
 

@@ -23,8 +23,10 @@ export function useApi() {
     return $fetch<DependencyTree>(`${baseURL}/packages/${name}/dependencies`);
   }
 
-  async function fetchStats(name: string): Promise<StatsData> {
-    return $fetch<StatsData>(`${baseURL}/packages/${name}/stats`);
+  async function fetchStats(name: string, period?: string): Promise<StatsData> {
+    return $fetch<StatsData>(`${baseURL}/packages/${name}/stats`, {
+      params: period ? { period } : undefined,
+    });
   }
 
   async function searchPackages(query: string, limit = 20): Promise<SearchResult[]> {

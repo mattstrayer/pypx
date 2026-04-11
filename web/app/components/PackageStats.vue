@@ -5,10 +5,28 @@ const props = defineProps<{
   name: string;
 }>();
 
+const periodOptions = [
+  { value: "4w", label: "4 weeks" },
+  { value: "3m", label: "3 months" },
+  { value: "6m", label: "6 months" },
+] as const;
+
+const period = ref("4w");
+
 const { fetchStats } = useApi();
-const { data: stats, status } = await useAsyncData(`stats-${props.name}`, () =>
-  fetchStats(props.name),
+const {
+  data: stats,
+  status,
+  refresh,
+} = await useAsyncData(
+  () => `stats-${props.name}-${period.value}`,
+  () => fetchStats(props.name, period.value),
 );
+
+async function setPeriod(p: string) {
+  period.value = p;
+  await refresh();
+}
 
 function formatDownloads(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -28,10 +46,45 @@ function barWidth(downloads: number, max: number): string {
 const overallTrend = computed(() => stats.value?.overall ?? []);
 const pythonVersions = computed(() => stats.value?.python_versions ?? []);
 const systems = computed(() => stats.value?.systems ?? []);
+
+const dateRangeLabel = computed(() => {
+  const range = stats.value?.date_range;
+  if (!range) return "";
+
+  const from = new Date(range.from + "T00:00:00");
+  const to = new Date(range.to + "T00:00:00");
+
+  const fmt = (d: Date, includeYear: boolean) => {
+    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+    if (includeYear) opts.year = "numeric";
+    return d.toLocaleDateString("en-US", opts);
+  };
+
+  const sameYear = from.getFullYear() === to.getFullYear();
+  return `${fmt(from, !sameYear)} – ${fmt(to, true)}`;
+});
 </script>
 
 <template>
   <div>
+    <!-- Period toggle -->
+    <div class="mb-6 flex items-center gap-1">
+      <button
+        v-for="opt in periodOptions"
+        :key="opt.value"
+        class="rounded-md px-3 py-1.5 font-mono text-xs transition-colors"
+        :class="
+          period === opt.value ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+        "
+        @click="setPeriod(opt.value)"
+      >
+        {{ opt.label }}
+      </button>
+      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-zinc-600">
+        {{ dateRangeLabel }}
+      </span>
+    </div>
+
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />

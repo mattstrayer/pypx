@@ -15,12 +15,40 @@ import (
 
 const statsTTL = 24 * time.Hour
 
+// DateRange represents the bounding dates of the filtered data.
+type DateRange struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
 // CombinedStats holds all download statistics for a package.
 type CombinedStats struct {
 	Package        string            `json:"package"`
+	Period         string            `json:"period"`
+	DateRange      *DateRange        `json:"date_range,omitempty"`
 	Overall        []stats.DataPoint `json:"overall"`
 	PythonVersions []stats.DataPoint `json:"python_versions"`
 	Systems        []stats.DataPoint `json:"systems"`
+}
+
+// periodConfig holds the parameters for a given time period.
+type periodConfig struct {
+	days       int
+	maxWeeks   int
+	pythonTopN int
+}
+
+var periods = map[string]periodConfig{
+	"4w": {days: 28, maxWeeks: 4, pythonTopN: 8},
+	"3m": {days: 90, maxWeeks: 12, pythonTopN: 8},
+	"6m": {days: 180, maxWeeks: 24, pythonTopN: 8},
+}
+
+func parsePeriod(s string) (string, periodConfig) {
+	if cfg, ok := periods[s]; ok {
+		return s, cfg
+	}
+	return "4w", periods["4w"]
 }
 
 // StatsHandler serves package download statistics requests.
@@ -34,10 +62,11 @@ func NewStatsHandler(statsClient *stats.Client, c cache.Cacher) *StatsHandler {
 	return &StatsHandler{stats: statsClient, cache: c}
 }
 
-// Get handles GET /api/packages/{name}/stats.
+// Get handles GET /api/packages/{name}/stats?period=4w.
 func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	cacheKey := "stats:" + strings.ToLower(name)
+	period, cfg := parsePeriod(r.URL.Query().Get("period"))
+	cacheKey := "stats:" + strings.ToLower(name) + ":" + period
 
 	// Check cache — serve stale data rather than blocking on a re-fetch.
 	if data, fresh, err := h.cache.Get(cacheKey, statsTTL); err == nil && data != nil {
@@ -48,14 +77,14 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if !fresh {
 			// Background revalidation: re-fetch and update cache silently.
 			go func() {
-				h.fetchAndCache(name, cacheKey)
+				h.fetchAndCache(name, period, cfg, cacheKey)
 			}()
 		}
 		return
 	}
 
 	// Cache miss — fetch synchronously.
-	encoded := h.fetchAndCache(name, cacheKey)
+	encoded := h.fetchAndCache(name, period, cfg, cacheKey)
 	if encoded == nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -64,6 +93,44 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// filterByDate removes data points whose date falls outside the window.
+func filterByDate(data []stats.DataPoint, cutoff time.Time) []stats.DataPoint {
+	filtered := make([]stats.DataPoint, 0, len(data))
+	for _, d := range data {
+		t, err := time.Parse("2006-01-02", d.Date)
+		if err != nil {
+			continue
+		}
+		if !t.Before(cutoff) {
+			filtered = append(filtered, d)
+		}
+	}
+	return filtered
+}
+
+// computeDateRange returns the min and max dates found in any of the provided
+// data slices.
+func computeDateRange(slices ...[]stats.DataPoint) *DateRange {
+	var minDate, maxDate string
+	for _, data := range slices {
+		for _, d := range data {
+			if d.Date == "" {
+				continue
+			}
+			if minDate == "" || d.Date < minDate {
+				minDate = d.Date
+			}
+			if maxDate == "" || d.Date > maxDate {
+				maxDate = d.Date
+			}
+		}
+	}
+	if minDate == "" {
+		return nil
+	}
+	return &DateRange{From: minDate, To: maxDate}
 }
 
 // aggregateByWeek groups daily data points into ISO-week buckets, keeping only
@@ -104,7 +171,6 @@ func aggregateByWeek(data []stats.DataPoint, maxWeeks int) []stats.DataPoint {
 
 	result := make([]stats.DataPoint, 0, len(keys))
 	for _, k := range keys {
-		// Label as "YYYY-Www" for clean display.
 		label := time.Date(k.year, 1, 1, 0, 0, 0, 0, time.UTC).
 			AddDate(0, 0, (k.week-1)*7).Format("Jan 02")
 		result = append(result, stats.DataPoint{
@@ -140,32 +206,43 @@ func aggregateByCategory(data []stats.DataPoint, topN int) []stats.DataPoint {
 	return result
 }
 
-// fetchAndCache fetches all stat types from pypistats.org, builds a
-// CombinedStats, stores it in the cache, and returns the encoded JSON.
-// Errors from individual stat endpoints are logged but do not abort the call.
-// Returns nil if JSON marshalling fails.
-func (h *StatsHandler) fetchAndCache(name, cacheKey string) []byte {
-	var overall, pythonVersions, systems []stats.DataPoint
+// fetchAndCache fetches all stat types from pypistats.org, filters by period,
+// aggregates, stores in cache, and returns the encoded JSON.
+func (h *StatsHandler) fetchAndCache(name, period string, cfg periodConfig, cacheKey string) []byte {
 	lower := strings.ToLower(name)
+	cutoff := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -cfg.days)
+
+	var rawOverall, rawPython, rawSystem []stats.DataPoint
 
 	if resp, err := h.stats.FetchOverall(lower); err != nil {
 		log.Printf("stats: FetchOverall(%q) error: %v", name, err)
 	} else {
-		overall = aggregateByWeek(resp.Data, 12)
+		rawOverall = resp.Data
 	}
 	if resp, err := h.stats.FetchPythonVersions(lower); err != nil {
 		log.Printf("stats: FetchPythonVersions(%q) error: %v", name, err)
 	} else {
-		pythonVersions = aggregateByCategory(resp.Data, 8)
+		rawPython = resp.Data
 	}
 	if resp, err := h.stats.FetchSystem(lower); err != nil {
 		log.Printf("stats: FetchSystem(%q) error: %v", name, err)
 	} else {
-		systems = aggregateByCategory(resp.Data, 0)
+		rawSystem = resp.Data
 	}
+
+	// Filter by date window before aggregating.
+	filteredOverall := filterByDate(rawOverall, cutoff)
+	filteredPython := filterByDate(rawPython, cutoff)
+	filteredSystem := filterByDate(rawSystem, cutoff)
+
+	overall := aggregateByWeek(filteredOverall, cfg.maxWeeks)
+	pythonVersions := aggregateByCategory(filteredPython, cfg.pythonTopN)
+	systems := aggregateByCategory(filteredSystem, 0)
 
 	combined := CombinedStats{
 		Package:        name,
+		Period:         period,
+		DateRange:      computeDateRange(filteredOverall, filteredPython, filteredSystem),
 		Overall:        overall,
 		PythonVersions: pythonVersions,
 		Systems:        systems,
