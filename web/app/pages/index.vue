@@ -8,22 +8,12 @@ function onSearch() {
   }
 }
 
-const trendingPackages = ref([
-  { name: "requests", summary: "HTTP for Humans", downloads: 50000000 },
-  {
-    name: "flask",
-    summary: "A simple framework for building complex web applications",
-    downloads: 30000000,
-  },
-  {
-    name: "django",
-    summary: "The web framework for perfectionists with deadlines",
-    downloads: 25000000,
-  },
-  { name: "numpy", summary: "Fundamental package for scientific computing", downloads: 80000000 },
-  { name: "pandas", summary: "Powerful data structures for data analysis", downloads: 60000000 },
-  { name: "fastapi", summary: "Modern, fast web framework for building APIs", downloads: 20000000 },
-]);
+const config = useRuntimeConfig();
+const { data: popularPackages, status } = await useFetch<
+  Array<{ name: string; summary: string; downloads: number }>
+>(`${config.public.apiBase}/popular`, {
+  params: { limit: 12 },
+});
 
 useSeoMeta({
   title: "pypx — A modern PyPI frontend",
@@ -57,7 +47,23 @@ useSeoMeta({
       <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
         Popular Packages
       </h2>
-      <TrendingPackages :packages="trendingPackages" />
+
+      <!-- Skeleton loading state -->
+      <div v-if="status === 'pending'" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="i in 12"
+          :key="i"
+          class="h-20 animate-pulse rounded-lg border border-zinc-800 bg-zinc-800/50"
+        />
+      </div>
+
+      <!-- Error state -->
+      <p v-else-if="status === 'error'" class="text-sm text-zinc-500">
+        Could not load popular packages.
+      </p>
+
+      <!-- Data -->
+      <TrendingPackages v-else-if="popularPackages?.length" :packages="popularPackages" />
     </section>
   </div>
 </template>
