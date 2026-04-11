@@ -67,5 +67,5 @@ func (h *PopularHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "public, max-age=21600")
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(encoded) //nolint:errcheck
+	w.Write(append(encoded, '\n')) //nolint:errcheck
 }

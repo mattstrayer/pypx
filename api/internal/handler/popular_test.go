@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -116,15 +117,39 @@ func TestPopular_LimitClamped(t *testing.T) {
 	idx := mustPopularIndex(t)
 	c := mustPopularCache(t)
 
+	// Seed 60 packages with non-zero downloads so clamping is observable.
+	packages := make([]search.PackageEntry, 60)
+	for i := range packages {
+		packages[i] = search.PackageEntry{
+			Name:      fmt.Sprintf("pkg-%02d", i),
+			Summary:   "A package",
+			Downloads: int64(1000 * (60 - i)),
+		}
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
 	h := handler.NewPopularHandler(idx, c)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/popular?limit=999", nil)
 	w := httptest.NewRecorder()
 	h.Get(w, req)
 
-	// Should not error — limit is clamped to 50 internally.
-	if w.Result().StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Result().StatusCode)
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+
+	var results []search.PackageEntry
+	if err := json.NewDecoder(res.Body).Decode(&results); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(results) != 50 {
+		t.Errorf("expected 50 results (clamped from 999), got %d", len(results))
 	}
 }
 
