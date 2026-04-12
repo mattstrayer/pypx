@@ -48,11 +48,23 @@ func ParseDependencies(requiresDist []string) DependencyTree {
 	return tree
 }
 
+// inlineConstraintRe matches the first version operator in an inline specifier
+// like "botocore<1.43.0,>=1.42.88" (no parentheses).
+var inlineConstraintRe = regexp.MustCompile(`[><=!~]`)
+
 // parseDep extracts the package name and version constraint from a dep specifier
-// like "charset-normalizer (<4,>=2)" or "click (>=7.0)" or "requests".
+// like "charset-normalizer (<4,>=2)" or "click (>=7.0)" or "requests" or
+// the inline PEP 508 form "botocore<1.43.0,>=1.42.88".
 func parseDep(s string) Dependency {
 	openIdx := strings.Index(s, "(")
 	if openIdx == -1 {
+		// Try inline constraint form: split on the first version operator character.
+		if loc := inlineConstraintRe.FindStringIndex(s); loc != nil {
+			return Dependency{
+				Name:       strings.TrimSpace(s[:loc[0]]),
+				Constraint: strings.TrimSpace(s[loc[0]:]),
+			}
+		}
 		return Dependency{Name: strings.TrimSpace(s), Constraint: ""}
 	}
 
