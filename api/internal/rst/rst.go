@@ -145,9 +145,14 @@ func collectIndentedBody(lines []string, start int) ([]string, int) {
 	for i < len(lines) {
 		line := lines[i]
 		if strings.TrimSpace(line) == "" {
-			// Allow blank lines within body only if followed by indented line.
-			if i+1 < len(lines) {
-				nextIndent := len(lines[i+1]) - len(strings.TrimLeft(lines[i+1], " \t"))
+			// Peek ahead past blank lines to find the next non-blank line.
+			// If it's still indented, keep the blank line(s) in the body.
+			j := i + 1
+			for j < len(lines) && strings.TrimSpace(lines[j]) == "" {
+				j++
+			}
+			if j < len(lines) {
+				nextIndent := len(lines[j]) - len(strings.TrimLeft(lines[j], " \t"))
 				if nextIndent >= indent {
 					body = append(body, "")
 					i++
@@ -216,7 +221,10 @@ func renderDoc(src string) string {
 						applyInline(strings.Join(body, " ")))
 
 				case "image":
-					fmt.Fprintf(&out, "<img src=\"%s\" alt=\"\">\n", html.EscapeString(args))
+					lower := strings.ToLower(strings.TrimSpace(args))
+					if !strings.HasPrefix(lower, "javascript:") && !strings.HasPrefix(lower, "vbscript:") {
+						fmt.Fprintf(&out, "<img src=\"%s\" alt=\"\">\n", html.EscapeString(args))
+					}
 
 				case "toctree", "contents", "include", "literalinclude":
 					// Omit — internal Sphinx directives.

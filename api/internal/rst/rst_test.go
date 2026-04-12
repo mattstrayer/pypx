@@ -94,6 +94,16 @@ func TestRender(t *testing.T) {
 			input:       "Use <tag> & 'quotes'.",
 			wantContain: "&lt;tag&gt;",
 		},
+		{
+			name:        "literal block",
+			input:       "Example::\n\n   some code\n   more code\n",
+			wantContain: "<pre><code>",
+		},
+		{
+			name:        "literal block content",
+			input:       "Example::\n\n   hello world\n",
+			wantContain: "hello world",
+		},
 	}
 
 	for _, tt := range tests {
