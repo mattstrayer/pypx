@@ -2,6 +2,7 @@ package github
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -219,5 +220,110 @@ func TestFetchReleasesForbidden(t *testing.T) {
 	}
 	if len(releases) != 0 {
 		t.Fatalf("expected 0 releases, got %d", len(releases))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FetchRepoInfo tests
+// ---------------------------------------------------------------------------
+
+func TestFetchRepoInfo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/psf/requests":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{
+				"stargazers_count": 52000,
+				"forks_count": 9500,
+				"open_issues_count": 180,
+				"pushed_at": "2025-03-01T10:00:00Z",
+				"owner": {
+					"login": "psf",
+					"type": "Organization",
+					"avatar_url": "https://avatars.githubusercontent.com/u/1"
+				}
+			}`)
+		case "/orgs/psf":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"login": "psf", "name": "Python Software Foundation"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	info, err := c.FetchRepoInfo("psf", "requests")
+	if err != nil {
+		t.Fatalf("FetchRepoInfo() error: %v", err)
+	}
+	if info == nil {
+		t.Fatal("FetchRepoInfo() returned nil, want non-nil")
+	}
+	if info.Stars != 52000 {
+		t.Errorf("Stars = %d, want 52000", info.Stars)
+	}
+	if info.Owner.Login != "psf" {
+		t.Errorf("Owner.Login = %q, want %q", info.Owner.Login, "psf")
+	}
+	if info.Owner.DisplayName != "Python Software Foundation" {
+		t.Errorf("Owner.DisplayName = %q, want %q", info.Owner.DisplayName, "Python Software Foundation")
+	}
+	if !info.Owner.IsOrg {
+		t.Error("Owner.IsOrg should be true for Organization type")
+	}
+}
+
+func TestFetchRepoInfoNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	info, err := c.FetchRepoInfo("missing", "repo")
+	if err != nil {
+		t.Fatalf("FetchRepoInfo() on 404 should not error: %v", err)
+	}
+	if info != nil {
+		t.Errorf("FetchRepoInfo() on 404 should return nil, got %+v", info)
+	}
+}
+
+func TestFetchRepoInfoUserOwner(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/kennethreitz/requests":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{
+				"stargazers_count": 1000,
+				"forks_count": 200,
+				"open_issues_count": 10,
+				"pushed_at": "2024-01-01T00:00:00Z",
+				"owner": {
+					"login": "kennethreitz",
+					"type": "User",
+					"avatar_url": "https://avatars.githubusercontent.com/u/119893"
+				}
+			}`)
+		case "/users/kennethreitz":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"login": "kennethreitz", "name": "Kenneth Reitz"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	info, err := c.FetchRepoInfo("kennethreitz", "requests")
+	if err != nil {
+		t.Fatalf("FetchRepoInfo() error: %v", err)
+	}
+	if info.Owner.IsOrg {
+		t.Error("Owner.IsOrg should be false for User type")
+	}
+	if info.Owner.DisplayName != "Kenneth Reitz" {
+		t.Errorf("DisplayName = %q, want Kenneth Reitz", info.Owner.DisplayName)
 	}
 }
