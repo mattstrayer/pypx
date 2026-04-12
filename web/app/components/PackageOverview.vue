@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { PackageData } from "~/types/api";
+import { useTimeAgo } from "@vueuse/core";
+import type { PackageData, RepoInfo } from "~/types/api";
 
 const props = defineProps<{
   pkg: PackageData;
+  repoInfo?: RepoInfo | null;
 }>();
 
 const maintainer = computed(() => props.pkg.author || props.pkg.author_email || null);
@@ -97,6 +99,65 @@ const projectLinks = computed(() => {
             </a>
           </li>
         </ul>
+      </div>
+
+      <!-- GitHub health signals -->
+      <div v-if="repoInfo" class="pt-3 border-t border-neutral-800">
+        <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">GitHub</div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-400">
+          <span v-if="repoInfo.stars">
+            <span class="text-neutral-300">{{ repoInfo.stars.toLocaleString() }}</span> stars
+          </span>
+          <span v-if="repoInfo.forks">
+            <span class="text-neutral-300">{{ repoInfo.forks.toLocaleString() }}</span> forks
+          </span>
+          <span v-if="repoInfo.open_issues !== undefined">
+            <span class="text-neutral-300">{{ repoInfo.open_issues.toLocaleString() }}</span> open
+            issues
+          </span>
+        </div>
+        <div v-if="repoInfo.last_pushed_at" class="text-xs text-neutral-500 mt-1">
+          last commit {{ useTimeAgo(new Date(repoInfo.last_pushed_at)).value }}
+        </div>
+      </div>
+
+      <!-- Doc link button -->
+      <div v-if="pkg.doc_url" class="pt-3 border-t border-neutral-800">
+        <a
+          :href="pkg.doc_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+        >
+          Documentation →
+        </a>
+      </div>
+
+      <!-- Release cadence -->
+      <div
+        v-if="pkg.release_cadence?.releases_last_12mo > 0"
+        class="pt-3 border-t border-neutral-800"
+      >
+        <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-1">
+          Release Cadence
+        </div>
+        <div class="text-sm text-neutral-400">
+          <span class="text-neutral-300">{{ pkg.release_cadence.releases_last_12mo }}</span>
+          releases in the past year
+          <span v-if="pkg.release_cadence.avg_days_between_releases > 0">
+            · avg {{ Math.round(pkg.release_cadence.avg_days_between_releases) }} days apart
+          </span>
+        </div>
+      </div>
+
+      <!-- Platform coverage -->
+      <div class="pt-3 border-t border-neutral-800">
+        <PackagePlatforms :coverage="pkg.platform_coverage" />
+      </div>
+
+      <!-- Maintainers -->
+      <div class="pt-3 border-t border-neutral-800">
+        <PackageMaintainers :maintainers="pkg.maintainers" :repo-info="repoInfo" />
       </div>
     </div>
   </div>
