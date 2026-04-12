@@ -195,8 +195,19 @@ func renderDoc(src string) string {
 		if strings.HasPrefix(trimmed, ".. ") {
 			rest := trimmed[3:] // after ".. "
 			colonIdx := strings.Index(rest, "::")
-			if colonIdx >= 0 {
-				directive := strings.TrimSpace(rest[:colonIdx])
+			if colonIdx < 0 {
+				// Not a directive with :: (e.g. hyperlink targets like ".. _label:").
+				// Skip the line and any indented body to avoid an infinite loop.
+				_, next := collectIndentedBody(lines, i+1)
+				if next == i+1 {
+					// collectIndentedBody returned immediately — advance past this line.
+					i++
+				} else {
+					i = next
+				}
+				continue
+			}
+			directive := strings.TrimSpace(rest[:colonIdx])
 				args := strings.TrimSpace(rest[colonIdx+2:])
 				body, next := collectIndentedBody(lines, i+1)
 				i = next
@@ -236,7 +247,6 @@ func renderDoc(src string) string {
 					}
 				}
 				continue
-			}
 		}
 
 		// Heading: current line followed by underline.

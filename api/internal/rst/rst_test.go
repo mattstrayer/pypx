@@ -104,6 +104,18 @@ func TestRender(t *testing.T) {
 			input:       "Example::\n\n   hello world\n",
 			wantContain: "hello world",
 		},
+		{
+			// Hyperlink targets (.. _label:) have no :: — must not infinite-loop.
+			name:        "hyperlink target no loop",
+			input:       ".. _colorama: https://example.com\n\nSome text.\n",
+			wantContain: "<p>Some text.</p>",
+		},
+		{
+			// Multiple hyperlink targets in a row.
+			name:        "multiple hyperlink targets",
+			input:       ".. _foo:\n.. _bar:\n\nParagraph.\n",
+			wantContain: "<p>Paragraph.</p>",
+		},
 	}
 
 	for _, tt := range tests {
