@@ -20,7 +20,7 @@ const { copy, copied } = useClipboard({ source: command });
       <button
         v-for="mgr in managers"
         :key="mgr"
-        class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
+        class="cursor-pointer rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
         :class="
           activeManager === mgr
             ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
@@ -38,7 +38,7 @@ const { copy, copied } = useClipboard({ source: command });
         <span class="text-zinc-500">$ </span>{{ command }}
       </code>
       <button
-        class="shrink-0 rounded p-1.5 text-zinc-500 transition-colors hover:bg-[var(--color-brand-muted)] hover:text-[var(--color-brand)]"
+        class="cursor-pointer shrink-0 rounded p-1.5 text-zinc-500 transition-colors hover:bg-[var(--color-brand-muted)] hover:text-[var(--color-brand)]"
         :title="copied ? 'Copied!' : 'Copy'"
         @click="copy()"
       >
