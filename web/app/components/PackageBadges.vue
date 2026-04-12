@@ -79,11 +79,14 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     </a>
 
     <!-- Security badge (only shown when vulnerabilities exist) -->
-    <span
+    <a
       v-if="security && vulnCount > 0"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800"
+      :href="`https://osv.dev/list?ecosystem=PyPI&q=${pkg.name}`"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800 hover:bg-red-900 transition-colors"
     >
       {{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}
-    </span>
+    </a>
   </div>
 </template>
