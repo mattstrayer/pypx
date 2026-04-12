@@ -107,10 +107,17 @@ func CheckPyTyped(c *Client, wheelURL string) bool {
 
 	for _, f := range zr.File {
 		name := f.Name
-		if name == "py.typed" ||
-			strings.HasSuffix(name, ".dist-info/py.typed") ||
-			strings.HasSuffix(name, ".dist-info\\py.typed") {
+		// Root-level py.typed (flat package layout).
+		if name == "py.typed" {
 			return true
+		}
+		// PEP 561: py.typed lives inside the importable package directory,
+		// e.g. "requests/py.typed". Exclude .dist-info and .data directories.
+		if strings.HasSuffix(name, "/py.typed") {
+			parent := name[:strings.LastIndex(name, "/")]
+			if !strings.HasSuffix(parent, ".dist-info") && !strings.HasSuffix(parent, ".data") {
+				return true
+			}
 		}
 	}
 	return false

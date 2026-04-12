@@ -87,7 +87,6 @@ func main() {
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000", "https://pypx.app"},
 		AllowedMethods:   []string{"GET", "OPTIONS"},
@@ -96,17 +95,23 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	r.Get("/api/health", handler.Health)
-	r.Get("/api/packages/{name}", pkgHandler.Get)
-	r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
-	r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
-	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
-	r.Get("/api/packages/{name}/stats", statsHandler.Get)
-	r.Get("/api/packages/{name}/security", securityHandler.Get)
-	r.Get("/api/packages/{name}/extras", extrasHandler.Get)
-	r.Get("/api/packages/{name}/docs", docsHandler.Get)
-	r.Get("/api/search", searchHandler.Search)
-	r.Get("/api/popular", popularHandler.Get)
+	// Most routes get a 30s timeout.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Timeout(30 * time.Second))
+		r.Get("/api/health", handler.Health)
+		r.Get("/api/packages/{name}", pkgHandler.Get)
+		r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
+		r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
+		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+		r.Get("/api/packages/{name}/stats", statsHandler.Get)
+		r.Get("/api/packages/{name}/security", securityHandler.Get)
+		r.Get("/api/packages/{name}/extras", extrasHandler.Get)
+		r.Get("/api/search", searchHandler.Search)
+		r.Get("/api/popular", popularHandler.Get)
+	})
+
+	// Docs route needs extended timeout: the sidecar downloads + parses a wheel (up to 90s).
+	r.With(middleware.Timeout(150 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

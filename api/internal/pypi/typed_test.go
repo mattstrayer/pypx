@@ -25,9 +25,10 @@ func buildWheel(filenames ...string) []byte {
 }
 
 func TestCheckPyTyped(t *testing.T) {
+	// PEP 561: py.typed lives in the importable package directory, not .dist-info.
 	withTyped := buildWheel(
 		"requests-2.33.1.dist-info/METADATA",
-		"requests-2.33.1.dist-info/py.typed",
+		"requests/py.typed",
 		"requests/__init__.py",
 	)
 	withoutTyped := buildWheel(

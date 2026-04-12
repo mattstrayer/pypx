@@ -162,6 +162,16 @@ async def generate(req: GenerateRequest) -> dict:
     if not wheel_url:
         return {"empty": True, "reason": "no_wheel", "modules": []}
 
+    # Guard against oversized wheels (e.g. torch ~800MB) — check size before downloading.
+    MAX_WHEEL_BYTES = 50 * 1024 * 1024  # 50 MB
+    try:
+        head_resp = httpx.head(wheel_url, timeout=10, follow_redirects=True)
+        cl = head_resp.headers.get("content-length")
+        if cl and int(cl) > MAX_WHEEL_BYTES:
+            return {"empty": True, "reason": "wheel_too_large", "modules": []}
+    except Exception:
+        pass  # Can't get size; proceed and hope for the best
+
     # Download wheel.
     try:
         wheel_resp = httpx.get(wheel_url, timeout=60, follow_redirects=True)

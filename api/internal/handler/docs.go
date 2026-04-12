@@ -98,6 +98,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	version := pkg.Info.Version
 
 	cacheKey := "docs:" + strings.ToLower(name) + ":" + version
+	errKey := "docs-err:" + strings.ToLower(name) + ":" + version
 
 	// TTL=0 means indefinite (source is immutable per version).
 	if data, _, err := h.cache.Get(cacheKey, 0); err == nil && data != nil {
@@ -106,16 +107,24 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Short-circuit if the sidecar recently failed for this package (5-min negative cache).
+	if data, fresh, err := h.cache.Get(errKey, 300); err == nil && data != nil && fresh {
+		http.Error(w, "documentation service unavailable", http.StatusBadGateway)
+		return
+	}
+
 	// Call the docs-worker sidecar.
 	reqBody, _ := json.Marshal(sidecarRequest{Name: name, Version: version})
 	resp, err := h.httpClient.Post(h.sidecarURL+"/generate", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
+		h.cache.Set(errKey, []byte("1"), 300) //nolint:errcheck
 		http.Error(w, "documentation service unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		h.cache.Set(errKey, []byte("1"), 300) //nolint:errcheck
 		http.Error(w, "documentation service error", http.StatusBadGateway)
 		return
 	}

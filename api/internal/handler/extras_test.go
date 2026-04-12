@@ -80,7 +80,8 @@ func TestExtrasHandlerGetPyTyped(t *testing.T) {
 	// Build a minimal wheel zip with py.typed.
 	var wheelBuf bytes.Buffer
 	zw := zip.NewWriter(&wheelBuf)
-	zw.Create("typed_pkg-1.0.0.dist-info/py.typed") //nolint:errcheck
+	zw.Create("typed_pkg-1.0.0.dist-info/METADATA") //nolint:errcheck
+	zw.Create("typed_pkg/py.typed")                  //nolint:errcheck
 	zw.Create("typed_pkg/__init__.py")               //nolint:errcheck
 	zw.Close()
 	wheelBytes := wheelBuf.Bytes()
