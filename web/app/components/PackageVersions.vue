@@ -70,8 +70,8 @@ function formatDate(iso: string): string {
         <tr class="border-b border-zinc-800 text-left text-zinc-500">
           <th class="pb-2 pr-6 font-medium">Version</th>
           <th class="pb-2 pr-6 font-medium">Released</th>
-          <th class="pb-2 pr-6 font-medium">Size</th>
-          <th class="pb-2 font-medium">Format</th>
+          <th class="hidden pb-2 pr-6 font-medium sm:table-cell">Size</th>
+          <th class="hidden pb-2 font-medium sm:table-cell">Format</th>
         </tr>
       </thead>
       <tbody>
@@ -98,10 +98,12 @@ function formatDate(iso: string): string {
               </div>
             </td>
             <td class="py-3 pr-6 text-zinc-400">{{ formatDate(v.upload_time) }}</td>
-            <td class="py-3 pr-6 font-mono text-[var(--color-brand)]">
+            <td class="hidden py-3 pr-6 font-mono text-[var(--color-brand)] sm:table-cell">
               {{ formatSize(v.install_size) }}
             </td>
-            <td class="py-3 font-mono text-xs text-zinc-500">{{ v.module_format || "—" }}</td>
+            <td class="hidden py-3 font-mono text-xs text-zinc-500 sm:table-cell">
+              {{ v.module_format || "—" }}
+            </td>
           </tr>
           <tr v-if="expandedVersions.has(v.version) && changelogMap.has(v.version)">
             <td colspan="4" class="pb-4 pt-1">
