@@ -3,7 +3,7 @@ import type { Maintainer, RepoInfo } from "~/types/api";
 
 const props = defineProps<{
   maintainers: Maintainer[];
-  repoInfo?: RepoInfo;
+  repoInfo?: RepoInfo | null;
 }>();
 
 // Build display list: prefer GitHub org owner if available, then maintainers.
