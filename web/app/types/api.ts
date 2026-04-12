@@ -185,7 +185,7 @@ export interface DocSymbol {
   signature: string;
   docstring: string;
   parameters?: DocParam[];
-  returns?: DocReturn | null;
+  returns?: DocReturn;
 }
 
 export interface DocModule {
