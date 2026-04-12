@@ -1,22 +1,37 @@
+"""
+docs-worker: griffe-based API doc extractor.
+
+Bare ASGI app (no FastAPI/Pydantic) with lazy-loaded heavy deps so the
+idle container holds minimal RSS. griffe and httpx are imported on the
+first /generate request and stay resident for all subsequent ones.
+"""
+
 import io
+import json
 import os
 import re
 import tempfile
 import zipfile
 from typing import Any
 
-import griffe
-import httpx
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-app = FastAPI()
+# Heavy dependencies loaded lazily on first request.
+# At idle the container only pays for stdlib + uvicorn.
+_griffe = None
+_httpx = None
 
 
-class GenerateRequest(BaseModel):
-    name: str
-    version: str
+def _load_deps() -> None:
+    global _griffe, _httpx
+    if _griffe is None:
+        import griffe
+        import httpx
+        _griffe = griffe
+        _httpx = httpx
 
+
+# ---------------------------------------------------------------------------
+# Helpers (receive griffe objects but don't import griffe at module level)
+# ---------------------------------------------------------------------------
 
 def normalize_name(name: str) -> str:
     return re.sub(r"[-_.]+", "_", name).lower()
@@ -137,16 +152,22 @@ def transform_module(module: Any) -> dict:
     }
 
 
-@app.post("/generate")
-async def generate(req: GenerateRequest) -> dict:
+# ---------------------------------------------------------------------------
+# Core generation logic
+# ---------------------------------------------------------------------------
+
+def _generate(name: str, version: str) -> tuple[int, dict]:
+    """Return (http_status, result_dict). 200 on success, 502 on upstream error."""
+    _load_deps()
+
     # Fetch PyPI metadata to get wheel URL.
-    pypi_url = f"https://pypi.org/pypi/{req.name}/{req.version}/json"
+    pypi_url = f"https://pypi.org/pypi/{name}/{version}/json"
     try:
-        resp = httpx.get(pypi_url, timeout=15)
+        resp = _httpx.get(pypi_url, timeout=15)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PyPI fetch failed: {e}")
+        return 502, {"error": f"PyPI fetch failed: {e}"}
 
     # Find best wheel URL: prefer pure-python, fall back to first wheel.
     wheel_url: str | None = None
@@ -160,46 +181,45 @@ async def generate(req: GenerateRequest) -> dict:
             break
 
     if not wheel_url:
-        return {"empty": True, "reason": "no_wheel", "modules": []}
+        return 200, {"empty": True, "reason": "no_wheel", "modules": []}
 
     # Guard against oversized wheels (e.g. torch ~800MB) — check size before downloading.
     MAX_WHEEL_BYTES = 50 * 1024 * 1024  # 50 MB
     try:
-        head_resp = httpx.head(wheel_url, timeout=10, follow_redirects=True)
+        head_resp = _httpx.head(wheel_url, timeout=10, follow_redirects=True)
         cl = head_resp.headers.get("content-length")
         if cl and int(cl) > MAX_WHEEL_BYTES:
-            return {"empty": True, "reason": "wheel_too_large", "modules": []}
+            return 200, {"empty": True, "reason": "wheel_too_large", "modules": []}
     except Exception:
         pass  # Can't get size; proceed and hope for the best
 
     # Download wheel.
     try:
-        wheel_resp = httpx.get(wheel_url, timeout=60, follow_redirects=True)
+        wheel_resp = _httpx.get(wheel_url, timeout=60, follow_redirects=True)
         wheel_resp.raise_for_status()
         wheel_bytes = wheel_resp.content
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Wheel download failed: {e}")
+        return 502, {"error": f"Wheel download failed: {e}"}
 
     # Open as zip.
     try:
         zf = zipfile.ZipFile(io.BytesIO(wheel_bytes))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Wheel open failed: {e}")
+        return 502, {"error": f"Wheel open failed: {e}"}
 
     py_files = {
-        name: zf.read(name)
-        for name in zf.namelist()
-        if name.endswith(".py") and "__pycache__" not in name
+        entry: zf.read(entry)
+        for entry in zf.namelist()
+        if entry.endswith(".py") and "__pycache__" not in entry
     }
 
     if not py_files:
-        return {"empty": True, "reason": "no_python_source", "modules": []}
+        return 200, {"empty": True, "reason": "no_python_source", "modules": []}
 
-    top_pkgs = get_top_level_packages(zf, req.name)
+    top_pkgs = get_top_level_packages(zf, name)
 
     modules = []
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Write .py files to temp dir.
         for filename, content in py_files.items():
             filepath = os.path.join(tmpdir, filename)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -211,7 +231,7 @@ async def generate(req: GenerateRequest) -> dict:
 
         for pkg_name in top_pkgs:
             try:
-                module = griffe.load(pkg_name, search_paths=[tmpdir])
+                module = _griffe.load(pkg_name, search_paths=[tmpdir])
                 transformed = transform_module(module)
                 if any(transformed[k] for k in ("functions", "classes", "exceptions")):
                     modules.append(transformed)
@@ -219,11 +239,61 @@ async def generate(req: GenerateRequest) -> dict:
                 continue
 
     if not modules:
-        return {"empty": True, "reason": "no_python_source", "modules": []}
+        return 200, {"empty": True, "reason": "no_python_source", "modules": []}
 
-    return {"empty": False, "reason": "", "modules": modules}
+    return 200, {"empty": False, "reason": "", "modules": modules}
+
+
+# ---------------------------------------------------------------------------
+# Bare ASGI app
+# ---------------------------------------------------------------------------
+
+async def _send_response(send, status: int, body: bytes, content_type: bytes = b"application/json") -> None:
+    await send({
+        "type": "http.response.start",
+        "status": status,
+        "headers": [
+            (b"content-type", content_type),
+            (b"content-length", str(len(body)).encode()),
+        ],
+    })
+    await send({"type": "http.response.body", "body": body})
+
+
+async def app(scope, receive, send) -> None:
+    if scope["type"] != "http":
+        return
+
+    method: str = scope["method"]
+    path: str = scope["path"]
+
+    if path == "/health" and method == "GET":
+        await _send_response(send, 200, b"ok", b"text/plain")
+        return
+
+    if path == "/generate" and method == "POST":
+        body = b""
+        while True:
+            event = await receive()
+            body += event.get("body", b"")
+            if not event.get("more_body", False):
+                break
+
+        try:
+            data = json.loads(body)
+            name = str(data["name"])
+            version = str(data["version"])
+        except Exception:
+            await _send_response(send, 400, json.dumps({"error": "invalid request body"}).encode())
+            return
+
+        status, result = _generate(name, version)
+        await _send_response(send, status, json.dumps(result).encode())
+        return
+
+    await _send_response(send, 404, b"not found", b"text/plain")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
