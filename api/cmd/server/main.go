@@ -62,6 +62,12 @@ func main() {
 	condaClient := conda.NewClient()
 	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, c)
 
+	docsWorkerURL := os.Getenv("DOCS_WORKER_URL")
+	if docsWorkerURL == "" {
+		docsWorkerURL = "http://localhost:8001"
+	}
+	docsHandler := handler.NewDocsHandler(pypiClient, c, docsWorkerURL)
+
 	searchIdx, err := search.NewIndex(sqlitePath + "-search")
 	if err != nil {
 		log.Fatalf("failed to create search index: %v", err)
@@ -96,6 +102,7 @@ func main() {
 	r.Get("/api/packages/{name}/stats", statsHandler.Get)
 	r.Get("/api/packages/{name}/security", securityHandler.Get)
 	r.Get("/api/packages/{name}/extras", extrasHandler.Get)
+	r.Get("/api/packages/{name}/docs", docsHandler.Get)
 	r.Get("/api/search", searchHandler.Search)
 	r.Get("/api/popular", popularHandler.Get)
 

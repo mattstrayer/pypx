@@ -26,10 +26,14 @@ services:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - DOCS_WORKER_URL=http://docs-worker:8000
     volumes:
       - api_data:/data
     expose:
       - "8080"
+    depends_on:
+      docs-worker:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/health"]
@@ -37,6 +41,17 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  docs-worker:
+    build:
+      context: ./docs-worker
+    expose:
+      - "8000"
+    restart: unless-stopped
     deploy:
       resources:
         limits:
