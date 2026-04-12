@@ -68,6 +68,25 @@ func TestParseMaintainers(t *testing.T) {
 			info: pypi.PackageInfo{},
 			want: nil,
 		},
+		{
+			name: "comma in display name inside angle brackets not treated as separator",
+			info: pypi.PackageInfo{
+				AuthorEmail: "Smith, John <john@example.com>",
+			},
+			want: []enrichment.Maintainer{
+				{Name: "Smith, John", Email: "john@example.com"},
+			},
+		},
+		{
+			name: "bare email in email field uses positional author name",
+			info: pypi.PackageInfo{
+				Author:      "Kenneth Reitz",
+				AuthorEmail: "me@kennethreitz.org",
+			},
+			want: []enrichment.Maintainer{
+				{Name: "Kenneth Reitz", Email: "me@kennethreitz.org"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

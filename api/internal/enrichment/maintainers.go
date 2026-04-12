@@ -81,6 +81,9 @@ func parseMaintainersFromEmailField(emailField, nameField string) []Maintainer {
 }
 
 // splitEmailList splits on commas that are not inside angle brackets.
+// It only splits on a comma at depth 0 if what comes before the comma looks like
+// a complete entry (has an email or angle brackets).
+// This handles cases like "Smith, John <john@example.com>" correctly (one entry with comma in name).
 func splitEmailList(s string) []string {
 	var parts []string
 	depth, start := 0, 0
@@ -89,11 +92,18 @@ func splitEmailList(s string) []string {
 		case '<':
 			depth++
 		case '>':
-			depth--
+			if depth > 0 {
+				depth--
+			}
 		case ',':
 			if depth == 0 {
-				parts = append(parts, s[start:i])
-				start = i + 1
+				// Only split if what precedes this comma looks like a complete entry
+				before := strings.TrimSpace(s[start:i])
+				if before != "" && (strings.Contains(before, "@") || strings.Contains(before, ">")) {
+					// It looks complete (has email or closed angle bracket), so split here
+					parts = append(parts, s[start:i])
+					start = i + 1
+				}
 			}
 		}
 	}
