@@ -64,6 +64,8 @@ func main() {
 
 	docsWorkerURL := os.Getenv("DOCS_WORKER_URL")
 	if docsWorkerURL == "" {
+		// Default assumes docs-worker is port-forwarded to 8001 (see docker-compose.override.yml).
+		// When running inside Docker, DOCS_WORKER_URL is set to http://docs-worker:8000.
 		docsWorkerURL = "http://localhost:8001"
 	}
 	docsHandler := handler.NewDocsHandler(pypiClient, c, docsWorkerURL)
