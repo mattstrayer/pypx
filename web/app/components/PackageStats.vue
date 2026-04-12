@@ -68,11 +68,11 @@ const dateRangeLabel = computed(() => {
 <template>
   <div>
     <!-- Period toggle -->
-    <div class="mb-6 flex items-center gap-1">
+    <div class="mb-6 flex flex-wrap items-center gap-1">
       <button
         v-for="opt in periodOptions"
         :key="opt.value"
-        class="rounded-md px-3 py-1.5 font-mono text-xs transition-colors"
+        class="cursor-pointer rounded-md px-3 py-1.5 font-mono text-xs transition-colors"
         :class="
           period === opt.value
             ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
