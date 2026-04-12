@@ -1,0 +1,44 @@
+<script setup lang="ts">
+import type { PlatformCoverage } from "~/types/api";
+
+const props = defineProps<{
+  coverage: PlatformCoverage;
+}>();
+
+interface Platform {
+  key: keyof PlatformCoverage;
+  label: string;
+  short: string;
+}
+
+const platforms: Platform[] = [
+  { key: "pure_python", label: "Pure Python", short: "py" },
+  { key: "linux_x86_64", label: "Linux x86_64", short: "linux" },
+  { key: "linux_arm64", label: "Linux ARM64", short: "arm64" },
+  { key: "macos_x86_64", label: "macOS Intel", short: "mac-x86" },
+  { key: "macos_arm64", label: "macOS Apple Silicon", short: "mac-arm" },
+  { key: "windows_x86_64", label: "Windows x86_64", short: "win" },
+  { key: "musl", label: "musl/Alpine", short: "musl" },
+];
+
+const supported = computed(() =>
+  platforms.filter((p) => p.key !== "pure_python" && props.coverage[p.key]),
+);
+const hasAnyCoverage = computed(() => supported.value.length > 0);
+</script>
+
+<template>
+  <div v-if="hasAnyCoverage">
+    <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">Platforms</div>
+    <div class="flex flex-wrap gap-1.5">
+      <span
+        v-for="p in supported"
+        :key="p.key"
+        :title="p.label"
+        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-neutral-800 text-neutral-300 ring-1 ring-neutral-700"
+      >
+        {{ p.short }}
+      </span>
+    </div>
+  </div>
+</template>

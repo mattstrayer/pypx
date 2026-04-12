@@ -45,8 +45,12 @@ type PackageResponse struct {
 	LatestFiles    []FileInfo                   `json:"latest_files"`
 	InstallSize    int64                        `json:"install_size"`
 	ModuleFormat   string                       `json:"module_format"`
-	PythonVersions enrichment.PythonVersionInfo `json:"python_versions"`
-	Dependencies   enrichment.DependencyTree    `json:"dependencies"`
+	PythonVersions  enrichment.PythonVersionInfo `json:"python_versions"`
+	Dependencies    enrichment.DependencyTree    `json:"dependencies"`
+	PlatformCoverage enrichment.PlatformCoverage `json:"platform_coverage"`
+	ReleaseCadence   enrichment.ReleaseCadence   `json:"release_cadence"`
+	Maintainers      []enrichment.Maintainer     `json:"maintainers"`
+	DocURL           string                       `json:"doc_url"`
 }
 
 // PackageHandler serves package metadata requests.
@@ -360,9 +364,13 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 		ProjectURLs:    info.ProjectURLs,
 		Classifiers:    info.Classifiers,
 		LatestFiles:    files,
-		InstallSize:    enrichment.ExtractInstallSize(r.URLs),
-		ModuleFormat:   enrichment.ExtractModuleFormat(r.URLs),
-		PythonVersions: enrichment.ExtractPythonVersions(info.RequiresPython),
-		Dependencies:   enrichment.ParseDependencies(info.RequiresDist),
+		InstallSize:      enrichment.ExtractInstallSize(r.URLs),
+		ModuleFormat:     enrichment.ExtractModuleFormat(r.URLs),
+		PythonVersions:   enrichment.ExtractPythonVersions(info.RequiresPython),
+		Dependencies:     enrichment.ParseDependencies(info.RequiresDist),
+		PlatformCoverage: enrichment.ExtractPlatformCoverage(r.URLs),
+		ReleaseCadence:   enrichment.ComputeReleaseCadence(r.Releases),
+		Maintainers:      enrichment.ParseMaintainers(info),
+		DocURL:           enrichment.ExtractDocURL(info.ProjectURLs),
 	}
 }

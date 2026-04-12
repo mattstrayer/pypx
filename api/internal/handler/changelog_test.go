@@ -83,11 +83,28 @@ func TestGetChangelog(t *testing.T) {
 	}))
 	defer mockPyPI.Close()
 
-	// Mock GitHub server returning 1 release.
+	// Mock GitHub server returning 1 release or repo info.
 	mockGitHub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockGitHubReleases)) //nolint:errcheck
+		path := r.URL.Path
+		if strings.Contains(path, "/releases") {
+			w.Write([]byte(mockGitHubReleases)) //nolint:errcheck
+		} else if strings.HasPrefix(path, "/repos/") {
+			w.Write([]byte(`{
+				"stargazers_count": 1000,
+				"forks_count": 100,
+				"open_issues_count": 10,
+				"pushed_at": "2025-01-01T00:00:00Z",
+				"owner": {
+					"login": "psf",
+					"type": "Organization",
+					"avatar_url": "https://avatars.githubusercontent.com/u/1"
+				}
+			}`)) //nolint:errcheck
+		} else if strings.HasPrefix(path, "/orgs/") {
+			w.Write([]byte(`{"name": "Python Software Foundation"}`)) //nolint:errcheck
+		}
 	}))
 	defer mockGitHub.Close()
 
@@ -183,17 +200,34 @@ func TestChangelogGet_RendersBodyHTML(t *testing.T) {
 	}))
 	defer pypiSrv.Close()
 
-	// Mock GitHub server returning a release with markdown body.
+	// Mock GitHub server returning a release with markdown body or repo info.
 	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[{
-			"tag_name": "v2.31.0",
-			"name": "v2.31.0",
-			"body": "## What's Changed\n\n- Fixed **bug** in auth",
-			"published_at": "2023-05-22T15:12:01Z",
-			"html_url": "https://github.com/psf/requests/releases/tag/v2.31.0"
-		}]`)) //nolint:errcheck
+		path := r.URL.Path
+		if strings.Contains(path, "/releases") {
+			w.Write([]byte(`[{
+				"tag_name": "v2.31.0",
+				"name": "v2.31.0",
+				"body": "## What's Changed\n\n- Fixed **bug** in auth",
+				"published_at": "2023-05-22T15:12:01Z",
+				"html_url": "https://github.com/psf/requests/releases/tag/v2.31.0"
+			}]`)) //nolint:errcheck
+		} else if strings.HasPrefix(path, "/repos/") {
+			w.Write([]byte(`{
+				"stargazers_count": 1000,
+				"forks_count": 100,
+				"open_issues_count": 10,
+				"pushed_at": "2025-01-01T00:00:00Z",
+				"owner": {
+					"login": "psf",
+					"type": "Organization",
+					"avatar_url": "https://avatars.githubusercontent.com/u/1"
+				}
+			}`)) //nolint:errcheck
+		} else if strings.HasPrefix(path, "/orgs/") {
+			w.Write([]byte(`{"name": "Python Software Foundation"}`)) //nolint:errcheck
+		}
 	}))
 	defer ghSrv.Close()
 

@@ -5,11 +5,15 @@ import type {
   StatsData,
   SearchResult,
   ChangelogData,
+  SecurityData,
+  ExtrasData,
 } from "~/types/api";
 
 export function useApi() {
   const config = useRuntimeConfig();
-  const baseURL = config.public.apiBase;
+  // Server-side: use private apiBase (http://api:8080 inside Docker network).
+  // Client-side: fall back to public apiBase (http://localhost:8080/api from browser).
+  const baseURL = (config.apiBase as string) || config.public.apiBase;
 
   async function fetchPackage(name: string): Promise<PackageData> {
     return $fetch<PackageData>(`${baseURL}/packages/${name}`);
@@ -39,6 +43,16 @@ export function useApi() {
     return $fetch<ChangelogData>(`${baseURL}/packages/${name}/changelog`);
   }
 
+  async function fetchSecurity(name: string, version?: string): Promise<SecurityData> {
+    return $fetch<SecurityData>(`${baseURL}/packages/${name}/security`, {
+      params: version ? { version } : undefined,
+    });
+  }
+
+  async function fetchExtras(name: string): Promise<ExtrasData> {
+    return $fetch<ExtrasData>(`${baseURL}/packages/${name}/extras`);
+  }
+
   return {
     fetchPackage,
     fetchVersions,
@@ -46,5 +60,7 @@ export function useApi() {
     fetchStats,
     searchPackages,
     fetchChangelog,
+    fetchSecurity,
+    fetchExtras,
   };
 }

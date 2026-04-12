@@ -3,10 +3,30 @@ const route = useRoute();
 const name = computed(() => route.params.name as string);
 const activeTab = ref("overview");
 
-const { fetchPackage } = useApi();
+const api = useApi();
 const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
-  fetchPackage(name.value),
+  api.fetchPackage(name.value),
 );
+
+// Non-blocking parallel fetches (client-side, don't block SSR)
+const { data: security } = useAsyncData(
+  `security-${name.value}`,
+  () => api.fetchSecurity(name.value, pkg.value?.version),
+  { server: false, default: () => null },
+);
+
+const { data: extras } = useAsyncData(`extras-${name.value}`, () => api.fetchExtras(name.value), {
+  server: false,
+  default: () => null,
+});
+
+const { data: changelog } = useAsyncData(
+  `changelog-${name.value}`,
+  () => api.fetchChangelog(name.value).catch(() => null),
+  { server: false, default: () => null },
+);
+
+const repoInfo = computed(() => changelog.value?.repo_info ?? null);
 
 const tabs = [
   { key: "overview", label: "Overview" },
@@ -48,7 +68,7 @@ useSeoMeta({
         </div>
         <p v-if="pkg.summary" class="mt-2 text-zinc-400">{{ pkg.summary }}</p>
         <div class="mt-3">
-          <PackageBadges :pkg="pkg" />
+          <PackageBadges :pkg="pkg" :extras="extras" :security="security" />
         </div>
       </div>
 
@@ -69,7 +89,9 @@ useSeoMeta({
 
       <!-- Tab content -->
       <div>
-        <div v-if="activeTab === 'overview'"><PackageOverview :pkg="pkg" /></div>
+        <div v-if="activeTab === 'overview'">
+          <PackageOverview :pkg="pkg" :repo-info="repoInfo" />
+        </div>
         <div v-else-if="activeTab === 'dependencies'">
           <PackageDependencies :name="pkg.name" :dependencies="pkg.dependencies" />
         </div>
