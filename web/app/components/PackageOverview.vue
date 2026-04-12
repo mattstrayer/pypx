@@ -14,6 +14,10 @@ const projectLinks = computed(() => {
   if (!urls) return [];
   return Object.entries(urls).map(([label, url]) => ({ label, url }));
 });
+
+const lastPushedAgo = computed(() =>
+  props.repoInfo?.last_pushed_at ? useTimeAgo(new Date(props.repoInfo.last_pushed_at)).value : null,
+);
 </script>
 
 <template>
@@ -116,8 +120,8 @@ const projectLinks = computed(() => {
             issues
           </span>
         </div>
-        <div v-if="repoInfo.last_pushed_at" class="text-xs text-neutral-500 mt-1">
-          last commit {{ useTimeAgo(new Date(repoInfo.last_pushed_at)).value }}
+        <div v-if="lastPushedAgo" class="text-xs text-neutral-500 mt-1">
+          last commit {{ lastPushedAgo }}
         </div>
       </div>
 
