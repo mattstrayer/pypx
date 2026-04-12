@@ -2,6 +2,7 @@
 const route = useRoute();
 const name = computed(() => route.params.name as string);
 const activeTab = ref("overview");
+const isChildRoute = computed(() => route.path !== `/packages/${name.value}`);
 
 const api = useApi();
 const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
@@ -26,9 +27,16 @@ const { data: changelog } = useAsyncData(
   { server: false, default: () => null },
 );
 
+// Docs: non-blocking fetch to determine if the Docs tab should be shown.
+const { data: docsData } = useAsyncData(
+  `docs-${name.value}`,
+  () => api.fetchDocs(name.value).catch(() => null),
+  { server: false, default: () => null },
+);
+
 const repoInfo = computed(() => changelog.value?.repo_info ?? null);
 
-const tabs = [
+const inPageTabs = [
   { key: "overview", label: "Overview" },
   { key: "dependencies", label: "Dependencies" },
   { key: "versions", label: "Versions" },
@@ -44,7 +52,10 @@ useSeoMeta({
 </script>
 
 <template>
-  <div>
+  <!-- Child routes (e.g. /docs) are self-contained — pass straight through -->
+  <NuxtPage v-if="isChildRoute" />
+
+  <div v-else>
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
@@ -74,8 +85,9 @@ useSeoMeta({
 
       <!-- Tabs -->
       <div class="mb-6 flex gap-1 overflow-x-auto border-b border-zinc-800 pb-0">
+        <!-- In-page tabs -->
         <button
-          v-for="tab in tabs"
+          v-for="tab in inPageTabs"
           :key="tab.key"
           class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
           :class="
@@ -85,6 +97,15 @@ useSeoMeta({
         >
           {{ tab.label }}
         </button>
+
+        <!-- Docs tab — link to separate route, shown only when available -->
+        <NuxtLink
+          v-if="docsData?.available"
+          :to="`/packages/${pkg.name}/docs`"
+          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+        >
+          Docs
+        </NuxtLink>
       </div>
 
       <!-- Tab content -->

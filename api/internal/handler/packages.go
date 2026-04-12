@@ -12,6 +12,7 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/enrichment"
 	"github.com/pypx/api/internal/markdown"
+	"github.com/pypx/api/internal/rst"
 	"github.com/pypx/api/internal/pypi"
 )
 
@@ -344,8 +345,12 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 	}
 
 	var descHTML string
-	if strings.Contains(info.DescriptionType, "text/markdown") {
+	switch {
+	case strings.Contains(info.DescriptionType, "text/markdown"):
 		descHTML, _ = markdown.Render(info.Description)
+	case strings.Contains(info.DescriptionType, "text/x-rst"),
+		strings.Contains(info.DescriptionType, "text/x-restructuredtext"):
+		descHTML, _ = rst.Render(info.Description)
 	}
 
 	return PackageResponse{

@@ -7,6 +7,7 @@ import type {
   ChangelogData,
   SecurityData,
   ExtrasData,
+  DocsData,
 } from "~/types/api";
 
 export function useApi() {
@@ -53,6 +54,10 @@ export function useApi() {
     return $fetch<ExtrasData>(`${baseURL}/packages/${name}/extras`);
   }
 
+  async function fetchDocs(name: string): Promise<DocsData> {
+    return $fetch<DocsData>(`${baseURL}/packages/${name}/docs`);
+  }
+
   return {
     fetchPackage,
     fetchVersions,
@@ -62,5 +67,6 @@ export function useApi() {
     fetchChangelog,
     fetchSecurity,
     fetchExtras,
+    fetchDocs,
   };
 }
