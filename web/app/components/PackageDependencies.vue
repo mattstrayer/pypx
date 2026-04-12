@@ -47,7 +47,7 @@ function toggleExtra(extra: string) {
         <button
           v-for="extra in extraNames"
           :key="extra"
-          class="rounded px-3 py-1 font-mono text-xs transition-colors"
+          class="cursor-pointer rounded px-3 py-1 font-mono text-xs transition-colors"
           :class="
             activeExtra === extra
               ? 'bg-[var(--color-brand-border)] text-[var(--color-brand)]'

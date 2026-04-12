@@ -29,7 +29,7 @@ const emit = defineEmits<{
       <button
         v-for="(result, index) in results"
         :key="result.name"
-        class="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors"
+        class="cursor-pointer flex w-full items-center gap-2 px-3 py-2 text-left transition-colors"
         :class="index === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"
         @click="emit('select', result)"
         @mousemove="emit('hover', index)"
