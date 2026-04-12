@@ -18,6 +18,10 @@ export interface PackageData {
   module_format: string;
   python_versions: PythonVersionInfo;
   dependencies: DependencyTree;
+  platform_coverage: PlatformCoverage;
+  release_cadence: ReleaseCadence;
+  maintainers: Maintainer[];
+  doc_url: string;
 }
 
 export interface FileInfo {
@@ -41,6 +45,33 @@ export interface Dependency {
 export interface DependencyTree {
   required: Dependency[];
   extras: Record<string, Dependency[]>;
+}
+
+export interface PlatformCoverage {
+  pure_python: boolean;
+  linux_x86_64: boolean;
+  linux_arm64: boolean;
+  macos_x86_64: boolean;
+  macos_arm64: boolean;
+  windows_x86_64: boolean;
+  musl: boolean;
+}
+
+export interface QuarterCount {
+  quarter: string;
+  count: number;
+}
+
+export interface ReleaseCadence {
+  releases_last_12mo: number;
+  avg_days_between_releases: number;
+  last_released_at: string;
+  quarterly_counts: QuarterCount[];
+}
+
+export interface Maintainer {
+  name: string;
+  email: string;
 }
 
 export interface VersionInfo {
@@ -71,6 +102,22 @@ export interface SearchResult {
   downloads: number;
 }
 
+export interface RepoOwner {
+  login: string;
+  avatar_url: string;
+  display_name: string;
+  url: string;
+  is_org: boolean;
+}
+
+export interface RepoInfo {
+  stars: number;
+  forks: number;
+  open_issues: number;
+  last_pushed_at: string;
+  owner: RepoOwner;
+}
+
 export interface ChangelogEntry {
   version: string;
   tag_name: string;
@@ -86,4 +133,37 @@ export interface ChangelogData {
   source: string;
   repo_url: string;
   entries: ChangelogEntry[];
+  repo_info?: RepoInfo;
+}
+
+export interface VulnInfo {
+  id: string;
+  summary: string;
+  severity: string;
+  affected_range: string;
+  fixed_in?: string;
+  url: string;
+}
+
+export interface SecurityData {
+  package: string;
+  vulns: VulnInfo[];
+  checked_at: string;
+}
+
+export interface TypeSupport {
+  status: "typed" | "stubs" | "untyped";
+  stubs_package?: string;
+}
+
+export interface CondaForgeInfo {
+  available: boolean;
+  version?: string;
+  url?: string;
+}
+
+export interface ExtrasData {
+  package: string;
+  type_support: TypeSupport;
+  conda_forge?: CondaForgeInfo;
 }

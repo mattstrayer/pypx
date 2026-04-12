@@ -5,6 +5,8 @@ import type {
   StatsData,
   SearchResult,
   ChangelogData,
+  SecurityData,
+  ExtrasData,
 } from "~/types/api";
 
 export function useApi() {
@@ -39,6 +41,14 @@ export function useApi() {
     return $fetch<ChangelogData>(`${baseURL}/packages/${name}/changelog`);
   }
 
+  async function fetchSecurity(name: string): Promise<SecurityData> {
+    return $fetch<SecurityData>(`${baseURL}/packages/${name}/security`);
+  }
+
+  async function fetchExtras(name: string): Promise<ExtrasData> {
+    return $fetch<ExtrasData>(`${baseURL}/packages/${name}/extras`);
+  }
+
   return {
     fetchPackage,
     fetchVersions,
@@ -46,5 +56,7 @@ export function useApi() {
     fetchStats,
     searchPackages,
     fetchChangelog,
+    fetchSecurity,
+    fetchExtras,
   };
 }
