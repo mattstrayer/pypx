@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/osv"
-	"github.com/pypx/api/internal/pypi"
 )
 
 const securityTTL = 24 * time.Hour
@@ -35,14 +34,13 @@ func NewSecurityHandler(osvClient *osv.Client, c cache.Cacher) *SecurityHandler 
 // Get handles GET /api/packages/{name}/security.
 func (h *SecurityHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if err := pypi.ValidateName(name); err != nil {
-		http.Error(w, "invalid package name", http.StatusBadRequest)
+	if !validateName(w, name) {
 		return
 	}
 
 	cacheKey := "security:" + strings.ToLower(name)
 
-	if data, fresh, err := h.cache.Get(cacheKey, securityTTL); err == nil && data != nil && fresh {
+	if data, _, err := h.cache.Get(cacheKey, securityTTL); err == nil && data != nil {
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data) //nolint:errcheck

@@ -47,10 +47,20 @@ func TestFetchVulns(t *testing.T) {
 	if vulns[0].URL == "" {
 		t.Error("vuln URL should not be empty")
 	}
+	if vulns[0].AffectedRange != ">=0, <2.32.0" {
+		t.Errorf("AffectedRange = %q, want >=0, <2.32.0", vulns[0].AffectedRange)
+	}
+	if vulns[0].FixedIn != "2.32.0" {
+		t.Errorf("FixedIn = %q, want 2.32.0", vulns[0].FixedIn)
+	}
 }
 
 func TestFetchVulnsNoVulns(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/query" {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{}`)
 	}))
