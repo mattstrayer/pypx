@@ -15,7 +15,10 @@ type PlatformCoverage struct {
 	MacOSX86   bool `json:"macos_x86_64"`
 	MacOSARM64 bool `json:"macos_arm64"`
 	Windows    bool `json:"windows_x86_64"`
-	Musl       bool `json:"musl"`
+	// Musl is true if any musllinux wheel is present (any architecture).
+	// musl and manylinux are distinct ABI targets; a musl x86_64 wheel does
+	// not imply LinuxX86 support on glibc systems.
+	Musl bool `json:"musl"`
 }
 
 // ExtractPlatformCoverage parses wheel filenames from the provided release
@@ -40,10 +43,10 @@ func ExtractPlatformCoverage(files []pypi.ReleaseFile) PlatformCoverage {
 			cov.LinuxARM64 = true
 		case strings.Contains(p, "musllinux"):
 			cov.Musl = true
-		case strings.Contains(p, "macosx") && strings.Contains(p, "arm64"):
-			cov.MacOSARM64 = true
 		case strings.Contains(p, "macosx") && strings.Contains(p, "universal2"):
 			cov.MacOSX86 = true
+			cov.MacOSARM64 = true
+		case strings.Contains(p, "macosx") && strings.Contains(p, "arm64"):
 			cov.MacOSARM64 = true
 		case strings.Contains(p, "macosx") && strings.Contains(p, "x86_64"):
 			cov.MacOSX86 = true

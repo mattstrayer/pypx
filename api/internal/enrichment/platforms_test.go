@@ -85,6 +85,14 @@ func TestExtractPlatformCoverage(t *testing.T) {
 			},
 			want: enrichment.PlatformCoverage{PurePython: true, LinuxX86: true, Windows: true},
 		},
+		{
+			name: "sdist alongside wheel - sdist ignored",
+			files: []pypi.ReleaseFile{
+				{Filename: "requests-2.32.3.tar.gz", PackageType: "sdist"},
+				{Filename: "requests-2.32.3-py3-none-any.whl", PackageType: "bdist_wheel"},
+			},
+			want: enrichment.PlatformCoverage{PurePython: true},
+		},
 	}
 
 	for _, tt := range tests {
