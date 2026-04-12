@@ -17,12 +17,15 @@ const projectLinks = computed(() => {
 <template>
   <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
     <!-- Main column -->
-    <div class="space-y-6">
+    <div class="min-w-0 space-y-6">
       <!-- Install command -->
       <InstallCommand :package-name="pkg.name" />
 
       <!-- Description -->
-      <div v-if="pkg.description" class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+      <div
+        v-if="pkg.description"
+        class="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+      >
         <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Description
         </h2>
@@ -31,7 +34,7 @@ const projectLinks = computed(() => {
           class="prose prose-invert prose-sm max-w-none"
           v-html="pkg.description_html"
         />
-        <div v-else class="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+        <div v-else class="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300">
           {{ pkg.description }}
         </div>
       </div>
