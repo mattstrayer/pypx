@@ -58,7 +58,7 @@ func ComputeReleaseCadence(releases map[string][]pypi.ReleaseFile) ReleaseCadenc
 	cadence.LastReleasedAt = times[len(times)-1].UTC().Format(time.RFC3339)
 
 	for _, t := range times {
-		if t.After(oneYearAgo) {
+		if !t.Before(oneYearAgo) {
 			cadence.ReleasesLast12Mo++
 		}
 	}
@@ -70,16 +70,17 @@ func ComputeReleaseCadence(releases map[string][]pypi.ReleaseFile) ReleaseCadenc
 	}
 
 	// Build quarterly counts covering the last 2 years, in chronological order.
+	quarterStart := startOfQuarter(twoYearsAgo)
 	quarterMap := make(map[string]int)
 	for _, t := range times {
-		if t.Before(twoYearsAgo) {
+		if t.Before(quarterStart) {
 			continue
 		}
 		q := quarterLabel(t)
 		quarterMap[q]++
 	}
 
-	for t := startOfQuarter(twoYearsAgo); !t.After(now); t = t.AddDate(0, 3, 0) {
+	for t := quarterStart; !t.After(now); t = t.AddDate(0, 3, 0) {
 		q := quarterLabel(t)
 		cadence.QuarterlyCounts = append(cadence.QuarterlyCounts, QuarterCount{
 			Quarter: q,
