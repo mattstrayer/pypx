@@ -21,7 +21,9 @@ const platforms: Platform[] = [
   { key: "musl", label: "musl/Alpine", short: "musl" },
 ];
 
-const supported = computed(() => platforms.filter((p) => props.coverage[p.key]));
+const supported = computed(() =>
+  platforms.filter((p) => p.key !== "pure_python" && props.coverage[p.key]),
+);
 const hasAnyCoverage = computed(() => supported.value.length > 0);
 </script>
 

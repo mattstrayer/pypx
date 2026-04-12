@@ -64,7 +64,7 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
       "
     >
       <span v-if="typeStatus === 'typed'">typed</span>
-      <span v-else>stubs</span>
+      <span v-else>type stubs</span>
     </span>
 
     <!-- Conda badge -->
@@ -78,18 +78,12 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
       conda
     </a>
 
-    <!-- Security badge -->
+    <!-- Security badge (only shown when vulnerabilities exist) -->
     <span
-      v-if="security"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1"
-      :class="
-        vulnCount === 0
-          ? 'bg-neutral-800 text-neutral-400 ring-neutral-700'
-          : 'bg-red-950 text-red-300 ring-red-800'
-      "
+      v-if="security && vulnCount > 0"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800"
     >
-      <span v-if="vulnCount === 0">secure</span>
-      <span v-else>{{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}</span>
+      {{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}
     </span>
   </div>
 </template>
