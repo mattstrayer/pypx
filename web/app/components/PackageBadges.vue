@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import type { PackageData } from "~/types/api";
+import { computed } from "vue";
+import type { PackageData, ExtrasData, SecurityData } from "~/types/api";
 
-defineProps<{ pkg: PackageData }>();
+const props = defineProps<{
+  pkg: PackageData;
+  extras?: ExtrasData | null;
+  security?: SecurityData | null;
+}>();
 
 function formatSize(bytes: number): string {
   if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
 }
+
+const vulnCount = computed(() => props.security?.vulns?.length ?? 0);
+const typeStatus = computed(() => props.extras?.type_support?.status);
+const condaAvailable = computed(() => props.extras?.conda_forge?.available);
 </script>
 
 <template>
@@ -41,6 +50,45 @@ function formatSize(bytes: number): string {
       class="inline-flex items-center rounded bg-amber-500/10 px-2 py-0.5 font-mono text-xs text-amber-400 ring-1 ring-amber-500/20"
     >
       {{ pkg.dependencies.required.length }} deps
+    </span>
+
+    <!-- Type support badge -->
+    <span
+      v-if="typeStatus && typeStatus !== 'untyped'"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1"
+      :class="
+        typeStatus === 'typed'
+          ? 'bg-blue-950 text-blue-300 ring-blue-800'
+          : 'bg-neutral-800 text-neutral-300 ring-neutral-700'
+      "
+    >
+      <span v-if="typeStatus === 'typed'">typed</span>
+      <span v-else>stubs</span>
+    </span>
+
+    <!-- Conda badge -->
+    <a
+      v-if="condaAvailable && extras?.conda_forge?.url"
+      :href="extras!.conda_forge!.url as string"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-green-950 text-green-300 ring-green-800 hover:bg-green-900 transition-colors"
+    >
+      conda
+    </a>
+
+    <!-- Security badge -->
+    <span
+      v-if="security"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1"
+      :class="
+        vulnCount === 0
+          ? 'bg-neutral-800 text-neutral-400 ring-neutral-700'
+          : 'bg-red-950 text-red-300 ring-red-800'
+      "
+    >
+      <span v-if="vulnCount === 0">secure</span>
+      <span v-else>{{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}</span>
     </span>
   </div>
 </template>
