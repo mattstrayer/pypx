@@ -17,6 +17,7 @@ function formatSize(bytes: number): string {
 const vulnCount = computed(() => props.security?.vulns?.length ?? 0);
 const typeStatus = computed(() => props.extras?.type_support?.status);
 const condaAvailable = computed(() => props.extras?.conda_forge?.available);
+const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
 </script>
 
 <template>
@@ -68,8 +69,8 @@ const condaAvailable = computed(() => props.extras?.conda_forge?.available);
 
     <!-- Conda badge -->
     <a
-      v-if="condaAvailable && extras?.conda_forge?.url"
-      :href="extras!.conda_forge!.url as string"
+      v-if="condaAvailable && condaUrl"
+      :href="condaUrl"
       target="_blank"
       rel="noopener noreferrer"
       class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-green-950 text-green-300 ring-green-800 hover:bg-green-900 transition-colors"
