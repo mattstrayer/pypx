@@ -82,8 +82,8 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 				if wheelURL != "" && pypi.CheckPyTyped(h.pypi, wheelURL) {
 					typeSupport.Status = "typed"
 					h.cache.Set(typedKey, []byte("1"), 0) //nolint:errcheck
-				} else if wheelURL != "" {
-					// Cache negative result — wheel content is immutable.
+				} else {
+					// Cache negative — either no wheel or wheel has no py.typed marker. Immutable per version.
 					h.cache.Set(typedKey, []byte("0"), 0) //nolint:errcheck
 				}
 			}
