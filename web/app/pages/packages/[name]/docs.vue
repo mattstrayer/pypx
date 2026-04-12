@@ -11,7 +11,7 @@ const { data: pkg, status: pkgStatus } = await useAsyncData(`package-${name.valu
   api.fetchPackage(name.value),
 );
 
-const { data: docs, status: docsStatus } = await useAsyncData(`docs-${name.value}`, () =>
+const { data: docs, status: docsStatus } = await useAsyncData(`docs-data-${name.value}`, () =>
   api.fetchDocs(name.value),
 );
 
