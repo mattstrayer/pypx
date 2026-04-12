@@ -74,6 +74,15 @@ jobs:
             ghcr.io/mattstrayer/pypx/web:latest
             ghcr.io/mattstrayer/pypx/web:v${{ steps.version.outputs.version }}
 
+      - name: Build and push Docs Worker image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: ./docs-worker
+          push: true
+          tags: |
+            ghcr.io/mattstrayer/pypx/docs-worker:latest
+            ghcr.io/mattstrayer/pypx/docs-worker:v${{ steps.version.outputs.version }}
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh

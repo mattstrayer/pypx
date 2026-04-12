@@ -26,10 +26,14 @@ services:
     environment:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
+      - DOCS_WORKER_URL=http://docs-worker:8000
     volumes:
       - api_data:/data
     expose:
       - "8080"
+    depends_on:
+      docs-worker:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/health"]
@@ -42,10 +46,26 @@ services:
         limits:
           memory: 512M
 
+  docs-worker:
+    image: ghcr.io/mattstrayer/pypx/docs-worker:latest
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   web:
     image: ghcr.io/mattstrayer/pypx/web:latest
     environment:
-      - NUXT_API_BASE=http://api:8080
+      - NUXT_API_BASE=http://api:8080/api
       - NUXT_PUBLIC_API_BASE=/api
     expose:
       - "3000"
