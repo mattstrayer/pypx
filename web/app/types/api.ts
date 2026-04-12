@@ -167,3 +167,37 @@ export interface ExtrasData {
   type_support: TypeSupport;
   conda_forge?: CondaForgeInfo;
 }
+
+export interface DocParam {
+  name: string;
+  type?: string;
+  description: string;
+}
+
+export interface DocReturn {
+  type?: string;
+  description: string;
+}
+
+export interface DocSymbol {
+  name: string;
+  kind: "function" | "class" | "exception";
+  signature: string;
+  docstring: string;
+  parameters?: DocParam[];
+  returns?: DocReturn | null;
+}
+
+export interface DocModule {
+  name: string;
+  functions: DocSymbol[];
+  classes: DocSymbol[];
+  exceptions: DocSymbol[];
+}
+
+export interface DocsData {
+  package: string;
+  version: string;
+  available: boolean;
+  modules: DocModule[];
+}
