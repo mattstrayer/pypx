@@ -2,6 +2,7 @@
 const route = useRoute();
 const name = computed(() => route.params.name as string);
 const activeTab = ref("overview");
+const isChildRoute = computed(() => route.path !== `/packages/${name.value}`);
 
 const api = useApi();
 const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
@@ -51,7 +52,10 @@ useSeoMeta({
 </script>
 
 <template>
-  <div>
+  <!-- Child routes (e.g. /docs) are self-contained — pass straight through -->
+  <NuxtPage v-if="isChildRoute" />
+
+  <div v-else>
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
