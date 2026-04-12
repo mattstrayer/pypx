@@ -11,7 +11,7 @@ const displayMaintainers = computed(() => {
   return props.maintainers.slice(0, 5); // cap at 5
 });
 
-const hasAny = computed(() => displayMaintainers.value.length > 0 || props.repoInfo?.owner);
+const hasAny = computed(() => displayMaintainers.value.length > 0 || !!props.repoInfo?.owner);
 </script>
 
 <template>
