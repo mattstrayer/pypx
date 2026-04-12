@@ -40,7 +40,7 @@ useSeoMeta({
     <div v-else-if="pkg">
       <!-- Header -->
       <div class="mb-6">
-        <div class="flex items-baseline gap-3">
+        <div class="flex flex-wrap items-baseline gap-3">
           <h1 class="text-3xl font-bold text-zinc-50">{{ pkg.name }}</h1>
           <span class="rounded bg-zinc-800 px-2 py-0.5 font-mono text-sm text-zinc-400">
             v{{ pkg.version }}
@@ -53,11 +53,11 @@ useSeoMeta({
       </div>
 
       <!-- Tabs -->
-      <div class="mb-6 flex gap-1 border-b border-zinc-800 pb-0">
+      <div class="mb-6 flex gap-1 overflow-x-auto border-b border-zinc-800 pb-0">
         <button
           v-for="tab in tabs"
           :key="tab.key"
-          class="rounded-t px-4 py-2 text-sm font-medium transition-colors"
+          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
           :class="
             activeTab === tab.key ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'
           "
