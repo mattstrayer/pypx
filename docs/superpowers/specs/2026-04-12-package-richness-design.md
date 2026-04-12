@@ -58,12 +58,16 @@ PyPI JSON API — `info.author`, `info.author_email`, `info.maintainer`, `info.m
 
 GitHub avatar: if we already have a GitHub repo URL, we know the repo owner — we can show their GitHub avatar (`https://github.com/{owner}.png?size=40`) at zero API cost.
 
+GitHub org/owner: surface the repo owner as a labelled entity so users can immediately see who maintains the package (e.g. "psf" → Python Software Foundation, "facebook" → Meta, "pallets" → Pallets Projects). The owner name and link to their GitHub profile/org page is derivable from the repo URL with no additional API call. Display name can be enriched with the GitHub API's `GET /orgs/{org}` response (`name` field) — this gives the full display name ("Meta" instead of "facebook") and is already covered by the existing `GITHUB_TOKEN` integration.
+
 ### Caching
 Already cached in main package data. No new fetches.
 
 ### API Changes
 - Add `Maintainers []MaintainerInfo` to `PackageData` response
 - `MaintainerInfo`: `name string`, `email string`, `github_username string` (if inferrable), `avatar_url string` (if github_username known)
+- Add `GitHubOwner *GitHubOwnerInfo` to `PackageData` (nullable — only present if GitHub repo URL extracted)
+- `GitHubOwnerInfo`: `login string` (e.g. "facebook"), `display_name string` (e.g. "Meta", from GitHub org API), `url string`, `avatar_url string`, `is_org bool`
 
 ### Frontend Display
 Small avatar row in Overview sidebar, similar to npm's maintainer list. Clicking a maintainer opens their PyPI profile or GitHub profile.
