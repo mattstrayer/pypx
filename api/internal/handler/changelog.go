@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -17,10 +18,11 @@ const changelogTTL = 7 * 24 * time.Hour
 
 // ChangelogResponse is the response returned by the changelog endpoint.
 type ChangelogResponse struct {
-	Package string       `json:"package"`
-	Source  string       `json:"source"`
-	RepoURL string       `json:"repo_url"`
-	Entries []gh.Release `json:"entries"`
+	Package  string       `json:"package"`
+	Source   string       `json:"source"`
+	RepoURL  string       `json:"repo_url"`
+	Entries  []gh.Release `json:"entries"`
+	RepoInfo *gh.RepoInfo `json:"repo_info,omitempty"`
 }
 
 // ChangelogHandler serves changelog requests backed by GitHub Releases.
@@ -71,6 +73,7 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var releases []gh.Release
 	repoURL := ""
 	source := ""
+	var repoInfo *gh.RepoInfo
 
 	owner, repo, ok := gh.ExtractGitHubRepo(pypiResp.Info.ProjectURLs)
 	if ok {
@@ -88,6 +91,12 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 				releases[i].BodyHTML, _ = markdown.Render(releases[i].Body)
 			}
 		}
+
+		repoInfo, err = h.github.FetchRepoInfo(owner, repo)
+		if err != nil {
+			log.Printf("changelog: failed to fetch repo info for %s/%s: %v", owner, repo, err)
+			repoInfo = nil
+		}
 	}
 
 	if releases == nil {
@@ -95,10 +104,11 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := ChangelogResponse{
-		Package: pypiResp.Info.Name,
-		Source:  source,
-		RepoURL: repoURL,
-		Entries: releases,
+		Package:  pypiResp.Info.Name,
+		Source:   source,
+		RepoURL:  repoURL,
+		Entries:  releases,
+		RepoInfo: repoInfo,
 	}
 
 	encoded, err := json.Marshal(resp)
