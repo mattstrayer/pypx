@@ -31,7 +31,7 @@ func TestFetchVulns(t *testing.T) {
 	defer srv.Close()
 
 	c := osv.NewClient(osv.WithBaseURL(srv.URL))
-	vulns, err := c.FetchVulns("requests")
+	vulns, err := c.FetchVulns("requests", "2.31.0")
 	if err != nil {
 		t.Fatalf("FetchVulns() error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestFetchVulnsNoVulns(t *testing.T) {
 	defer srv.Close()
 
 	c := osv.NewClient(osv.WithBaseURL(srv.URL))
-	vulns, err := c.FetchVulns("safe-package")
+	vulns, err := c.FetchVulns("safe-package", "")
 	if err != nil {
 		t.Fatalf("FetchVulns() error: %v", err)
 	}

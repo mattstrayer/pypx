@@ -11,7 +11,7 @@ const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
 // Non-blocking parallel fetches (client-side, don't block SSR)
 const { data: security } = useAsyncData(
   `security-${name.value}`,
-  () => api.fetchSecurity(name.value),
+  () => api.fetchSecurity(name.value, pkg.value?.version),
   { server: false, default: () => null },
 );
 

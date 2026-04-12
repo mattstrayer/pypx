@@ -1,0 +1,14 @@
+services:
+  caddy:
+    profiles: [prod] # exclude from default local run
+
+  api:
+    ports:
+      - "8080:8080"
+
+  web:
+    ports:
+      - "3000:3000"
+    environment:
+      - NUXT_API_BASE=http://api:8080/api
+      - NUXT_PUBLIC_API_BASE=http://localhost:8080/api

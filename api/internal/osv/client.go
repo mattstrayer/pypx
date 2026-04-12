@@ -20,6 +20,7 @@ type VulnInfo struct {
 
 // osvQueryRequest is the POST body sent to the OSV API.
 type osvQueryRequest struct {
+	Version string `json:"version,omitempty"`
 	Package struct {
 		Name      string `json:"name"`
 		Ecosystem string `json:"ecosystem"`
@@ -76,9 +77,12 @@ func NewClient(opts ...Option) *Client {
 	return c
 }
 
-// FetchVulns returns all known vulnerabilities for the named PyPI package.
-func (c *Client) FetchVulns(name string) ([]VulnInfo, error) {
+// FetchVulns returns vulnerabilities for the named PyPI package. When version
+// is non-empty only vulnerabilities affecting that specific version are returned;
+// otherwise all historical vulnerabilities are returned.
+func (c *Client) FetchVulns(name, version string) ([]VulnInfo, error) {
 	var body osvQueryRequest
+	body.Version = version
 	body.Package.Name = name
 	body.Package.Ecosystem = "PyPI"
 

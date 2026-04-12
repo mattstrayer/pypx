@@ -32,13 +32,20 @@ func NewSecurityHandler(osvClient *osv.Client, c cache.Cacher) *SecurityHandler 
 }
 
 // Get handles GET /api/packages/{name}/security.
+// Accepts an optional ?version= query param; when provided only vulnerabilities
+// affecting that specific version are returned.
 func (h *SecurityHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if !validateName(w, name) {
 		return
 	}
 
+	version := r.URL.Query().Get("version")
+
 	cacheKey := "security:" + strings.ToLower(name)
+	if version != "" {
+		cacheKey += ":" + version
+	}
 
 	if data, _, err := h.cache.Get(cacheKey, securityTTL); err == nil && data != nil {
 		w.Header().Set("Cache-Control", "public, max-age=86400")
@@ -47,7 +54,7 @@ func (h *SecurityHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vulns, err := h.osv.FetchVulns(name)
+	vulns, err := h.osv.FetchVulns(name, version)
 	if err != nil {
 		// Serve stale cache on error rather than failing the request.
 		if data, _, cacheErr := h.cache.Get(cacheKey, 0); cacheErr == nil && data != nil {
