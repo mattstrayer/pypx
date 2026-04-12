@@ -38,12 +38,13 @@ func TestCheckPyTyped(t *testing.T) {
 	tests := []struct {
 		name     string
 		wheel    []byte
-		wantSize int64 // 0 means use actual size
+		wantSize int64 // 0 means use actual size, -1 means no Content-Length header
 		want     bool
 	}{
 		{"py.typed present", withTyped, 0, true},
 		{"py.typed absent", withoutTyped, 0, false},
 		{"wheel over 50MB skipped", withTyped, 55 * 1024 * 1024, false},
+		{"HEAD missing Content-Length", withTyped, -1, false},
 	}
 
 	for _, tt := range tests {
@@ -54,7 +55,9 @@ func TestCheckPyTyped(t *testing.T) {
 					size = int64(len(tt.wheel))
 				}
 				if r.Method == http.MethodHead {
-					w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
+					if size >= 0 {
+						w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
+					}
 					w.Header().Set("Accept-Ranges", "bytes")
 					return
 				}
