@@ -131,7 +131,7 @@ const lastPushedAgo = computed(() =>
           :href="pkg.doc_url"
           target="_blank"
           rel="noopener noreferrer"
-          class="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          class="inline-flex items-center gap-1.5 text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
         >
           Documentation →
         </a>
