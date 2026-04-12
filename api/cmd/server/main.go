@@ -14,8 +14,10 @@ import (
 	"github.com/go-chi/cors"
 
 	"github.com/pypx/api/internal/cache"
+	"github.com/pypx/api/internal/conda"
 	"github.com/pypx/api/internal/github"
 	"github.com/pypx/api/internal/handler"
+	"github.com/pypx/api/internal/osv"
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/api/internal/search"
 	"github.com/pypx/api/internal/stats"
@@ -54,6 +56,12 @@ func main() {
 	statsClient := stats.NewClient()
 	statsHandler := handler.NewStatsHandler(statsClient, c)
 
+	osvClient := osv.NewClient()
+	securityHandler := handler.NewSecurityHandler(osvClient, c)
+
+	condaClient := conda.NewClient()
+	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, c)
+
 	searchIdx, err := search.NewIndex(sqlitePath + "-search")
 	if err != nil {
 		log.Fatalf("failed to create search index: %v", err)
@@ -86,6 +94,8 @@ func main() {
 	r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
 	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 	r.Get("/api/packages/{name}/stats", statsHandler.Get)
+	r.Get("/api/packages/{name}/security", securityHandler.Get)
+	r.Get("/api/packages/{name}/extras", extrasHandler.Get)
 	r.Get("/api/search", searchHandler.Search)
 	r.Get("/api/popular", popularHandler.Get)
 
