@@ -69,6 +69,27 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}()
 	wg.Wait()
 
+	// If not already typed via stubs, check for py.typed marker in the wheel.
+	if typeSupport.Status != "typed" {
+		if pkg, err := h.pypi.FetchPackage(name); err == nil {
+			typedKey := "typed:" + strings.ToLower(name) + ":" + pkg.Info.Version
+			if data, _, err := h.cache.Get(typedKey, 0); err == nil && data != nil {
+				if string(data) == "1" {
+					typeSupport.Status = "typed"
+				}
+			} else {
+				wheelURL := pypi.ExtractWheelURL(pkg.URLs)
+				if wheelURL != "" && pypi.CheckPyTyped(h.pypi, wheelURL) {
+					typeSupport.Status = "typed"
+					h.cache.Set(typedKey, []byte("1"), 0) //nolint:errcheck
+				} else if wheelURL != "" {
+					// Cache negative result — wheel content is immutable.
+					h.cache.Set(typedKey, []byte("0"), 0) //nolint:errcheck
+				}
+			}
+		}
+	}
+
 	resp := ExtrasResponse{
 		Package:     name,
 		TypeSupport: typeSupport,
