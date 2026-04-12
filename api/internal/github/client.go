@@ -280,10 +280,13 @@ func (c *Client) fetchOwnerName(login string, isOrg bool) string {
 	}
 
 	resp, err := c.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	if err != nil {
 		return login
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return login
+	}
 
 	var ou ghOrgUser
 	if err := json.NewDecoder(resp.Body).Decode(&ou); err != nil || ou.Name == "" {
