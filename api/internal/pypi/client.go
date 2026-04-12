@@ -41,6 +41,8 @@ type PackageInfo struct {
 	LicenseExpression string            `json:"license_expression"`
 	Author            string            `json:"author"`
 	AuthorEmail       string            `json:"author_email"`
+	Maintainer        string            `json:"maintainer"`
+	MaintainerEmail   string            `json:"maintainer_email"`
 	HomePage          string            `json:"home_page"`
 	RequiresPython    string            `json:"requires_python"`
 	RequiresDist      []string          `json:"requires_dist"`
