@@ -34,7 +34,7 @@ const { copy, copied } = useClipboard({ source: command });
 
     <!-- Command line -->
     <div class="flex items-center justify-between gap-3 px-4 py-3">
-      <code class="font-mono text-sm text-zinc-300">
+      <code class="min-w-0 truncate font-mono text-sm text-zinc-300">
         <span class="text-zinc-500">$ </span>{{ command }}
       </code>
       <button
