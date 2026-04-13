@@ -55,12 +55,9 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch PyPI package info (cached, fast) to get project URLs for repo detection.
-	var (
-		pypiResp *pypi.PyPIResponse
-		pypiErr  error
-	)
+	var pypiResp *pypi.PyPIResponse
 	if h.pkg != nil {
-		pypiResp, pypiErr = h.pkg.FetchPackage(name)
+		pypiResp, _ = h.pkg.FetchPackage(name)
 	}
 
 	// Fetch type support, conda info, and GitHub repo info in parallel.
@@ -83,7 +80,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		defer wg.Done()
-		if pypiErr != nil || h.github == nil {
+		if pypiResp == nil || h.github == nil {
 			return
 		}
 		owner, repo, ok := gh.ExtractGitHubRepo(pypiResp.Info.ProjectURLs)
@@ -98,28 +95,20 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 
 	// If not already typed via stubs, check for py.typed marker in the wheel.
-	if typeSupport.Status != "typed" {
-		var pkg *pypi.PyPIResponse
-		if pypiErr == nil && pypiResp != nil {
-			pkg = pypiResp
+	if typeSupport.Status != "typed" && pypiResp != nil {
+		typedKey := "typed:" + strings.ToLower(name) + ":" + pypiResp.Info.Version
+		if data, _, err := h.cache.Get(typedKey, 0); err == nil && data != nil {
+			if string(data) == "1" {
+				typeSupport.Status = "typed"
+			}
 		} else {
-			pkg, _ = h.pypi.FetchPackage(name)
-		}
-		if pkg != nil {
-			typedKey := "typed:" + strings.ToLower(name) + ":" + pkg.Info.Version
-			if data, _, err := h.cache.Get(typedKey, 0); err == nil && data != nil {
-				if string(data) == "1" {
-					typeSupport.Status = "typed"
-				}
+			wheelURL := pypi.ExtractWheelURL(pypiResp.URLs)
+			if wheelURL != "" && pypi.CheckPyTyped(h.pypi, wheelURL) {
+				typeSupport.Status = "typed"
+				h.cache.Set(typedKey, []byte("1"), 0) //nolint:errcheck
 			} else {
-				wheelURL := pypi.ExtractWheelURL(pkg.URLs)
-				if wheelURL != "" && pypi.CheckPyTyped(h.pypi, wheelURL) {
-					typeSupport.Status = "typed"
-					h.cache.Set(typedKey, []byte("1"), 0) //nolint:errcheck
-				} else {
-					// Cache negative — either no wheel or wheel has no py.typed marker. Immutable per version.
-					h.cache.Set(typedKey, []byte("0"), 0) //nolint:errcheck
-				}
+				// Cache negative — either no wheel or wheel has no py.typed marker. Immutable per version.
+				h.cache.Set(typedKey, []byte("0"), 0) //nolint:errcheck
 			}
 		}
 	}

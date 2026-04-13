@@ -129,7 +129,8 @@ func TestExtrasHandlerGetPyTyped(t *testing.T) {
 
 	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
 	condaClient := conda.NewClient(conda.WithBaseURL(condaSrv.URL))
-	h := handler.NewExtrasHandler(pypiClient, condaClient, nil, nil, memCache)
+	pkgHandler := handler.NewPackageHandler(pypiClient, memCache)
+	h := handler.NewExtrasHandler(pypiClient, condaClient, nil, pkgHandler, memCache)
 
 	router := chi.NewRouter()
 	router.Get("/api/packages/{name}/extras", h.Get)
