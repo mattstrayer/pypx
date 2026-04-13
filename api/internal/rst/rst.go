@@ -16,6 +16,13 @@ func Render(src string) (string, error) {
 	return renderDoc(src), nil
 }
 
+// subDef holds a resolved substitution definition (e.g. .. |name| image:: url).
+type subDef struct {
+	src    string // image URL
+	target string // optional link URL
+	alt    string // optional alt text
+}
+
 // headingLevel maps underline characters to HTML heading levels.
 func headingLevel(ch byte) int {
 	switch ch {
@@ -51,13 +58,39 @@ func isUnderline(underline, above string) bool {
 	return true
 }
 
+// safeURL returns true when the URL scheme is not a script protocol.
+func safeURL(u string) bool {
+	lower := strings.ToLower(strings.TrimSpace(u))
+	return !strings.HasPrefix(lower, "javascript:") && !strings.HasPrefix(lower, "vbscript:")
+}
+
 // applyInline processes inline RST markup and returns escaped HTML.
-func applyInline(s string) string {
+// subs is the map of substitution definitions (may be nil).
+func applyInline(s string, subs map[string]subDef) string {
 	var b strings.Builder
 	i := 0
 	for i < len(s) {
+		// Substitution reference: |name|
+		if s[i] == '|' && len(subs) > 0 {
+			pipeEnd := strings.IndexByte(s[i+1:], '|')
+			if pipeEnd >= 0 {
+				name := s[i+1 : i+1+pipeEnd]
+				if sub, ok := subs[name]; ok && safeURL(sub.src) {
+					alt := html.EscapeString(sub.alt)
+					img := fmt.Sprintf(`<img src="%s" alt="%s">`, html.EscapeString(sub.src), alt)
+					if sub.target != "" && safeURL(sub.target) {
+						fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(sub.target), img)
+					} else {
+						b.WriteString(img)
+					}
+					i = i + 2 + pipeEnd
+					continue
+				}
+			}
+		}
+
 		// Role: :role:`text`
-		if s[i] == ':' {
+		if s[i] == ':' && i+1 < len(s) {
 			end := strings.IndexByte(s[i+1:], ':')
 			if end >= 0 {
 				afterColon := i + 1 + end + 1
@@ -74,6 +107,7 @@ func applyInline(s string) string {
 				}
 			}
 		}
+
 		// Bold: **text**
 		if i+1 < len(s) && s[i] == '*' && s[i+1] == '*' {
 			end := strings.Index(s[i+2:], "**")
@@ -85,6 +119,7 @@ func applyInline(s string) string {
 				continue
 			}
 		}
+
 		// Italic: *text* (not **)
 		if s[i] == '*' && (i+1 >= len(s) || s[i+1] != '*') {
 			end := strings.IndexByte(s[i+1:], '*')
@@ -96,17 +131,35 @@ func applyInline(s string) string {
 				continue
 			}
 		}
-		// Inline code: `text`
+
+		// Backtick: either `text <url>`_ hyperlink or `code` inline.
 		if s[i] == '`' {
 			end := strings.IndexByte(s[i+1:], '`')
 			if end >= 0 {
-				b.WriteString("<code>")
-				b.WriteString(html.EscapeString(s[i+1 : i+1+end]))
-				b.WriteString("</code>")
-				i = i + 2 + end
+				content := s[i+1 : i+1+end]
+				afterTick := i + 2 + end
+				// Hyperlink: `text <url>`_
+				ltIdx := strings.LastIndex(content, " <")
+				if ltIdx >= 0 && strings.HasSuffix(content, ">") &&
+					afterTick < len(s) && s[afterTick] == '_' {
+					text := strings.TrimSpace(content[:ltIdx])
+					url := content[ltIdx+2 : len(content)-1]
+					if safeURL(url) {
+						fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(url), html.EscapeString(text))
+					} else {
+						b.WriteString(html.EscapeString(text))
+					}
+					i = afterTick + 1
+				} else {
+					b.WriteString("<code>")
+					b.WriteString(html.EscapeString(content))
+					b.WriteString("</code>")
+					i = afterTick
+				}
 				continue
 			}
 		}
+
 		// HTML-escape raw characters.
 		switch s[i] {
 		case '&':
@@ -175,9 +228,58 @@ func collectIndentedBody(lines []string, start int) ([]string, int) {
 	return body, i
 }
 
+// collectSubs does a pre-pass over lines to collect substitution definitions
+// of the form:  .. |name| image:: url  (with optional :target: / :alt: body).
+func collectSubs(lines []string) map[string]subDef {
+	subs := make(map[string]subDef)
+	for i := 0; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if !strings.HasPrefix(trimmed, ".. |") {
+			continue
+		}
+		rest := trimmed[3:] // "|name| directive:: args"
+		// Find closing pipe.
+		pipeEnd := strings.IndexByte(rest[1:], '|')
+		if pipeEnd < 0 {
+			continue
+		}
+		name := rest[1 : 1+pipeEnd]
+		after := strings.TrimSpace(rest[2+pipeEnd:]) // "directive:: args"
+		colonIdx := strings.Index(after, "::")
+		if colonIdx < 0 {
+			continue
+		}
+		directive := strings.TrimSpace(after[:colonIdx])
+		if directive != "image" {
+			continue // only image substitutions produce inline content
+		}
+		src := strings.TrimSpace(after[colonIdx+2:])
+		sub := subDef{src: src}
+		// Parse options from indented body (:target:, :alt:, etc.)
+		body, _ := collectIndentedBody(lines, i+1)
+		for _, opt := range body {
+			opt = strings.TrimSpace(opt)
+			if strings.HasPrefix(opt, ":target:") {
+				sub.target = strings.TrimSpace(opt[8:])
+			} else if strings.HasPrefix(opt, ":alt:") {
+				sub.alt = strings.TrimSpace(opt[5:])
+			}
+		}
+		subs[name] = sub
+	}
+	return subs
+}
+
 func renderDoc(src string) string {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(src, "\n")
+
+	// Pre-pass: collect substitution definitions so inline references can resolve them.
+	subs := collectSubs(lines)
+
+	// Convenience wrapper so we don't repeat subs at every call site.
+	inline := func(s string) string { return applyInline(s, subs) }
+
 	var out strings.Builder
 	i := 0
 
@@ -191,7 +293,7 @@ func renderDoc(src string) string {
 			continue
 		}
 
-		// Directive: .. directive:: args
+		// Directive: .. directive:: args  (includes substitution definitions)
 		if strings.HasPrefix(trimmed, ".. ") {
 			rest := trimmed[3:] // after ".. "
 			colonIdx := strings.Index(rest, "::")
@@ -200,7 +302,6 @@ func renderDoc(src string) string {
 				// Skip the line and any indented body to avoid an infinite loop.
 				_, next := collectIndentedBody(lines, i+1)
 				if next == i+1 {
-					// collectIndentedBody returned immediately — advance past this line.
 					i++
 				} else {
 					i = next
@@ -208,51 +309,63 @@ func renderDoc(src string) string {
 				continue
 			}
 			directive := strings.TrimSpace(rest[:colonIdx])
-				args := strings.TrimSpace(rest[colonIdx+2:])
-				body, next := collectIndentedBody(lines, i+1)
-				i = next
+			args := strings.TrimSpace(rest[colonIdx+2:])
+			body, next := collectIndentedBody(lines, i+1)
+			i = next
 
-				switch directive {
-				case "code-block", "code", "sourcecode":
-					lang := args
-					code := strings.Join(body, "\n")
-					if lang != "" {
-						fmt.Fprintf(&out, "<pre><code class=\"language-%s\">%s</code></pre>\n",
-							html.EscapeString(lang), html.EscapeString(code))
-					} else {
-						fmt.Fprintf(&out, "<pre><code>%s</code></pre>\n", html.EscapeString(code))
-					}
-
-				case "note":
-					fmt.Fprintf(&out, "<div class=\"rst-note\">%s</div>\n",
-						applyInline(strings.Join(body, " ")))
-
-				case "warning", "caution", "danger", "attention":
-					fmt.Fprintf(&out, "<div class=\"rst-warning\">%s</div>\n",
-						applyInline(strings.Join(body, " ")))
-
-				case "image":
-					lower := strings.ToLower(strings.TrimSpace(args))
-					if !strings.HasPrefix(lower, "javascript:") && !strings.HasPrefix(lower, "vbscript:") {
-						fmt.Fprintf(&out, "<img src=\"%s\" alt=\"\">\n", html.EscapeString(args))
-					}
-
-				case "toctree", "contents", "include", "literalinclude":
-					// Omit — internal Sphinx directives.
-
-				default:
-					// Unknown directive — render body as paragraph if non-empty.
-					if len(body) > 0 {
-						fmt.Fprintf(&out, "<p>%s</p>\n", applyInline(strings.Join(body, " ")))
-					}
-				}
+			// Substitution definition: .. |name| image:: url — already collected; skip.
+			if len(directive) > 2 && directive[0] == '|' {
 				continue
+			}
+
+			switch directive {
+			case "code-block", "code", "sourcecode":
+				lang := args
+				code := strings.Join(body, "\n")
+				if lang != "" {
+					fmt.Fprintf(&out, "<pre><code class=\"language-%s\">%s</code></pre>\n",
+						html.EscapeString(lang), html.EscapeString(code))
+				} else {
+					fmt.Fprintf(&out, "<pre><code>%s</code></pre>\n", html.EscapeString(code))
+				}
+
+			case "note":
+				fmt.Fprintf(&out, "<div class=\"rst-note\">%s</div>\n",
+					inline(strings.Join(body, " ")))
+
+			case "warning", "caution", "danger", "attention":
+				fmt.Fprintf(&out, "<div class=\"rst-warning\">%s</div>\n",
+					inline(strings.Join(body, " ")))
+
+			case "image":
+				if safeURL(args) {
+					alt := ""
+					for _, opt := range body {
+						opt = strings.TrimSpace(opt)
+						if strings.HasPrefix(opt, ":alt:") {
+							alt = strings.TrimSpace(opt[5:])
+						}
+					}
+					fmt.Fprintf(&out, "<img src=\"%s\" alt=\"%s\">\n",
+						html.EscapeString(args), html.EscapeString(alt))
+				}
+
+			case "toctree", "contents", "include", "literalinclude":
+				// Omit — internal Sphinx directives.
+
+			default:
+				// Unknown directive — render body as paragraph if non-empty.
+				if len(body) > 0 {
+					fmt.Fprintf(&out, "<p>%s</p>\n", inline(strings.Join(body, " ")))
+				}
+			}
+			continue
 		}
 
 		// Heading: current line followed by underline.
 		if i+1 < len(lines) && isUnderline(lines[i+1], trimmed) {
 			level := headingLevel(strings.TrimSpace(lines[i+1])[0])
-			fmt.Fprintf(&out, "<h%d>%s</h%d>\n", level, applyInline(trimmed), level)
+			fmt.Fprintf(&out, "<h%d>%s</h%d>\n", level, inline(trimmed), level)
 			i += 2
 			continue
 		}
@@ -267,7 +380,7 @@ func renderDoc(src string) string {
 					break
 				}
 				if strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ") {
-					fmt.Fprintf(&out, "<li>%s</li>\n", applyInline(t[2:]))
+					fmt.Fprintf(&out, "<li>%s</li>\n", inline(t[2:]))
 					i++
 				} else {
 					break
@@ -282,7 +395,7 @@ func renderDoc(src string) string {
 			text := strings.TrimSuffix(trimmed, "::")
 			text = strings.TrimRight(text, " ")
 			if text != "" {
-				fmt.Fprintf(&out, "<p>%s:</p>\n", applyInline(text))
+				fmt.Fprintf(&out, "<p>%s:</p>\n", inline(text))
 			}
 			body, next := collectIndentedBody(lines, i+1)
 			i = next
@@ -314,7 +427,7 @@ func renderDoc(src string) string {
 			i++
 		}
 		if len(paraLines) > 0 {
-			fmt.Fprintf(&out, "<p>%s</p>\n", applyInline(strings.Join(paraLines, " ")))
+			fmt.Fprintf(&out, "<p>%s</p>\n", inline(strings.Join(paraLines, " ")))
 		}
 	}
 

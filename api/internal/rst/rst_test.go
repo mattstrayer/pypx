@@ -116,6 +116,41 @@ func TestRender(t *testing.T) {
 			input:       ".. _foo:\n.. _bar:\n\nParagraph.\n",
 			wantContain: "<p>Paragraph.</p>",
 		},
+		{
+			name:        "embedded hyperlink",
+			input:       "See the `Quickstart <https://example.com/quickstart>`_ for details.\n",
+			wantContain: `<a href="https://example.com/quickstart">Quickstart</a>`,
+		},
+		{
+			name:        "substitution definition and reference",
+			input:       ".. |badge| image:: https://img.shields.io/badge/foo.svg\n\n|badge|\n",
+			wantContain: `<img src="https://img.shields.io/badge/foo.svg"`,
+		},
+		{
+			name:        "substitution with target",
+			input:       ".. |badge| image:: https://img.shields.io/badge/foo.svg\n   :target: https://example.com\n\n|badge|\n",
+			wantContain: `<a href="https://example.com">`,
+		},
+		{
+			name:        "substitution with alt",
+			input:       ".. |badge| image:: https://img.shields.io/badge/foo.svg\n   :alt: my alt text\n\n|badge|\n",
+			wantContain: `alt="my alt text"`,
+		},
+		{
+			name: "substitution defs not rendered as paragraphs",
+			input: ".. |foo| image:: https://example.com/foo.svg\n" +
+				".. |bar| image:: https://example.com/bar.svg\n\n" +
+				"Some text.\n",
+			wantContain: "<p>Some text.</p>",
+		},
+		{
+			name: "setuptools-style badge block",
+			input: ".. |pypi| image:: https://img.shields.io/pypi/v/pkg.svg\n" +
+				"   :target: https://pypi.org/project/pkg\n\n" +
+				"|pypi|\n\n" +
+				"Description here.\n",
+			wantContain: `href="https://pypi.org/project/pkg"`,
+		},
 	}
 
 	for _, tt := range tests {
