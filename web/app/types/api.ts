@@ -115,6 +115,7 @@ export interface RepoInfo {
   forks: number;
   open_issues: number;
   last_pushed_at: string;
+  archived?: boolean;
   owner: RepoOwner;
 }
 
@@ -133,7 +134,6 @@ export interface ChangelogData {
   source: string;
   repo_url: string;
   entries: ChangelogEntry[];
-  repo_info?: RepoInfo;
 }
 
 export interface VulnInfo {
@@ -166,6 +166,7 @@ export interface ExtrasData {
   package: string;
   type_support: TypeSupport;
   conda_forge?: CondaForgeInfo;
+  repo_info?: RepoInfo;
 }
 
 export interface DocParam {
