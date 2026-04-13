@@ -25,14 +25,14 @@ type FileSource struct {
 func (s *FileSource) Name() string { return "github_changelog_file" }
 
 func (s *FileSource) Fetch(_ context.Context) ([]changelog.Entry, error) {
-	content, _, err := s.Client.FetchRawFile(s.Owner, s.Repo, candidateFilenames)
+	content, filename, err := s.Client.FetchRawFile(s.Owner, s.Repo, candidateFilenames)
 	if err != nil || content == "" {
 		return nil, err
 	}
 	entries := changelog.Parse(content)
 	for i := range entries {
 		// Construct a URL pointing to the file on GitHub so users can view it.
-		entries[i].URL = fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/CHANGELOG.md", s.Owner, s.Repo)
+		entries[i].URL = fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/%s", s.Owner, s.Repo, filename)
 	}
 	return entries, nil
 }
