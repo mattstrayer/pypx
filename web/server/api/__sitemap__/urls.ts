@@ -3,11 +3,11 @@ import type { SitemapUrlInput } from "#sitemap/types";
 
 export default defineSitemapEventHandler(async () => {
   const config = useRuntimeConfig();
-  const apiBase = (config.apiBase as string) || "http://localhost:8080";
+  const apiBase = (config.apiBase as string) || "http://localhost:8080/api";
 
   const [popularRes, cachedRes] = await Promise.allSettled([
-    $fetch<{ packages: string[] }>(`${apiBase}/api/sitemap/popular`),
-    $fetch<{ packages: string[] }>(`${apiBase}/api/sitemap/cached`),
+    $fetch<{ packages: string[] }>(`${apiBase}/sitemap/popular`),
+    $fetch<{ packages: string[] }>(`${apiBase}/sitemap/cached`),
   ]);
 
   const popularNames = new Set<string>(
