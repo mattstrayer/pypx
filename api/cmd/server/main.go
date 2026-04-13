@@ -69,7 +69,7 @@ func main() {
 	securityHandler := handler.NewSecurityHandler(osvClient, c)
 
 	condaClient := conda.NewClient()
-	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, c)
+	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, ghClient, pkgHandler, c)
 
 	docsWorkerURL := os.Getenv("DOCS_WORKER_URL")
 	if docsWorkerURL == "" {

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/conda"
+	gh "github.com/pypx/api/internal/github"
 	"github.com/pypx/api/internal/pypi"
 )
 
@@ -20,18 +21,21 @@ type ExtrasResponse struct {
 	Package     string                `json:"package"`
 	TypeSupport pypi.TypeSupport      `json:"type_support"`
 	CondaForge  *conda.CondaForgeInfo `json:"conda_forge"`
+	RepoInfo    *gh.RepoInfo          `json:"repo_info,omitempty"`
 }
 
-// ExtrasHandler serves type support and conda-forge data.
+// ExtrasHandler serves type support, conda-forge, and GitHub repo data.
 type ExtrasHandler struct {
-	pypi  *pypi.Client
-	conda *conda.Client
-	cache cache.Cacher
+	pypi   *pypi.Client
+	conda  *conda.Client
+	github *gh.Client
+	pkg    *PackageHandler
+	cache  cache.Cacher
 }
 
 // NewExtrasHandler creates a new ExtrasHandler.
-func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, c cache.Cacher) *ExtrasHandler {
-	return &ExtrasHandler{pypi: pypiClient, conda: condaClient, cache: c}
+func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClient *gh.Client, pkgHandler *PackageHandler, c cache.Cacher) *ExtrasHandler {
+	return &ExtrasHandler{pypi: pypiClient, conda: condaClient, github: ghClient, pkg: pkgHandler, cache: c}
 }
 
 // Get handles GET /api/packages/{name}/extras.
@@ -50,15 +54,25 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch type support and conda info in parallel.
+	// Fetch PyPI package info (cached, fast) to get project URLs for repo detection.
+	var (
+		pypiResp *pypi.PyPIResponse
+		pypiErr  error
+	)
+	if h.pkg != nil {
+		pypiResp, pypiErr = h.pkg.FetchPackage(name)
+	}
+
+	// Fetch type support, conda info, and GitHub repo info in parallel.
 	var (
 		typeSupport pypi.TypeSupport
 		condaInfo   conda.CondaForgeInfo
 		condaErr    error
+		repoInfo    *gh.RepoInfo
 		wg          sync.WaitGroup
 	)
 
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		typeSupport = pypi.CheckTypeSupport(h.pypi, name)
@@ -67,11 +81,31 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 		condaInfo, condaErr = h.conda.FetchCondaInfo(name)
 	}()
+	go func() {
+		defer wg.Done()
+		if pypiErr != nil || h.github == nil {
+			return
+		}
+		owner, repo, ok := gh.ExtractGitHubRepo(pypiResp.Info.ProjectURLs)
+		if !ok {
+			return
+		}
+		info, err := h.github.FetchRepoInfo(owner, repo)
+		if err == nil {
+			repoInfo = info
+		}
+	}()
 	wg.Wait()
 
 	// If not already typed via stubs, check for py.typed marker in the wheel.
 	if typeSupport.Status != "typed" {
-		if pkg, err := h.pypi.FetchPackage(name); err == nil {
+		var pkg *pypi.PyPIResponse
+		if pypiErr == nil && pypiResp != nil {
+			pkg = pypiResp
+		} else {
+			pkg, _ = h.pypi.FetchPackage(name)
+		}
+		if pkg != nil {
 			typedKey := "typed:" + strings.ToLower(name) + ":" + pkg.Info.Version
 			if data, _, err := h.cache.Get(typedKey, 0); err == nil && data != nil {
 				if string(data) == "1" {
@@ -93,6 +127,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	resp := ExtrasResponse{
 		Package:     name,
 		TypeSupport: typeSupport,
+		RepoInfo:    repoInfo,
 	}
 	if condaErr == nil {
 		resp.CondaForge = &condaInfo

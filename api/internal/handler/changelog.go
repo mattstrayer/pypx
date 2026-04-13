@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -21,11 +20,10 @@ const changelogTTL = 7 * 24 * time.Hour
 
 // ChangelogResponse is the JSON shape returned to the frontend.
 type ChangelogResponse struct {
-	Package  string            `json:"package"`
-	Source   string            `json:"source"`
-	RepoURL  string            `json:"repo_url"`
-	Entries  []changelog.Entry `json:"entries"`
-	RepoInfo *gh.RepoInfo      `json:"repo_info,omitempty"`
+	Package string            `json:"package"`
+	Source  string            `json:"source"`
+	RepoURL string            `json:"repo_url"`
+	Entries []changelog.Entry `json:"entries"`
 }
 
 // ChangelogHandler handles GET /api/packages/{name}/changelog.
@@ -109,19 +107,11 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 		// Render markdown bodies to HTML.
 		entries := renderHTML(result.Entries)
 
-		// Fetch repo metadata (stars, forks, etc.) for the sidebar.
-		repoInfo, err := h.github.FetchRepoInfo(owner, repo)
-		if err != nil {
-			log.Printf("changelog: failed to fetch repo info for %s/%s: %v", owner, repo, err)
-			repoInfo = nil
-		}
-
 		return ChangelogResponse{
-			Package:  pkgName,
-			Source:   result.Source,
-			RepoURL:  repoURL,
-			Entries:  entries,
-			RepoInfo: repoInfo,
+			Package: pkgName,
+			Source:  result.Source,
+			RepoURL: repoURL,
+			Entries: entries,
 		}
 	}
 
