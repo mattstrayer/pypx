@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PackageData, ExtrasData, SecurityData } from "~/types/api";
+import type { MaintenanceStatus } from "~/composables/useMaintenanceStatus";
 
 const props = defineProps<{
   pkg: PackageData;
   extras?: ExtrasData | null;
   security?: SecurityData | null;
+  maintenanceStatus?: MaintenanceStatus;
 }>();
 
 function formatSize(bytes: number): string {
@@ -88,5 +90,19 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     >
       {{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}
     </a>
+
+    <!-- Maintenance status badge -->
+    <span
+      v-if="maintenanceStatus === 'possibly_unmaintained'"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-amber-950 text-amber-300 ring-amber-800"
+    >
+      Possibly Unmaintained
+    </span>
+    <span
+      v-if="maintenanceStatus === 'likely_unmaintained'"
+      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800"
+    >
+      Likely Unmaintained
+    </span>
   </div>
 </template>

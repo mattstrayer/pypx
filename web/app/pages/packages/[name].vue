@@ -36,6 +36,8 @@ const { data: docsData } = useAsyncData(
 
 const repoInfo = computed(() => extras.value?.repo_info ?? null);
 
+const maintenanceStatus = useMaintenanceStatus(pkg, repoInfo);
+
 const inPageTabs = [
   { key: "overview", label: "Overview" },
   { key: "dependencies", label: "Dependencies" },
@@ -107,7 +109,12 @@ useSchemaOrg(
         </div>
         <p v-if="pkg.summary" class="mt-2 text-zinc-400">{{ pkg.summary }}</p>
         <div class="mt-3">
-          <PackageBadges :pkg="pkg" :extras="extras" :security="security" />
+          <PackageBadges
+            :pkg="pkg"
+            :extras="extras"
+            :security="security"
+            :maintenance-status="maintenanceStatus"
+          />
         </div>
       </div>
 
