@@ -38,6 +38,14 @@ export default defineNuxtConfig({
     reactive: true,
   },
 
+  sitemap: {
+    sitemaps: {
+      popular: {},
+      cached: {},
+    },
+    sources: ["/api/__sitemap__/urls"],
+  },
+
   robots: {
     allow: '/',
   },
