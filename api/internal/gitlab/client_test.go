@@ -137,3 +137,40 @@ func TestGitLabClient_FetchTags(t *testing.T) {
 		t.Fatalf("expected 2 version tags, got %d", len(tags))
 	}
 }
+
+func TestGitLabClient_FetchCompare(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawPath := r.URL.RawPath
+		if rawPath == "" {
+			rawPath = r.URL.Path
+		}
+		if rawPath == "/api/v4/projects/user%2Frepo/repository/compare" && r.URL.RawQuery == "from=v1.0.0&to=v1.1.0" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{
+				"commits": [
+					{"message":"feat: add feature\n\nBody","authored_date":"2024-01-15T00:00:00Z"},
+					{"message":"Merge branch 'main'","authored_date":"2024-01-14T00:00:00Z"},
+					{"message":"chore: update deps","authored_date":"2024-01-13T00:00:00Z"}
+				]
+			}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
+	messages, headDate, err := c.FetchCompare("user/repo", "v1.0.0", "v1.1.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0] != "feat: add feature" {
+		t.Errorf("message = %q, want \"feat: add feature\"", messages[0])
+	}
+	if headDate != "2024-01-13T00:00:00Z" {
+		t.Errorf("headDate = %q, want \"2024-01-13T00:00:00Z\"", headDate)
+	}
+}
