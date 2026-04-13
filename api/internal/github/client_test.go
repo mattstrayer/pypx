@@ -327,3 +327,125 @@ func TestFetchRepoInfoUserOwner(t *testing.T) {
 		t.Errorf("DisplayName = %q, want Kenneth Reitz", info.Owner.DisplayName)
 	}
 }
+
+func TestFetchRawFile_ReturnsContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/owner/repo/contents/CHANGELOG.md" {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "## 1.0.0\nSome content")
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "CHANGELOG.md" {
+		t.Errorf("filename = %q, want CHANGELOG.md", filename)
+	}
+	if content != "## 1.0.0\nSome content" {
+		t.Errorf("content = %q", content)
+	}
+}
+
+func TestFetchRawFile_TriesFallbackNames(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/owner/repo/contents/CHANGES.md" {
+			fmt.Fprint(w, "## 1.0.0\nfound it")
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "CHANGES.md" {
+		t.Errorf("filename = %q, want CHANGES.md", filename)
+	}
+	_ = content
+}
+
+func TestFetchRawFile_NoneFound_ReturnsEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if content != "" || filename != "" {
+		t.Errorf("expected empty result, got content=%q filename=%q", content, filename)
+	}
+}
+
+func TestFetchTags_ReturnsSortedVersionTags(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/owner/repo/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[
+				{"name":"v1.2.0","commit":{"sha":"abc"}},
+				{"name":"not-a-version","commit":{"sha":"xyz"}},
+				{"name":"v1.1.0","commit":{"sha":"def"}}
+			]`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	tags, err := c.FetchTags("owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d: %+v", len(tags), tags)
+	}
+	if tags[0].Name != "v1.2.0" {
+		t.Errorf("tags[0].Name = %q, want v1.2.0", tags[0].Name)
+	}
+}
+
+func TestFetchCompare_ReturnsCommitMessages(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/owner/repo/compare/v1.1.0...v1.2.0" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{
+				"commits": [
+					{"commit":{"message":"Fix unicode handling","author":{"date":"2024-03-15T10:00:00Z"}}},
+					{"commit":{"message":"Merge pull request #1","author":{"date":"2024-03-15T11:00:00Z"}}},
+					{"commit":{"message":"Add new feature","author":{"date":"2024-03-15T12:00:00Z"}}}
+				]
+			}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	messages, headDate, err := c.FetchCompare("owner", "repo", "v1.1.0", "v1.2.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages (merge filtered), got %d: %v", len(messages), messages)
+	}
+	if messages[0] != "Fix unicode handling" {
+		t.Errorf("messages[0] = %q", messages[0])
+	}
+	if headDate != "2024-03-15T12:00:00Z" {
+		t.Errorf("headDate = %q, want 2024-03-15T12:00:00Z", headDate)
+	}
+}

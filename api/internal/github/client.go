@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -24,6 +25,9 @@ var priorityKeys = []string{
 	"homepage",
 	"code",
 }
+
+var tagVersionRE = regexp.MustCompile(`^v?\d+\.\d[\d.a-zA-Z\-]*$`)
+var noiseCommitRE = regexp.MustCompile(`(?i)^(merge\b|bump version|version bump|chore[:(]|release[:(]|prepare release|update changelog)`)
 
 // ExtractGitHubRepo scans a PyPI project_urls map for a GitHub repository URL.
 // Keys are matched case-insensitively in priority order; if none of the
@@ -106,6 +110,12 @@ type RepoInfo struct {
 	OpenIssues   int       `json:"open_issues"`
 	LastPushedAt string    `json:"last_pushed_at"`
 	Owner        RepoOwner `json:"owner"`
+}
+
+// Tag represents a git tag with version-like name.
+type Tag struct {
+	Name string // original tag name (e.g. "v1.2.0")
+	SHA  string // commit SHA
 }
 
 // ghRepo is the internal JSON shape from GET /repos/{owner}/{repo}.
@@ -259,6 +269,133 @@ func (c *Client) FetchRepoInfo(owner, repo string) (*RepoInfo, error) {
 			IsOrg:       isOrg,
 		},
 	}, nil
+}
+
+// FetchRawFile tries each candidate filename in order and returns the content and
+// matched filename of the first one found. Returns ("", "", nil) if none exist.
+func (c *Client) FetchRawFile(owner, repo string, candidates []string) (content, filename string, err error) {
+	for _, name := range candidates {
+		url := fmt.Sprintf("%s/repos/%s/%s/contents/%s", c.baseURL, owner, repo, name)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Accept", "application/vnd.github.raw+json")
+		if c.token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		}
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+		var buf strings.Builder
+		_, err = io.Copy(&buf, resp.Body)
+		if err != nil {
+			continue
+		}
+		return buf.String(), name, nil
+	}
+	return "", "", nil
+}
+
+// FetchTags retrieves up to 50 tags for owner/repo, filtering to version-like tags.
+func (c *Client) FetchTags(owner, repo string) ([]Tag, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/tags?per_page=50", c.baseURL, owner, repo)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil
+	}
+
+	var raw []struct {
+		Name   string `json:"name"`
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	tags := make([]Tag, 0, len(raw))
+	for _, t := range raw {
+		if tagVersionRE.MatchString(t.Name) {
+			tags = append(tags, Tag{Name: t.Name, SHA: t.Commit.SHA})
+		}
+	}
+	return tags, nil
+}
+
+// FetchCompare retrieves commit messages between base and head refs, filtering
+// noise commits. Returns the messages and the date of the head commit.
+func (c *Client) FetchCompare(owner, repo, base, head string) (messages []string, headDate string, err error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s", c.baseURL, owner, repo, base, head)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, "", nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("compare API returned %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Commits []struct {
+			Commit struct {
+				Message string `json:"message"`
+				Author  struct {
+					Date string `json:"date"`
+				} `json:"author"`
+			} `json:"commit"`
+		} `json:"commits"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, "", err
+	}
+
+	const maxCommits = 30
+	messages = make([]string, 0, len(payload.Commits))
+	for _, c := range payload.Commits {
+		msg := strings.SplitN(c.Commit.Message, "\n", 2)[0]
+		if !noiseCommitRE.MatchString(msg) {
+			messages = append(messages, msg)
+			if len(messages) >= maxCommits {
+				break
+			}
+		}
+	}
+
+	if n := len(payload.Commits); n > 0 {
+		headDate = payload.Commits[n-1].Commit.Author.Date
+	}
+	return messages, headDate, nil
 }
 
 // fetchOwnerName calls /orgs/{login} or /users/{login} to get the display name.
