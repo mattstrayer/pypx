@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,33 +10,37 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
+	"github.com/pypx/api/internal/changelog"
 	gh "github.com/pypx/api/internal/github"
+	"github.com/pypx/api/internal/gitlab"
 	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/pypi"
 )
 
 const changelogTTL = 7 * 24 * time.Hour
 
-// ChangelogResponse is the response returned by the changelog endpoint.
+// ChangelogResponse is the JSON shape returned to the frontend.
 type ChangelogResponse struct {
-	Package  string       `json:"package"`
-	Source   string       `json:"source"`
-	RepoURL  string       `json:"repo_url"`
-	Entries  []gh.Release `json:"entries"`
-	RepoInfo *gh.RepoInfo `json:"repo_info,omitempty"`
+	Package  string            `json:"package"`
+	Source   string            `json:"source"`
+	RepoURL  string            `json:"repo_url"`
+	Entries  []changelog.Entry `json:"entries"`
+	RepoInfo *gh.RepoInfo      `json:"repo_info,omitempty"`
 }
 
-// ChangelogHandler serves changelog requests backed by GitHub Releases.
+// ChangelogHandler handles GET /api/packages/{name}/changelog.
 type ChangelogHandler struct {
 	github *gh.Client
+	gitlab *gitlab.Client
 	cache  cache.Cacher
 	pkg    *PackageHandler
 }
 
 // NewChangelogHandler creates a new ChangelogHandler.
-func NewChangelogHandler(ghClient *gh.Client, c cache.Cacher, pkgHandler *PackageHandler) *ChangelogHandler {
+func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.Cacher, pkgHandler *PackageHandler) *ChangelogHandler {
 	return &ChangelogHandler{
 		github: ghClient,
+		gitlab: glClient,
 		cache:  c,
 		pkg:    pkgHandler,
 	}
@@ -51,7 +56,7 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	cacheKey := "changelog:" + strings.ToLower(name)
 
-	// Check cache.
+	// Serve from cache if fresh.
 	if data, fresh, err := h.cache.Get(cacheKey, changelogTTL); err == nil && data != nil && fresh {
 		w.Header().Set("Cache-Control", "public, max-age=604800")
 		w.Header().Set("Content-Type", "application/json")
@@ -59,7 +64,7 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch PyPI metadata to get project_urls.
+	// Fetch PyPI package info to get project URLs.
 	pypiResp, err := h.pkg.FetchPackage(name)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -70,46 +75,10 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var releases []gh.Release
-	repoURL := ""
-	source := ""
-	var repoInfo *gh.RepoInfo
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
 
-	owner, repo, ok := gh.ExtractGitHubRepo(pypiResp.Info.ProjectURLs)
-	if ok {
-		repoURL = "https://github.com/" + owner + "/" + repo
-		source = "github_releases"
-		releases, err = h.github.FetchReleases(owner, repo)
-		if err != nil {
-			http.Error(w, "failed to fetch releases", http.StatusBadGateway)
-			return
-		}
-
-		// Render markdown bodies to HTML.
-		for i := range releases {
-			if releases[i].Body != "" {
-				releases[i].BodyHTML, _ = markdown.Render(releases[i].Body)
-			}
-		}
-
-		repoInfo, err = h.github.FetchRepoInfo(owner, repo)
-		if err != nil {
-			log.Printf("changelog: failed to fetch repo info for %s/%s: %v", owner, repo, err)
-			repoInfo = nil
-		}
-	}
-
-	if releases == nil {
-		releases = []gh.Release{}
-	}
-
-	resp := ChangelogResponse{
-		Package:  pypiResp.Info.Name,
-		Source:   source,
-		RepoURL:  repoURL,
-		Entries:  releases,
-		RepoInfo: repoInfo,
-	}
+	resp := h.buildResponse(ctx, pypiResp.Info.Name, pypiResp.Info.ProjectURLs)
 
 	encoded, err := json.Marshal(resp)
 	if err != nil {
@@ -122,4 +91,76 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=604800")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// buildResponse constructs a ChangelogResponse using the parallel registry.
+func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, projectURLs map[string]string) ChangelogResponse {
+	// Detect GitHub.
+	if owner, repo, ok := gh.ExtractGitHubRepo(projectURLs); ok {
+		repoURL := "https://github.com/" + owner + "/" + repo
+		sources := []changelog.Source{
+			&gh.ReleasesSource{Client: h.github, Owner: owner, Repo: repo},
+			&gh.FileSource{Client: h.github, Owner: owner, Repo: repo},
+			&gh.TagsSource{Client: h.github, Owner: owner, Repo: repo},
+		}
+		reg := changelog.NewRegistry(sources...)
+		result := reg.Fetch(ctx)
+
+		// Render markdown bodies to HTML.
+		entries := renderHTML(result.Entries)
+
+		// Fetch repo metadata (stars, forks, etc.) for the sidebar.
+		repoInfo, err := h.github.FetchRepoInfo(owner, repo)
+		if err != nil {
+			log.Printf("changelog: failed to fetch repo info for %s/%s: %v", owner, repo, err)
+			repoInfo = nil
+		}
+
+		return ChangelogResponse{
+			Package:  pkgName,
+			Source:   result.Source,
+			RepoURL:  repoURL,
+			Entries:  entries,
+			RepoInfo: repoInfo,
+		}
+	}
+
+	// Detect GitLab.
+	if projectPath, repoURL, ok := gitlab.ExtractGitLabRepo(projectURLs); ok {
+		sources := []changelog.Source{
+			&gitlab.ReleasesSource{Client: h.gitlab, ProjectPath: projectPath, RepoURL: repoURL},
+			&gitlab.FileSource{Client: h.gitlab, ProjectPath: projectPath},
+			&gitlab.TagsSource{Client: h.gitlab, ProjectPath: projectPath},
+		}
+		reg := changelog.NewRegistry(sources...)
+		result := reg.Fetch(ctx)
+		entries := renderHTML(result.Entries)
+
+		return ChangelogResponse{
+			Package: pkgName,
+			Source:  result.Source,
+			RepoURL: repoURL,
+			Entries: entries,
+		}
+	}
+
+	// No recognizable repo URL.
+	return ChangelogResponse{
+		Package: pkgName,
+		Source:  "none",
+		Entries: []changelog.Entry{},
+	}
+}
+
+// renderHTML renders Body markdown to BodyHTML for each entry in-place.
+func renderHTML(entries []changelog.Entry) []changelog.Entry {
+	for i := range entries {
+		if entries[i].Body != "" {
+			html, err := markdown.Render(entries[i].Body)
+			if err == nil {
+				entries[i].BodyHTML = html
+			}
+		}
+	}
+	return entries
 }

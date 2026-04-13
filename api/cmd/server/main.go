@@ -16,6 +16,7 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/conda"
 	"github.com/pypx/api/internal/github"
+	"github.com/pypx/api/internal/gitlab"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/osv"
 	"github.com/pypx/api/internal/pypi"
@@ -51,7 +52,15 @@ func main() {
 		ghOpts = append(ghOpts, github.WithToken(ghToken))
 	}
 	ghClient := github.NewClient(ghOpts...)
-	changelogHandler := handler.NewChangelogHandler(ghClient, c, pkgHandler)
+
+	glToken := os.Getenv("GITLAB_TOKEN")
+	var glOpts []gitlab.Option
+	if glToken != "" {
+		glOpts = append(glOpts, gitlab.WithToken(glToken))
+	}
+	glClient := gitlab.NewClient(glOpts...)
+
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
 
 	statsClient := stats.NewClient()
 	statsHandler := handler.NewStatsHandler(statsClient, c)

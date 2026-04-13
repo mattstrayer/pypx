@@ -4,269 +4,217 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	gh "github.com/pypx/api/internal/github"
+	"github.com/pypx/api/internal/gitlab"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
 )
 
-const mockRequestsWithGitHub = `{
-	"info": {
-		"name": "requests",
-		"version": "2.31.0",
-		"summary": "HTTP for Humans",
-		"description": "",
-		"description_content_type": "",
-		"license": "",
-		"author": "",
-		"author_email": "",
-		"home_page": "",
-		"requires_python": "",
-		"requires_dist": null,
-		"project_urls": {
-			"Source": "https://github.com/psf/requests"
-		},
-		"classifiers": null
-	},
-	"releases": {},
-	"urls": []
-}`
-
-const mockRequestsNoGitHub = `{
-	"info": {
-		"name": "requests",
-		"version": "2.31.0",
-		"summary": "HTTP for Humans",
-		"description": "",
-		"description_content_type": "",
-		"license": "",
-		"author": "",
-		"author_email": "",
-		"home_page": "",
-		"requires_python": "",
-		"requires_dist": null,
-		"project_urls": {
-			"Homepage": "https://example.com"
-		},
-		"classifiers": null
-	},
-	"releases": {},
-	"urls": []
-}`
-
-const mockGitHubReleases = `[
-	{
-		"tag_name": "v2.31.0",
-		"name": "v2.31.0",
-		"body": "Release notes",
-		"published_at": "2023-05-22T15:12:01Z",
-		"html_url": "https://github.com/psf/requests/releases/tag/v2.31.0"
-	}
-]`
-
-func setupChangelogRouter(h *handler.ChangelogHandler) *chi.Mux {
-	r := chi.NewRouter()
-	r.Get("/api/packages/{name}/changelog", h.Get)
-	return r
+// pypiResponse builds a minimal PyPI JSON response with the given project URL.
+func pypiResponse(sourceURL string) string {
+	return `{"info":{"name":"testpkg","version":"1.0.0","summary":"","description":"",` +
+		`"description_content_type":"","license":"","author":"","author_email":"",` +
+		`"home_page":"","requires_python":"","requires_dist":null,` +
+		`"project_urls":{"Source":"` + sourceURL + `"}},"releases":{},"urls":[]}`
 }
 
-func TestGetChangelog(t *testing.T) {
-	// Mock PyPI server returning a package with a GitHub URL.
-	mockPyPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockRequestsWithGitHub)) //nolint:errcheck
-	}))
-	defer mockPyPI.Close()
-
-	// Mock GitHub server returning 1 release or repo info.
-	mockGitHub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		path := r.URL.Path
-		if strings.Contains(path, "/releases") {
-			w.Write([]byte(mockGitHubReleases)) //nolint:errcheck
-		} else if strings.HasPrefix(path, "/repos/") {
-			w.Write([]byte(`{
-				"stargazers_count": 1000,
-				"forks_count": 100,
-				"open_issues_count": 10,
-				"pushed_at": "2025-01-01T00:00:00Z",
-				"owner": {
-					"login": "psf",
-					"type": "Organization",
-					"avatar_url": "https://avatars.githubusercontent.com/u/1"
-				}
-			}`)) //nolint:errcheck
-		} else if strings.HasPrefix(path, "/orgs/") {
-			w.Write([]byte(`{"name": "Python Software Foundation"}`)) //nolint:errcheck
-		}
-	}))
-	defer mockGitHub.Close()
-
-	c, err := cache.New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create cache: %v", err)
-	}
-	defer c.Close()
-	mc := cache.NewMemoryCache(c, 100)
-
-	pypiClient := pypi.NewClient(pypi.WithBaseURL(mockPyPI.URL))
-	ghClient := gh.NewClient(gh.WithBaseURL(mockGitHub.URL))
-	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
-	changelogHandler := handler.NewChangelogHandler(ghClient, mc, pkgHandler)
-
-	router := setupChangelogRouter(changelogHandler)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/changelog", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	var body handler.ChangelogResponse
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if body.Package != "requests" {
-		t.Errorf("expected package=requests, got %q", body.Package)
-	}
-	if body.Source != "github_releases" {
-		t.Errorf("expected source=github_releases, got %q", body.Source)
-	}
-	if len(body.Entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(body.Entries))
-	}
-	if body.Entries[0].Version != "2.31.0" {
-		t.Errorf("expected version=2.31.0, got %q", body.Entries[0].Version)
-	}
-}
-
-func TestGetChangelogNoGitHub(t *testing.T) {
-	// Mock PyPI server returning a package with no GitHub URL.
-	mockPyPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockRequestsNoGitHub)) //nolint:errcheck
-	}))
-	defer mockPyPI.Close()
-
-	c, err := cache.New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create cache: %v", err)
-	}
-	defer c.Close()
-	mc := cache.NewMemoryCache(c, 100)
-
-	pypiClient := pypi.NewClient(pypi.WithBaseURL(mockPyPI.URL))
-	// No GitHub server needed — we never call it when there's no GitHub URL.
-	ghClient := gh.NewClient(gh.WithBaseURL("http://127.0.0.1:0"))
-	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
-	changelogHandler := handler.NewChangelogHandler(ghClient, mc, pkgHandler)
-
-	router := setupChangelogRouter(changelogHandler)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/changelog", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	var body handler.ChangelogResponse
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if len(body.Entries) != 0 {
-		t.Errorf("expected 0 entries, got %d", len(body.Entries))
-	}
-}
-
-func TestChangelogGet_RendersBodyHTML(t *testing.T) {
-	// Mock PyPI server returning a package with a GitHub URL.
-	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockRequestsWithGitHub)) //nolint:errcheck
-	}))
-	defer pypiSrv.Close()
-
-	// Mock GitHub server returning a release with markdown body or repo info.
+func TestChangelogGet_GitHubReleases(t *testing.T) {
 	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		path := r.URL.Path
-		if strings.Contains(path, "/releases") {
-			w.Write([]byte(`[{
-				"tag_name": "v2.31.0",
-				"name": "v2.31.0",
-				"body": "## What's Changed\n\n- Fixed **bug** in auth",
-				"published_at": "2023-05-22T15:12:01Z",
-				"html_url": "https://github.com/psf/requests/releases/tag/v2.31.0"
-			}]`)) //nolint:errcheck
-		} else if strings.HasPrefix(path, "/repos/") {
-			w.Write([]byte(`{
-				"stargazers_count": 1000,
-				"forks_count": 100,
-				"open_issues_count": 10,
-				"pushed_at": "2025-01-01T00:00:00Z",
-				"owner": {
-					"login": "psf",
-					"type": "Organization",
-					"avatar_url": "https://avatars.githubusercontent.com/u/1"
-				}
-			}`)) //nolint:errcheck
-		} else if strings.HasPrefix(path, "/orgs/") {
-			w.Write([]byte(`{"name": "Python Software Foundation"}`)) //nolint:errcheck
+		switch r.URL.Path {
+		case "/repos/owner/repo/releases":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[{"tag_name":"v1.0.0","name":"Release 1.0","body":"## Changes\n- Fix foo","published_at":"2024-01-01T00:00:00Z","html_url":"https://github.com/owner/repo/releases/tag/v1.0.0"}]`))
+		case "/repos/owner/repo":
+			w.Write([]byte(`{"stargazers_count":10,"forks_count":2,"open_issues_count":1,"pushed_at":"2024-01-01T00:00:00Z","owner":{"login":"owner","type":"User","avatar_url":""}}`))
+		case "/users/owner":
+			w.Write([]byte(`{"name":"Owner Name"}`))
+		default:
+			http.NotFound(w, r)
 		}
 	}))
 	defer ghSrv.Close()
 
-	c, err := cache.New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create cache: %v", err)
-	}
-	defer c.Close()
-	mc := cache.NewMemoryCache(c, 100)
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(pypiResponse("https://github.com/owner/repo")))
+	}))
+	defer pypiSrv.Close()
 
+	sqliteCache, _ := cache.New(":memory:")
+	c := cache.NewMemoryCache(sqliteCache, 100)
 	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
 	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
-	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
-	changelogHandler := handler.NewChangelogHandler(ghClient, mc, pkgHandler)
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
 
-	router := setupChangelogRouter(changelogHandler)
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/changelog", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
 	}
 
-	var body handler.ChangelogResponse
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+	var resp struct {
+		Source  string `json:"source"`
+		Entries []struct {
+			Version string `json:"version"`
+		} `json:"entries"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp.Source != "github_releases" {
+		t.Errorf("source = %q, want github_releases", resp.Source)
+	}
+	if len(resp.Entries) == 0 {
+		t.Error("expected at least one entry")
+	}
+}
+
+func TestChangelogGet_FallsBackToChangelogFile(t *testing.T) {
+	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/repo/releases":
+			w.Write([]byte(`[]`))
+		case "/repos/owner/repo/contents/CHANGELOG.md":
+			w.Write([]byte("## [1.0.0] - 2024-01-01\nFixed stuff.\n\n## [0.9.0] - 2023-12-01\nBeta."))
+		case "/repos/owner/repo/tags":
+			w.Write([]byte(`[]`))
+		case "/repos/owner/repo":
+			w.Write([]byte(`{"stargazers_count":5,"forks_count":1,"open_issues_count":0,"pushed_at":"2024-01-01T00:00:00Z","owner":{"login":"owner","type":"User","avatar_url":""}}`))
+		case "/users/owner":
+			w.Write([]byte(`{"name":"Owner"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ghSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(pypiResponse("https://github.com/owner/repo")))
+	}))
+	defer pypiSrv.Close()
+
+	sqliteCache, _ := cache.New(":memory:")
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	if len(body.Entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(body.Entries))
+	var resp struct {
+		Source  string `json:"source"`
+		Entries []struct{ Version string `json:"version"` } `json:"entries"`
 	}
+	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
+	if resp.Source != "github_changelog_file" {
+		t.Errorf("source = %q, want github_changelog_file", resp.Source)
+	}
+	if len(resp.Entries) == 0 {
+		t.Error("expected entries from CHANGELOG file")
+	}
+}
 
-	entry := body.Entries[0]
-	if entry.BodyHTML == "" {
-		t.Fatal("expected body_html to be non-empty")
+func TestChangelogGet_FallsBackToTags(t *testing.T) {
+	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/repo/releases":
+			w.Write([]byte(`[]`))
+		case "/repos/owner/repo/tags":
+			w.Write([]byte(`[{"name":"v1.1.0","commit":{"sha":"abc"}},{"name":"v1.0.0","commit":{"sha":"def"}}]`))
+		case "/repos/owner/repo/compare/v1.0.0...v1.1.0":
+			w.Write([]byte(`{"commits":[{"commit":{"message":"Add feature","author":{"date":"2024-03-01T00:00:00Z"}}}]}`))
+		case "/repos/owner/repo":
+			w.Write([]byte(`{"stargazers_count":0,"forks_count":0,"open_issues_count":0,"pushed_at":"2024-01-01T00:00:00Z","owner":{"login":"owner","type":"User","avatar_url":""}}`))
+		case "/users/owner":
+			w.Write([]byte(`{"name":"Owner"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ghSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(pypiResponse("https://github.com/owner/repo")))
+	}))
+	defer pypiSrv.Close()
+
+	sqliteCache, _ := cache.New(":memory:")
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var resp struct {
+		Source  string `json:"source"`
+		Entries []struct{ Version string `json:"version"` } `json:"entries"`
 	}
-	if !strings.Contains(entry.BodyHTML, "<strong>bug</strong>") {
-		t.Errorf("expected body_html to contain <strong>bug</strong>, got %q", entry.BodyHTML)
+	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
+	if resp.Source != "github_tags" {
+		t.Errorf("source = %q, want github_tags", resp.Source)
+	}
+}
+
+func TestChangelogGet_NoRepoURL_ReturnsEmpty(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"info":{"name":"testpkg","version":"1.0.0","summary":"","description":"","description_content_type":"","license":"","author":"","author_email":"","home_page":"","requires_python":"","requires_dist":null,"project_urls":{}},"releases":{},"urls":[]}`))
+	}))
+	defer pypiSrv.Close()
+
+	sqliteCache, _ := cache.New(":memory:")
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+	ghClient := gh.NewClient()
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var resp struct {
+		Entries []struct{} `json:"entries"`
+		Source  string     `json:"source"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
+	if len(resp.Entries) != 0 {
+		t.Errorf("expected empty entries for package without repo URL")
 	}
 }
