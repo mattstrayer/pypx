@@ -121,7 +121,7 @@ function formatDate(iso: string): string {
     </div>
 
     <!-- Table -->
-    <table v-else class="w-full text-sm">
+    <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-zinc-800 text-left text-zinc-500">
           <th class="pb-2 pr-6 font-medium">Version</th>
