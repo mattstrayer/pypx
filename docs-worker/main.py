@@ -119,17 +119,76 @@ def transform_returns(member: Any) -> dict | None:
         return None
 
 
+def _resolve_member(member: Any) -> Any | None:
+    """Follow griffe aliases to the real object. Return None if unresolvable."""
+    if member.kind.value == "alias":
+        try:
+            return member.final_target
+        except Exception:
+            return None
+    return member
+
+
+def _collect_members(module: Any) -> list[tuple[str, Any]]:
+    """Walk a module tree and return (name, resolved_member) pairs.
+
+    Top-level re-exports (aliases) are resolved first, then submodules are
+    walked for any remaining definitions. Duplicates are skipped by short
+    name so each symbol appears only once.
+    """
+    seen: set[str] = set()
+    results: list[tuple[str, Any]] = []
+
+    def _add(name: str, member: Any) -> bool:
+        if name in seen:
+            return False
+        seen.add(name)
+        results.append((name, member))
+        return True
+
+    # Pass 1: top-level members (resolve aliases = re-exports).
+    for name, member in module.members.items():
+        if name.startswith("_"):
+            continue
+        kind = member.kind.value
+        if kind == "module":
+            continue
+        if kind == "alias":
+            resolved = _resolve_member(member)
+            if resolved is None:
+                continue
+            member = resolved
+            kind = member.kind.value
+        if kind in ("function", "class"):
+            _add(name, member)
+
+    # Pass 2: walk submodules for definitions not re-exported at top level.
+    def _walk_submodules(mod: Any) -> None:
+        for name, member in mod.members.items():
+            if name.startswith("_"):
+                continue
+            kind = member.kind.value
+            if kind == "module":
+                _walk_submodules(member)
+                continue
+            if kind == "alias":
+                continue  # skip aliases in submodules to avoid duplicates
+            if kind in ("function", "class"):
+                _add(name, member)
+
+    _walk_submodules(module)
+    return results
+
+
 def transform_module(module: Any) -> dict:
     functions = []
     classes = []
     exceptions = []
 
-    for name, member in module.members.items():
-        if name.startswith("_"):
-            continue
+    for name, member in _collect_members(module):
         kind = member.kind.value
         sym: dict[str, Any] = {
-            "name": member.name,
+            "name": name,
             "kind": kind,
             "signature": get_signature(member),
             "docstring": get_docstring(member),
