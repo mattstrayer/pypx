@@ -34,7 +34,7 @@ const { data: docsData } = useAsyncData(
   { server: false, default: () => null },
 );
 
-const repoInfo = computed(() => changelog.value?.repo_info ?? null);
+const repoInfo = computed(() => extras.value?.repo_info ?? null);
 
 const inPageTabs = [
   { key: "overview", label: "Overview" },
