@@ -25,6 +25,8 @@ useSeoMeta({
   ogDescription:
     "Explore Python packages with enriched insights, fast search, dependency analysis, and download trends.",
 });
+
+defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
 </script>
 
 <template>

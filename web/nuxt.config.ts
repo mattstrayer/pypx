@@ -31,7 +31,7 @@ export default defineNuxtConfig({
   },
 
   ogImage: {
-    enabled: false,
+    enabled: true,
   },
 
   robots: {
