@@ -89,3 +89,26 @@ func (c *Cache) Get(key string, ttl time.Duration) (data []byte, fresh bool, err
 func (c *Cache) Close() error {
 	return c.db.Close()
 }
+
+// ListPackageNames returns the name portion of all cache keys matching
+// the "pkg:{name}" pattern, i.e. every package that has been fetched and
+// cached at least once.
+func (c *Cache) ListPackageNames() ([]string, error) {
+	rows, err := c.db.Query(
+		`SELECT SUBSTR(key, 5) FROM cache WHERE key LIKE 'pkg:%'`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
