@@ -60,6 +60,22 @@ defineOgImage(
   },
   { width: 1200, height: 630 },
 );
+
+useSchemaOrg([
+  computed(() =>
+    pkg.value
+      ? {
+          "@type": "SoftwareApplication" as const,
+          name: pkg.value.name,
+          description: pkg.value.summary || undefined,
+          softwareVersion: pkg.value.version,
+          applicationCategory: "DeveloperApplication",
+          license: pkg.value.license || undefined,
+          url: `https://pypi.org/project/${pkg.value.name}/`,
+        }
+      : null,
+  ),
+]);
 </script>
 
 <template>
