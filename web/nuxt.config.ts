@@ -31,7 +31,22 @@ export default defineNuxtConfig({
   },
 
   ogImage: {
-    enabled: false,
+    enabled: true,
+  },
+
+  schemaOrg: {
+    reactive: true,
+  },
+
+  sitemap: {
+    sitemaps: {
+      popular: {
+        sources: ["/api/__sitemap__/urls"],
+      },
+      cached: {
+        sources: ["/api/__sitemap__/urls"],
+      },
+    },
   },
 
   robots: {

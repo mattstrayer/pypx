@@ -25,6 +25,8 @@ useSeoMeta({
   title: () => (query.value ? `"${query.value}" — pypx search` : "Search — pypx"),
   description: "Search 500,000+ Python packages on pypx.",
 });
+
+defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
 </script>
 
 <template>

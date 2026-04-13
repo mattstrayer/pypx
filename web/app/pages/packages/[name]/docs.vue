@@ -39,6 +39,15 @@ useSeoMeta({
   title: () => (pkg.value ? `${pkg.value.name} — API docs — pypx` : "Loading — pypx"),
   description: () => `API documentation for ${pkg.value?.name ?? name.value}`,
 });
+
+defineOgImage(
+  "DocsCard",
+  {
+    name: () => pkg.value?.name ?? "",
+    version: () => pkg.value?.version ?? "",
+  },
+  { width: 1200, height: 630 },
+);
 </script>
 
 <template>
