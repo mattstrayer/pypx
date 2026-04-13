@@ -40,6 +40,17 @@ useSeoMeta({
   title: () => `${name.value} ${version.value} — pypx`,
   description: () => `Version ${version.value} of ${name.value} on pypx.`,
 });
+
+defineOgImage(
+  "PackageCard",
+  {
+    name: () => name.value,
+    version: () => version.value,
+    summary: () => pkg.value?.summary ?? undefined,
+    license: () => pkg.value?.license ?? undefined,
+  },
+  { width: 1200, height: 630 },
+);
 </script>
 
 <template>
