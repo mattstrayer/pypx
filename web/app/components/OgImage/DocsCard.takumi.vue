@@ -57,7 +57,6 @@ defineProps<{
           letter-spacing: 1.8px;
           padding: 5px 14px;
           border-radius: 4px;
-          width: fit-content;
         "
       >
         API Docs
