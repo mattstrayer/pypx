@@ -34,6 +34,10 @@ export default defineNuxtConfig({
     enabled: true,
   },
 
+  schemaOrg: {
+    reactive: true,
+  },
+
   robots: {
     allow: '/',
   },
