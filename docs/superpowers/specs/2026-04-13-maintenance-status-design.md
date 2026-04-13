@@ -19,7 +19,7 @@ Signal D (release frequency trend) is available but intentionally excluded from 
 
 ## Thresholds
 
-All thresholds are top-level constants in `api/internal/enrichment/health.go` for easy tuning.
+All thresholds are constants in `web/app/composables/useMaintenanceStatus.ts` for easy tuning.
 
 ### With GitHub repo linked
 
@@ -41,123 +41,114 @@ Conservative thresholds since we have less signal:
 | Possibly Unmaintained | 2+ years (730 days) |
 | Likely Unmaintained | 3+ years (1,095 days) |
 
+## Architectural Refactor: Move RepoInfo to Extras Endpoint
+
+### Problem
+
+GitHub `RepoInfo` is currently fetched inside the changelog handler and piggybacked onto the changelog response. This means:
+- The changelog endpoint does double duty (changelog entries + repo metadata)
+- Any feature needing repo info (like maintenance status) must depend on the changelog response
+- The frontend extracts `repoInfo` from changelog data to display in the sidebar — an indirect dependency
+
+### Solution
+
+Move `RepoInfo` fetching into the extras handler, which already serves supplementary package data (type support, conda-forge info) in parallel. The extras endpoint is a natural home for repo metadata.
+
+**Changes:**
+- Extras handler gains a GitHub client and fetches `RepoInfo` in parallel with type support and conda
+- Extras response gains `repo_info` field
+- Changelog handler drops `RepoInfo` fetching and `repo_info` from its response
+- Frontend: `repoInfo` comes from extras instead of changelog
+
 ## Data Model
 
-### New enrichment function
+### Frontend composable
 
-File: `api/internal/enrichment/health.go`
+File: `web/app/composables/useMaintenanceStatus.ts`
 
-```go
-type MaintenanceStatus string
+```typescript
+export type MaintenanceStatus = 'possibly_unmaintained' | 'likely_unmaintained';
 
-const (
-    MaintenanceActive               MaintenanceStatus = ""
-    MaintenancePossiblyUnmaintained MaintenanceStatus = "possibly_unmaintained"
-    MaintenanceLikelyUnmaintained   MaintenanceStatus = "likely_unmaintained"
-)
+export const THRESHOLDS = {
+  POSSIBLY_UNMAINTAINED_RELEASE_DAYS: 548,   // ~18 months
+  POSSIBLY_UNMAINTAINED_COMMIT_DAYS: 365,    // 12 months
+  LIKELY_UNMAINTAINED_RELEASE_DAYS: 1095,    // ~3 years
+  LIKELY_UNMAINTAINED_COMMIT_DAYS: 730,      // ~2 years
+  POSSIBLY_UNMAINTAINED_NO_REPO_DAYS: 730,   // 2 years (PyPI-only, conservative)
+  LIKELY_UNMAINTAINED_NO_REPO_DAYS: 1095,    // 3 years (PyPI-only)
+} as const;
 
-const (
-    PossiblyUnmaintainedReleaseDays = 548   // ~18 months
-    PossiblyUnmaintainedCommitDays  = 365   // 12 months
-    LikelyUnmaintainedReleaseDays   = 1095  // ~3 years
-    LikelyUnmaintainedCommitDays    = 730   // ~2 years
-    PossiblyUnmaintainedNoRepoDays  = 730   // 2 years (PyPI-only, conservative)
-    LikelyUnmaintainedNoRepoDays    = 1095  // 3 years (PyPI-only)
-)
-
-func ComputeMaintenanceStatus(lastReleasedAt time.Time, lastCommitAt *time.Time, archived bool) MaintenanceStatus
+export function computeMaintenanceStatus(
+  lastReleasedAt: string | undefined,
+  lastCommitAt: string | undefined,
+  archived: boolean,
+): MaintenanceStatus | undefined;
 ```
 
 ### Logic
 
-1. If `archived` is true, return `LikelyUnmaintained`
-2. If `lastCommitAt` is non-nil (repo linked):
-   - If release age >= `LikelyUnmaintainedReleaseDays` AND commit age >= `LikelyUnmaintainedCommitDays`, return `LikelyUnmaintained`
-   - If release age >= `PossiblyUnmaintainedReleaseDays` AND commit age >= `PossiblyUnmaintainedCommitDays`, return `PossiblyUnmaintained`
-3. If `lastCommitAt` is nil (no repo):
-   - If release age >= `LikelyUnmaintainedNoRepoDays`, return `LikelyUnmaintained`
-   - If release age >= `PossiblyUnmaintainedNoRepoDays`, return `PossiblyUnmaintained`
-4. Otherwise, return `MaintenanceActive` (empty string)
+1. If `archived` → immediately return `likely_unmaintained`
+2. If `lastCommitAt` is defined (repo linked):
+   - If release age >= `LIKELY_UNMAINTAINED_RELEASE_DAYS` AND commit age >= `LIKELY_UNMAINTAINED_COMMIT_DAYS`, return `likely_unmaintained`
+   - If release age >= `POSSIBLY_UNMAINTAINED_RELEASE_DAYS` AND commit age >= `POSSIBLY_UNMAINTAINED_COMMIT_DAYS`, return `possibly_unmaintained`
+3. If `lastCommitAt` is undefined (no repo):
+   - If release age >= `LIKELY_UNMAINTAINED_NO_REPO_DAYS`, return `likely_unmaintained`
+   - If release age >= `POSSIBLY_UNMAINTAINED_NO_REPO_DAYS`, return `possibly_unmaintained`
+4. Otherwise, return `undefined` (active, no badge shown)
 
 ## GitHub Client Change
 
-Add `Archived` field to the existing `RepoInfo` struct:
+Add `Archived` field to `ghRepo` (internal) and `RepoInfo` (public) structs. Map it in `FetchRepoInfo`. No new API calls — the GitHub repo endpoint already returns `archived`.
 
-```go
-type RepoInfo struct {
-    Stars        int    `json:"stargazers_count"`
-    Forks        int    `json:"forks_count"`
-    OpenIssues   int    `json:"open_issues_count"`
-    LastPushedAt string `json:"pushed_at"`
-    Archived     bool   `json:"archived"`
-    Owner        Owner  `json:"owner"`
-}
-```
+## Backend Changes
 
-No new API calls — the GitHub repo endpoint already returns this field.
+### Extras handler
 
-## Handler Integration
+- Add GitHub client dependency to `ExtrasHandler`
+- Extract GitHub repo from PyPI project URLs (using existing `gh.ExtractGitHubRepo`)
+- Fetch `RepoInfo` in parallel with type support and conda
+- Add `RepoInfo` to `ExtrasResponse`
 
-In `buildPackageResponse()` in `packages.go`, after existing enrichment calls:
+### Changelog handler
 
-```go
-var maintenanceStatus enrichment.MaintenanceStatus
-if releaseCadence.LastReleasedAt != "" {
-    lastRelease, _ := time.Parse(time.RFC3339, releaseCadence.LastReleasedAt)
-    var lastCommit *time.Time
-    var archived bool
-    if repoInfo != nil {
-        if t, err := time.Parse(time.RFC3339, repoInfo.LastPushedAt); err == nil {
-            lastCommit = &t
-        }
-        archived = repoInfo.Archived
-    }
-    maintenanceStatus = enrichment.ComputeMaintenanceStatus(lastRelease, lastCommit, archived)
-}
-```
+- Remove `RepoInfo` fetching from `buildResponse()`
+- Remove `RepoInfo` field from `ChangelogResponse`
+- Remove GitHub client dependency from `ChangelogHandler` (if no longer needed for anything else — check first)
 
-Add to `PackageResponse` struct:
+## Frontend Changes
 
-```go
-MaintenanceStatus enrichment.MaintenanceStatus `json:"maintenance_status,omitempty"`
-```
+### TypeScript types
 
-No new cache keys, endpoints, or TTL changes. Rides on existing package cache (1 hour TTL, stale-while-revalidate).
+- Add `archived?: boolean` to `RepoInfo` interface
+- Add `repo_info?: RepoInfo` to `ExtrasData` interface
+- Remove `repo_info` from `ChangelogData` interface
 
-## Frontend
+### Package page
 
-### TypeScript type
+- Source `repoInfo` from extras instead of changelog
+- Pass `maintenanceStatus` (from composable) to `PackageBadges`
 
-Add to `PackageData` in `web/app/types/api.ts`:
+### PackageBadges component
 
-```typescript
-maintenance_status?: 'possibly_unmaintained' | 'likely_unmaintained'
-```
-
-### UI
-
-Conditional badge in `PackageBadges` component, following the existing badge pattern:
-
-- `possibly_unmaintained` — yellow/amber badge: "Possibly Unmaintained"
-- `likely_unmaintained` — red/orange badge: "Likely Unmaintained"
-
-No badge rendered when field is absent (active packages). No tooltip or expanded explanation in v1.
+- Accept new `maintenanceStatus` prop
+- Render amber badge for `possibly_unmaintained`
+- Render red badge for `likely_unmaintained`
 
 ## Testing
 
-Unit tests in `api/internal/enrichment/health_test.go`:
+Unit tests in `web/app/composables/__tests__/useMaintenanceStatus.test.ts`:
 
 | Case | Inputs | Expected |
 |---|---|---|
-| Active (recent release + recent commit) | 30 days, 15 days, not archived | no status |
+| Active (recent release + recent commit) | 30 days, 15 days, not archived | undefined |
 | Possibly unmaintained | 600 days release, 400 days commit, not archived | `possibly_unmaintained` |
 | Likely unmaintained | 1200 days release, 800 days commit, not archived | `likely_unmaintained` |
 | Archived repo | 30 days release, 15 days commit, archived | `likely_unmaintained` |
-| No repo, recent release | 30 days, nil commit, not archived | no status |
-| No repo, old release | 800 days, nil commit, not archived | `possibly_unmaintained` |
-| No repo, very old release | 1200 days, nil commit, not archived | `likely_unmaintained` |
-| Old release, recent commit | 600 days release, 15 days commit, not archived | no status |
-| Recent release, old commit | 30 days release, 400 days commit, not archived | no status |
+| No repo, recent release | 30 days, undefined commit, not archived | undefined |
+| No repo, old release | 800 days, undefined commit, not archived | `possibly_unmaintained` |
+| No repo, very old release | 1200 days, undefined commit, not archived | `likely_unmaintained` |
+| Old release, recent commit | 600 days release, 15 days commit, not archived | undefined |
+| Recent release, old commit | 30 days release, 400 days commit, not archived | undefined |
 
 Pure function — no mocks, no I/O. Pass dates and assert output.
 
@@ -165,6 +156,5 @@ Pure function — no mocks, no I/O. Pass dates and assert output.
 
 - No release frequency trend analysis (signal D) — kept simple for v1
 - No tooltip or expanded explanation on the badge
-- No separate endpoint — computed inline during package enrichment
 - No historical tracking of maintenance status changes
 - No GitLab support for archived flag (GitLab client would need similar extension later)
