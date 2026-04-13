@@ -22,7 +22,7 @@ const { data: results, status } = await useAsyncData("search", () => searchPacka
 });
 
 useSeoMeta({
-  title: () => (query.value ? `"${query.value}" — pypx search` : "Search — pypx"),
+  title: () => (query.value ? `"${query.value}"` : "Search"),
   description: "Search 500,000+ Python packages on pypx.",
 });
 

@@ -44,7 +44,7 @@ const inPageTabs = [
 ];
 
 useSeoMeta({
-  title: () => (pkg.value ? `${pkg.value.name} — pypx` : "Loading — pypx"),
+  title: () => (pkg.value ? pkg.value.name : "Loading"),
   description: () => pkg.value?.summary || "",
   ogTitle: () => (pkg.value ? `${pkg.value.name} ${pkg.value.version}` : "pypx"),
   ogDescription: () => pkg.value?.summary || "",

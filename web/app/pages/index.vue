@@ -17,11 +17,12 @@ const { data: popularPackages, status } = await useFetch<
   params: { limit: POPULAR_LIMIT },
 });
 
+useHead({ titleTemplate: "%s" });
 useSeoMeta({
-  title: "pypx — A modern PyPI frontend",
+  title: "pypx — A Modern PyPI Frontend",
   description:
     "Explore Python packages with enriched insights, fast search, dependency analysis, and download trends.",
-  ogTitle: "pypx — A modern PyPI frontend",
+  ogTitle: "pypx — A Modern PyPI Frontend",
   ogDescription:
     "Explore Python packages with enriched insights, fast search, dependency analysis, and download trends.",
 });

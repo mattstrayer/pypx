@@ -36,7 +36,7 @@ function scrollTo(symbolName: string) {
 }
 
 useSeoMeta({
-  title: () => (pkg.value ? `${pkg.value.name} — API docs — pypx` : "Loading — pypx"),
+  title: () => (pkg.value ? `${pkg.value.name} API Docs` : "Loading"),
   description: () => `API documentation for ${pkg.value?.name ?? name.value}`,
 });
 

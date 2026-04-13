@@ -37,7 +37,7 @@ function formatDate(iso: string): string {
 }
 
 useSeoMeta({
-  title: () => `${name.value} ${version.value} — pypx`,
+  title: () => `${name.value} ${version.value}`,
   description: () => `Version ${version.value} of ${name.value} on pypx.`,
 });
 
