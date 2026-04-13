@@ -42,10 +42,24 @@ func (h *PopularHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	cacheKey := fmt.Sprintf("popular:%d", limit)
 
-	if data, _, err := h.cache.Get(cacheKey, popularTTL); err == nil && data != nil {
+	if data, fresh, err := h.cache.Get(cacheKey, popularTTL); err == nil && len(data) > 2 {
+		// len(data) > 2 skips a cached empty array ("[]") — that means downloads
+		// hadn't synced yet when it was stored; fall through to a live query.
 		w.Header().Set("Cache-Control", "public, max-age=21600")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data) //nolint:errcheck
+		if !fresh {
+			// Stale-while-revalidate: refresh in the background.
+			go func() {
+				results, err := h.index.TopByDownloads(limit)
+				if err != nil || len(results) == 0 {
+					return
+				}
+				if encoded, err := json.Marshal(results); err == nil {
+					h.cache.Set(cacheKey, encoded, popularTTL) //nolint:errcheck
+				}
+			}()
+		}
 		return
 	}
 
@@ -63,7 +77,11 @@ func (h *PopularHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.cache.Set(cacheKey, encoded, popularTTL) //nolint:errcheck
+	// Only cache non-empty results. An empty slice means downloads haven't synced
+	// yet; caching it would lock in the empty state until the entry expires.
+	if len(results) > 0 {
+		h.cache.Set(cacheKey, encoded, popularTTL) //nolint:errcheck
+	}
 
 	w.Header().Set("Cache-Control", "public, max-age=21600")
 	w.Header().Set("Content-Type", "application/json")
