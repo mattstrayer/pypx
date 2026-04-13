@@ -174,8 +174,8 @@ func (c *Client) FetchRawFile(projectPath string, candidates []string) (content,
 			resp.Body.Close()
 			continue
 		}
-		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			continue
 		}

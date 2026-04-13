@@ -8,7 +8,6 @@ import (
 type ReleasesSource struct {
 	Client      *Client
 	ProjectPath string
-	RepoURL     string
 }
 
 func (s *ReleasesSource) Name() string { return "gitlab_releases" }

@@ -128,7 +128,7 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 	// Detect GitLab.
 	if projectPath, repoURL, ok := gitlab.ExtractGitLabRepo(projectURLs); ok {
 		sources := []changelog.Source{
-			&gitlab.ReleasesSource{Client: h.gitlab, ProjectPath: projectPath, RepoURL: repoURL},
+			&gitlab.ReleasesSource{Client: h.gitlab, ProjectPath: projectPath},
 			&gitlab.FileSource{Client: h.gitlab, ProjectPath: projectPath},
 			&gitlab.TagsSource{Client: h.gitlab, ProjectPath: projectPath},
 		}

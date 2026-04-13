@@ -296,9 +296,9 @@ func (c *Client) FetchRawFile(owner, repo string, candidates []string) (content,
 			resp.Body.Close()
 			continue
 		}
-		defer resp.Body.Close()
 		var buf strings.Builder
 		_, err = io.Copy(&buf, resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			continue
 		}
