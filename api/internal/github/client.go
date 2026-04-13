@@ -109,6 +109,7 @@ type RepoInfo struct {
 	Forks        int       `json:"forks"`
 	OpenIssues   int       `json:"open_issues"`
 	LastPushedAt string    `json:"last_pushed_at"`
+	Archived     bool      `json:"archived"`
 	Owner        RepoOwner `json:"owner"`
 }
 
@@ -124,6 +125,7 @@ type ghRepo struct {
 	ForksCount      int    `json:"forks_count"`
 	OpenIssuesCount int    `json:"open_issues_count"`
 	PushedAt        string `json:"pushed_at"`
+	Archived        bool   `json:"archived"`
 	Owner           struct {
 		Login     string `json:"login"`
 		Type      string `json:"type"`
@@ -261,6 +263,7 @@ func (c *Client) FetchRepoInfo(owner, repo string) (*RepoInfo, error) {
 		Forks:        raw.ForksCount,
 		OpenIssues:   raw.OpenIssuesCount,
 		LastPushedAt: raw.PushedAt,
+		Archived:     raw.Archived,
 		Owner: RepoOwner{
 			Login:       raw.Owner.Login,
 			AvatarURL:   raw.Owner.AvatarURL,
