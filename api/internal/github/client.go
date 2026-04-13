@@ -288,13 +288,15 @@ func (c *Client) FetchRawFile(owner, repo string, candidates []string) (content,
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			continue
 		}
+		defer resp.Body.Close()
 		var buf strings.Builder
 		_, err = io.Copy(&buf, resp.Body)
 		if err != nil {
