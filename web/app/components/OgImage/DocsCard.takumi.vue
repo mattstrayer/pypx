@@ -47,7 +47,8 @@ defineProps<{
       <!-- API Docs badge -->
       <div
         style="
-          display: inline-flex;
+          display: flex;
+          align-self: flex-start;
           align-items: center;
           background: rgba(74, 222, 128, 0.1);
           border: 1px solid rgba(74, 222, 128, 0.25);
