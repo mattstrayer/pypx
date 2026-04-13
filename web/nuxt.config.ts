@@ -40,10 +40,13 @@ export default defineNuxtConfig({
 
   sitemap: {
     sitemaps: {
-      popular: {},
-      cached: {},
+      popular: {
+        sources: ["/api/__sitemap__/urls"],
+      },
+      cached: {
+        sources: ["/api/__sitemap__/urls"],
+      },
     },
-    sources: ["/api/__sitemap__/urls"],
   },
 
   robots: {
