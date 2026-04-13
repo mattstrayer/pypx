@@ -351,6 +351,10 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 	case strings.Contains(info.DescriptionType, "text/x-rst"),
 		strings.Contains(info.DescriptionType, "text/x-restructuredtext"):
 		descHTML, _ = rst.Render(info.Description)
+	case info.DescriptionType == "" && looksLikeRST(info.Description):
+		descHTML, _ = rst.Render(info.Description)
+	case info.DescriptionType == "":
+		descHTML, _ = markdown.Render(info.Description)
 	}
 
 	return PackageResponse{
@@ -378,4 +382,16 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 		Maintainers:      enrichment.ParseMaintainers(info),
 		DocURL:           enrichment.ExtractDocURL(info.ProjectURLs),
 	}
+}
+
+// looksLikeRST returns true if the description appears to be reStructuredText
+// based on common RST-specific syntax. Used as a fallback when description_content_type is absent.
+func looksLikeRST(desc string) bool {
+	// RST directives: ".. something::" or ".. image::" or ":target:", ":alt:"
+	return strings.Contains(desc, ".. ") ||
+		strings.Contains(desc, ":target:") ||
+		strings.Contains(desc, ":alt:") ||
+		strings.Contains(desc, ".. code-block::") ||
+		strings.Contains(desc, ".. note::") ||
+		strings.Contains(desc, ".. warning::")
 }
