@@ -9,25 +9,28 @@ import (
 func TestNodeInterface(t *testing.T) {
 	// Test that Module implements Node
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 5, Col: 0, Offset: 50}
 	mod := &Module{
-		NamePos: pos,
+		Position: pos,
+		EndPos:   endPos,
 	}
 
 	if mod.Pos() != pos {
 		t.Errorf("Module.Pos() = %v, want %v", mod.Pos(), pos)
 	}
 
-	// End should be after all body statements
-	if mod.End().Offset < pos.Offset {
-		t.Errorf("Module.End().Offset should be >= Pos().Offset")
+	if mod.End() != endPos {
+		t.Errorf("Module.End() = %v, want %v", mod.End(), endPos)
 	}
 }
 
 func TestFunctionDef(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 5, Col: 0, Offset: 50}
 	fn := &FunctionDef{
-		NamePos: pos,
-		Name:    "example",
+		Position: pos,
+		EndPos:   endPos,
+		Name:     "example",
 		Args: &Arguments{
 			PosOnlyArgs: []*Arg{},
 			Args:        []*Arg{},
@@ -39,6 +42,10 @@ func TestFunctionDef(t *testing.T) {
 		t.Errorf("FunctionDef.Pos() = %v, want %v", fn.Pos(), pos)
 	}
 
+	if fn.End() != endPos {
+		t.Errorf("FunctionDef.End() = %v, want %v", fn.End(), endPos)
+	}
+
 	if fn.Name != "example" {
 		t.Errorf("FunctionDef.Name = %q, want %q", fn.Name, "example")
 	}
@@ -47,17 +54,67 @@ func TestFunctionDef(t *testing.T) {
 	fn.stmtNode()
 }
 
+func TestFunctionDefWithReturnsAndAsync(t *testing.T) {
+	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 10, Col: 0, Offset: 100}
+	returnType := &Name{
+		Position: token.Pos{Line: 1, Col: 20, Offset: 20},
+		EndPos:   token.Pos{Line: 1, Col: 24, Offset: 24},
+		Name:     "None",
+	}
+	fn := &FunctionDef{
+		Position:   pos,
+		EndPos:     endPos,
+		Name:       "fetch_data",
+		IsAsync:    true,
+		Returns:    returnType,
+		Decorators: []Expr{},
+		TypeParams: []*TypeParam{},
+		Args:       &Arguments{},
+	}
+
+	if !fn.IsAsync {
+		t.Errorf("FunctionDef.IsAsync = false, want true")
+	}
+
+	if fn.Returns == nil {
+		t.Errorf("FunctionDef.Returns = nil, want non-nil")
+	}
+
+	returnName, ok := fn.Returns.(*Name)
+	if !ok {
+		t.Errorf("FunctionDef.Returns is not *Name")
+	} else if returnName.Name != "None" {
+		t.Errorf("FunctionDef.Returns name = %q, want %q", returnName.Name, "None")
+	}
+
+	if len(fn.Decorators) != 0 {
+		t.Errorf("FunctionDef.Decorators len = %d, want 0", len(fn.Decorators))
+	}
+
+	fn.stmtNode()
+}
+
 func TestClassDef(t *testing.T) {
 	pos := token.Pos{Line: 5, Col: 0, Offset: 100}
+	endPos := token.Pos{Line: 20, Col: 0, Offset: 300}
 	cls := &ClassDef{
-		NamePos: pos,
-		Name:    "MyClass",
-		Bases:   []Expr{},
-		Body:    []Stmt{},
+		Position:   pos,
+		EndPos:     endPos,
+		Name:       "MyClass",
+		Bases:      []Expr{},
+		Keywords:   []*Keyword{},
+		Body:       []Stmt{},
+		Decorators: []Expr{},
+		TypeParams: []*TypeParam{},
 	}
 
 	if cls.Pos() != pos {
 		t.Errorf("ClassDef.Pos() = %v, want %v", cls.Pos(), pos)
+	}
+
+	if cls.End() != endPos {
+		t.Errorf("ClassDef.End() = %v, want %v", cls.End(), endPos)
 	}
 
 	if cls.Name != "MyClass" {
@@ -107,14 +164,20 @@ func TestArguments(t *testing.T) {
 
 func TestModule(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 30, Col: 0, Offset: 200}
 	mod := &Module{
-		NamePos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Body: []Stmt{
 			&PassThrough{
-				PassPos: token.Pos{Line: 2, Col: 0, Offset: 10},
+				Kind:     "pass",
+				Position: token.Pos{Line: 2, Col: 0, Offset: 10},
+				EndPos:   token.Pos{Line: 2, Col: 4, Offset: 14},
 			},
 			&PassThrough{
-				PassPos: token.Pos{Line: 3, Col: 0, Offset: 20},
+				Kind:     "pass",
+				Position: token.Pos{Line: 3, Col: 0, Offset: 20},
+				EndPos:   token.Pos{Line: 3, Col: 4, Offset: 24},
 			},
 		},
 	}
@@ -129,15 +192,58 @@ func TestModule(t *testing.T) {
 	}
 }
 
+func TestPassThrough(t *testing.T) {
+	pos := token.Pos{Line: 5, Col: 0, Offset: 50}
+	endPos := token.Pos{Line: 8, Col: 0, Offset: 90}
+
+	nested := &FunctionDef{
+		Position: token.Pos{Line: 6, Col: 4, Offset: 60},
+		EndPos:   token.Pos{Line: 7, Col: 0, Offset: 80},
+		Name:     "inner",
+		Args:     &Arguments{},
+	}
+
+	pt := &PassThrough{
+		Kind:     "for",
+		Position: pos,
+		EndPos:   endPos,
+		Body:     []Stmt{nested},
+	}
+
+	if pt.Kind != "for" {
+		t.Errorf("PassThrough.Kind = %q, want %q", pt.Kind, "for")
+	}
+
+	if pt.Pos() != pos {
+		t.Errorf("PassThrough.Pos() = %v, want %v", pt.Pos(), pos)
+	}
+
+	if pt.End() != endPos {
+		t.Errorf("PassThrough.End() = %v, want %v", pt.End(), endPos)
+	}
+
+	if len(pt.Body) != 1 {
+		t.Errorf("PassThrough.Body len = %d, want 1", len(pt.Body))
+	}
+
+	pt.stmtNode()
+}
+
 func TestName(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 5, Offset: 5}
+	endPos := token.Pos{Line: 1, Col: 8, Offset: 8}
 	name := &Name{
-		NamePos: pos,
-		Name:    "foo",
+		Position: pos,
+		EndPos:   endPos,
+		Name:     "foo",
 	}
 
 	if name.Pos() != pos {
 		t.Errorf("Name.Pos() = %v, want %v", name.Pos(), pos)
+	}
+
+	if name.End() != endPos {
+		t.Errorf("Name.End() = %v, want %v", name.End(), endPos)
 	}
 
 	if name.Name != "foo" {
@@ -150,17 +256,24 @@ func TestName(t *testing.T) {
 
 func TestAttribute(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 10, Offset: 10}
 	attr := &Attribute{
-		ValuePos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Value: &Name{
-			NamePos: pos,
-			Name:    "obj",
+			Position: pos,
+			EndPos:   token.Pos{Line: 1, Col: 3, Offset: 3},
+			Name:     "obj",
 		},
 		Attr: "method",
 	}
 
 	if attr.Pos() != pos {
 		t.Errorf("Attribute.Pos() = %v, want %v", attr.Pos(), pos)
+	}
+
+	if attr.End() != endPos {
+		t.Errorf("Attribute.End() = %v, want %v", attr.End(), endPos)
 	}
 
 	if attr.Attr != "method" {
@@ -173,20 +286,30 @@ func TestAttribute(t *testing.T) {
 
 func TestSubscript(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 7, Offset: 7}
 	subscript := &Subscript{
-		ValuePos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Value: &Name{
-			NamePos: pos,
-			Name:    "list",
+			Position: pos,
+			EndPos:   token.Pos{Line: 1, Col: 4, Offset: 4},
+			Name:     "list",
 		},
-		Index: &Constant{
-			ConstPos: pos,
-			Value:    0,
+		Slice: &Constant{
+			Position: token.Pos{Line: 1, Col: 5, Offset: 5},
+			EndPos:   token.Pos{Line: 1, Col: 6, Offset: 6},
+			Value:    "0",
+			Kind:     "int",
+			Lit:      "0",
 		},
 	}
 
 	if subscript.Pos() != pos {
 		t.Errorf("Subscript.Pos() = %v, want %v", subscript.Pos(), pos)
+	}
+
+	if subscript.End() != endPos {
+		t.Errorf("Subscript.End() = %v, want %v", subscript.End(), endPos)
 	}
 
 	// Verify exprNode marker
@@ -195,21 +318,33 @@ func TestSubscript(t *testing.T) {
 
 func TestBinOp(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 5, Offset: 5}
 	binop := &BinOp{
-		LeftPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Left: &Constant{
-			ConstPos: pos,
-			Value:    1,
+			Position: pos,
+			EndPos:   token.Pos{Line: 1, Col: 1, Offset: 1},
+			Value:    "1",
+			Kind:     "int",
+			Lit:      "1",
 		},
 		Op: token.PLUS,
 		Right: &Constant{
-			ConstPos: token.Pos{Line: 1, Col: 4, Offset: 4},
-			Value:    2,
+			Position: token.Pos{Line: 1, Col: 4, Offset: 4},
+			EndPos:   token.Pos{Line: 1, Col: 5, Offset: 5},
+			Value:    "2",
+			Kind:     "int",
+			Lit:      "2",
 		},
 	}
 
 	if binop.Pos() != pos {
 		t.Errorf("BinOp.Pos() = %v, want %v", binop.Pos(), pos)
+	}
+
+	if binop.End() != endPos {
+		t.Errorf("BinOp.End() = %v, want %v", binop.End(), endPos)
 	}
 
 	if binop.Op != token.PLUS {
@@ -222,17 +357,24 @@ func TestBinOp(t *testing.T) {
 
 func TestUnaryOp(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 5, Offset: 5}
 	unary := &UnaryOp{
-		OpPos: pos,
-		Op:    token.NOT,
+		Position: pos,
+		EndPos:   endPos,
+		Op:       token.NOT,
 		Operand: &Name{
-			NamePos: pos,
-			Name:    "x",
+			Position: pos,
+			EndPos:   endPos,
+			Name:     "x",
 		},
 	}
 
 	if unary.Pos() != pos {
 		t.Errorf("UnaryOp.Pos() = %v, want %v", unary.Pos(), pos)
+	}
+
+	if unary.End() != endPos {
+		t.Errorf("UnaryOp.End() = %v, want %v", unary.End(), endPos)
 	}
 
 	if unary.Op != token.NOT {
@@ -245,16 +387,22 @@ func TestUnaryOp(t *testing.T) {
 
 func TestTuple(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 4, Offset: 4}
 	tuple := &Tuple{
-		TuplePos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Elts: []Expr{
-			&Constant{ConstPos: pos, Value: 1},
-			&Constant{ConstPos: pos, Value: 2},
+			&Constant{Position: pos, EndPos: endPos, Value: "1", Kind: "int", Lit: "1"},
+			&Constant{Position: pos, EndPos: endPos, Value: "2", Kind: "int", Lit: "2"},
 		},
 	}
 
 	if tuple.Pos() != pos {
 		t.Errorf("Tuple.Pos() = %v, want %v", tuple.Pos(), pos)
+	}
+
+	if tuple.End() != endPos {
+		t.Errorf("Tuple.End() = %v, want %v", tuple.End(), endPos)
 	}
 
 	if len(tuple.Elts) != 2 {
@@ -267,16 +415,22 @@ func TestTuple(t *testing.T) {
 
 func TestList(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 5, Offset: 5}
 	list := &List{
-		ListPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Elts: []Expr{
-			&Constant{ConstPos: pos, Value: "a"},
-			&Constant{ConstPos: pos, Value: "b"},
+			&Constant{Position: pos, EndPos: endPos, Value: "a", Kind: "str", Lit: `"a"`},
+			&Constant{Position: pos, EndPos: endPos, Value: "b", Kind: "str", Lit: `"b"`},
 		},
 	}
 
 	if list.Pos() != pos {
 		t.Errorf("List.Pos() = %v, want %v", list.Pos(), pos)
+	}
+
+	if list.End() != endPos {
+		t.Errorf("List.End() = %v, want %v", list.End(), endPos)
 	}
 
 	if len(list.Elts) != 2 {
@@ -289,18 +443,24 @@ func TestList(t *testing.T) {
 
 func TestDict(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 10, Offset: 10}
 	dict := &Dict{
-		DictPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Keys: []Expr{
-			&Constant{ConstPos: pos, Value: "k1"},
+			&Constant{Position: pos, EndPos: endPos, Value: "k1", Kind: "str", Lit: `"k1"`},
 		},
 		Values: []Expr{
-			&Constant{ConstPos: pos, Value: "v1"},
+			&Constant{Position: pos, EndPos: endPos, Value: "v1", Kind: "str", Lit: `"v1"`},
 		},
 	}
 
 	if dict.Pos() != pos {
 		t.Errorf("Dict.Pos() = %v, want %v", dict.Pos(), pos)
+	}
+
+	if dict.End() != endPos {
+		t.Errorf("Dict.End() = %v, want %v", dict.End(), endPos)
 	}
 
 	if len(dict.Keys) != 1 || len(dict.Values) != 1 {
@@ -313,16 +473,22 @@ func TestDict(t *testing.T) {
 
 func TestSet(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 5, Offset: 5}
 	set := &Set{
-		SetPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Elts: []Expr{
-			&Constant{ConstPos: pos, Value: 1},
-			&Constant{ConstPos: pos, Value: 2},
+			&Constant{Position: pos, EndPos: endPos, Value: "1", Kind: "int", Lit: "1"},
+			&Constant{Position: pos, EndPos: endPos, Value: "2", Kind: "int", Lit: "2"},
 		},
 	}
 
 	if set.Pos() != pos {
 		t.Errorf("Set.Pos() = %v, want %v", set.Pos(), pos)
+	}
+
+	if set.End() != endPos {
+		t.Errorf("Set.End() = %v, want %v", set.End(), endPos)
 	}
 
 	if len(set.Elts) != 2 {
@@ -335,17 +501,33 @@ func TestSet(t *testing.T) {
 
 func TestConstant(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 5, Offset: 5}
+	endPos := token.Pos{Line: 1, Col: 7, Offset: 7}
 	const1 := &Constant{
-		ConstPos: pos,
-		Value:    42,
+		Position: pos,
+		EndPos:   endPos,
+		Value:    "42",
+		Kind:     "int",
+		Lit:      "42",
 	}
 
 	if const1.Pos() != pos {
 		t.Errorf("Constant.Pos() = %v, want %v", const1.Pos(), pos)
 	}
 
-	if const1.Value != 42 {
-		t.Errorf("Constant.Value = %v, want 42", const1.Value)
+	if const1.End() != endPos {
+		t.Errorf("Constant.End() = %v, want %v", const1.End(), endPos)
+	}
+
+	if const1.Value != "42" {
+		t.Errorf("Constant.Value = %q, want %q", const1.Value, "42")
+	}
+
+	if const1.Kind != "int" {
+		t.Errorf("Constant.Kind = %q, want %q", const1.Kind, "int")
+	}
+
+	if const1.Lit != "42" {
+		t.Errorf("Constant.Lit = %q, want %q", const1.Lit, "42")
 	}
 
 	// Verify exprNode marker
@@ -354,25 +536,32 @@ func TestConstant(t *testing.T) {
 
 func TestCall(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 10, Offset: 10}
 	call := &Call{
-		FuncPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Func: &Name{
-			NamePos: pos,
-			Name:    "foo",
+			Position: pos,
+			EndPos:   token.Pos{Line: 1, Col: 3, Offset: 3},
+			Name:     "foo",
 		},
 		Args: []Expr{
-			&Constant{ConstPos: pos, Value: 1},
+			&Constant{Position: pos, EndPos: endPos, Value: "1", Kind: "int", Lit: "1"},
 		},
 		Keywords: []*Keyword{
 			{
 				Arg:   "x",
-				Value: &Constant{ConstPos: pos, Value: 2},
+				Value: &Constant{Position: pos, EndPos: endPos, Value: "2", Kind: "int", Lit: "2"},
 			},
 		},
 	}
 
 	if call.Pos() != pos {
 		t.Errorf("Call.Pos() = %v, want %v", call.Pos(), pos)
+	}
+
+	if call.End() != endPos {
+		t.Errorf("Call.End() = %v, want %v", call.End(), endPos)
 	}
 
 	if len(call.Args) != 1 {
@@ -389,18 +578,25 @@ func TestCall(t *testing.T) {
 
 func TestIfExpr(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 15, Offset: 15}
 	ifexpr := &IfExpr{
-		IfPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Test: &Name{
-			NamePos: pos,
-			Name:    "x",
+			Position: pos,
+			EndPos:   token.Pos{Line: 1, Col: 1, Offset: 1},
+			Name:     "x",
 		},
-		Body: &Constant{ConstPos: pos, Value: 1},
-		Orelse: &Constant{ConstPos: pos, Value: 2},
+		Body:   &Constant{Position: pos, EndPos: endPos, Value: "1", Kind: "int", Lit: "1"},
+		Orelse: &Constant{Position: pos, EndPos: endPos, Value: "2", Kind: "int", Lit: "2"},
 	}
 
 	if ifexpr.Pos() != pos {
 		t.Errorf("IfExpr.Pos() = %v, want %v", ifexpr.Pos(), pos)
+	}
+
+	if ifexpr.End() != endPos {
+		t.Errorf("IfExpr.End() = %v, want %v", ifexpr.End(), endPos)
 	}
 
 	// Verify exprNode marker
@@ -409,23 +605,25 @@ func TestIfExpr(t *testing.T) {
 
 func TestImportAlias(t *testing.T) {
 	alias := &ImportAlias{
-		Name: "module",
-		Asname: "mod",
+		Name:  "module",
+		Alias: "mod",
 	}
 
 	if alias.Name != "module" {
 		t.Errorf("ImportAlias.Name = %q, want %q", alias.Name, "module")
 	}
 
-	if alias.Asname != "mod" {
-		t.Errorf("ImportAlias.Asname = %q, want %q", alias.Asname, "mod")
+	if alias.Alias != "mod" {
+		t.Errorf("ImportAlias.Alias = %q, want %q", alias.Alias, "mod")
 	}
 }
 
 func TestTypeParam(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 1, Offset: 1}
 	param := &TypeParam{
-		ParamPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Name:     "T",
 		Bound:    nil,
 	}
@@ -437,20 +635,30 @@ func TestTypeParam(t *testing.T) {
 	if param.Pos() != pos {
 		t.Errorf("TypeParam.Pos() = %v, want %v", param.Pos(), pos)
 	}
+
+	if param.End() != endPos {
+		t.Errorf("TypeParam.End() = %v, want %v", param.End(), endPos)
+	}
 }
 
 func TestAssign(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 6, Offset: 6}
 	assign := &Assign{
-		AssignPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Targets: []Expr{
-			&Name{NamePos: pos, Name: "x"},
+			&Name{Position: pos, EndPos: token.Pos{Line: 1, Col: 1, Offset: 1}, Name: "x"},
 		},
-		Value: &Constant{ConstPos: pos, Value: 42},
+		Value: &Constant{Position: pos, EndPos: endPos, Value: "42", Kind: "int", Lit: "42"},
 	}
 
 	if assign.Pos() != pos {
 		t.Errorf("Assign.Pos() = %v, want %v", assign.Pos(), pos)
+	}
+
+	if assign.End() != endPos {
+		t.Errorf("Assign.End() = %v, want %v", assign.End(), endPos)
 	}
 
 	if len(assign.Targets) != 1 {
@@ -463,8 +671,10 @@ func TestAssign(t *testing.T) {
 
 func TestImport(t *testing.T) {
 	pos := token.Pos{Line: 1, Col: 0, Offset: 0}
+	endPos := token.Pos{Line: 1, Col: 15, Offset: 15}
 	imp := &Import{
-		ImportPos: pos,
+		Position: pos,
+		EndPos:   endPos,
 		Names: []*ImportAlias{
 			{Name: "os"},
 			{Name: "sys"},
@@ -473,6 +683,10 @@ func TestImport(t *testing.T) {
 
 	if imp.Pos() != pos {
 		t.Errorf("Import.Pos() = %v, want %v", imp.Pos(), pos)
+	}
+
+	if imp.End() != endPos {
+		t.Errorf("Import.End() = %v, want %v", imp.End(), endPos)
 	}
 
 	if len(imp.Names) != 2 {
