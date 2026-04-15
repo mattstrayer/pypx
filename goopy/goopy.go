@@ -59,8 +59,13 @@ func pathToModuleName(path string) string {
 
 // ExtractFromPyPI downloads a package wheel from PyPI and extracts documentation.
 func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package, error) {
-	src := wheel.NewSource()
-	contents, err := src.Fetch(ctx, name, version)
+	return ExtractFromWheel(ctx, wheel.NewSource(), name, version)
+}
+
+// ExtractFromWheel downloads a package wheel using the given fetcher and extracts documentation.
+// Use this with a custom wheel.Fetcher for testing or non-PyPI sources.
+func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version string) (*model.Package, error) {
+	contents, err := fetcher.Fetch(ctx, name, version)
 	if err != nil {
 		return nil, err
 	}

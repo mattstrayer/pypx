@@ -29,10 +29,16 @@ type WheelContents struct {
 	TopLevelPkgs []string
 }
 
-// Source fetches and extracts Python source files from PyPI wheels.
+// Fetcher downloads and extracts Python source files from a package wheel.
+type Fetcher interface {
+	Fetch(ctx context.Context, name, version string) (*WheelContents, error)
+}
+
+// Source is the default Fetcher that downloads wheels from PyPI.
 type Source struct {
 	HTTPClient *http.Client
 	MaxSize    int64
+	BaseURL    string // PyPI base URL, defaults to https://pypi.org
 }
 
 // NewSource creates a new wheel Source with defaults.
@@ -40,8 +46,12 @@ func NewSource() *Source {
 	return &Source{
 		HTTPClient: http.DefaultClient,
 		MaxSize:    DefaultMaxSize,
+		BaseURL:    pypiBaseURL,
 	}
 }
+
+// Compile-time check that Source implements Fetcher.
+var _ Fetcher = (*Source)(nil)
 
 // Fetch downloads a wheel for the given package and version, returning .py file contents.
 func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContents, error) {
@@ -69,7 +79,11 @@ func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContent
 }
 
 func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]WheelFile, error) {
-	url := fmt.Sprintf("%s/pypi/%s/%s/json", pypiBaseURL, name, version)
+	base := s.BaseURL
+	if base == "" {
+		base = pypiBaseURL
+	}
+	url := fmt.Sprintf("%s/pypi/%s/%s/json", base, name, version)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
