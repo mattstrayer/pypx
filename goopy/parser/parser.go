@@ -921,9 +921,14 @@ func (p *Parser) parseSimpleStmt() ast.Stmt {
 func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 	switch p.tok.Type {
 	case token.ASSIGN:
-		// Assignment: target = value
+		// Assignment: target = value, or chained: a = b = value
 		p.next()
 		value := p.parseExpr()
+		// Handle chained assignment: consume additional = expr pairs
+		for p.tok.Type == token.ASSIGN {
+			p.next()
+			value = p.parseExpr()
+		}
 		endPos := p.tok.Pos
 		if p.tok.Type == token.NEWLINE {
 			p.next()
@@ -976,6 +981,37 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 			Value:      value,
 			Simple:     simple,
 		}
+
+	case token.COMMA:
+		// Tuple expression or tuple unpacking: a, b = value or a, b, c
+		// Consume the rest of the target list.
+		for p.tok.Type == token.COMMA {
+			p.next()
+			if p.at(token.ASSIGN, token.NEWLINE, token.EOF) {
+				break
+			}
+			p.parseExpr() // consume next target
+		}
+		if p.tok.Type == token.ASSIGN {
+			// Tuple unpacking assignment: a, b = value
+			p.next()
+			value := p.parseExpr()
+			endPos := p.tok.Pos
+			if p.tok.Type == token.NEWLINE {
+				p.next()
+			}
+			return &ast.Assign{
+				Position: expr.Pos(),
+				EndPos:   endPos,
+				Targets:  []ast.Expr{expr},
+				Value:    value,
+			}
+		}
+		// Bare tuple expression.
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+		return &ast.ExprStmt{Value: expr}
 
 	default:
 		// Bare expression statement.
