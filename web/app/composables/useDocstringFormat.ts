@@ -50,8 +50,8 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
   return rawBlocks.map((lines, i) => {
     const firstLine = lines[0] ?? "";
 
-    // RST directive: starts with ".. word::"
-    if (/^\.\.\s+\w+::/.test(firstLine)) {
+    // RST directive: starts with ".. word::" (possibly indented)
+    if (/^\s*\.\.\s+\w+::/.test(firstLine)) {
       return { type: "directive", lines };
     }
 
@@ -64,10 +64,14 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
       }
     }
 
-    // All lines indented 4+ spaces → code block
+    // All lines indented 4+ spaces → code block (unless it's rst field list content)
     const nonEmpty = lines.filter((l) => l.trim().length > 0);
     if (nonEmpty.length > 0 && nonEmpty.every((l) => /^ {4}/.test(l))) {
-      return { type: "code", lines };
+      // Don't classify as code if it contains rst field markers (:param:, :type:, etc.)
+      const hasRstFields = nonEmpty.some((l) => /^\s*:[a-z]+[\s`]/.test(l.trim()));
+      if (!hasRstFields) {
+        return { type: "code", lines };
+      }
     }
 
     // Lines start with >>> → REPL code block
@@ -101,7 +105,7 @@ function renderBlock(block: Block): string {
   if (block.type === "directive") {
     // Parse ".. type:: content\n   continuation"
     const firstLine = block.lines[0] ?? "";
-    const directiveMatch = firstLine.match(/^\.\.\s+(\w+)::\s*(.*)/);
+    const directiveMatch = firstLine.match(/^\s*\.\.\s+(\w+)::\s*(.*)/);
     if (directiveMatch) {
       const directiveType = escapeHtml(directiveMatch[1]);
       const rest = [directiveMatch[2], ...block.lines.slice(1).map((l) => l.trim())]

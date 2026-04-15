@@ -215,10 +215,10 @@ defineOgImage(
                 </div>
 
                 <!-- Signature (semantic highlighting) -->
-                <PySignature :symbol="sym" class="mb-3" />
+                <DocsPySignature :symbol="sym" class="mb-3" />
 
                 <!-- Docstring (formatted with code highlighting) -->
-                <PyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
+                <DocsPyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
 
                 <!-- Parameters -->
                 <div v-if="sym.parameters && sym.parameters.length" class="mb-3">

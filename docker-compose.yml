@@ -21,7 +21,8 @@ services:
 
   api:
     build:
-      context: ./api
+      context: .
+      dockerfile: api/Dockerfile
     environment:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
