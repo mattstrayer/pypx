@@ -36,7 +36,7 @@ type TypeExpr struct {
 	Returns *TypeExpr `json:"returns,omitempty"`
 
 	// Value is used for literal types
-	Value interface{} `json:"value,omitempty"`
+	Value any `json:"value,omitempty"`
 
 	// Raw is the raw source text of the type expression (always preserved)
 	Raw string `json:"raw"`

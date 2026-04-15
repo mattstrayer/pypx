@@ -9,7 +9,6 @@ import (
 	"github.com/pypx/goopy/ast"
 	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
-	"github.com/pypx/goopy/token"
 )
 
 // Extractor walks an AST and produces documentation model types.
@@ -39,7 +38,7 @@ func (e *Extractor) ExtractModule(name string, mod *ast.Module) *model.Module {
 // extractStmts walks a slice of statements, populating m with any definitions
 // found. It recurses into PassThrough and If bodies so that nested definitions
 // (e.g. inside try/except or if TYPE_CHECKING blocks) are not silently dropped.
-func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports []string) {
+func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports map[string]struct{}) {
 	for _, stmt := range stmts {
 		switch s := stmt.(type) {
 		case *ast.FunctionDef:
@@ -165,7 +164,7 @@ func (e *Extractor) extractFunction(fd *ast.FunctionDef, isMethod bool) *model.F
 }
 
 // extractClass converts an AST ClassDef into a model Class.
-func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports []string) *model.Class {
+func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]struct{}) *model.Class {
 	cls := &model.Class{
 		Name: cd.Name,
 	}
@@ -425,9 +424,9 @@ func extractDocstring(stmt ast.Stmt) string {
 	return c.Value
 }
 
-// extractAllExports finds __all__ = [...] in module body and returns the list of names.
+// extractAllExports finds __all__ = [...] in module body and returns a set of names.
 // Returns nil if __all__ is not defined.
-func extractAllExports(body []ast.Stmt) []string {
+func extractAllExports(body []ast.Stmt) map[string]struct{} {
 	for _, stmt := range body {
 		assign, ok := stmt.(*ast.Assign)
 		if !ok {
@@ -447,11 +446,11 @@ func extractAllExports(body []ast.Stmt) []string {
 			default:
 				continue
 			}
-			var exports []string
+			exports := make(map[string]struct{}, len(elts))
 			for _, elt := range elts {
 				c, ok := elt.(*ast.Constant)
 				if ok && c.Kind == "str" {
-					exports = append(exports, c.Value)
+					exports[c.Value] = struct{}{}
 				}
 			}
 			return exports
@@ -463,14 +462,10 @@ func extractAllExports(body []ast.Stmt) []string {
 // isPublic determines if a name should be included in the output.
 // If exports is non-nil (__all__ exists), the name must be in exports.
 // Otherwise, names starting with _ are considered private.
-func isPublic(name string, exports []string) bool {
+func isPublic(name string, exports map[string]struct{}) bool {
 	if exports != nil {
-		for _, e := range exports {
-			if e == name {
-				return true
-			}
-		}
-		return false
+		_, ok := exports[name]
+		return ok
 	}
 	return !strings.HasPrefix(name, "_")
 }
@@ -500,332 +495,3 @@ func hasDecorator(decorators []ast.Expr, name string) bool {
 	return false
 }
 
-// ---------------------------------------------------------------------------
-// AST expression to TypeExpr conversion
-// ---------------------------------------------------------------------------
-
-// exprToTypeExpr converts an AST expression to a model TypeExpr.
-func exprToTypeExpr(expr ast.Expr) *model.TypeExpr {
-	if expr == nil {
-		return nil
-	}
-
-	switch e := expr.(type) {
-	case *ast.Name:
-		if e.Name == "None" {
-			return &model.TypeExpr{Kind: model.TypeExprNone, Raw: "None"}
-		}
-		return &model.TypeExpr{Kind: model.TypeExprName, Name: e.Name, Raw: e.Name}
-
-	case *ast.Constant:
-		switch e.Kind {
-		case "none":
-			return &model.TypeExpr{Kind: model.TypeExprNone, Raw: "None"}
-		case "ellipsis":
-			return &model.TypeExpr{Kind: model.TypeExprEllipsis, Raw: "..."}
-		default:
-			return &model.TypeExpr{Kind: model.TypeExprLiteral, Value: e.Value, Raw: e.Lit}
-		}
-
-	case *ast.Attribute:
-		// e.g., typing.Optional -> treat as the attr name for type resolution.
-		raw := exprToString(expr)
-		attrName := e.Attr
-		// For typing.X, treat as just X for type analysis purposes.
-		if n, ok := e.Value.(*ast.Name); ok && isTypingModule(n.Name) {
-			return exprToTypeExpr(&ast.Name{Name: attrName})
-		}
-		return &model.TypeExpr{Kind: model.TypeExprName, Name: raw, Raw: raw}
-
-	case *ast.Subscript:
-		typeName := resolveTypeName(e.Value)
-		raw := exprToString(expr)
-
-		switch typeName {
-		case "Optional":
-			inner := exprToTypeExpr(e.Slice)
-			return &model.TypeExpr{
-				Kind:     model.TypeExprOptional,
-				Elements: []*model.TypeExpr{inner},
-				Raw:      raw,
-			}
-
-		case "Union":
-			elements := sliceToTypeExprs(e.Slice)
-			return &model.TypeExpr{
-				Kind:     model.TypeExprUnion,
-				Elements: elements,
-				Raw:      raw,
-			}
-
-		case "Callable":
-			// Callable[[arg_types], return_type]
-			tuple, ok := e.Slice.(*ast.Tuple)
-			if ok && len(tuple.Elts) == 2 {
-				var argTypes []*model.TypeExpr
-				if argList, ok := tuple.Elts[0].(*ast.List); ok {
-					for _, arg := range argList.Elts {
-						argTypes = append(argTypes, exprToTypeExpr(arg))
-					}
-				}
-				retType := exprToTypeExpr(tuple.Elts[1])
-				return &model.TypeExpr{
-					Kind:    model.TypeExprCallable,
-					Args:    argTypes,
-					Returns: retType,
-					Raw:     raw,
-				}
-			}
-			// Fallback for malformed Callable.
-			return &model.TypeExpr{Kind: model.TypeExprName, Name: raw, Raw: raw}
-
-		case "Tuple":
-			elements := sliceToTypeExprs(e.Slice)
-			return &model.TypeExpr{
-				Kind:     model.TypeExprTuple,
-				Name:     "Tuple",
-				Elements: elements,
-				Raw:      raw,
-			}
-
-		case "Literal":
-			elements := sliceToTypeExprs(e.Slice)
-			return &model.TypeExpr{
-				Kind:     model.TypeExprLiteral,
-				Elements: elements,
-				Raw:      raw,
-			}
-
-		default:
-			// Generic type: list[int], Dict[str, int], etc.
-			args := sliceToTypeExprs(e.Slice)
-			return &model.TypeExpr{
-				Kind: model.TypeExprGeneric,
-				Name: typeName,
-				Args: args,
-				Raw:  raw,
-			}
-		}
-
-	case *ast.BinOp:
-		if e.Op == token.PIPE {
-			elements := flattenUnion(expr)
-			raw := exprToString(expr)
-			return &model.TypeExpr{
-				Kind:     model.TypeExprUnion,
-				Elements: elements,
-				Raw:      raw,
-			}
-		}
-		// Other binary ops — just use raw string.
-		raw := exprToString(expr)
-		return &model.TypeExpr{Kind: model.TypeExprName, Name: raw, Raw: raw}
-
-	case *ast.Tuple:
-		elements := make([]*model.TypeExpr, len(e.Elts))
-		for i, elt := range e.Elts {
-			elements[i] = exprToTypeExpr(elt)
-		}
-		raw := exprToString(expr)
-		return &model.TypeExpr{
-			Kind:     model.TypeExprTuple,
-			Elements: elements,
-			Raw:      raw,
-		}
-
-	case *ast.Starred:
-		inner := exprToTypeExpr(e.Value)
-		raw := "*" + inner.Raw
-		return &model.TypeExpr{
-			Kind: model.TypeExprUnpack,
-			Args: []*model.TypeExpr{inner},
-			Raw:  raw,
-		}
-
-	case *ast.List:
-		// A list in a type context (e.g., Callable[[int, str], bool] inner part).
-		elements := make([]*model.TypeExpr, len(e.Elts))
-		for i, elt := range e.Elts {
-			elements[i] = exprToTypeExpr(elt)
-		}
-		raw := exprToString(expr)
-		return &model.TypeExpr{
-			Kind:     model.TypeExprTuple,
-			Elements: elements,
-			Raw:      raw,
-		}
-
-	default:
-		raw := exprToString(expr)
-		return &model.TypeExpr{Kind: model.TypeExprName, Name: raw, Raw: raw}
-	}
-}
-
-// flattenUnion collects all elements of a chain of | operators.
-func flattenUnion(expr ast.Expr) []*model.TypeExpr {
-	binOp, ok := expr.(*ast.BinOp)
-	if !ok || binOp.Op != token.PIPE {
-		return []*model.TypeExpr{exprToTypeExpr(expr)}
-	}
-	var result []*model.TypeExpr
-	result = append(result, flattenUnion(binOp.Left)...)
-	result = append(result, flattenUnion(binOp.Right)...)
-	return result
-}
-
-// sliceToTypeExprs converts a subscript slice expression to a slice of TypeExprs.
-// Handles both single elements and tuples (comma-separated).
-func sliceToTypeExprs(slice ast.Expr) []*model.TypeExpr {
-	if tuple, ok := slice.(*ast.Tuple); ok {
-		result := make([]*model.TypeExpr, len(tuple.Elts))
-		for i, elt := range tuple.Elts {
-			result[i] = exprToTypeExpr(elt)
-		}
-		return result
-	}
-	return []*model.TypeExpr{exprToTypeExpr(slice)}
-}
-
-// resolveTypeName extracts the simple type name from an expression, resolving
-// typing module prefixes (e.g., typing.Optional -> "Optional").
-func resolveTypeName(expr ast.Expr) string {
-	switch e := expr.(type) {
-	case *ast.Name:
-		return e.Name
-	case *ast.Attribute:
-		if n, ok := e.Value.(*ast.Name); ok && isTypingModule(n.Name) {
-			return e.Attr
-		}
-		return exprToString(expr)
-	default:
-		return exprToString(expr)
-	}
-}
-
-// isTypingModule returns true if name is a known typing module name.
-func isTypingModule(name string) bool {
-	return name == "typing" || name == "typing_extensions" || name == "collections.abc"
-}
-
-// ---------------------------------------------------------------------------
-// AST expression to string conversion
-// ---------------------------------------------------------------------------
-
-// exprToString renders an AST expression back to its source text representation.
-func exprToString(expr ast.Expr) string {
-	if expr == nil {
-		return ""
-	}
-
-	switch e := expr.(type) {
-	case *ast.Name:
-		return e.Name
-	case *ast.Constant:
-		return e.Lit
-	case *ast.Attribute:
-		return exprToString(e.Value) + "." + e.Attr
-	case *ast.Subscript:
-		return exprToString(e.Value) + "[" + exprToString(e.Slice) + "]"
-	case *ast.BinOp:
-		op := operatorString(e.Op)
-		return exprToString(e.Left) + " " + op + " " + exprToString(e.Right)
-	case *ast.UnaryOp:
-		return operatorString(e.Op) + exprToString(e.Operand)
-	case *ast.Tuple:
-		parts := make([]string, len(e.Elts))
-		for i, elt := range e.Elts {
-			parts[i] = exprToString(elt)
-		}
-		return strings.Join(parts, ", ")
-	case *ast.List:
-		parts := make([]string, len(e.Elts))
-		for i, elt := range e.Elts {
-			parts[i] = exprToString(elt)
-		}
-		return "[" + strings.Join(parts, ", ") + "]"
-	case *ast.Call:
-		s := exprToString(e.Func) + "("
-		var args []string
-		for _, arg := range e.Args {
-			args = append(args, exprToString(arg))
-		}
-		for _, kw := range e.Keywords {
-			if kw.Arg != "" {
-				args = append(args, kw.Arg+"="+exprToString(kw.Value))
-			} else {
-				args = append(args, "**"+exprToString(kw.Value))
-			}
-		}
-		return s + strings.Join(args, ", ") + ")"
-	case *ast.Starred:
-		return "*" + exprToString(e.Value)
-	case *ast.IfExpr:
-		return exprToString(e.Body) + " if " + exprToString(e.Test) + " else " + exprToString(e.Orelse)
-	case *ast.Dict:
-		var parts []string
-		for i := range e.Keys {
-			parts = append(parts, exprToString(e.Keys[i])+": "+exprToString(e.Values[i]))
-		}
-		return "{" + strings.Join(parts, ", ") + "}"
-	case *ast.Set:
-		parts := make([]string, len(e.Elts))
-		for i, elt := range e.Elts {
-			parts[i] = exprToString(elt)
-		}
-		return "{" + strings.Join(parts, ", ") + "}"
-	default:
-		return "?"
-	}
-}
-
-// operatorString returns the string representation of a token operator.
-func operatorString(op token.Type) string {
-	switch op {
-	case token.PIPE:
-		return "|"
-	case token.PLUS:
-		return "+"
-	case token.MINUS:
-		return "-"
-	case token.STAR:
-		return "*"
-	case token.DSTAR:
-		return "**"
-	case token.SLASH:
-		return "/"
-	case token.DSLASH:
-		return "//"
-	case token.PERCENT:
-		return "%"
-	case token.AMPER:
-		return "&"
-	case token.CARET:
-		return "^"
-	case token.TILDE:
-		return "~"
-	case token.LSHIFT:
-		return "<<"
-	case token.RSHIFT:
-		return ">>"
-	case token.AND:
-		return "and"
-	case token.OR:
-		return "or"
-	case token.NOT:
-		return "not "
-	case token.EQ:
-		return "=="
-	case token.NEQ:
-		return "!="
-	case token.LT:
-		return "<"
-	case token.GT:
-		return ">"
-	case token.LTE:
-		return "<="
-	case token.GTE:
-		return ">="
-	default:
-		return "?"
-	}
-}

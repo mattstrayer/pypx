@@ -6,6 +6,16 @@ import (
 	"github.com/pypx/goopy/model"
 )
 
+// googleHeaderSet is a pre-built set of recognized Google-style section headers,
+// initialized once at package load time to avoid repeated allocations.
+var googleHeaderSet = func() map[string]bool {
+	m := make(map[string]bool, len(googleSectionHeaders))
+	for _, h := range googleSectionHeaders {
+		m[h] = true
+	}
+	return m
+}()
+
 // parseGoogle parses a Google-style docstring.
 func parseGoogle(raw string) *model.Docstring {
 	doc := &model.Docstring{
@@ -24,14 +34,10 @@ func parseGoogle(raw string) *model.Docstring {
 	}
 
 	var sections []sectionSpan
-	headerSet := make(map[string]bool, len(googleSectionHeaders))
-	for _, h := range googleSectionHeaders {
-		headerSet[h] = true
-	}
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if headerSet[trimmed] {
+		if googleHeaderSet[trimmed] {
 			sections = append(sections, sectionSpan{
 				name:  trimmed,
 				start: i + 1,

@@ -9,6 +9,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pypx/goopy/ast"
@@ -23,7 +24,7 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	return e.Msg
+	return fmt.Sprintf("%d:%d: %s", e.Pos.Line, e.Pos.Col, e.Msg)
 }
 
 // Parser holds the state for parsing a Python source file.
@@ -130,34 +131,8 @@ func (p *Parser) at(types ...token.Type) bool {
 
 // errorf records a parse error at the current token position.
 func (p *Parser) errorf(format string, args ...any) {
-	msg := formatMsg(format, args...)
+	msg := fmt.Sprintf(format, args...)
 	p.errors = append(p.errors, Error{Pos: p.tok.Pos, Msg: msg})
-}
-
-// formatMsg is a minimal sprintf that avoids importing fmt in the hot path.
-// It supports %s only, which is all we need for error messages.
-func formatMsg(format string, args ...any) string {
-	var b strings.Builder
-	argIdx := 0
-	for i := 0; i < len(format); i++ {
-		if format[i] == '%' && i+1 < len(format) && format[i+1] == 's' {
-			if argIdx < len(args) {
-				switch v := args[argIdx].(type) {
-				case string:
-					b.WriteString(v)
-				case token.Type:
-					b.WriteString(v.String())
-				default:
-					b.WriteString("?")
-				}
-				argIdx++
-			}
-			i++ // skip 's'
-		} else {
-			b.WriteByte(format[i])
-		}
-	}
-	return b.String()
 }
 
 // skipNewlines consumes any NEWLINE tokens.

@@ -8,7 +8,7 @@ import (
 func TestExtractModule(t *testing.T) {
 	src := []byte("\"\"\"My module.\"\"\"\n\ndef hello(name: str) -> str:\n    \"\"\"Say hello.\n\n    Args:\n        name: The name to greet.\n\n    Returns:\n        str: A greeting string.\n    \"\"\"\n    return f\"Hello, {name}\"\n\nclass Greeter:\n    \"\"\"A greeter.\"\"\"\n\n    def __init__(self, prefix: str = \"Hello\"):\n        self.prefix = prefix\n\n    def greet(self, name: str) -> str:\n        \"\"\"Greet someone.\"\"\"\n        return f\"{self.prefix}, {name}\"\n\nclass BadInputError(ValueError):\n    \"\"\"Raised on bad input.\"\"\"\n    pass\n")
 
-	mod := ExtractModule("mymod", src)
+	mod, _ := ExtractModule("mymod", src)
 	if mod.Name != "mymod" {
 		t.Errorf("Name = %q", mod.Name)
 	}
@@ -35,9 +35,12 @@ func TestExtractModule(t *testing.T) {
 func TestExtractModuleErrors(t *testing.T) {
 	// Malformed source should not panic, should return partial results.
 	src := []byte("def broken(:\n    pass\ndef good():\n    pass\n")
-	mod := ExtractModule("test", src)
+	mod, errs := ExtractModule("test", src)
 	if mod == nil {
 		t.Fatal("ExtractModule returned nil")
+	}
+	if len(errs) == 0 {
+		t.Error("expected parse errors for malformed source")
 	}
 	found := false
 	for _, fn := range mod.Functions {

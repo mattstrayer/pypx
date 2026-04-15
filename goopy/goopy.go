@@ -12,11 +12,19 @@ import (
 )
 
 // ExtractModule parses Python source code and returns structured documentation.
-func ExtractModule(name string, src []byte) *model.Module {
+// The returned Module may be partial if the source contains syntax errors.
+// Parse errors are returned as the second value but do not prevent extraction.
+func ExtractModule(name string, src []byte) (*model.Module, []error) {
 	p := parser.New(src)
 	mod := p.Parse()
 	e := extractor.New()
-	return e.ExtractModule(name, mod)
+	result := e.ExtractModule(name, mod)
+
+	var errs []error
+	for _, pe := range p.Errors() {
+		errs = append(errs, pe)
+	}
+	return result, errs
 }
 
 // ExtractPackage parses multiple Python source files and returns a Package.
@@ -28,7 +36,7 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 		for path, src := range files {
 			if belongsToPackage(path, pkgName) && !isPrivateModule(path) {
 				modName := pathToModuleName(path)
-				mod := ExtractModule(modName, src)
+				mod, _ := ExtractModule(modName, src) // errors are non-fatal for package extraction
 				if hasContent(mod) {
 					pkg.Modules = append(pkg.Modules, mod)
 				}
@@ -40,27 +48,13 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 }
 
 func belongsToPackage(path, pkgName string) bool {
-	return len(path) > len(pkgName) && path[:len(pkgName)] == pkgName &&
-		path[len(pkgName)] == '/'
+	return strings.HasPrefix(path, pkgName+"/")
 }
 
 func pathToModuleName(path string) string {
-	name := path
-	if len(name) > 3 && name[len(name)-3:] == ".py" {
-		name = name[:len(name)-3]
-	}
-	if len(name) > 9 && name[len(name)-9:] == "/__init__" {
-		name = name[:len(name)-9]
-	}
-	result := make([]byte, len(name))
-	for i := range name {
-		if name[i] == '/' {
-			result[i] = '.'
-		} else {
-			result[i] = name[i]
-		}
-	}
-	return string(result)
+	name := strings.TrimSuffix(path, ".py")
+	name = strings.TrimSuffix(name, "/__init__")
+	return strings.ReplaceAll(name, "/", ".")
 }
 
 // ExtractFromPyPI downloads a package wheel from PyPI and extracts documentation.
