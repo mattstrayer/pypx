@@ -43,6 +43,8 @@ type DocParam struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
 	Description string `json:"description"`
+	Kind        string `json:"kind,omitempty"`
+	Default     string `json:"default,omitempty"`
 }
 
 // DocReturn is the return type annotation and description.
@@ -179,6 +181,8 @@ func convertFunction(fn *model.Function) DocSymbol {
 		if p.DocParam != nil {
 			dp.Description = p.DocParam.Description
 		}
+		dp.Kind = string(p.Kind)
+		dp.Default = p.Default
 		sym.Parameters = append(sym.Parameters, dp)
 	}
 

@@ -214,17 +214,11 @@ defineOgImage(
                   >
                 </div>
 
-                <!-- Signature -->
-                <div
-                  class="mb-3 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-2.5 font-mono text-[11px] leading-relaxed text-violet-300"
-                >
-                  {{ sym.signature }}
-                </div>
+                <!-- Signature (semantic highlighting) -->
+                <PySignature :symbol="sym" class="mb-3" />
 
-                <!-- Docstring -->
-                <p v-if="sym.docstring" class="mb-3 text-sm leading-relaxed text-zinc-400">
-                  {{ sym.docstring }}
-                </p>
+                <!-- Docstring (formatted with code highlighting) -->
+                <PyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
 
                 <!-- Parameters -->
                 <div v-if="sym.parameters && sym.parameters.length" class="mb-3">

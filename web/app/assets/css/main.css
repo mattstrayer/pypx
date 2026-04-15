@@ -10,6 +10,15 @@
   --color-brand-light: #86efac;
   --color-brand-muted: rgba(74, 222, 128, 0.08);
   --color-brand-border: rgba(74, 222, 128, 0.25);
+
+  /* Python syntax highlighting tokens */
+  --py-keyword: #c678dd;
+  --py-name: #e5c07b;
+  --py-param: #abb2bf;
+  --py-type: #61afef;
+  --py-default: #98c379;
+  --py-punct: #636d83;
+  --py-decorator: #e06c75;
 }
 
 body {

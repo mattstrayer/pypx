@@ -173,6 +173,8 @@ export interface DocParam {
   name: string;
   type?: string;
   description: string;
+  kind?: string;
+  default?: string;
 }
 
 export interface DocReturn {
