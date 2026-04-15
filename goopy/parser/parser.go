@@ -101,9 +101,21 @@ func (p *Parser) expect(typ token.Type) token.Token {
 }
 
 // expectName is a convenience for expecting a NAME token and returning its literal.
+// Also accepts soft keywords (type, match, case) which can be used as identifiers.
 func (p *Parser) expectName() string {
+	if p.isSoftKeyword() {
+		t := p.tok
+		p.next()
+		return t.Lit
+	}
 	t := p.expect(token.NAME)
 	return t.Lit
+}
+
+// isSoftKeyword returns true for tokens that are keywords in some contexts
+// but valid identifiers in others (Python 3.10+ match/case, 3.12+ type).
+func (p *Parser) isSoftKeyword() bool {
+	return p.tok.Type == token.TYPE || p.tok.Type == token.MATCH || p.tok.Type == token.CASE
 }
 
 // at returns true if the current token is one of the given types.

@@ -3,6 +3,7 @@ package goopy
 
 import (
 	"context"
+	"strings"
 
 	"github.com/pypx/goopy/extractor"
 	"github.com/pypx/goopy/model"
@@ -25,7 +26,7 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 
 	for _, pkgName := range topLevelPkgs {
 		for path, src := range files {
-			if belongsToPackage(path, pkgName) {
+			if belongsToPackage(path, pkgName) && !isPrivateModule(path) {
 				modName := pathToModuleName(path)
 				mod := ExtractModule(modName, src)
 				if hasContent(mod) {
@@ -72,6 +73,25 @@ func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package,
 	pkg := ExtractPackage(name, contents.Files, contents.TopLevelPkgs)
 	pkg.Version = version
 	return pkg, nil
+}
+
+// isPrivateModule returns true if any path component (other than __init__.py)
+// starts with underscore. Private modules are excluded from extraction.
+func isPrivateModule(path string) bool {
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if i == 0 {
+			continue // skip the top-level package dir
+		}
+		// __init__.py is not private
+		if part == "__init__.py" {
+			continue
+		}
+		if len(part) > 0 && part[0] == '_' {
+			return true
+		}
+	}
+	return false
 }
 
 func hasContent(mod *model.Module) bool {

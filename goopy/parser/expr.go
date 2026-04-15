@@ -359,7 +359,8 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 		}
 
 		// Check for keyword argument: name=expr
-		if p.tok.Type == token.NAME {
+		// Also accept soft keywords (type, match, case) as keyword arg names.
+		if p.tok.Type == token.NAME || p.isSoftKeyword() {
 			savedTok := p.tok
 			p.next()
 			if p.tok.Type == token.ASSIGN {
@@ -449,8 +450,29 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 
 // parseSubscriptContents parses the contents inside [...].
 // For comma-separated items (e.g., dict[str, int]), returns a Tuple.
+// For slice syntax (e.g., value[:end]), skips to ] since we don't deeply
+// model slice expressions for doc extraction.
 func (p *Parser) parseSubscriptContents() ast.Expr {
+	// Slice with no start: [:end] or [::step]
+	if p.tok.Type == token.COLON {
+		p.skipUntil(token.RBRACK)
+		return &ast.Constant{
+			Position: p.tok.Pos,
+			EndPos:   p.tok.Pos,
+			Value:    "...",
+			Kind:     "ellipsis",
+			Lit:      "...",
+		}
+	}
+
 	first := p.parseExpr()
+
+	// Slice with start: [start:end] or [start:end:step]
+	if p.tok.Type == token.COLON {
+		p.skipUntil(token.RBRACK)
+		return first
+	}
+
 	if p.tok.Type != token.COMMA {
 		return first
 	}
@@ -478,7 +500,9 @@ func (p *Parser) parseSubscriptContents() ast.Expr {
 
 func (p *Parser) parseAtom() ast.Expr {
 	switch p.tok.Type {
-	case token.NAME:
+	case token.NAME, token.TYPE, token.MATCH, token.CASE:
+		// TYPE, MATCH, CASE are soft keywords in Python 3.12+ — they can
+		// appear as regular identifiers in expression context.
 		return p.parseName()
 	case token.NUMBER:
 		return p.parseNumber()
