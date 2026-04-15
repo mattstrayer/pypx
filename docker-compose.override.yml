@@ -6,10 +6,6 @@ services:
     ports:
       - "8080:8080"
 
-  docs-worker:
-    ports:
-      - "8001:8000"
-
   web:
     ports:
       - "3000:3000"

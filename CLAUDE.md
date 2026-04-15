@@ -146,11 +146,11 @@ db.QueryRow("SELECT value FROM cache WHERE key = $1", key)
 
 Both are optional. Without `GITHUB_TOKEN`, GitHub API is rate-limited to 60 req/hr (per IP). With token: 5,000 req/hr. Set in `.env` for local dev or as Docker env vars in production. GitLab token similarly optional — only needed for packages hosted on GitLab.
 
-## docs-worker Behavior
+## goopy (Python Doc Extraction)
 
-The Python sidecar (`docs-worker/main.py`) lazy-loads griffe and httpx on first request to keep the idle container footprint minimal. First request after cold start is slow (~5–10s); subsequent requests for cached versions are served from the Go API's SQLite cache (indefinite TTL).
+The Go API extracts Python API documentation in-process using the `goopy` library (`goopy/` directory). This replaces the former Python sidecar (docs-worker). goopy downloads wheels from PyPI, parses Python source with a recursive-descent parser, and extracts structured documentation (functions, classes, parameters, docstrings, type annotations).
 
-The `/api/packages/{name}/docs` route has a **150-second timeout** (vs. 30s for all other routes) to accommodate wheel download + griffe parse time.
+The `/api/packages/{name}/docs` route has a **60-second timeout** (vs. 30s for all other routes) to accommodate wheel download + goopy parse time.
 
 ## External Services
 

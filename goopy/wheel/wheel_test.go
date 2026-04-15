@@ -1,0 +1,270 @@
+package wheel
+
+import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+// ---------------------------------------------------------------------------
+// Unit tests for helpers
+// ---------------------------------------------------------------------------
+
+func TestNormalizeName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"requests", "requests"},
+		{"My-Package", "my_package"},
+		{"my.package", "my_package"},
+		{"My-Cool.Package", "my_cool_package"},
+		{"UPPER", "upper"},
+	}
+	for _, tt := range tests {
+		got := NormalizeName(tt.input)
+		if got != tt.want {
+			t.Errorf("NormalizeName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseTopLevelTxt(t *testing.T) {
+	tests := []struct {
+		content string
+		want    int
+	}{
+		{"requests\n", 1},
+		{"pkg1\npkg2\n", 2},
+		{"  spaced  \n", 1},
+		{"", 0},
+		{"\n\n", 0},
+	}
+	for _, tt := range tests {
+		got := parseTopLevelTxt(tt.content)
+		if len(got) != tt.want {
+			t.Errorf("parseTopLevelTxt(%q) = %v (len %d), want len %d", tt.content, got, len(got), tt.want)
+		}
+	}
+}
+
+func TestSelectWheel(t *testing.T) {
+	wheels := []WheelFile{
+		{Filename: "pkg-1.0-cp39-linux.whl", URL: "https://example.com/linux.whl"},
+		{Filename: "pkg-1.0-py3-none-any.whl", URL: "https://example.com/any.whl"},
+	}
+	got := selectWheel(wheels)
+	if got != "https://example.com/any.whl" {
+		t.Errorf("selectWheel() = %q, want any.whl URL", got)
+	}
+}
+
+func TestSelectWheelFallback(t *testing.T) {
+	wheels := []WheelFile{
+		{Filename: "pkg-1.0-cp39-linux.whl", URL: "https://example.com/linux.whl"},
+	}
+	got := selectWheel(wheels)
+	if got != "https://example.com/linux.whl" {
+		t.Errorf("selectWheel() = %q, want fallback URL", got)
+	}
+}
+
+func TestInferTopLevel(t *testing.T) {
+	files := map[string][]byte{
+		"mypkg/__init__.py":            {},
+		"mypkg/mod.py":                 {},
+		"mypkg-1.0.dist-info/METADATA": {},
+	}
+	got := inferTopLevel(files, "mypkg")
+	if len(got) != 1 || got[0] != "mypkg" {
+		t.Errorf("inferTopLevel() = %v, want [mypkg]", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// extractPyFiles tests using crafted zip archives
+// ---------------------------------------------------------------------------
+
+func buildTestWheel(files map[string]string) []byte {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, content := range files {
+		f, _ := w.Create(name)
+		f.Write([]byte(content))
+	}
+	w.Close()
+	return buf.Bytes()
+}
+
+func TestExtractPyFiles_Basic(t *testing.T) {
+	data := buildTestWheel(map[string]string{
+		"mypkg/__init__.py":                     `"""My package."""`,
+		"mypkg/core.py":                         `def hello(): pass`,
+		"mypkg-1.0.dist-info/top_level.txt":     "mypkg\n",
+		"mypkg-1.0.dist-info/METADATA":          "Name: mypkg\nVersion: 1.0",
+		"mypkg/__pycache__/core.cpython-311.pyc": "binary",
+	})
+
+	contents, err := extractPyFiles(data, "mypkg")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+
+	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "mypkg" {
+		t.Errorf("TopLevelPkgs = %v, want [mypkg]", contents.TopLevelPkgs)
+	}
+	if len(contents.Files) != 2 {
+		t.Errorf("Files count = %d, want 2 (should exclude __pycache__)", len(contents.Files))
+	}
+	if _, ok := contents.Files["mypkg/__init__.py"]; !ok {
+		t.Error("missing mypkg/__init__.py")
+	}
+	if _, ok := contents.Files["mypkg/core.py"]; !ok {
+		t.Error("missing mypkg/core.py")
+	}
+}
+
+func TestExtractPyFiles_NoTopLevel(t *testing.T) {
+	data := buildTestWheel(map[string]string{
+		"mypkg/__init__.py": `"""Package."""`,
+		"mypkg/mod.py":      `x = 1`,
+	})
+
+	contents, err := extractPyFiles(data, "mypkg")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+
+	// Should infer top-level from directory structure.
+	if len(contents.TopLevelPkgs) == 0 {
+		t.Error("TopLevelPkgs should be inferred")
+	}
+}
+
+func TestExtractPyFiles_InvalidZip(t *testing.T) {
+	_, err := extractPyFiles([]byte("not a zip"), "mypkg")
+	if err == nil {
+		t.Error("expected error for invalid zip")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Fetch integration tests using httptest mock servers
+// ---------------------------------------------------------------------------
+
+func TestFetch_Success(t *testing.T) {
+	wheelData := buildTestWheel(map[string]string{
+		"testpkg/__init__.py":                  "def hello(): pass\n",
+		"testpkg/core.py":                      "class Foo: pass\n",
+		"testpkg-1.0.dist-info/top_level.txt": "testpkg\n",
+	})
+
+	// Mock wheel download server.
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(wheelData)
+	}))
+	defer wheelSrv.Close()
+
+	// Mock PyPI JSON API that returns the wheel server URL.
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pypi/testpkg/1.0.0/json" {
+			resp := fmt.Sprintf(`{"urls":[{"filename":"testpkg-1.0.0-py3-none-any.whl","url":"%s/testpkg-1.0.0-py3-none-any.whl","size":%d,"packagetype":"bdist_wheel"}]}`,
+				wheelSrv.URL, len(wheelData))
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(resp))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer pypiSrv.Close()
+
+	src := &Source{
+		HTTPClient: pypiSrv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    pypiSrv.URL,
+	}
+
+	ctx := context.Background()
+	contents, err := src.Fetch(ctx, "testpkg", "1.0.0")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(contents.Files) != 2 {
+		t.Errorf("Files count = %d, want 2", len(contents.Files))
+	}
+	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "testpkg" {
+		t.Errorf("TopLevelPkgs = %v", contents.TopLevelPkgs)
+	}
+}
+
+func TestFetch_NoWheels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"urls":[]}`))
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	_, err := src.Fetch(context.Background(), "empty", "1.0")
+	if err == nil {
+		t.Error("expected error for package with no wheels")
+	}
+}
+
+func TestFetch_PyPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	_, err := src.Fetch(context.Background(), "nonexistent", "1.0")
+	if err == nil {
+		t.Error("expected error for 404 response")
+	}
+}
+
+func TestFetchWheelURLs(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"urls": [
+				{"filename": "pkg-1.0.tar.gz", "url": "https://example.com/tar.gz", "size": 100, "packagetype": "sdist"},
+				{"filename": "pkg-1.0-py3-none-any.whl", "url": "https://example.com/any.whl", "size": 200, "packagetype": "bdist_wheel"},
+				{"filename": "pkg-1.0-cp39-linux.whl", "url": "https://example.com/linux.whl", "size": 300, "packagetype": "bdist_wheel"}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	wheels, err := src.fetchWheelURLs(context.Background(), "pkg", "1.0")
+	if err != nil {
+		t.Fatalf("fetchWheelURLs: %v", err)
+	}
+	if len(wheels) != 2 {
+		t.Fatalf("wheels count = %d, want 2 (sdist should be filtered)", len(wheels))
+	}
+	if wheels[0].Filename != "pkg-1.0-py3-none-any.whl" {
+		t.Errorf("wheels[0].Filename = %q", wheels[0].Filename)
+	}
+}

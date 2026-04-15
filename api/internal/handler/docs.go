@@ -1,15 +1,15 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/goopy"
+	"github.com/pypx/goopy/model"
 )
 
 // DocsResponse is the response for GET /api/packages/{name}/docs.
@@ -34,7 +34,7 @@ type DocSymbol struct {
 	Kind       string     `json:"kind"`
 	Signature  string     `json:"signature"`
 	Docstring  string     `json:"docstring"`
-	Parameters []DocParam `json:"parameters,omitempty"`
+	Parameters []DocParam `json:"parameters"`
 	Returns    *DocReturn `json:"returns,omitempty"`
 }
 
@@ -43,6 +43,8 @@ type DocParam struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
 	Description string `json:"description"`
+	Kind        string `json:"kind,omitempty"`
+	Default     string `json:"default,omitempty"`
 }
 
 // DocReturn is the return type annotation and description.
@@ -51,34 +53,17 @@ type DocReturn struct {
 	Description string `json:"description"`
 }
 
-// sidecarRequest is the body sent to the docs-worker sidecar.
-type sidecarRequest struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
-// sidecarResponse is the JSON returned by the docs-worker sidecar.
-type sidecarResponse struct {
-	Empty   bool        `json:"empty"`
-	Reason  string      `json:"reason"`
-	Modules []DocModule `json:"modules"`
-}
-
 // DocsHandler serves rendered API documentation for a package.
 type DocsHandler struct {
-	pypi       *pypi.Client
-	cache      cache.Cacher
-	sidecarURL string
-	httpClient *http.Client
+	pypi  *pypi.Client
+	cache cache.Cacher
 }
 
 // NewDocsHandler creates a new DocsHandler.
-func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher, sidecarURL string) *DocsHandler {
+func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 	return &DocsHandler{
-		pypi:       pypiClient,
-		cache:      c,
-		sidecarURL: sidecarURL,
-		httpClient: &http.Client{Timeout: 120 * time.Second},
+		pypi:  pypiClient,
+		cache: c,
 	}
 }
 
@@ -107,45 +92,21 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Short-circuit if the sidecar recently failed for this package (5-min negative cache).
+	// Short-circuit if extraction recently failed (5-min negative cache).
 	if data, fresh, err := h.cache.Get(errKey, 300); err == nil && data != nil && fresh {
-		http.Error(w, "documentation service unavailable", http.StatusBadGateway)
+		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
 		return
 	}
 
-	// Call the docs-worker sidecar.
-	reqBody, _ := json.Marshal(sidecarRequest{Name: name, Version: version})
-	resp, err := h.httpClient.Post(h.sidecarURL+"/generate", "application/json", bytes.NewReader(reqBody))
+	// Extract docs using goopy (in-process, no sidecar).
+	result, err := goopy.ExtractFromPyPI(r.Context(), name, version)
 	if err != nil {
-		h.cache.Set(errKey, []byte("1"), 300) //nolint:errcheck
-		http.Error(w, "documentation service unavailable", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		h.cache.Set(errKey, []byte("1"), 300) //nolint:errcheck
-		http.Error(w, "documentation service error", http.StatusBadGateway)
+		h.cache.Set(errKey, []byte(err.Error()), 300) //nolint:errcheck
+		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
 		return
 	}
 
-	var sidecar sidecarResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sidecar); err != nil {
-		http.Error(w, "failed to decode docs response", http.StatusInternalServerError)
-		return
-	}
-
-	modules := sidecar.Modules
-	if modules == nil {
-		modules = []DocModule{}
-	}
-
-	docsResp := DocsResponse{
-		Package:   name,
-		Version:   version,
-		Available: !sidecar.Empty,
-		Modules:   modules,
-	}
+	docsResp := convertToDocsResponse(name, version, result)
 
 	encoded, err := json.Marshal(docsResp)
 	if err != nil {
@@ -158,3 +119,155 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
 }
+
+// convertToDocsResponse transforms goopy's model.Package into the API response
+// format expected by the frontend.
+func convertToDocsResponse(name, version string, pkg *model.Package) DocsResponse {
+	var modules []DocModule
+
+	for _, mod := range pkg.Modules {
+		dm := DocModule{
+			Name:       mod.Name,
+			Functions:  make([]DocSymbol, 0, len(mod.Functions)),
+			Classes:    make([]DocSymbol, 0),
+			Exceptions: make([]DocSymbol, 0),
+		}
+
+		for _, fn := range mod.Functions {
+			dm.Functions = append(dm.Functions, convertFunction(fn))
+		}
+
+		for _, cls := range mod.Classes {
+			sym := convertClass(cls)
+			if isException(cls) {
+				sym.Kind = "exception"
+				dm.Exceptions = append(dm.Exceptions, sym)
+			} else {
+				dm.Classes = append(dm.Classes, sym)
+			}
+		}
+
+		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 {
+			modules = append(modules, dm)
+		}
+	}
+
+	if modules == nil {
+		modules = []DocModule{}
+	}
+
+	return DocsResponse{
+		Package:   name,
+		Version:   version,
+		Available: len(modules) > 0,
+		Modules:   modules,
+	}
+}
+
+func convertFunction(fn *model.Function) DocSymbol {
+	sym := DocSymbol{
+		Name:       fn.Name,
+		Kind:       "function",
+		Signature:  buildFuncSignature(fn),
+		Docstring:  docstringText(fn.Docstring),
+		Parameters: make([]DocParam, 0, len(fn.Parameters)),
+	}
+
+	for _, p := range fn.Parameters {
+		dp := DocParam{Name: p.Name}
+		if p.Type != nil {
+			dp.Type = p.Type.Raw
+		}
+		if p.DocParam != nil {
+			dp.Description = p.DocParam.Description
+		}
+		dp.Kind = string(p.Kind)
+		dp.Default = p.Default
+		sym.Parameters = append(sym.Parameters, dp)
+	}
+
+	if fn.Returns != nil {
+		sym.Returns = &DocReturn{Type: fn.Returns.Raw}
+	}
+
+	return sym
+}
+
+func convertClass(cls *model.Class) DocSymbol {
+	sym := DocSymbol{
+		Name:      cls.Name,
+		Kind:      "class",
+		Signature: buildClassSignature(cls),
+		Docstring: docstringText(cls.Docstring),
+	}
+	return sym
+}
+
+func buildFuncSignature(fn *model.Function) string {
+	var b strings.Builder
+	if fn.IsAsync {
+		b.WriteString("async ")
+	}
+	b.WriteString("def ")
+	b.WriteString(fn.Name)
+	b.WriteByte('(')
+
+	for i, p := range fn.Parameters {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(p.Name)
+		if p.Type != nil && p.Type.Raw != "" {
+			b.WriteString(": ")
+			b.WriteString(p.Type.Raw)
+		}
+		if p.Default != "" {
+			b.WriteString(" = ")
+			b.WriteString(p.Default)
+		}
+	}
+
+	b.WriteByte(')')
+	if fn.Returns != nil && fn.Returns.Raw != "" {
+		b.WriteString(" -> ")
+		b.WriteString(fn.Returns.Raw)
+	}
+	return b.String()
+}
+
+func buildClassSignature(cls *model.Class) string {
+	var b strings.Builder
+	b.WriteString("class ")
+	b.WriteString(cls.Name)
+	if len(cls.BaseClasses) > 0 {
+		b.WriteByte('(')
+		for i, base := range cls.BaseClasses {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(base.Name)
+		}
+		b.WriteByte(')')
+	}
+	return b.String()
+}
+
+func docstringText(ds *model.Docstring) string {
+	if ds == nil {
+		return ""
+	}
+	return ds.Text
+}
+
+// isException returns true if the class inherits from an exception base.
+func isException(cls *model.Class) bool {
+	for _, base := range cls.BaseClasses {
+		name := base.Name
+		if strings.Contains(name, "Exception") || strings.Contains(name, "Error") ||
+			strings.Contains(name, "Warning") || name == "BaseException" {
+			return true
+		}
+	}
+	return false
+}
+
