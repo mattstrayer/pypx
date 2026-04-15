@@ -84,6 +84,20 @@ const (
 	RSHIFT
 	DSLASH
 
+	// Augmented assignment operators
+	PLUSEQ
+	MINUSEQ
+	STAREQ
+	SLASHEQ
+	DSLASHEQ
+	PERCENTEQ
+	DSTAREQ
+	AMPEREQ
+	PIPEEQ
+	CARETEQ
+	RSHIFTEQ
+	LSHIFTEQ
+
 	// Delimiters
 	LPAREN
 	RPAREN

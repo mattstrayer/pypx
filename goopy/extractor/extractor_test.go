@@ -583,6 +583,30 @@ from typing import Optional, List
 	}
 }
 
+func TestExtractNestedInTry(t *testing.T) {
+	src := "try:\n    def fallback(): pass\nexcept:\n    pass\n"
+	mod := extract(src)
+	if len(mod.Functions) != 1 || mod.Functions[0].Name != "fallback" {
+		t.Errorf("Functions = %v, expected fallback", mod.Functions)
+	}
+}
+
+func TestExtractNestedInIf(t *testing.T) {
+	src := "if True:\n    class Inner:\n        pass\n"
+	mod := extract(src)
+	if len(mod.Classes) != 1 || mod.Classes[0].Name != "Inner" {
+		t.Errorf("Classes = %v, expected Inner", mod.Classes)
+	}
+}
+
+func TestExtractAllTuple(t *testing.T) {
+	src := "__all__ = (\"public_func\",)\n\ndef public_func(): pass\ndef other_func(): pass\n"
+	mod := extract(src)
+	if len(mod.Functions) != 1 || mod.Functions[0].Name != "public_func" {
+		t.Errorf("Functions = %v, expected only public_func", mod.Functions)
+	}
+}
+
 func TestTypingModulePrefix(t *testing.T) {
 	m := extract(`
 def f(x: typing.Optional[str]) -> typing.List[int]:

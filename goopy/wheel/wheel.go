@@ -141,7 +141,7 @@ func (s *Source) download(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, s.MaxSize))
 }
 
 func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {

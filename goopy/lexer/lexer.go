@@ -495,11 +495,22 @@ func (l *Lexer) lexOperator() token.Token {
 	if l.pos < len(l.src) {
 		next := l.src[l.pos]
 		switch ch {
+		case '+':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.PLUSEQ, Lit: "+=", Pos: pos}
+			}
 		case '-':
 			if next == '>' {
 				l.pos++
 				l.col++
 				return token.Token{Type: token.ARROW, Lit: "->", Pos: pos}
+			}
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.MINUSEQ, Lit: "-=", Pos: pos}
 			}
 		case ':':
 			if next == '=' {
@@ -511,13 +522,59 @@ func (l *Lexer) lexOperator() token.Token {
 			if next == '*' {
 				l.pos++
 				l.col++
+				// Check for **=
+				if l.pos < len(l.src) && l.src[l.pos] == '=' {
+					l.pos++
+					l.col++
+					return token.Token{Type: token.DSTAREQ, Lit: "**=", Pos: pos}
+				}
 				return token.Token{Type: token.DSTAR, Lit: "**", Pos: pos}
+			}
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.STAREQ, Lit: "*=", Pos: pos}
 			}
 		case '/':
 			if next == '/' {
 				l.pos++
 				l.col++
+				// Check for //=
+				if l.pos < len(l.src) && l.src[l.pos] == '=' {
+					l.pos++
+					l.col++
+					return token.Token{Type: token.DSLASHEQ, Lit: "//=", Pos: pos}
+				}
 				return token.Token{Type: token.DSLASH, Lit: "//", Pos: pos}
+			}
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.SLASHEQ, Lit: "/=", Pos: pos}
+			}
+		case '%':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.PERCENTEQ, Lit: "%=", Pos: pos}
+			}
+		case '&':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.AMPEREQ, Lit: "&=", Pos: pos}
+			}
+		case '|':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.PIPEEQ, Lit: "|=", Pos: pos}
+			}
+		case '^':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.CARETEQ, Lit: "^=", Pos: pos}
 			}
 		case '=':
 			if next == '=' {
@@ -532,26 +589,38 @@ func (l *Lexer) lexOperator() token.Token {
 				return token.Token{Type: token.NEQ, Lit: "!=", Pos: pos}
 			}
 		case '<':
+			if next == '<' {
+				l.pos++
+				l.col++
+				// Check for <<=
+				if l.pos < len(l.src) && l.src[l.pos] == '=' {
+					l.pos++
+					l.col++
+					return token.Token{Type: token.LSHIFTEQ, Lit: "<<=", Pos: pos}
+				}
+				return token.Token{Type: token.LSHIFT, Lit: "<<", Pos: pos}
+			}
 			if next == '=' {
 				l.pos++
 				l.col++
 				return token.Token{Type: token.LTE, Lit: "<=", Pos: pos}
 			}
-			if next == '<' {
+		case '>':
+			if next == '>' {
 				l.pos++
 				l.col++
-				return token.Token{Type: token.LSHIFT, Lit: "<<", Pos: pos}
+				// Check for >>=
+				if l.pos < len(l.src) && l.src[l.pos] == '=' {
+					l.pos++
+					l.col++
+					return token.Token{Type: token.RSHIFTEQ, Lit: ">>=", Pos: pos}
+				}
+				return token.Token{Type: token.RSHIFT, Lit: ">>", Pos: pos}
 			}
-		case '>':
 			if next == '=' {
 				l.pos++
 				l.col++
 				return token.Token{Type: token.GTE, Lit: ">=", Pos: pos}
-			}
-			if next == '>' {
-				l.pos++
-				l.col++
-				return token.Token{Type: token.RSHIFT, Lit: ">>", Pos: pos}
 			}
 		case '.':
 			if next == '.' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {

@@ -31,7 +31,16 @@ func (e *Extractor) ExtractModule(name string, mod *ast.Module) *model.Module {
 		}
 	}
 
-	for _, stmt := range mod.Body {
+	e.extractStmts(mod.Body, m, exports)
+
+	return m
+}
+
+// extractStmts walks a slice of statements, populating m with any definitions
+// found. It recurses into PassThrough and If bodies so that nested definitions
+// (e.g. inside try/except or if TYPE_CHECKING blocks) are not silently dropped.
+func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports []string) {
+	for _, stmt := range stmts {
 		switch s := stmt.(type) {
 		case *ast.FunctionDef:
 			if !isPublic(s.Name, exports) {
@@ -84,25 +93,32 @@ func (e *Extractor) ExtractModule(name string, mod *ast.Module) *model.Module {
 
 		case *ast.Import:
 			for _, alias := range s.Names {
-				name := alias.Name
+				n := alias.Name
 				if alias.Alias != "" {
-					name = alias.Alias
+					n = alias.Alias
 				}
-				m.Imports = append(m.Imports, &model.TypeRef{Name: name})
+				m.Imports = append(m.Imports, &model.TypeRef{Name: n})
 			}
 
 		case *ast.ImportFrom:
 			for _, alias := range s.Names {
-				name := alias.Name
+				n := alias.Name
 				if alias.Alias != "" {
-					name = alias.Alias
+					n = alias.Alias
 				}
-				m.Imports = append(m.Imports, &model.TypeRef{Name: name})
+				m.Imports = append(m.Imports, &model.TypeRef{Name: n})
 			}
+
+		case *ast.PassThrough:
+			// Recurse into try/except, for, while, with, match, etc.
+			e.extractStmts(s.Body, m, exports)
+
+		case *ast.If:
+			// Recurse into both branches (handles if TYPE_CHECKING, etc.).
+			e.extractStmts(s.Body, m, exports)
+			e.extractStmts(s.Orelse, m, exports)
 		}
 	}
-
-	return m
 }
 
 // extractFunction converts an AST FunctionDef into a model Function.
@@ -422,12 +438,17 @@ func extractAllExports(body []ast.Stmt) []string {
 			if !ok || n.Name != "__all__" {
 				continue
 			}
-			list, ok := assign.Value.(*ast.List)
-			if !ok {
+			var elts []ast.Expr
+			switch v := assign.Value.(type) {
+			case *ast.List:
+				elts = v.Elts
+			case *ast.Tuple:
+				elts = v.Elts
+			default:
 				continue
 			}
 			var exports []string
-			for _, elt := range list.Elts {
+			for _, elt := range elts {
 				c, ok := elt.(*ast.Constant)
 				if ok && c.Kind == "str" {
 					exports = append(exports, c.Value)

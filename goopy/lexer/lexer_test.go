@@ -485,6 +485,75 @@ func TestLits(t *testing.T) {
 	_ = lits // used in helper, suppress unused warning
 }
 
+// ---- Augmented assignment operator tests ----
+
+func TestAugmentedAssignPlusEq(t *testing.T) {
+	src := "x += 1\n"
+	l := lexer.New([]byte(src))
+	toks := collectTokens(l)
+	want := []token.Type{
+		token.NAME, token.PLUSEQ, token.NUMBER, token.NEWLINE, token.EOF,
+	}
+	if !equalTypes(types(toks), want) {
+		t.Fatalf("expected %v\ngot      %v", want, types(toks))
+	}
+	if toks[1].Lit != "+=" {
+		t.Fatalf("expected lit '+=', got %q", toks[1].Lit)
+	}
+}
+
+func TestAugmentedAssignDSlashEq(t *testing.T) {
+	src := "x //= 2\n"
+	l := lexer.New([]byte(src))
+	toks := collectTokens(l)
+	want := []token.Type{
+		token.NAME, token.DSLASHEQ, token.NUMBER, token.NEWLINE, token.EOF,
+	}
+	if !equalTypes(types(toks), want) {
+		t.Fatalf("expected %v\ngot      %v", want, types(toks))
+	}
+	if toks[1].Lit != "//=" {
+		t.Fatalf("expected lit '//=', got %q", toks[1].Lit)
+	}
+}
+
+func TestAugmentedAssignAllOperators(t *testing.T) {
+	cases := []struct {
+		src  string
+		typ  token.Type
+		lit  string
+	}{
+		{"x += 1", token.PLUSEQ, "+="},
+		{"x -= 1", token.MINUSEQ, "-="},
+		{"x *= 1", token.STAREQ, "*="},
+		{"x /= 1", token.SLASHEQ, "/="},
+		{"x //= 1", token.DSLASHEQ, "//="},
+		{"x %= 1", token.PERCENTEQ, "%="},
+		{"x **= 1", token.DSTAREQ, "**="},
+		{"x &= 1", token.AMPEREQ, "&="},
+		{"x |= 1", token.PIPEEQ, "|="},
+		{"x ^= 1", token.CARETEQ, "^="},
+		{"x >>= 1", token.RSHIFTEQ, ">>="},
+		{"x <<= 1", token.LSHIFTEQ, "<<="},
+	}
+	for _, c := range cases {
+		t.Run(c.lit, func(t *testing.T) {
+			l := lexer.New([]byte(c.src))
+			toks := collectTokens(l)
+			// toks[0]=NAME, toks[1]=op, toks[2]=NUMBER, ...
+			if len(toks) < 3 {
+				t.Fatalf("expected at least 3 tokens, got %d: %v", len(toks), types(toks))
+			}
+			if toks[1].Type != c.typ {
+				t.Errorf("expected token type %v, got %v", c.typ, toks[1].Type)
+			}
+			if toks[1].Lit != c.lit {
+				t.Errorf("expected lit %q, got %q", c.lit, toks[1].Lit)
+			}
+		})
+	}
+}
+
 // ---- Helper ----
 
 func equalTypes(a, b []token.Type) bool {

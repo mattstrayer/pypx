@@ -353,7 +353,8 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 
 	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
 		// Bail out if we hit a statement keyword — the paren was never closed.
-		if p.isStmtStart() {
+		// But FOR is valid inside calls (generator expressions), so exclude it.
+		if p.isStmtStart() && p.tok.Type != token.FOR {
 			break
 		}
 
@@ -382,6 +383,11 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 			expr := p.parseTrailers(nameExpr)
 			expr = p.parseExprFrom(expr)
 			args = append(args, expr)
+			// Generator expression: func(name for ...)
+			if p.tok.Type == token.FOR {
+				p.skipUntil(token.RPAREN)
+				break
+			}
 			if p.tok.Type == token.COMMA {
 				p.next()
 			}
@@ -418,6 +424,11 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 		arg := p.parseExpr()
 		if arg != nil {
 			args = append(args, arg)
+		}
+		// Generator expression in call: func(expr for ...)
+		if p.tok.Type == token.FOR {
+			p.skipUntil(token.RPAREN)
+			break
 		}
 		if p.tok.Type == token.COMMA {
 			p.next()
@@ -647,6 +658,14 @@ func (p *Parser) parseParenExpr() ast.Expr {
 
 	first := p.parseExpr()
 
+	// Generator expression: (expr for ...)
+	if p.tok.Type == token.FOR {
+		p.skipUntil(token.RPAREN)
+		endPos := p.tok.Pos
+		p.expect(token.RPAREN)
+		return &ast.Tuple{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
+	}
+
 	// Check for tuple: (a, b, ...) or (a,)
 	if p.tok.Type == token.COMMA {
 		elts := []ast.Expr{first}
@@ -671,17 +690,35 @@ func (p *Parser) parseParenExpr() ast.Expr {
 	return first
 }
 
-// parseListExpr parses '[' elts ']'.
+// parseListExpr parses '[' elts ']' or '[' expr 'for' ... ']' (list comprehension).
 func (p *Parser) parseListExpr() ast.Expr {
 	pos := p.tok.Pos
 	p.next() // consume '['
 
-	var elts []ast.Expr
-	for p.tok.Type != token.RBRACK && p.tok.Type != token.EOF {
-		elts = append(elts, p.parseExpr())
-		if p.tok.Type == token.COMMA {
-			p.next()
+	// Empty list.
+	if p.tok.Type == token.RBRACK {
+		endPos := p.tok.Pos
+		p.next()
+		return &ast.List{Position: pos, EndPos: endPos}
+	}
+
+	first := p.parseExpr()
+
+	// List comprehension: [expr for ...]
+	if p.tok.Type == token.FOR {
+		p.skipUntil(token.RBRACK)
+		endPos := p.tok.Pos
+		p.expect(token.RBRACK)
+		return &ast.List{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
+	}
+
+	elts := []ast.Expr{first}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.tok.Type == token.RBRACK {
+			break
 		}
+		elts = append(elts, p.parseExpr())
 	}
 
 	endPos := p.tok.Pos
@@ -709,9 +746,23 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 	first := p.parseExpr()
 
 	if p.tok.Type == token.COLON {
-		// Dict literal.
+		// Dict literal or dict comprehension.
 		p.next()
 		firstVal := p.parseExpr()
+
+		// Dict comprehension: {k: v for ...}
+		if p.tok.Type == token.FOR {
+			p.skipUntil(token.RBRACE)
+			endPos := p.tok.Pos
+			p.expect(token.RBRACE)
+			return &ast.Dict{
+				Position: pos,
+				EndPos:   endPos,
+				Keys:     []ast.Expr{first},
+				Values:   []ast.Expr{firstVal},
+			}
+		}
+
 		keys := []ast.Expr{first}
 		vals := []ast.Expr{firstVal}
 		for p.tok.Type == token.COMMA {
@@ -733,6 +784,14 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 			Keys:     keys,
 			Values:   vals,
 		}
+	}
+
+	// Set comprehension: {expr for ...}
+	if p.tok.Type == token.FOR {
+		p.skipUntil(token.RBRACE)
+		endPos := p.tok.Pos
+		p.expect(token.RBRACE)
+		return &ast.Set{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
 	}
 
 	// Set literal.

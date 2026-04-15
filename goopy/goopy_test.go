@@ -79,6 +79,21 @@ func TestExtractPackage(t *testing.T) {
 	}
 }
 
+func TestExtractPackage_DocstringOnlyModule(t *testing.T) {
+	// A module with only a docstring (e.g., __init__.py) should not be filtered out.
+	files := map[string][]byte{
+		"mypkg/__init__.py": []byte(`"""My package docstring."""
+`),
+	}
+	pkg := ExtractPackage("mypkg", files, []string{"mypkg"})
+	if len(pkg.Modules) != 1 {
+		t.Fatalf("Modules len = %d, want 1 (docstring-only module should be included)", len(pkg.Modules))
+	}
+	if pkg.Modules[0].Docstring == nil {
+		t.Error("expected module docstring to be set")
+	}
+}
+
 func TestExtractFromPyPI_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

@@ -185,6 +185,24 @@ func (p *Parser) syncExpr() {
 	}
 }
 
+// skipUntil skips tokens until the given closing delimiter is reached at depth 0.
+// It tracks bracket nesting so it won't stop at a delimiter inside a nested group.
+func (p *Parser) skipUntil(close token.Type) {
+	depth := 0
+	for p.tok.Type != token.EOF {
+		switch p.tok.Type {
+		case token.LPAREN, token.LBRACK, token.LBRACE:
+			depth++
+		case token.RPAREN, token.RBRACK, token.RBRACE:
+			if depth == 0 && p.tok.Type == close {
+				return
+			}
+			depth--
+		}
+		p.next()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Statement parsing
 // ---------------------------------------------------------------------------
@@ -197,7 +215,7 @@ func (p *Parser) parseStmt() ast.Stmt {
 	case token.DEF:
 		return p.parseFuncDef(nil)
 	case token.ASYNC:
-		return p.parseAsyncDef(nil)
+		return p.parseAsync(nil)
 	case token.CLASS:
 		return p.parseClassDef(nil)
 	case token.IMPORT:
@@ -239,7 +257,7 @@ func (p *Parser) parseDecorated() ast.Stmt {
 	case token.DEF:
 		return p.parseFuncDef(decorators)
 	case token.ASYNC:
-		return p.parseAsyncDef(decorators)
+		return p.parseAsync(decorators)
 	case token.CLASS:
 		return p.parseClassDef(decorators)
 	default:
@@ -249,19 +267,52 @@ func (p *Parser) parseDecorated() ast.Stmt {
 	}
 }
 
-// parseAsyncDef parses 'async def ...'.
-func (p *Parser) parseAsyncDef(decorators []ast.Expr) ast.Stmt {
+// parseAsync parses 'async def ...', 'async for ...', or 'async with ...'.
+func (p *Parser) parseAsync(decorators []ast.Expr) ast.Stmt {
+	pos := p.tok.Pos
 	p.next() // consume 'async'
-	if p.tok.Type != token.DEF {
-		p.errorf("expected def after async, got %s", p.tok.Type)
+
+	switch p.tok.Type {
+	case token.DEF:
+		fn := p.parseFuncDef(decorators)
+		if fd, ok := fn.(*ast.FunctionDef); ok {
+			fd.IsAsync = true
+		}
+		return fn
+
+	case token.FOR:
+		p.next() // consume 'for'
+		body := p.parsePassThroughBlock()
+		endPos := pos
+		if len(body) > 0 {
+			endPos = body[len(body)-1].End()
+		}
+		return &ast.PassThrough{
+			Kind:     "async for",
+			Body:     body,
+			Position: pos,
+			EndPos:   endPos,
+		}
+
+	case token.WITH:
+		p.next() // consume 'with'
+		body := p.parsePassThroughBlock()
+		endPos := pos
+		if len(body) > 0 {
+			endPos = body[len(body)-1].End()
+		}
+		return &ast.PassThrough{
+			Kind:     "async with",
+			Body:     body,
+			Position: pos,
+			EndPos:   endPos,
+		}
+
+	default:
+		p.errorf("expected def, for, or with after async, got %s", p.tok.Type)
 		p.syncStmt()
 		return nil
 	}
-	fn := p.parseFuncDef(decorators)
-	if fd, ok := fn.(*ast.FunctionDef); ok {
-		fd.IsAsync = true
-	}
-	return fn
 }
 
 // parseFuncDef parses 'def name(params) -> return_type: block'.
@@ -859,6 +910,24 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 	switch p.tok.Type {
 	case token.ASSIGN:
 		// Assignment: target = value
+		p.next()
+		value := p.parseExpr()
+		endPos := p.tok.Pos
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+		return &ast.Assign{
+			Position: expr.Pos(),
+			EndPos:   endPos,
+			Targets:  []ast.Expr{expr},
+			Value:    value,
+		}
+
+	case token.PLUSEQ, token.MINUSEQ, token.STAREQ, token.SLASHEQ,
+		token.DSLASHEQ, token.PERCENTEQ, token.DSTAREQ,
+		token.AMPEREQ, token.PIPEEQ, token.CARETEQ,
+		token.RSHIFTEQ, token.LSHIFTEQ:
+		// Augmented assignment: target op= value
 		p.next()
 		value := p.parseExpr()
 		endPos := p.tok.Pos

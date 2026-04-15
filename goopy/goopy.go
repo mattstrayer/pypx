@@ -69,10 +69,13 @@ func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package,
 	if err != nil {
 		return nil, err
 	}
-	return ExtractPackage(name, contents.Files, contents.TopLevelPkgs), nil
+	pkg := ExtractPackage(name, contents.Files, contents.TopLevelPkgs)
+	pkg.Version = version
+	return pkg, nil
 }
 
 func hasContent(mod *model.Module) bool {
 	return len(mod.Functions) > 0 || len(mod.Classes) > 0 ||
-		len(mod.Attributes) > 0 || len(mod.TypeAliases) > 0
+		len(mod.Attributes) > 0 || len(mod.TypeAliases) > 0 ||
+		mod.Docstring != nil || len(mod.Imports) > 0
 }
