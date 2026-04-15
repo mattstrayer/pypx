@@ -4,11 +4,11 @@ package model
 type ParamKind string
 
 const (
-	ParamPositionalOnly    ParamKind = "positional_only"
+	ParamPositionalOnly      ParamKind = "positional_only"
 	ParamPositionalOrKeyword ParamKind = "positional_or_keyword"
-	ParamVarPositional     ParamKind = "var_positional"
-	ParamKeywordOnly       ParamKind = "keyword_only"
-	ParamVarKeyword        ParamKind = "var_keyword"
+	ParamVarPositional       ParamKind = "var_positional"
+	ParamKeywordOnly         ParamKind = "keyword_only"
+	ParamVarKeyword          ParamKind = "var_keyword"
 )
 
 // DocstringStyle represents the format of a docstring.
@@ -30,13 +30,13 @@ type Package struct {
 
 // Module represents a Python module (file).
 type Module struct {
-	Name       string       `json:"name"`
-	Docstring  *Docstring   `json:"docstring,omitempty"`
-	Functions  []*Function  `json:"functions,omitempty"`
-	Classes    []*Class     `json:"classes,omitempty"`
-	Attributes []*Attribute `json:"attributes,omitempty"`
+	Name        string       `json:"name"`
+	Docstring   *Docstring   `json:"docstring,omitempty"`
+	Functions   []*Function  `json:"functions,omitempty"`
+	Classes     []*Class     `json:"classes,omitempty"`
+	Attributes  []*Attribute `json:"attributes,omitempty"`
 	TypeAliases []*TypeAlias `json:"type_aliases,omitempty"`
-	Imports    []*TypeRef   `json:"imports,omitempty"`
+	Imports     []*TypeRef   `json:"imports,omitempty"`
 }
 
 // Function represents a function or method.
@@ -53,21 +53,21 @@ type Function struct {
 
 // Class represents a class.
 type Class struct {
-	Name       string       `json:"name"`
-	Docstring  *Docstring   `json:"docstring,omitempty"`
-	BaseClasses []*TypeRef  `json:"base_classes,omitempty"`
-	Methods    []*Function  `json:"methods,omitempty"`
-	Attributes []*Attribute `json:"attributes,omitempty"`
-	Decorators []string     `json:"decorators,omitempty"`
+	Name        string       `json:"name"`
+	Docstring   *Docstring   `json:"docstring,omitempty"`
+	BaseClasses []*TypeRef   `json:"base_classes,omitempty"`
+	Methods     []*Function  `json:"methods,omitempty"`
+	Attributes  []*Attribute `json:"attributes,omitempty"`
+	Decorators  []string     `json:"decorators,omitempty"`
 }
 
 // Parameter represents a function parameter.
 type Parameter struct {
-	Name     string      `json:"name"`
-	Kind     ParamKind   `json:"kind"`
-	Type     *TypeExpr   `json:"type,omitempty"`
-	Default  string      `json:"default,omitempty"`
-	DocParam *DocParam   `json:"doc,omitempty"`
+	Name     string    `json:"name"`
+	Kind     ParamKind `json:"kind"`
+	Type     *TypeExpr `json:"type,omitempty"`
+	Default  string    `json:"default,omitempty"`
+	DocParam *DocParam `json:"doc,omitempty"`
 }
 
 // Attribute represents a class or module attribute.
@@ -93,11 +93,11 @@ type TypeRef struct {
 
 // Docstring represents parsed docstring information.
 type Docstring struct {
-	Text   string       `json:"text"`
-	Style  DocstringStyle `json:"style,omitempty"`
-	Params []*DocParam  `json:"params,omitempty"`
-	Returns *DocReturn  `json:"returns,omitempty"`
-	Raises  []*DocRaises `json:"raises,omitempty"`
+	Text    string         `json:"text"`
+	Style   DocstringStyle `json:"style,omitempty"`
+	Params  []*DocParam    `json:"params,omitempty"`
+	Returns *DocReturn     `json:"returns,omitempty"`
+	Raises  []*DocRaises   `json:"raises,omitempty"`
 }
 
 // DocParam represents a parameter documented in a docstring.

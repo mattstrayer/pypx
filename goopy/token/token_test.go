@@ -100,8 +100,8 @@ func TestTypeString(t *testing.T) {
 
 func TestLookupKeyword(t *testing.T) {
 	tests := []struct {
-		ident    string
-		typ      Type
+		ident     string
+		typ       Type
 		isKeyword bool
 	}{
 		// Keywords
