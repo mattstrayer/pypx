@@ -71,13 +71,7 @@ func main() {
 	condaClient := conda.NewClient()
 	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, ghClient, pkgHandler, c)
 
-	docsWorkerURL := os.Getenv("DOCS_WORKER_URL")
-	if docsWorkerURL == "" {
-		// Default assumes docs-worker is port-forwarded to 8001 (see docker-compose.override.yml).
-		// When running inside Docker, DOCS_WORKER_URL is set to http://docs-worker:8000.
-		docsWorkerURL = "http://localhost:8001"
-	}
-	docsHandler := handler.NewDocsHandler(pypiClient, c, docsWorkerURL)
+	docsHandler := handler.NewDocsHandler(pypiClient, c)
 
 	searchIdx, err := search.NewIndex(sqlitePath + "-search")
 	if err != nil {
@@ -122,8 +116,8 @@ func main() {
 		r.Get("/api/sitemap/cached", sitemapHandler.Cached)
 	})
 
-	// Docs route needs extended timeout: the sidecar downloads + parses a wheel (up to 90s).
-	r.With(middleware.Timeout(150 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
+	// Docs route needs extended timeout: goopy downloads + parses a wheel (typically <2s, but large packages can take longer).
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
