@@ -39,7 +39,7 @@ function dedent(lines: string[]): string[] {
   return lines.map((l) => l.slice(minIndent));
 }
 
-type BlockType = "paragraph" | "code" | "directive";
+type BlockType = "paragraph" | "code" | "directive" | "hidden";
 
 interface Block {
   type: BlockType;
@@ -64,12 +64,19 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
       }
     }
 
-    // All lines indented 4+ spaces → code block (unless it's rst field list content)
+    // All lines indented 4+ spaces → code block (with exclusions for prose/rst)
     const nonEmpty = lines.filter((l) => l.trim().length > 0);
     if (nonEmpty.length > 0 && nonEmpty.every((l) => /^ {4}/.test(l))) {
-      // Don't classify as code if it contains rst field markers (:param:, :type:, etc.)
+      // Don't classify as code if it contains rst field markers
       const hasRstFields = nonEmpty.some((l) => /^\s*:[a-z]+[\s`]/.test(l.trim()));
-      if (!hasRstFields) {
+      // Don't classify as code if it reads like prose: contains sentences
+      // ending with punctuation AND no obvious Python syntax starters.
+      const joined = nonEmpty.map((l) => l.trim()).join(" ");
+      const looksLikeProse =
+        (/[.!?](\s|$)/.test(joined) || /[.!?]$/.test(joined.trim())) &&
+        !nonEmpty.some((l) => /^\s*>>>/.test(l)) &&
+        !nonEmpty.some((l) => /^\s*(import |from |def |class |assert |raise )/.test(l.trim()));
+      if (!hasRstFields && !looksLikeProse) {
         return { type: "code", lines };
       }
     }
@@ -79,11 +86,20 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
       return { type: "code", lines };
     }
 
+    // Hide rst meta directives (:meta private:, :meta internal:, etc.)
+    if (nonEmpty.some((l) => /^\s*:meta\s/.test(l.trim()))) {
+      return { type: "hidden", lines };
+    }
+
     return { type: "paragraph", lines };
   });
 }
 
 function renderBlock(block: Block): string {
+  if (block.type === "hidden") {
+    return "";
+  }
+
   if (block.type === "code") {
     // Dedent the code block content
     const nonEmpty = block.lines.filter((l) => l.trim().length > 0);

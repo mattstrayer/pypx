@@ -27,7 +27,8 @@ function buildFunctionTokens(symbol: DocSymbol): Token[] {
   tokens.push({ text: symbol.name, cls: "py-name" });
   tokens.push(punct("("));
 
-  const params = symbol.parameters ?? [];
+  // Filter out self/cls — these are implicit in method signatures.
+  const params = (symbol.parameters ?? []).filter((p) => p.name !== "self" && p.name !== "cls");
 
   // Track whether we've inserted the `/` separator (after all positional-only params)
   let insertedSlash = false;

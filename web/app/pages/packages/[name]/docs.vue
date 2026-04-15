@@ -15,14 +15,23 @@ const { data: docs, status: docsStatus } = await useAsyncData(`docs-data-${name.
   api.fetchDocs(name.value),
 );
 
-const allFunctions = computed<DocSymbol[]>(
-  () => docs.value?.modules?.flatMap((m) => m.functions) ?? [],
+function dedup(symbols: DocSymbol[]): DocSymbol[] {
+  const seen = new Set<string>();
+  return symbols.filter((s) => {
+    if (seen.has(s.name)) return false;
+    seen.add(s.name);
+    return true;
+  });
+}
+
+const allFunctions = computed<DocSymbol[]>(() =>
+  dedup(docs.value?.modules?.flatMap((m) => m.functions) ?? []),
 );
-const allClasses = computed<DocSymbol[]>(
-  () => docs.value?.modules?.flatMap((m) => m.classes) ?? [],
+const allClasses = computed<DocSymbol[]>(() =>
+  dedup(docs.value?.modules?.flatMap((m) => m.classes) ?? []),
 );
-const allExceptions = computed<DocSymbol[]>(
-  () => docs.value?.modules?.flatMap((m) => m.exceptions) ?? [],
+const allExceptions = computed<DocSymbol[]>(() =>
+  dedup(docs.value?.modules?.flatMap((m) => m.exceptions) ?? []),
 );
 
 const activeSymbol = ref<string | null>(null);
@@ -194,66 +203,69 @@ defineOgImage(
 
         <!-- Main content -->
         <div class="flex-1 min-w-0 px-6 py-5">
-          <template v-for="mod in docs.modules" :key="mod.name">
-            <template
-              v-for="sym in [...mod.functions, ...mod.classes, ...mod.exceptions]"
-              :key="sym.name"
-            >
-              <div :id="`sym-${sym.name}`" class="mb-10 scroll-mt-4">
-                <!-- Symbol name + kind badge -->
-                <div class="mb-3 flex items-center gap-2">
-                  <span class="font-mono text-base font-bold text-zinc-50">{{ sym.name }}</span>
-                  <span
-                    class="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-                    :class="{
-                      'bg-blue-950 text-blue-300': sym.kind === 'function',
-                      'bg-purple-950 text-purple-300': sym.kind === 'class',
-                      'bg-red-950 text-red-300': sym.kind === 'exception',
-                    }"
-                    >{{ sym.kind }}</span
+          <template
+            v-for="sym in [...allFunctions, ...allClasses, ...allExceptions]"
+            :key="sym.name"
+          >
+            <div :id="`sym-${sym.name}`" class="mb-10 scroll-mt-4">
+              <!-- Symbol name + kind badge -->
+              <div class="mb-3 flex items-center gap-2">
+                <span class="font-mono text-base font-bold text-zinc-50">{{ sym.name }}</span>
+                <span
+                  class="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                  :class="{
+                    'bg-blue-950 text-blue-300': sym.kind === 'function',
+                    'bg-purple-950 text-purple-300': sym.kind === 'class',
+                    'bg-red-950 text-red-300': sym.kind === 'exception',
+                  }"
+                  >{{ sym.kind }}</span
+                >
+              </div>
+
+              <!-- Signature (semantic highlighting) -->
+              <DocsPySignature :symbol="sym" class="mb-3" />
+
+              <!-- Docstring (formatted with code highlighting) -->
+              <DocsPyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
+
+              <!-- Parameters -->
+              <div v-if="sym.parameters && sym.parameters.length" class="mb-3">
+                <p class="mb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                  Parameters
+                </p>
+                <div class="border-l-2 border-zinc-800 pl-3 space-y-2">
+                  <div
+                    v-for="param in sym.parameters?.filter(
+                      (p) => p.name !== 'self' && p.name !== 'cls',
+                    )"
+                    :key="param.name"
                   >
-                </div>
-
-                <!-- Signature (semantic highlighting) -->
-                <DocsPySignature :symbol="sym" class="mb-3" />
-
-                <!-- Docstring (formatted with code highlighting) -->
-                <DocsPyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
-
-                <!-- Parameters -->
-                <div v-if="sym.parameters && sym.parameters.length" class="mb-3">
-                  <p class="mb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
-                    Parameters
-                  </p>
-                  <div class="border-l-2 border-zinc-800 pl-3 space-y-2">
-                    <div v-for="param in sym.parameters" :key="param.name">
-                      <span class="font-mono text-[11px] text-sky-400">{{ param.name }}</span>
-                      <span v-if="param.type" class="ml-1.5 text-[10px] text-zinc-600">{{
-                        param.type
-                      }}</span>
-                      <p v-if="param.description" class="mt-0.5 text-[11px] text-zinc-500">
-                        {{ param.description }}
-                      </p>
-                    </div>
+                    <span class="font-mono text-[11px] text-sky-400">{{ param.name }}</span>
+                    <span v-if="param.type" class="ml-1.5 text-[10px] text-zinc-600">{{
+                      param.type
+                    }}</span>
+                    <p v-if="param.description" class="mt-0.5 text-[11px] text-zinc-500">
+                      {{ param.description }}
+                    </p>
                   </div>
                 </div>
-
-                <!-- Returns -->
-                <div v-if="sym.returns" class="mb-3">
-                  <p class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
-                    Returns
-                  </p>
-                  <span v-if="sym.returns.type" class="font-mono text-[11px] text-sky-400">{{
-                    sym.returns.type
-                  }}</span>
-                  <span v-if="sym.returns.description" class="ml-2 text-[11px] text-zinc-500">{{
-                    sym.returns.description
-                  }}</span>
-                </div>
-
-                <div class="mt-8 border-t border-zinc-900" />
               </div>
-            </template>
+
+              <!-- Returns -->
+              <div v-if="sym.returns" class="mb-3">
+                <p class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                  Returns
+                </p>
+                <span v-if="sym.returns.type" class="font-mono text-[11px] text-sky-400">{{
+                  sym.returns.type
+                }}</span>
+                <span v-if="sym.returns.description" class="ml-2 text-[11px] text-zinc-500">{{
+                  sym.returns.description
+                }}</span>
+              </div>
+
+              <div class="mt-8 border-t border-zinc-900" />
+            </div>
           </template>
         </div>
       </div>
