@@ -173,10 +173,14 @@ func (p *Parser) skipNewlines() {
 
 // isStmtStart returns true if the current token begins a new statement.
 // Used to detect unclosed parentheses during error recovery.
+// Excludes soft keywords (type, match, case) which can appear as identifiers.
 func (p *Parser) isStmtStart() bool {
+	if p.isSoftKeyword() {
+		return false
+	}
 	switch p.tok.Type {
 	case token.DEF, token.CLASS, token.ASYNC, token.IMPORT, token.FROM,
-		token.IF, token.FOR, token.WHILE, token.TRY, token.WITH, token.MATCH,
+		token.IF, token.FOR, token.WHILE, token.TRY, token.WITH,
 		token.RETURN, token.RAISE, token.PASS, token.DEDENT:
 		return true
 	}
