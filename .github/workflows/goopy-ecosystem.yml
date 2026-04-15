@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install griffe and httpx
-        run: pip install griffe httpx
+        run: pip install 'griffe>=2,<3' 'httpx>=0.28,<1'
 
       - name: Run extraction smoke test (60 packages)
         working-directory: goopy

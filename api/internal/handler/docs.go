@@ -34,7 +34,7 @@ type DocSymbol struct {
 	Kind       string     `json:"kind"`
 	Signature  string     `json:"signature"`
 	Docstring  string     `json:"docstring"`
-	Parameters []DocParam `json:"parameters,omitempty"`
+	Parameters []DocParam `json:"parameters"`
 	Returns    *DocReturn `json:"returns,omitempty"`
 }
 
@@ -138,6 +138,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package) DocsRespons
 		for _, cls := range mod.Classes {
 			sym := convertClass(cls)
 			if isException(cls) {
+				sym.Kind = "exception"
 				dm.Exceptions = append(dm.Exceptions, sym)
 			} else {
 				dm.Classes = append(dm.Classes, sym)
@@ -163,10 +164,11 @@ func convertToDocsResponse(name, version string, pkg *model.Package) DocsRespons
 
 func convertFunction(fn *model.Function) DocSymbol {
 	sym := DocSymbol{
-		Name:      fn.Name,
-		Kind:      "function",
-		Signature: buildFuncSignature(fn),
-		Docstring: docstringText(fn.Docstring),
+		Name:       fn.Name,
+		Kind:       "function",
+		Signature:  buildFuncSignature(fn),
+		Docstring:  docstringText(fn.Docstring),
+		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 	}
 
 	for _, p := range fn.Parameters {

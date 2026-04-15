@@ -81,6 +81,7 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 	for range workers {
 		go func() {
 			defer wg.Done()
+			defer func() { recover() }() // don't let one bad module crash the pool
 			for idx := range ch {
 				mod, _ := ExtractModule(items[idx].modName, items[idx].src)
 				results[idx] = mod

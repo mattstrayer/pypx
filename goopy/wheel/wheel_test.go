@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -159,41 +158,19 @@ func TestExtractPyFiles_InvalidZip(t *testing.T) {
 
 func TestFetch_Success(t *testing.T) {
 	wheelData := buildTestWheel(map[string]string{
-		"testpkg/__init__.py":                "def hello(): pass\n",
-		"testpkg/core.py":                    "class Foo: pass\n",
+		"testpkg/__init__.py":                  "def hello(): pass\n",
+		"testpkg/core.py":                      "class Foo: pass\n",
 		"testpkg-1.0.dist-info/top_level.txt": "testpkg\n",
 	})
 
-	// Mock PyPI JSON API
-	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/pypi/testpkg/1.0.0/json" {
-			resp := map[string]any{
-				"urls": []map[string]any{
-					{
-						"filename":    "testpkg-1.0.0-py3-none-any.whl",
-						"url":         "", // will be set below
-						"size":        len(wheelData),
-						"packagetype": "bdist_wheel",
-					},
-				},
-			}
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer pypiSrv.Close()
-
-	// Mock wheel download server
+	// Mock wheel download server.
 	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(wheelData)
 	}))
 	defer wheelSrv.Close()
 
-	// Patch the PyPI response to include the wheel server URL.
-	// We need a server that returns the correct URL, so rebuild:
-	pypiSrv.Close()
-	pypiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock PyPI JSON API that returns the wheel server URL.
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/pypi/testpkg/1.0.0/json" {
 			resp := fmt.Sprintf(`{"urls":[{"filename":"testpkg-1.0.0-py3-none-any.whl","url":"%s/testpkg-1.0.0-py3-none-any.whl","size":%d,"packagetype":"bdist_wheel"}]}`,
 				wheelSrv.URL, len(wheelData))
