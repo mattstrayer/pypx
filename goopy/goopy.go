@@ -3,7 +3,9 @@ package goopy
 
 import (
 	"context"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/pypx/goopy/extractor"
 	"github.com/pypx/goopy/model"
@@ -29,21 +31,70 @@ func ExtractModule(name string, src []byte) (*model.Module, []error) {
 
 // ExtractPackage parses multiple Python source files and returns a Package.
 // files maps relative paths (e.g., "mypackage/module.py") to source bytes.
+// Module extraction is parallelized across available CPUs.
 func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string) *model.Package {
-	pkg := &model.Package{Name: name}
-
+	// Collect eligible files.
+	type work struct {
+		modName string
+		src     []byte
+	}
+	var items []work
 	for _, pkgName := range topLevelPkgs {
 		for path, src := range files {
 			if belongsToPackage(path, pkgName) && !isPrivateModule(path) {
-				modName := pathToModuleName(path)
-				mod, _ := ExtractModule(modName, src) // errors are non-fatal for package extraction
-				if hasContent(mod) {
-					pkg.Modules = append(pkg.Modules, mod)
-				}
+				items = append(items, work{
+					modName: pathToModuleName(path),
+					src:     src,
+				})
 			}
 		}
 	}
 
+	// For small packages, skip goroutine overhead.
+	if len(items) <= 4 {
+		pkg := &model.Package{Name: name}
+		for _, item := range items {
+			mod, _ := ExtractModule(item.modName, item.src)
+			if hasContent(mod) {
+				pkg.Modules = append(pkg.Modules, mod)
+			}
+		}
+		return pkg
+	}
+
+	// Parallel extraction with bounded workers.
+	workers := runtime.GOMAXPROCS(0)
+	if workers > len(items) {
+		workers = len(items)
+	}
+
+	results := make([]*model.Module, len(items))
+	var wg sync.WaitGroup
+	ch := make(chan int, len(items))
+
+	for i := range items {
+		ch <- i
+	}
+	close(ch)
+
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for idx := range ch {
+				mod, _ := ExtractModule(items[idx].modName, items[idx].src)
+				results[idx] = mod
+			}
+		}()
+	}
+	wg.Wait()
+
+	pkg := &model.Package{Name: name}
+	for _, mod := range results {
+		if mod != nil && hasContent(mod) {
+			pkg.Modules = append(pkg.Modules, mod)
+		}
+	}
 	return pkg
 }
 
