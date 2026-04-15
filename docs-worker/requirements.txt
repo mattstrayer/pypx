@@ -1,3 +1,0 @@
-griffe==1.7.3
-uvicorn[standard]==0.34.2
-httpx==0.28.1
