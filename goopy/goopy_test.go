@@ -76,7 +76,7 @@ func TestExtractPackage(t *testing.T) {
 		"mypkg/sub.py":      []byte("def sub_func(): pass\n"),
 		"other/foo.py":      []byte("def other_func(): pass\n"),
 	}
-	pkg := ExtractPackage("test", files, []string{"mypkg"})
+	pkg := ExtractPackage(context.Background(), "test", files, []string{"mypkg"})
 	if len(pkg.Modules) != 2 {
 		t.Fatalf("Modules len = %d, want 2", len(pkg.Modules))
 	}
@@ -88,7 +88,7 @@ func TestExtractPackage_DocstringOnlyModule(t *testing.T) {
 		"mypkg/__init__.py": []byte(`"""My package docstring."""
 `),
 	}
-	pkg := ExtractPackage("mypkg", files, []string{"mypkg"})
+	pkg := ExtractPackage(context.Background(), "mypkg", files, []string{"mypkg"})
 	if len(pkg.Modules) != 1 {
 		t.Fatalf("Modules len = %d, want 1 (docstring-only module should be included)", len(pkg.Modules))
 	}
