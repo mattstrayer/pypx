@@ -44,11 +44,7 @@ const emit = defineEmits<{
         >
           {{ result.name }}
         </span>
-        <span
-          v-if="result.summary"
-          class="truncate text-sm"
-          :class="index === selectedIndex ? 'text-muted' : 'text-muted'"
-        >
+        <span v-if="result.summary" class="truncate text-sm text-muted">
           {{ result.summary }}
         </span>
       </button>
