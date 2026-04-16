@@ -39,11 +39,29 @@ const repoInfo = computed(() => extras.value?.repo_info ?? null);
 const maintenanceStatus = useMaintenanceStatus(pkg, repoInfo);
 
 const inPageTabs = [
-  { key: "overview", label: "Overview" },
-  { key: "dependencies", label: "Dependencies" },
-  { key: "versions", label: "Versions" },
-  { key: "stats", label: "Stats" },
+  { key: "overview", label: "Overview", shortcut: "1" },
+  { key: "dependencies", label: "Dependencies", shortcut: "2" },
+  { key: "versions", label: "Versions", shortcut: "3" },
+  { key: "stats", label: "Stats", shortcut: "4" },
 ];
+
+const { register, unregister } = useKeyboardShortcuts();
+
+onMounted(() => {
+  for (const tab of inPageTabs) {
+    register(tab.shortcut, () => (activeTab.value = tab.key));
+  }
+  register("/", () => {
+    document.querySelector<HTMLInputElement>('header input[type="text"]')?.focus();
+  });
+});
+
+onUnmounted(() => {
+  for (const tab of inPageTabs) {
+    unregister(tab.shortcut);
+  }
+  unregister("/");
+});
 
 useSeoMeta({
   title: () => (pkg.value ? pkg.value.name : "Loading"),
@@ -124,13 +142,14 @@ useSchemaOrg(
         <button
           v-for="tab in inPageTabs"
           :key="tab.key"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
+          class="group cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
           :class="
             activeTab === tab.key ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'
           "
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
+          <KbdHint :keys="tab.shortcut" />
         </button>
 
         <!-- Docs tab — link to separate route, shown only when available -->
