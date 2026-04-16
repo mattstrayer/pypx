@@ -145,8 +145,12 @@ func main() {
 	<-quit
 	log.Println("shutting down server...")
 
-	// Stop background worker first so in-flight DB writes complete.
+	// Stop background worker and wait for in-flight DB writes to complete.
 	workerCancel()
+	bgWorker.Wait()
+
+	// Stop rate limiter cleanup goroutine.
+	limiter.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

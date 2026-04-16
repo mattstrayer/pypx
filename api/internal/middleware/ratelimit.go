@@ -24,6 +24,7 @@ type RateLimiter struct {
 	visitors map[string]*visitor
 	rate     rate.Limit // tokens per second
 	burst    int
+	stop     chan struct{}
 }
 
 // NewRateLimiter creates a RateLimiter where each IP gets a token bucket
@@ -34,6 +35,7 @@ func NewRateLimiter(r float64, burst int) *RateLimiter {
 		visitors: make(map[string]*visitor),
 		rate:     rate.Limit(r),
 		burst:    burst,
+		stop:     make(chan struct{}),
 	}
 	go rl.cleanupLoop()
 	return rl
@@ -84,12 +86,22 @@ func extractIP(r *http.Request) string {
 	return addr
 }
 
+// Close stops the cleanup goroutine started by NewRateLimiter.
+func (rl *RateLimiter) Close() {
+	close(rl.stop)
+}
+
 // cleanupLoop periodically removes visitors that haven't been seen recently.
 func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		rl.Cleanup()
+	for {
+		select {
+		case <-ticker.C:
+			rl.Cleanup()
+		case <-rl.stop:
+			return
+		}
 	}
 }
 

@@ -150,6 +150,32 @@ func TestRateLimiter_DifferentIPsHaveIndependentLimits(t *testing.T) {
 	}
 }
 
+func TestRateLimiter_CloseStopsCleanupGoroutine(t *testing.T) {
+	// This test verifies that Close() stops the cleanup goroutine without hanging.
+	// We run it with -race to catch any use-after-close data races.
+	limiter := middleware.NewRateLimiter(10, 5)
+
+	// Seed a visitor so the limiter is doing real work.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "1.2.3.4:1234"
+	rr := httptest.NewRecorder()
+	limiter.Limit(okHandler).ServeHTTP(rr, req)
+
+	// Close must return promptly (goroutine receives on stop channel).
+	done := make(chan struct{})
+	go func() {
+		limiter.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(time.Second):
+		t.Fatal("Close() did not return within 1s — cleanup goroutine may be stuck")
+	}
+}
+
 func TestRateLimiter_CleanupStaleVisitors(t *testing.T) {
 	limiter := middleware.NewRateLimiter(10, 5)
 

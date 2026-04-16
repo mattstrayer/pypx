@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useThrottleFn } from "@vueuse/core";
+
 interface OutlineItem {
   id: string;
   text: string;
@@ -55,15 +57,29 @@ function onScroll() {
   }
 }
 
+const throttledScroll = useThrottleFn(onScroll, 100);
+
+let observer: MutationObserver | null = null;
+
 onMounted(() => {
   nextTick(() => {
     buildOutline();
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", throttledScroll, { passive: true });
+
+    // Watch for content changes (e.g., package navigation).
+    const container = document.querySelector(props.containerSelector);
+    if (container) {
+      observer = new MutationObserver(() => {
+        buildOutline();
+      });
+      observer.observe(container, { childList: true, subtree: true });
+    }
   });
 });
 
 onUnmounted(() => {
-  window.removeEventListener("scroll", onScroll);
+  window.removeEventListener("scroll", throttledScroll);
+  observer?.disconnect();
 });
 </script>
 

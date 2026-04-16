@@ -2,6 +2,7 @@ package goopy
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -95,6 +96,53 @@ func TestExtractPackage_DocstringOnlyModule(t *testing.T) {
 	if pkg.Modules[0].Docstring == nil {
 		t.Error("expected module docstring to be set")
 	}
+}
+
+func TestExtractPackage_CancelledContext(t *testing.T) {
+	// Create enough files to trigger the goroutine pool path (>4 files)
+	files := make(map[string][]byte)
+	for i := 0; i < 10; i++ {
+		path := fmt.Sprintf("mypkg/mod%d.py", i)
+		files[path] = []byte(fmt.Sprintf(`
+def func_%d():
+    """Function %d"""
+    pass
+`, i, i))
+	}
+
+	// Cancel context immediately
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Should return without panic or hang
+	pkg := ExtractPackage(ctx, "mypkg", files, []string{"mypkg"})
+
+	// Package should be non-nil (always returns a result)
+	if pkg == nil {
+		t.Fatal("expected non-nil package")
+	}
+
+	// With immediate cancellation, most/all modules should be skipped
+	// (exact count depends on goroutine scheduling, so just verify it doesn't hang or panic)
+	t.Logf("extracted %d modules with cancelled context", len(pkg.Modules))
+}
+
+func TestExtractPackage_SmallPackageCancelledContext(t *testing.T) {
+	// <=4 files takes the non-goroutine path
+	files := map[string][]byte{
+		"mypkg/__init__.py": []byte(`"""Package docstring"""`),
+		"mypkg/a.py":        []byte(`def a(): pass`),
+		"mypkg/b.py":        []byte(`def b(): pass`),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	pkg := ExtractPackage(ctx, "mypkg", files, []string{"mypkg"})
+	if pkg == nil {
+		t.Fatal("expected non-nil package")
+	}
+	t.Logf("extracted %d modules with cancelled context (small package)", len(pkg.Modules))
 }
 
 func TestExtractFromPyPI_Integration(t *testing.T) {
