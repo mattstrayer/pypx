@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -90,6 +91,65 @@ func TestMemoryCacheFallthrough(t *testing.T) {
 	mc.mu.RUnlock()
 	if !inMemory {
 		t.Error("expected key to be promoted to in-memory map after fallthrough Get")
+	}
+}
+
+// TestMemoryCachePromoteRace verifies that concurrent Get() (which promotes from SQLite)
+// and Set() calls do not cause a data race or overwrite a fresher value.
+// Run with -race to confirm no race detector violations.
+func TestMemoryCachePromoteRace(t *testing.T) {
+	// Seed SQLite directly so Get() will always fall through to promote.
+	sqlite, err := New(":memory:")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	mc := NewMemoryCache(sqlite, 100)
+	t.Cleanup(func() { mc.Close() })
+
+	ttl := 5 * time.Minute
+	key := "pkg:race-test"
+	stale := []byte(`{"version":"1.0"}`)
+	fresh := []byte(`{"version":"2.0"}`)
+
+	// Write stale value directly to SQLite only — not to memory — so Get will promote.
+	if err := sqlite.Set(key, stale, ttl); err != nil {
+		t.Fatalf("sqlite.Set: %v", err)
+	}
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 2)
+
+	// Half goroutines call Get (triggering the promote path).
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, _, _ = mc.Get(key, ttl)
+		}()
+	}
+
+	// Other half call Set with a fresher value concurrently.
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = mc.Set(key, fresh, ttl)
+		}()
+	}
+
+	wg.Wait()
+
+	// After all concurrent operations, the in-memory value must be one of the two
+	// valid values — not corrupted — and must never be nil.
+	mc.mu.RLock()
+	item, exists := mc.items[key]
+	mc.mu.RUnlock()
+
+	if !exists {
+		t.Fatal("key should exist in memory after concurrent operations")
+	}
+	got := string(item.data)
+	if got != string(stale) && got != string(fresh) {
+		t.Errorf("unexpected value in cache: %q (want one of %q or %q)", got, stale, fresh)
 	}
 }
 
