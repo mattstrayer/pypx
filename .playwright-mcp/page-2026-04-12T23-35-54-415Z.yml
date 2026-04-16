@@ -1,0 +1,243 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "urllib3" [level=1] [ref=e17]
+          - generic [ref=e18]: v2.6.3
+        - paragraph [ref=e19]: HTTP library with thread-safe connection pooling, file post, and more.
+        - generic [ref=e21]:
+          - generic [ref=e22]: 129 KB
+          - generic [ref=e23]: Python 3.9+
+          - generic [ref=e24]: py3-none-any
+          - generic [ref=e25]: MIT
+          - generic [ref=e27]: typed
+          - link "conda" [ref=e28] [cursor=pointer]:
+            - /url: https://anaconda.org/conda-forge/urllib3
+      - generic [ref=e29]:
+        - button "Overview" [ref=e30] [cursor=pointer]
+        - button "Dependencies" [ref=e31] [cursor=pointer]
+        - button "Versions" [ref=e32] [cursor=pointer]
+        - button "Stats" [ref=e33] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - button "uv" [ref=e40] [cursor=pointer]
+              - button "pip" [ref=e41] [cursor=pointer]
+              - button "poetry" [ref=e42] [cursor=pointer]
+              - button "pipx" [ref=e43] [cursor=pointer]
+            - generic [ref=e44]:
+              - code [ref=e45]: $ uv add urllib3
+              - button "Copy" [ref=e46] [cursor=pointer]:
+                - img [ref=e47]
+          - generic [ref=e50]:
+            - heading "Description" [level=2] [ref=e51]
+            - generic [ref=e52]:
+              - heading "urllib3" [level=1] [ref=e53]:
+                - paragraph [ref=e54]:
+                  - img "urllib3" [ref=e55]
+              - paragraph [ref=e56]:
+                - link "PyPI Version" [ref=e57] [cursor=pointer]:
+                  - /url: https://pypi.org/project/urllib3
+                  - img "PyPI Version" [ref=e58]
+                - link "Python Versions" [ref=e59] [cursor=pointer]:
+                  - /url: https://pypi.org/project/urllib3
+                  - img "Python Versions" [ref=e60]
+                - link "Join our Discord" [ref=e61] [cursor=pointer]:
+                  - /url: https://discord.gg/urllib3
+                  - img "Join our Discord" [ref=e62]
+                - link "Coverage Status" [ref=e63] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3/actions?query=workflow%3ACI
+                  - img "Coverage Status" [ref=e64]
+                - link "Build Status on GitHub" [ref=e65] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3/actions/workflows/ci.yml?query=branch%3Amain
+                  - img "Build Status on GitHub" [ref=e66]
+                - link "Documentation Status" [ref=e67] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io
+                  - img "Documentation Status" [ref=e68]
+                - link "OpenSSF Scorecard" [ref=e69] [cursor=pointer]:
+                  - /url: https://deps.dev/pypi/urllib3
+                  - img "OpenSSF Scorecard" [ref=e70]
+                - link "SLSA 3" [ref=e71] [cursor=pointer]:
+                  - /url: https://slsa.dev
+                  - img "SLSA 3" [ref=e72]
+                - link "CII Best Practices" [ref=e73] [cursor=pointer]:
+                  - /url: https://bestpractices.coreinfrastructure.org/projects/6227
+                  - img "CII Best Practices" [ref=e74]
+              - paragraph [ref=e75]:
+                - text: urllib3 is a powerful,
+                - emphasis [ref=e76]: user-friendly
+                - text: "HTTP client for Python. urllib3 brings many critical features that are missing from the Python standard libraries:"
+              - list [ref=e77]:
+                - listitem [ref=e78]: Thread safety.
+                - listitem [ref=e79]: Connection pooling.
+                - listitem [ref=e80]: Client-side SSL/TLS verification.
+                - listitem [ref=e81]: File uploads with multipart encoding.
+                - listitem [ref=e82]: Helpers for retrying requests and dealing with HTTP redirects.
+                - listitem [ref=e83]: Support for gzip, deflate, brotli, and zstd encoding.
+                - listitem [ref=e84]: Proxy support for HTTP and SOCKS.
+                - listitem [ref=e85]: 100% test coverage.
+              - paragraph [ref=e86]: "... and many more features, but most importantly: Our maintainers have a 15+ year track record of maintaining urllib3 with the highest code standards and attention to security and safety."
+              - paragraph [ref=e87]:
+                - link "Much of the Python ecosystem already uses urllib3" [ref=e88] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io/en/stable/#who-uses
+                - text: and you should too.
+              - heading "Installing" [level=2] [ref=e89]
+              - paragraph [ref=e90]:
+                - text: urllib3 can be installed with
+                - link "pip" [ref=e91] [cursor=pointer]:
+                  - /url: https://pip.pypa.io
+                - text: ":"
+              - code [ref=e93]:
+                - generic [ref=e95]: $ python -m pip install urllib3
+              - paragraph [ref=e96]:
+                - text: Alternatively, you can grab the latest source code from
+                - link "GitHub" [ref=e97] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3
+                - text: ":"
+              - code [ref=e99]:
+                - generic [ref=e101]: $ git clone https://github.com/urllib3/urllib3.git
+                - generic [ref=e103]: $ cd urllib3
+                - generic [ref=e105]: $ pip install .
+              - heading "Getting Started" [level=2] [ref=e106]
+              - paragraph [ref=e107]: "urllib3 is easy to use:"
+              - code [ref=e109]:
+                - generic [ref=e111]: ">>> import urllib3"
+                - generic [ref=e113]: ">>> resp = urllib3.request(\"GET\", \"http://httpbin.org/robots.txt\")"
+                - generic [ref=e115]: ">>> resp.status"
+                - generic [ref=e117]: "200"
+                - generic [ref=e119]: ">>> resp.data"
+                - generic [ref=e121]: "b\"User-agent: *\\nDisallow: /deny\\n\""
+              - paragraph [ref=e122]:
+                - text: urllib3 has usage and reference documentation at
+                - link "urllib3.readthedocs.io" [ref=e123] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io
+                - text: .
+              - heading "Community" [level=2] [ref=e124]
+              - paragraph [ref=e125]:
+                - text: urllib3 has a
+                - link "community Discord channel" [ref=e126] [cursor=pointer]:
+                  - /url: https://discord.gg/urllib3
+                - text: for asking questions and collaborating with other contributors. Drop by and say hello 👋
+              - heading "Contributing" [level=2] [ref=e127]
+              - paragraph [ref=e128]:
+                - text: urllib3 happily accepts contributions. Please see our
+                - link "contributing documentation" [ref=e129] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io/en/latest/contributing.html
+                - text: for some tips on getting started.
+              - heading "Security Disclosures" [level=2] [ref=e130]
+              - paragraph [ref=e131]:
+                - text: To report a security vulnerability, please use the
+                - link "Tidelift security contact" [ref=e132] [cursor=pointer]:
+                  - /url: https://tidelift.com/security
+                - text: . Tidelift will coordinate the fix and disclosure with maintainers.
+              - heading "Maintainers" [level=2] [ref=e133]
+              - paragraph [ref=e134]: "Meet our maintainers since 2008:"
+              - list [ref=e135]:
+                - listitem [ref=e136]:
+                  - text: "Current Lead:"
+                  - link "@illia-v" [ref=e137] [cursor=pointer]:
+                    - /url: https://github.com/illia-v
+                  - text: (Illia Volochii)
+                - listitem [ref=e138]:
+                  - link "@sethmlarson" [ref=e139] [cursor=pointer]:
+                    - /url: https://github.com/sethmlarson
+                  - text: (Seth M. Larson)
+                - listitem [ref=e140]:
+                  - link "@pquentin" [ref=e141] [cursor=pointer]:
+                    - /url: https://github.com/pquentin
+                  - text: (Quentin Pradet)
+                - listitem [ref=e142]:
+                  - link "@theacodes" [ref=e143] [cursor=pointer]:
+                    - /url: https://github.com/theacodes
+                  - text: (Thea Flowers)
+                - listitem [ref=e144]:
+                  - link "@haikuginger" [ref=e145] [cursor=pointer]:
+                    - /url: https://github.com/haikuginger
+                  - text: (Jess Shapiro)
+                - listitem [ref=e146]:
+                  - link "@lukasa" [ref=e147] [cursor=pointer]:
+                    - /url: https://github.com/lukasa
+                  - text: (Cory Benfield)
+                - listitem [ref=e148]:
+                  - link "@sigmavirus24" [ref=e149] [cursor=pointer]:
+                    - /url: https://github.com/sigmavirus24
+                  - text: (Ian Stapleton Cordasco)
+                - listitem [ref=e150]:
+                  - link "@shazow" [ref=e151] [cursor=pointer]:
+                    - /url: https://github.com/shazow
+                  - text: (Andrey Petrov)
+              - paragraph [ref=e152]: 👋
+              - heading "Sponsorship" [level=2] [ref=e153]
+              - paragraph [ref=e154]:
+                - text: If your company benefits from this library, please consider
+                - link "sponsoring its development" [ref=e155] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io/en/latest/sponsors.html
+                - text: .
+              - heading "For Enterprise" [level=2] [ref=e156]
+              - paragraph [ref=e157]:
+                - text: Professional support for urllib3 is available as part of the
+                - link "Tidelift Subscription" [ref=e158] [cursor=pointer]:
+                  - /url: https://tidelift.com/subscription/pkg/pypi-urllib3?utm_source=pypi-urllib3&utm_medium=referral&utm_campaign=readme
+                - text: . Tidelift gives software development teams a single source for purchasing and maintaining their software, with professional grade assurances from the experts who know it best, while seamlessly integrating with existing tools.
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - heading "Details" [level=2] [ref=e161]
+            - generic [ref=e162]:
+              - generic [ref=e163]:
+                - term [ref=e164]: Version
+                - definition [ref=e165]: 2.6.3
+              - generic [ref=e166]:
+                - term [ref=e167]: License
+                - definition [ref=e168]: MIT
+              - generic [ref=e169]:
+                - term [ref=e170]: Python
+                - definition [ref=e171]: ">=3.9"
+              - generic [ref=e172]:
+                - term [ref=e173]: Maintainer
+                - definition [ref=e174]: Andrey Petrov <andrey.petrov@shazow.net>
+          - generic [ref=e175]:
+            - heading "Links" [level=2] [ref=e176]
+            - list [ref=e177]:
+              - listitem [ref=e178]:
+                - link "Changelog" [ref=e179] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3/blob/main/CHANGES.rst
+                  - img [ref=e180]
+                  - text: Changelog
+              - listitem [ref=e184]:
+                - link "Code" [ref=e185] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3
+                  - img [ref=e186]
+                  - text: Code
+              - listitem [ref=e190]:
+                - link "Documentation" [ref=e191] [cursor=pointer]:
+                  - /url: https://urllib3.readthedocs.io
+                  - img [ref=e192]
+                  - text: Documentation
+              - listitem [ref=e196]:
+                - link "Issue tracker" [ref=e197] [cursor=pointer]:
+                  - /url: https://github.com/urllib3/urllib3/issues
+                  - img [ref=e198]
+                  - text: Issue tracker
+          - link "Documentation →" [ref=e203] [cursor=pointer]:
+            - /url: https://urllib3.readthedocs.io
+          - generic [ref=e204]:
+            - generic [ref=e205]: Release Cadence
+            - generic [ref=e206]: 5 releases in the past year · avg 58 days apart
+          - generic [ref=e209]:
+            - generic [ref=e210]: Maintainers
+            - list [ref=e211]:
+              - listitem [ref=e212]:
+                - text: Andrey Petrov ·
+                - link "andrey.petrov@shazow.net" [ref=e213] [cursor=pointer]:
+                  - /url: mailto:andrey.petrov@shazow.net

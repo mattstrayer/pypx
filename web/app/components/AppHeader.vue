@@ -49,6 +49,7 @@ onUnmounted(() => {
               v-model="query"
               type="text"
               placeholder="Search packages..."
+              aria-label="Search Python packages"
               class="w-full rounded-md border border-zinc-800 bg-zinc-900 py-1.5 pl-8 pr-12 text-sm text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"

@@ -1,0 +1,248 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "pillow" [level=1] [ref=e17]
+          - generic [ref=e18]: v12.2.0
+        - paragraph [ref=e19]: Python Imaging Library (fork)
+        - generic [ref=e21]:
+          - generic [ref=e22]: 2.3 MB
+          - generic [ref=e23]: Python 3.10+
+          - generic [ref=e24]: platform-specific
+          - generic [ref=e25]: MIT-CMU
+          - generic [ref=e27]: type stubs
+          - link "conda" [ref=e28] [cursor=pointer]:
+            - /url: https://anaconda.org/conda-forge/pillow
+      - generic [ref=e29]:
+        - button "Overview" [ref=e30] [cursor=pointer]
+        - button "Dependencies" [ref=e31] [cursor=pointer]
+        - button "Versions" [ref=e32] [cursor=pointer]
+        - button "Stats" [ref=e33] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - button "uv" [ref=e40] [cursor=pointer]
+              - button "pip" [ref=e41] [cursor=pointer]
+              - button "poetry" [ref=e42] [cursor=pointer]
+              - button "pipx" [ref=e43] [cursor=pointer]
+            - generic [ref=e44]:
+              - code [ref=e45]: $ uv add pillow
+              - button "Copy" [ref=e46] [cursor=pointer]:
+                - img [ref=e47]
+          - generic [ref=e50]:
+            - heading "Description" [level=2] [ref=e51]
+            - generic [ref=e52]:
+              - paragraph [ref=e53]:
+                - img "Pillow logo" [ref=e54]
+              - heading "Pillow" [level=1] [ref=e55]
+              - heading "Python Imaging Library (Fork)" [level=2] [ref=e56]
+              - paragraph [ref=e57]:
+                - text: Pillow is the friendly PIL fork by
+                - link "Jeffrey 'Alex' Clark and contributors" [ref=e58] [cursor=pointer]:
+                  - /url: https://github.com/python-pillow/Pillow/graphs/contributors
+                - text: . PIL is the Python Imaging Library by Fredrik Lundh and contributors. As of 2019, Pillow development is
+                - link "supported by Tidelift" [ref=e59] [cursor=pointer]:
+                  - /url: https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=readme&utm_campaign=enterprise
+                - text: .
+              - table [ref=e60]:
+                - rowgroup [ref=e61]:
+                  - row "docs Documentation Status" [ref=e62]:
+                    - rowheader "docs" [ref=e63]
+                    - cell "Documentation Status" [ref=e64]:
+                      - link "Documentation Status" [ref=e65] [cursor=pointer]:
+                        - /url: https://pillow.readthedocs.io/?badge=latest
+                        - img "Documentation Status" [ref=e66]
+                  - row "tests GitHub Actions build status (Lint) GitHub Actions build status (Test Linux and macOS) GitHub Actions build status (Test Windows) GitHub Actions build status (Test MinGW) GitHub Actions build status (Test Docker) GitHub Actions build status (Wheels) Code coverage Fuzzing Status" [ref=e67]:
+                    - rowheader "tests" [ref=e68]
+                    - cell "GitHub Actions build status (Lint) GitHub Actions build status (Test Linux and macOS) GitHub Actions build status (Test Windows) GitHub Actions build status (Test MinGW) GitHub Actions build status (Test Docker) GitHub Actions build status (Wheels) Code coverage Fuzzing Status" [ref=e69]:
+                      - link "GitHub Actions build status (Lint)" [ref=e70] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/lint.yml
+                        - img "GitHub Actions build status (Lint)" [ref=e71]
+                      - link "GitHub Actions build status (Test Linux and macOS)" [ref=e72] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/test.yml
+                        - img "GitHub Actions build status (Test Linux and macOS)" [ref=e73]
+                      - link "GitHub Actions build status (Test Windows)" [ref=e74] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/test-windows.yml
+                        - img "GitHub Actions build status (Test Windows)" [ref=e75]
+                      - link "GitHub Actions build status (Test MinGW)" [ref=e76] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/test-mingw.yml
+                        - img "GitHub Actions build status (Test MinGW)" [ref=e77]
+                      - link "GitHub Actions build status (Test Docker)" [ref=e78] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/test-docker.yml
+                        - img "GitHub Actions build status (Test Docker)" [ref=e79]
+                      - link "GitHub Actions build status (Wheels)" [ref=e80] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/actions/workflows/wheels.yml
+                        - img "GitHub Actions build status (Wheels)" [ref=e81]
+                      - link "Code coverage" [ref=e82] [cursor=pointer]:
+                        - /url: https://app.codecov.io/gh/python-pillow/Pillow
+                        - img "Code coverage" [ref=e83]
+                      - link "Fuzzing Status" [ref=e84] [cursor=pointer]:
+                        - /url: https://issues.oss-fuzz.com/issues?q=title:pillow
+                        - img "Fuzzing Status" [ref=e85]
+                  - row "package Zenodo Tidelift Newest PyPI version Number of PyPI downloads OpenSSF Best Practices" [ref=e86]:
+                    - rowheader "package" [ref=e87]
+                    - cell "Zenodo Tidelift Newest PyPI version Number of PyPI downloads OpenSSF Best Practices" [ref=e88]:
+                      - link "Zenodo" [ref=e89] [cursor=pointer]:
+                        - /url: https://zenodo.org/badge/latestdoi/17549/python-pillow/Pillow
+                        - img "Zenodo" [ref=e90]
+                      - link "Tidelift" [ref=e91] [cursor=pointer]:
+                        - /url: https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=badge
+                        - img "Tidelift" [ref=e92]
+                      - link "Newest PyPI version" [ref=e93] [cursor=pointer]:
+                        - /url: https://pypi.org/project/pillow/
+                        - img "Newest PyPI version" [ref=e94]
+                      - link "Number of PyPI downloads" [ref=e95] [cursor=pointer]:
+                        - /url: https://pypi.org/project/pillow/
+                        - img "Number of PyPI downloads" [ref=e96]
+                      - link "OpenSSF Best Practices" [ref=e97] [cursor=pointer]:
+                        - /url: https://www.bestpractices.dev/projects/6331
+                        - img "OpenSSF Best Practices" [ref=e98]
+                  - row "social Join the chat at https://gitter.im/python-pillow/Pillow Follow on https://fosstodon.org/@pillow" [ref=e99]:
+                    - rowheader "social" [ref=e100]
+                    - cell "Join the chat at https://gitter.im/python-pillow/Pillow Follow on https://fosstodon.org/@pillow" [ref=e101]:
+                      - link "Join the chat at https://gitter.im/python-pillow/Pillow" [ref=e102] [cursor=pointer]:
+                        - /url: https://gitter.im/python-pillow/Pillow?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
+                        - img "Join the chat at https://gitter.im/python-pillow/Pillow" [ref=e103]
+                      - link "Follow on https://fosstodon.org/@pillow" [ref=e104] [cursor=pointer]:
+                        - /url: https://fosstodon.org/@pillow
+                        - img "Follow on https://fosstodon.org/@pillow" [ref=e105]
+              - heading "Overview" [level=2] [ref=e106]
+              - paragraph [ref=e107]: The Python Imaging Library adds image processing capabilities to your Python interpreter.
+              - paragraph [ref=e108]: This library provides extensive file format support, an efficient internal representation, and fairly powerful image processing capabilities.
+              - paragraph [ref=e109]: The core image library is designed for fast access to data stored in a few basic pixel formats. It should provide a solid foundation for a general image processing tool.
+              - heading "More information" [level=2] [ref=e110]
+              - list [ref=e111]:
+                - listitem [ref=e112]:
+                  - link "Documentation" [ref=e113] [cursor=pointer]:
+                    - /url: https://pillow.readthedocs.io/
+                  - list [ref=e114]:
+                    - listitem [ref=e115]:
+                      - link "Installation" [ref=e116] [cursor=pointer]:
+                        - /url: https://pillow.readthedocs.io/en/latest/installation/basic-installation.html
+                    - listitem [ref=e117]:
+                      - link "Handbook" [ref=e118] [cursor=pointer]:
+                        - /url: https://pillow.readthedocs.io/en/latest/handbook/index.html
+                - listitem [ref=e119]:
+                  - link "Contribute" [ref=e120] [cursor=pointer]:
+                    - /url: https://github.com/python-pillow/Pillow/blob/main/.github/CONTRIBUTING.md
+                  - list [ref=e121]:
+                    - listitem [ref=e122]:
+                      - link "Issues" [ref=e123] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/issues
+                    - listitem [ref=e124]:
+                      - link "Pull requests" [ref=e125] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/pulls
+                - listitem [ref=e126]:
+                  - link "Release notes" [ref=e127] [cursor=pointer]:
+                    - /url: https://pillow.readthedocs.io/en/stable/releasenotes/index.html
+                - listitem [ref=e128]:
+                  - link "Changelog" [ref=e129] [cursor=pointer]:
+                    - /url: https://github.com/python-pillow/Pillow/releases
+                  - list [ref=e130]:
+                    - listitem [ref=e131]:
+                      - link "Pre-fork" [ref=e132] [cursor=pointer]:
+                        - /url: https://github.com/python-pillow/Pillow/blob/main/CHANGES.rst#pre-fork
+              - heading "Report a vulnerability" [level=2] [ref=e133]
+              - paragraph [ref=e134]:
+                - text: To report a security vulnerability, please follow the procedure described in the
+                - link "Tidelift security policy" [ref=e135] [cursor=pointer]:
+                  - /url: https://tidelift.com/docs/security
+                - text: .
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - heading "Details" [level=2] [ref=e138]
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - term [ref=e141]: Version
+                - definition [ref=e142]: 12.2.0
+              - generic [ref=e143]:
+                - term [ref=e144]: License
+                - definition [ref=e145]: MIT-CMU
+              - generic [ref=e146]:
+                - term [ref=e147]: Python
+                - definition [ref=e148]: ">=3.10"
+              - generic [ref=e149]:
+                - term [ref=e150]: Maintainer
+                - definition [ref=e151]: Jeffrey 'Alex' Clark <aclark@aclark.net>
+          - generic [ref=e152]:
+            - heading "Links" [level=2] [ref=e153]
+            - list [ref=e154]:
+              - listitem [ref=e155]:
+                - link "Changelog" [ref=e156] [cursor=pointer]:
+                  - /url: https://github.com/python-pillow/Pillow/releases
+                  - img [ref=e157]
+                  - text: Changelog
+              - listitem [ref=e161]:
+                - link "Documentation" [ref=e162] [cursor=pointer]:
+                  - /url: https://pillow.readthedocs.io
+                  - img [ref=e163]
+                  - text: Documentation
+              - listitem [ref=e167]:
+                - link "Funding" [ref=e168] [cursor=pointer]:
+                  - /url: https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=pypi
+                  - img [ref=e169]
+                  - text: Funding
+              - listitem [ref=e173]:
+                - link "Homepage" [ref=e174] [cursor=pointer]:
+                  - /url: https://python-pillow.github.io
+                  - img [ref=e175]
+                  - text: Homepage
+              - listitem [ref=e179]:
+                - link "Mastodon" [ref=e180] [cursor=pointer]:
+                  - /url: https://fosstodon.org/@pillow
+                  - img [ref=e181]
+                  - text: Mastodon
+              - listitem [ref=e185]:
+                - link "Release notes" [ref=e186] [cursor=pointer]:
+                  - /url: https://pillow.readthedocs.io/en/stable/releasenotes/index.html
+                  - img [ref=e187]
+                  - text: Release notes
+              - listitem [ref=e191]:
+                - link "Source" [ref=e192] [cursor=pointer]:
+                  - /url: https://github.com/python-pillow/Pillow
+                  - img [ref=e193]
+                  - text: Source
+          - generic [ref=e197]:
+            - generic [ref=e198]: GitHub
+            - generic [ref=e199]:
+              - generic [ref=e200]: 13,509 stars
+              - generic [ref=e201]: 2,421 forks
+              - generic [ref=e202]: 119 open issues
+            - generic [ref=e203]: last commit 14 hours ago
+          - link "Documentation →" [ref=e205] [cursor=pointer]:
+            - /url: https://pillow.readthedocs.io
+          - generic [ref=e206]:
+            - generic [ref=e207]: Release Cadence
+            - generic [ref=e208]: 5 releases in the past year · avg 55 days apart
+          - generic [ref=e210]:
+            - generic [ref=e211]: Platforms
+            - generic [ref=e212]:
+              - generic "Linux x86_64" [ref=e213]: linux
+              - generic "Linux ARM64" [ref=e214]: arm64
+              - generic "macOS Intel" [ref=e215]: mac-x86
+              - generic "macOS Apple Silicon" [ref=e216]: mac-arm
+              - generic "Windows x86_64" [ref=e217]: win
+              - generic "musl/Alpine" [ref=e218]: musl
+          - generic [ref=e220]:
+            - generic [ref=e221]: Maintainers
+            - link "python-pillow Pillow org" [ref=e223] [cursor=pointer]:
+              - /url: https://github.com/python-pillow
+              - img "python-pillow" [ref=e224]
+              - generic [ref=e225]: Pillow
+              - generic [ref=e226]: org
+            - list [ref=e227]:
+              - listitem [ref=e228]:
+                - text: Jeffrey 'Alex' Clark ·
+                - link "aclark@aclark.net" [ref=e229] [cursor=pointer]:
+                  - /url: mailto:aclark@aclark.net

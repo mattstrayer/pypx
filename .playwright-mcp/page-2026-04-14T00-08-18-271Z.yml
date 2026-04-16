@@ -1,0 +1,212 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "pypx" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: pypx
+        - generic [ref=e10]:
+          - img
+          - textbox "Search packages..." [ref=e11]
+          - generic: ⌘K
+    - main [ref=e12]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - heading "requests" [level=1] [ref=e17]
+            - generic [ref=e18]: v2.33.1
+          - paragraph [ref=e19]: Python HTTP for Humans.
+          - generic [ref=e21]:
+            - generic [ref=e22]: 63 KB
+            - generic [ref=e23]: Python 3.10+
+            - generic [ref=e24]: py3-none-any
+            - generic [ref=e25]: Apache Software License
+            - generic [ref=e26]: 4 deps
+            - generic [ref=e28]: type stubs
+            - link "conda" [ref=e29] [cursor=pointer]:
+              - /url: https://anaconda.org/conda-forge/requests
+        - generic [ref=e30]:
+          - button "Overview" [ref=e31] [cursor=pointer]
+          - button "Dependencies" [ref=e32] [cursor=pointer]
+          - button "Versions" [ref=e33] [cursor=pointer]
+          - button "Stats" [ref=e34] [cursor=pointer]
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - generic [ref=e40]:
+                - button "uv" [ref=e41] [cursor=pointer]
+                - button "pip" [ref=e42] [cursor=pointer]
+                - button "poetry" [ref=e43] [cursor=pointer]
+                - button "pipx" [ref=e44] [cursor=pointer]
+              - generic [ref=e45]:
+                - code [ref=e46]: $ uv add requests
+                - button "Copy" [ref=e47] [cursor=pointer]:
+                  - img [ref=e48]
+            - generic [ref=e51]:
+              - heading "Description" [level=2] [ref=e52]
+              - generic [ref=e53]:
+                - heading "Requests" [level=1] [ref=e54]
+                - paragraph [ref=e55]:
+                  - link "Version" [ref=e56] [cursor=pointer]:
+                    - /url: https://pypi.org/project/requests/
+                    - img "Version" [ref=e57]
+                  - link "Supported Versions" [ref=e58] [cursor=pointer]:
+                    - /url: https://pypi.org/project/requests
+                    - img "Supported Versions" [ref=e59]
+                  - link "Downloads" [ref=e60] [cursor=pointer]:
+                    - /url: https://pepy.tech/project/requests
+                    - img "Downloads" [ref=e61]
+                  - link "Contributors" [ref=e62] [cursor=pointer]:
+                    - /url: https://github.com/psf/requests/graphs/contributors
+                    - img "Contributors" [ref=e63]
+                - paragraph [ref=e64]:
+                  - strong [ref=e65]: Requests
+                  - text: is a simple, yet elegant, HTTP library.
+                - code [ref=e67]:
+                  - generic [ref=e69]: ">>> import requests"
+                  - generic [ref=e71]: ">>> r = requests.get('https://httpbin.org/basic-auth/user/pass', auth=('user', 'pass'))"
+                  - generic [ref=e73]: ">>> r.status_code"
+                  - generic [ref=e75]: "200"
+                  - generic [ref=e77]: ">>> r.headers['content-type']"
+                  - generic [ref=e79]: "'application/json; charset=utf8'"
+                  - generic [ref=e81]: ">>> r.encoding"
+                  - generic [ref=e83]: "'utf-8'"
+                  - generic [ref=e85]: ">>> r.text"
+                  - generic [ref=e87]: "'{\"authenticated\": true, ...'"
+                  - generic [ref=e89]: ">>> r.json()"
+                  - generic [ref=e91]: "{'authenticated': True, ...}"
+                - paragraph [ref=e92]:
+                  - text: Requests allows you to send HTTP/1.1 requests extremely easily. There’s no need to manually add query strings to your URLs, or to form-encode your
+                  - code [ref=e93]: PUT
+                  - text: "&"
+                  - code [ref=e94]: POST
+                  - text: data — but nowadays, just use the
+                  - code [ref=e95]: json
+                  - text: method!
+                - paragraph [ref=e96]:
+                  - text: Requests is one of the most downloaded Python packages today, pulling in around
+                  - code [ref=e97]: 30M downloads / week
+                  - text: — according to GitHub, Requests is currently
+                  - link "depended upon" [ref=e98] [cursor=pointer]:
+                    - /url: https://github.com/psf/requests/network/dependents?package_id=UGFja2FnZS01NzA4OTExNg%3D%3D
+                  - text: by
+                  - code [ref=e99]: 1,000,000+
+                  - text: repositories. You may certainly put your trust in this code.
+                - heading "Installing Requests and Supported Versions" [level=2] [ref=e100]
+                - paragraph [ref=e101]: "Requests is available on PyPI:"
+                - code [ref=e103]:
+                  - generic [ref=e105]: $ python -m pip install requests
+                - paragraph [ref=e106]: Requests officially supports Python 3.10+.
+                - heading "Supported Features & Best–Practices" [level=2] [ref=e107]
+                - paragraph [ref=e108]: Requests is ready for the demands of building robust and reliable HTTP–speaking applications, for the needs of today.
+                - list [ref=e109]:
+                  - listitem [ref=e110]: Keep-Alive & Connection Pooling
+                  - listitem [ref=e111]: International Domains and URLs
+                  - listitem [ref=e112]: Sessions with Cookie Persistence
+                  - listitem [ref=e113]: Browser-style TLS/SSL Verification
+                  - listitem [ref=e114]: Basic & Digest Authentication
+                  - listitem [ref=e115]:
+                    - text: Familiar
+                    - code [ref=e116]: dict
+                    - text: –like Cookies
+                  - listitem [ref=e117]: Automatic Content Decompression and Decoding
+                  - listitem [ref=e118]: Multi-part File Uploads
+                  - listitem [ref=e119]: SOCKS Proxy Support
+                  - listitem [ref=e120]: Connection Timeouts
+                  - listitem [ref=e121]: Streaming Downloads
+                  - listitem [ref=e122]:
+                    - text: Automatic honoring of
+                    - code [ref=e123]: .netrc
+                  - listitem [ref=e124]: Chunked HTTP Requests
+                - heading "API Reference and User Guide available on Read the Docs" [level=2] [ref=e125]:
+                  - text: API Reference and User Guide available on
+                  - link "Read the Docs" [ref=e126] [cursor=pointer]:
+                    - /url: https://requests.readthedocs.io
+                - paragraph [ref=e127]:
+                  - link "Read the Docs" [ref=e128] [cursor=pointer]:
+                    - /url: https://requests.readthedocs.io
+                    - img "Read the Docs" [ref=e129]
+                - heading "Cloning the repository" [level=2] [ref=e130]
+                - paragraph [ref=e131]:
+                  - text: When cloning the Requests repository, you may need to add the
+                  - code [ref=e132]: "-c fetch.fsck.badTimezone=ignore"
+                  - text: flag to avoid an error about a bad commit timestamp (see
+                  - link "this issue" [ref=e133] [cursor=pointer]:
+                    - /url: https://github.com/psf/requests/issues/2690
+                  - text: "for more background):"
+                - code [ref=e135]:
+                  - generic [ref=e137]: git clone -c fetch.fsck.badTimezone=ignore https://github.com/psf/requests.git
+                - paragraph [ref=e138]: "You can also apply this setting to your global Git config:"
+                - code [ref=e140]:
+                  - generic [ref=e142]: git config --global fetch.fsck.badTimezone ignore
+                - separator [ref=e143]
+                - paragraph [ref=e144]:
+                  - link "Kenneth Reitz" [ref=e145] [cursor=pointer]:
+                    - /url: https://kennethreitz.org
+                    - img "Kenneth Reitz" [ref=e146]
+                  - link "Python Software Foundation" [ref=e147] [cursor=pointer]:
+                    - /url: https://www.python.org/psf
+                    - img "Python Software Foundation" [ref=e148]
+          - generic [ref=e149]:
+            - generic [ref=e150]:
+              - heading "Details" [level=2] [ref=e151]
+              - generic [ref=e152]:
+                - generic [ref=e153]:
+                  - term [ref=e154]: Version
+                  - definition [ref=e155]: 2.33.1
+                - generic [ref=e156]:
+                  - term [ref=e157]: License
+                  - definition [ref=e158]: Apache Software License
+                - generic [ref=e159]:
+                  - term [ref=e160]: Python
+                  - definition [ref=e161]: ">=3.10"
+                - generic [ref=e162]:
+                  - term [ref=e163]: Maintainer
+                  - definition [ref=e164]: Kenneth Reitz <me@kennethreitz.org>
+            - generic [ref=e165]:
+              - heading "Links" [level=2] [ref=e166]
+              - list [ref=e167]:
+                - listitem [ref=e168]:
+                  - link "Documentation" [ref=e169] [cursor=pointer]:
+                    - /url: https://requests.readthedocs.io
+                    - img [ref=e170]
+                    - text: Documentation
+                - listitem [ref=e174]:
+                  - link "Source" [ref=e175] [cursor=pointer]:
+                    - /url: https://github.com/psf/requests
+                    - img [ref=e176]
+                    - text: Source
+            - generic [ref=e180]:
+              - generic [ref=e181]: GitHub
+              - generic [ref=e182]:
+                - generic [ref=e183]: 53,893 stars
+                - generic [ref=e184]: 9,837 forks
+                - generic [ref=e185]: 231 open issues
+              - generic [ref=e186]: last commit 2 days ago
+            - link "Documentation →" [ref=e188] [cursor=pointer]:
+              - /url: https://requests.readthedocs.io
+            - generic [ref=e189]:
+              - generic [ref=e190]: Release Cadence
+              - generic [ref=e191]: 4 releases in the past year · avg 36 days apart
+            - generic [ref=e194]:
+              - generic [ref=e195]: Maintainers
+              - link "psf Python Software Foundation org" [ref=e197] [cursor=pointer]:
+                - /url: https://github.com/psf
+                - img "psf" [ref=e198]
+                - generic [ref=e199]: Python Software Foundation
+                - generic [ref=e200]: org
+              - list [ref=e201]:
+                - listitem [ref=e202]:
+                  - text: Kenneth Reitz ·
+                  - link "me@kennethreitz.org" [ref=e203] [cursor=pointer]:
+                    - /url: mailto:me@kennethreitz.org
+  - generic:
+    - img
+  - generic [ref=e204]:
+    - button "Toggle Nuxt DevTools" [ref=e205] [cursor=pointer]:
+      - img [ref=e206]
+    - generic "Page load time" [ref=e209]:
+      - generic [ref=e210]: "25"
+      - generic [ref=e211]: ms
+    - button "Toggle Component Inspector" [ref=e213] [cursor=pointer]:
+      - img [ref=e214]

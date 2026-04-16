@@ -1,0 +1,14 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - paragraph [ref=e15]: Package not found
+      - paragraph [ref=e16]: No package named "nose" could be found.

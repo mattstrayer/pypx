@@ -1,0 +1,135 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "setuptools" [level=1] [ref=e17]
+          - generic [ref=e18]: v82.0.1
+        - paragraph [ref=e19]: Most extensible Python build backend with support for C/C++ extension modules
+        - generic [ref=e21]:
+          - generic [ref=e22]: 983 KB
+          - generic [ref=e23]: Python 3.9+
+          - generic [ref=e24]: py3-none-any
+          - generic [ref=e25]: MIT
+          - generic [ref=e27]: typed
+          - link "conda" [ref=e28] [cursor=pointer]:
+            - /url: https://anaconda.org/conda-forge/setuptools
+      - generic [ref=e29]:
+        - button "Overview" [ref=e30] [cursor=pointer]
+        - button "Dependencies" [ref=e31] [cursor=pointer]
+        - button "Versions" [ref=e32] [cursor=pointer]
+        - button "Stats" [ref=e33] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - button "uv" [ref=e40] [cursor=pointer]
+              - button "pip" [ref=e41] [cursor=pointer]
+              - button "poetry" [ref=e42] [cursor=pointer]
+              - button "pipx" [ref=e43] [cursor=pointer]
+            - generic [ref=e44]:
+              - code [ref=e45]: $ uv add setuptools
+              - button "Copy" [ref=e46] [cursor=pointer]:
+                - img [ref=e47]
+          - generic [ref=e50]:
+            - heading "Description" [level=2] [ref=e51]
+            - generic [ref=e52]:
+              - paragraph [ref=e53]: ":target: https://pypi.org/project/setuptools"
+              - paragraph [ref=e54]: ":target: https://github.com/pypa/setuptools/actions?query=workflow%3A%22tests%22 :alt: tests"
+              - paragraph [ref=e55]: ":target: https://github.com/astral-sh/ruff :alt: Ruff"
+              - paragraph [ref=e56]: ":target: https://setuptools.pypa.io"
+              - paragraph [ref=e57]: ":target: https://blog.jaraco.com/skeleton"
+              - paragraph [ref=e58]: ":target: https://codecov.io/gh/pypa/setuptools"
+              - paragraph [ref=e59]: ":target: https://tidelift.com/subscription/pkg/pypi-setuptools?utm_source=pypi-setuptools&utm_medium=readme"
+              - paragraph [ref=e60]: ":target: https://discord.com/channels/803025117553754132/815945031150993468 :alt: Discord"
+              - paragraph [ref=e61]: "|pypi-version| |py-version| |test-badge| |ruff-badge| |docs-badge| |skeleton-badge| |codecov-badge| |discord-badge|"
+              - paragraph [ref=e62]:
+                - text: See the
+                - code [ref=e63]: Quickstart <https://setuptools.pypa.io/en/latest/userguide/quickstart.html>
+                - text: _ and the
+                - code [ref=e64]: User's Guide <https://setuptools.pypa.io/en/latest/userguide/>
+                - text: _ for instructions on how to use Setuptools.
+              - paragraph [ref=e65]:
+                - text: Questions and comments should be directed to
+                - code [ref=e66]: GitHub Discussions <https://github.com/pypa/setuptools/discussions>
+                - text: _. Bug reports and especially tested patches may be submitted directly to the
+                - code [ref=e67]: bug tracker <https://github.com/pypa/setuptools/issues>
+                - text: _.
+              - heading "Code of Conduct" [level=1] [ref=e68]
+              - paragraph [ref=e69]:
+                - text: Everyone interacting in the setuptools project's codebases, issue trackers, chat rooms, and fora is expected to follow the
+                - code [ref=e70]: PSF Code of Conduct <https://github.com/pypa/.github/blob/main/CODE_OF_CONDUCT.md>
+                - text: _.
+              - heading "For Enterprise" [level=1] [ref=e71]
+              - paragraph [ref=e72]: Available as part of the Tidelift Subscription.
+              - paragraph [ref=e73]: Setuptools and the maintainers of thousands of other packages are working with Tidelift to deliver one enterprise subscription that covers all of the open source you use.
+              - paragraph [ref=e74]:
+                - code [ref=e75]: Learn more <https://tidelift.com/subscription/pkg/pypi-setuptools?utm_source=pypi-setuptools&utm_medium=referral&utm_campaign=github>
+                - text: _.
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - heading "Details" [level=2] [ref=e78]
+            - generic [ref=e79]:
+              - generic [ref=e80]:
+                - term [ref=e81]: Version
+                - definition [ref=e82]: 82.0.1
+              - generic [ref=e83]:
+                - term [ref=e84]: License
+                - definition [ref=e85]: MIT
+              - generic [ref=e86]:
+                - term [ref=e87]: Python
+                - definition [ref=e88]: ">=3.9"
+              - generic [ref=e89]:
+                - term [ref=e90]: Maintainer
+                - definition [ref=e91]: Python Packaging Authority <distutils-sig@python.org>
+          - generic [ref=e92]:
+            - heading "Links" [level=2] [ref=e93]
+            - list [ref=e94]:
+              - listitem [ref=e95]:
+                - link "Changelog" [ref=e96] [cursor=pointer]:
+                  - /url: https://setuptools.pypa.io/en/stable/history.html
+                  - img [ref=e97]
+                  - text: Changelog
+              - listitem [ref=e101]:
+                - link "Documentation" [ref=e102] [cursor=pointer]:
+                  - /url: https://setuptools.pypa.io/
+                  - img [ref=e103]
+                  - text: Documentation
+              - listitem [ref=e107]:
+                - link "Source" [ref=e108] [cursor=pointer]:
+                  - /url: https://github.com/pypa/setuptools
+                  - img [ref=e109]
+                  - text: Source
+          - generic [ref=e113]:
+            - generic [ref=e114]: GitHub
+            - generic [ref=e115]:
+              - generic [ref=e116]: 2,819 stars
+              - generic [ref=e117]: 1,376 forks
+              - generic [ref=e118]: 642 open issues
+            - generic [ref=e119]: last commit last month
+          - link "Documentation →" [ref=e121] [cursor=pointer]:
+            - /url: https://setuptools.pypa.io/
+          - generic [ref=e122]:
+            - generic [ref=e123]: Release Cadence
+            - generic [ref=e124]: 22 releases in the past year · avg 12 days apart
+          - generic [ref=e127]:
+            - generic [ref=e128]: Maintainers
+            - link "pypa Python Packaging Authority org" [ref=e130] [cursor=pointer]:
+              - /url: https://github.com/pypa
+              - img "pypa" [ref=e131]
+              - generic [ref=e132]: Python Packaging Authority
+              - generic [ref=e133]: org
+            - list [ref=e134]:
+              - listitem [ref=e135]:
+                - text: Python Packaging Authority ·
+                - link "distutils-sig@python.org" [ref=e136] [cursor=pointer]:
+                  - /url: mailto:distutils-sig@python.org

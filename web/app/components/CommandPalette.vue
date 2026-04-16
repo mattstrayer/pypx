@@ -83,6 +83,7 @@ onUnmounted(() => {
               v-model="query"
               type="text"
               placeholder="Search packages..."
+              aria-label="Search Python packages"
               class="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-500 outline-none"
               @keydown="onModalKeydown"
             />

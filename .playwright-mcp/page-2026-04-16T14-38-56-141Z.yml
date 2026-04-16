@@ -1,0 +1,198 @@
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - navigation "Main" [ref=e7]:
+      - link "npmx home" [ref=e9] [cursor=pointer]:
+        - /url: /
+        - img [ref=e10]
+        - generic [ref=e18]: alpha
+      - button "Open command palette" [ref=e19]:
+        - generic [ref=e20]: jump to...
+        - generic [ref=e22]: ⌘ K
+      - search [ref=e24]:
+        - generic [ref=e25]:
+          - generic [ref=e26]: Search npm packages
+          - generic [ref=e28]:
+            - generic: /
+            - searchbox "Search npm packages" [ref=e29]
+            - button "search" [ref=e30]
+      - generic [ref=e31]:
+        - link "compare" [ref=e32] [cursor=pointer]:
+          - /url: /compare
+          - text: compare
+          - generic [ref=e33]: c
+        - link "settings" [ref=e34] [cursor=pointer]:
+          - /url: /settings
+          - text: settings
+          - generic [ref=e35]: ","
+        - button "connect" [ref=e37]:
+          - generic [ref=e38]: connect
+  - alert [ref=e40]: settings - npmx
+  - main [ref=e42]:
+    - article [ref=e43]:
+      - generic [ref=e44]:
+        - heading "settings" [level=1] [ref=e46]
+        - paragraph [ref=e47]: customize your npmx experience
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - heading "Appearance" [level=2] [ref=e50]
+          - generic [ref=e51]:
+            - generic [ref=e52]:
+              - generic [ref=e53]: Theme
+              - combobox "Theme" [ref=e56]:
+                - option "System" [selected]
+                - option "Light"
+                - option "Dark"
+            - generic [ref=e57]:
+              - generic [ref=e58]: Accent colors
+              - group "Accent colors" [ref=e59]:
+                - generic [ref=e60]: Accent colors
+                - radio "Sky" [checked] [ref=e62]
+                - radio "Coral" [ref=e64]
+                - radio "Amber" [ref=e66]
+                - radio "Emerald" [ref=e68]
+                - radio "Violet" [ref=e70]
+                - radio "Magenta" [ref=e72]
+                - radio "Clear accent color" [ref=e74]
+            - generic [ref=e76]:
+              - generic [ref=e77]: Background shade
+              - group "Background shade" [ref=e78]:
+                - generic [ref=e79]: Background shade
+                - radio "Neutral" [checked] [ref=e81]
+                - radio "Stone" [ref=e83]
+                - radio "Zinc" [ref=e85]
+                - radio "Slate" [ref=e87]
+                - radio "Black" [ref=e89]
+        - generic [ref=e90]:
+          - heading "Display" [level=2] [ref=e91]
+          - generic [ref=e92]:
+            - generic [ref=e93] [cursor=pointer]:
+              - generic [ref=e94]: Relative dates
+              - switch "Relative dates" [ref=e95]
+            - generic [ref=e97] [cursor=pointer]:
+              - generic [ref=e98]: Include @types in install
+              - switch "Include @types in install" [checked] [ref=e99]
+            - paragraph [ref=e100]: Add @types package to install commands for untyped packages
+            - generic [ref=e102] [cursor=pointer]:
+              - generic [ref=e103]: Hide platform-specific packages in search
+              - switch "Hide platform-specific packages in search" [checked] [ref=e104]
+            - paragraph [ref=e105]: Hide native binary packages like @esbuild/linux-x64 from results
+            - generic [ref=e107] [cursor=pointer]:
+              - generic [ref=e108]: Enable looping of pulse effect on mini graph
+              - switch "Enable looping of pulse effect on mini graph" [ref=e109]
+            - paragraph [ref=e110]: Activate a continuous pulse animation on the weekly download graph. This animation may be distracting for some users.
+            - generic [ref=e112] [cursor=pointer]:
+              - generic [ref=e113]: Enable ligatures in code
+              - switch "Enable ligatures in code" [checked] [ref=e114]
+        - generic [ref=e115]:
+          - heading "Search features" [level=2] [ref=e116]
+          - generic [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: Data source
+              - paragraph [ref=e120]: Choose where npmx gets search data. Individual package pages always use the npm registry directly.
+              - combobox "Data source" [ref=e123]:
+                - option "npm Registry"
+                - option "Algolia" [selected]
+              - paragraph [ref=e124]: Uses Algolia for faster search, org and user pages.
+              - link "Powered by Algolia" [ref=e125] [cursor=pointer]:
+                - /url: https://www.algolia.com/developers
+                - text: Powered by Algolia
+            - generic [ref=e128] [cursor=pointer]:
+              - generic [ref=e129]: Instant search
+              - switch "Instant search" [checked] [ref=e130]
+            - paragraph [ref=e131]: Navigates to the search page and updates the results as you type.
+        - generic [ref=e132]:
+          - heading "Language" [level=2] [ref=e133]
+          - generic [ref=e134]:
+            - generic [ref=e135]:
+              - generic [ref=e136]: Language
+              - combobox "Language" [ref=e139]:
+                - option "العربية"
+                - option "Azərbaycanca"
+                - option "Български"
+                - option "বাংলা"
+                - option "Čeština"
+                - option "Österreichisch"
+                - option "Deutsch"
+                - option "English (UK)"
+                - option "English (US)" [selected]
+                - option "Español (Latinoamérica)"
+                - option "Español (España)"
+                - option "Français"
+                - option "हिंदी"
+                - option "Magyar"
+                - option "Indonesia"
+                - option "Italiano"
+                - option "日本語"
+                - option "ಕನ್ನಡ"
+                - option "मराठी"
+                - option "Norsk (Bokmål)"
+                - option "नेपाली"
+                - option "Nederlands"
+                - option "Polski"
+                - option "Português (Brasil)"
+                - option "Русский"
+                - option "Srpski (Latinica)"
+                - option "தமிழ்"
+                - option "తెలుగు"
+                - option "Türkçe"
+                - option "Українська"
+                - option "Tiếng Việt"
+                - option "简体中文"
+                - option "繁體中文"
+            - link "Help translate npmx" [ref=e140] [cursor=pointer]:
+              - /url: https://github.com/npmx-dev/npmx.dev/tree/main/i18n/locales
+              - text: Help translate npmx
+            - link "Check global translation status" [ref=e143] [cursor=pointer]:
+              - /url: /translation-status
+              - text: Check global translation status
+        - generic [ref=e145]:
+          - heading "Keyboard shortcuts" [level=2] [ref=e146]
+          - generic [ref=e147]:
+            - generic [ref=e148] [cursor=pointer]:
+              - generic [ref=e149]: Enable keyboard shortcuts
+              - switch "Enable keyboard shortcuts" [checked] [ref=e150]
+            - paragraph [ref=e151]: Keyboard shortcuts can be disabled if they conflict with other browser or system shortcuts
+  - status [ref=e152]
+  - contentinfo [ref=e153]:
+    - generic [ref=e154]:
+      - generic [ref=e155]:
+        - generic [ref=e156]:
+          - paragraph [ref=e157]: a fast, modern browser for the npm registry
+          - generic [ref=e158]:
+            - text: built
+            - time [ref=e160]: Apr 14, 2026
+            - generic [ref=e161]: ·
+            - link "v0.9.0" [ref=e162] [cursor=pointer]:
+              - /url: https://github.com/npmx-dev/npmx.dev/releases/tag/v0.9.0
+              - text: v0.9.0
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - link "about" [ref=e166] [cursor=pointer]:
+              - /url: /about
+            - link "blog" [ref=e167] [cursor=pointer]:
+              - /url: /blog
+            - link "privacy policy" [ref=e168] [cursor=pointer]:
+              - /url: /privacy
+            - link "a11y" [ref=e169] [cursor=pointer]:
+              - /url: /accessibility
+            - link "translation status" [ref=e170] [cursor=pointer]:
+              - /url: /translation-status
+            - link "brand" [ref=e171] [cursor=pointer]:
+              - /url: /brand
+            - button "keyboard shortcuts" [ref=e172] [cursor=pointer]
+          - generic [ref=e173]:
+            - link "docs" [ref=e174] [cursor=pointer]:
+              - /url: https://docs.npmx.dev
+              - text: docs
+            - link "source" [ref=e176] [cursor=pointer]:
+              - /url: https://repo.npmx.dev
+              - text: source
+            - link "social" [ref=e178] [cursor=pointer]:
+              - /url: https://social.npmx.dev
+              - text: social
+            - link "chat" [ref=e180] [cursor=pointer]:
+              - /url: https://chat.npmx.dev
+              - text: chat
+      - generic [ref=e182]: npm is a registered trademark of npm, Inc. This site is not affiliated with npm, Inc.

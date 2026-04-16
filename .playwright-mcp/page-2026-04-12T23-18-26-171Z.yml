@@ -1,0 +1,323 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "httpx" [level=1] [ref=e17]
+          - generic [ref=e18]: v0.28.1
+        - paragraph [ref=e19]: The next generation HTTP client.
+        - generic [ref=e21]:
+          - generic [ref=e22]: 72 KB
+          - generic [ref=e23]: Python 3.8+
+          - generic [ref=e24]: py3-none-any
+          - generic [ref=e25]: BSD License
+          - generic [ref=e26]: 4 deps
+      - generic [ref=e27]:
+        - button "Overview" [ref=e28] [cursor=pointer]
+        - button "Dependencies" [ref=e29] [cursor=pointer]
+        - button "Versions" [ref=e30] [cursor=pointer]
+        - button "Stats" [ref=e31] [cursor=pointer]
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]:
+              - button "uv" [ref=e38] [cursor=pointer]
+              - button "pip" [ref=e39] [cursor=pointer]
+              - button "poetry" [ref=e40] [cursor=pointer]
+              - button "pipx" [ref=e41] [cursor=pointer]
+            - generic [ref=e42]:
+              - code [ref=e43]: $ uv add httpx
+              - button "Copy" [ref=e44] [cursor=pointer]:
+                - img [ref=e45]
+          - generic [ref=e48]:
+            - heading "Description" [level=2] [ref=e49]
+            - generic [ref=e50]:
+              - paragraph [ref=e51]:
+                - link "HTTPX" [ref=e52] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/
+                  - img "HTTPX" [ref=e53]
+              - paragraph [ref=e54]:
+                - strong [ref=e55]: HTTPX
+                - emphasis [ref=e56]: "- A next-generation HTTP client for Python."
+              - paragraph [ref=e57]:
+                - link "Test Suite" [ref=e58] [cursor=pointer]:
+                  - /url: https://github.com/encode/httpx/actions
+                  - img "Test Suite" [ref=e59]
+                - link "Package version" [ref=e60] [cursor=pointer]:
+                  - /url: https://pypi.org/project/httpx/
+                  - img "Package version" [ref=e61]
+              - paragraph [ref=e62]:
+                - text: HTTPX is a fully featured HTTP client library for Python 3. It includes
+                - strong [ref=e63]: an integrated command line client
+                - text: ", has support for both"
+                - strong [ref=e64]: HTTP/1.1 and HTTP/2
+                - text: ", and provides both"
+                - strong [ref=e65]: sync and async APIs
+                - text: .
+              - separator [ref=e66]
+              - paragraph [ref=e67]: "Install HTTPX using pip:"
+              - code [ref=e69]:
+                - generic [ref=e71]: $ pip install httpx
+              - paragraph [ref=e72]: "Now, let's get started:"
+              - code [ref=e74]: ">>> import httpx >>> r = httpx.get('https://www.example.org/') >>> r <Response [200 OK]> >>> r.status_code 200 >>> r.headers['content-type'] 'text/html; charset=UTF-8' >>> r.text '<!doctype html>\\n<html>\\n<head>\\n<title>Example Domain</title>...'"
+              - paragraph [ref=e75]: Or, using the command-line client.
+              - code [ref=e77]:
+                - generic [ref=e79]: "$ pip install 'httpx[cli]' # The command line client is an optional dependency."
+              - paragraph [ref=e80]: Which now allows us to use HTTPX directly from the command-line...
+              - paragraph [ref=e81]:
+                - img "httpx --help" [ref=e82]
+              - paragraph [ref=e83]: Sending a request...
+              - paragraph [ref=e84]:
+                - img "httpx http://httpbin.org/json" [ref=e85]
+              - heading "Features" [level=2] [ref=e86]
+              - paragraph [ref=e87]:
+                - text: HTTPX builds on the well-established usability of
+                - code [ref=e88]: requests
+                - text: ", and gives you:"
+              - list [ref=e89]:
+                - listitem [ref=e90]:
+                  - text: A broadly
+                  - link "requests-compatible API" [ref=e91] [cursor=pointer]:
+                    - /url: https://www.python-httpx.org/compatibility/
+                  - text: .
+                - listitem [ref=e92]: An integrated command-line client.
+                - listitem [ref=e93]:
+                  - text: HTTP/1.1
+                  - link "and HTTP/2 support" [ref=e94] [cursor=pointer]:
+                    - /url: https://www.python-httpx.org/http2/
+                  - text: .
+                - listitem [ref=e95]:
+                  - text: Standard synchronous interface, but with
+                  - link "async support if you need it" [ref=e96] [cursor=pointer]:
+                    - /url: https://www.python-httpx.org/async/
+                  - text: .
+                - listitem [ref=e97]:
+                  - text: Ability to make requests directly to
+                  - link "WSGI applications" [ref=e98] [cursor=pointer]:
+                    - /url: https://www.python-httpx.org/advanced/transports/#wsgi-transport
+                  - text: or
+                  - link "ASGI applications" [ref=e99] [cursor=pointer]:
+                    - /url: https://www.python-httpx.org/advanced/transports/#asgi-transport
+                  - text: .
+                - listitem [ref=e100]: Strict timeouts everywhere.
+                - listitem [ref=e101]: Fully type annotated.
+                - listitem [ref=e102]: 100% test coverage.
+              - paragraph [ref=e103]:
+                - text: Plus all the standard features of
+                - code [ref=e104]: requests
+                - text: ...
+              - list [ref=e105]:
+                - listitem [ref=e106]: International Domains and URLs
+                - listitem [ref=e107]: Keep-Alive & Connection Pooling
+                - listitem [ref=e108]: Sessions with Cookie Persistence
+                - listitem [ref=e109]: Browser-style SSL Verification
+                - listitem [ref=e110]: Basic/Digest Authentication
+                - listitem [ref=e111]: Elegant Key/Value Cookies
+                - listitem [ref=e112]: Automatic Decompression
+                - listitem [ref=e113]: Automatic Content Decoding
+                - listitem [ref=e114]: Unicode Response Bodies
+                - listitem [ref=e115]: Multipart File Uploads
+                - listitem [ref=e116]: HTTP(S) Proxy Support
+                - listitem [ref=e117]: Connection Timeouts
+                - listitem [ref=e118]: Streaming Downloads
+                - listitem [ref=e119]: .netrc Support
+                - listitem [ref=e120]: Chunked Requests
+              - heading "Installation" [level=2] [ref=e121]
+              - paragraph [ref=e122]: "Install with pip:"
+              - code [ref=e124]:
+                - generic [ref=e126]: $ pip install httpx
+              - paragraph [ref=e127]: "Or, to include the optional HTTP/2 support, use:"
+              - code [ref=e129]:
+                - generic [ref=e131]: $ pip install httpx[http2]
+              - paragraph [ref=e132]: HTTPX requires Python 3.8+.
+              - heading "Documentation" [level=2] [ref=e133]
+              - paragraph [ref=e134]:
+                - text: Project documentation is available at
+                - link "https://www.python-httpx.org/" [ref=e135] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/
+                - text: .
+              - paragraph [ref=e136]:
+                - text: For a run-through of all the basics, head over to the
+                - link "QuickStart" [ref=e137] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/quickstart/
+                - text: .
+              - paragraph [ref=e138]:
+                - text: For more advanced topics, see the
+                - link "Advanced Usage" [ref=e139] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/advanced/
+                - text: section, the
+                - link "async support" [ref=e140] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/async/
+                - text: section, or the
+                - link "HTTP/2" [ref=e141] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/http2/
+                - text: section.
+              - paragraph [ref=e142]:
+                - text: The
+                - link "Developer Interface" [ref=e143] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/api/
+                - text: provides a comprehensive API reference.
+              - paragraph [ref=e144]:
+                - text: To find out about tools that integrate with HTTPX, see
+                - link "Third Party Packages" [ref=e145] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/third_party_packages/
+                - text: .
+              - heading "Contribute" [level=2] [ref=e146]
+              - paragraph [ref=e147]:
+                - text: If you want to contribute with HTTPX check out the
+                - link "Contributing Guide" [ref=e148] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org/contributing/
+                - text: to learn how to start.
+              - heading "Dependencies" [level=2] [ref=e149]
+              - paragraph [ref=e150]: "The HTTPX project relies on these excellent libraries:"
+              - list [ref=e151]:
+                - listitem [ref=e152]:
+                  - code [ref=e153]: httpcore
+                  - text: "- The underlying transport implementation for"
+                  - code [ref=e154]: httpx
+                  - text: .
+                  - list [ref=e155]:
+                    - listitem [ref=e156]:
+                      - code [ref=e157]: h11
+                      - text: "- HTTP/1.1 support."
+                - listitem [ref=e158]:
+                  - code [ref=e159]: certifi
+                  - text: "- SSL certificates."
+                - listitem [ref=e160]:
+                  - code [ref=e161]: idna
+                  - text: "- Internationalized domain name support."
+                - listitem [ref=e162]:
+                  - code [ref=e163]: sniffio
+                  - text: "- Async library autodetection."
+              - paragraph [ref=e164]: "As well as these optional installs:"
+              - list [ref=e165]:
+                - listitem [ref=e166]:
+                  - code [ref=e167]: h2
+                  - text: "- HTTP/2 support."
+                  - emphasis [ref=e168]:
+                    - text: (Optional, with
+                    - code [ref=e169]: httpx[http2]
+                    - text: )
+                - listitem [ref=e170]:
+                  - code [ref=e171]: socksio
+                  - text: "- SOCKS proxy support."
+                  - emphasis [ref=e172]:
+                    - text: (Optional, with
+                    - code [ref=e173]: httpx[socks]
+                    - text: )
+                - listitem [ref=e174]:
+                  - code [ref=e175]: rich
+                  - text: "- Rich terminal support."
+                  - emphasis [ref=e176]:
+                    - text: (Optional, with
+                    - code [ref=e177]: httpx[cli]
+                    - text: )
+                - listitem [ref=e178]:
+                  - code [ref=e179]: click
+                  - text: "- Command line client support."
+                  - emphasis [ref=e180]:
+                    - text: (Optional, with
+                    - code [ref=e181]: httpx[cli]
+                    - text: )
+                - listitem [ref=e182]:
+                  - code [ref=e183]: brotli
+                  - text: or
+                  - code [ref=e184]: brotlicffi
+                  - text: "- Decoding for \"brotli\" compressed responses."
+                  - emphasis [ref=e185]:
+                    - text: (Optional, with
+                    - code [ref=e186]: httpx[brotli]
+                    - text: )
+                - listitem [ref=e187]:
+                  - code [ref=e188]: zstandard
+                  - text: "- Decoding for \"zstd\" compressed responses."
+                  - emphasis [ref=e189]:
+                    - text: (Optional, with
+                    - code [ref=e190]: httpx[zstd]
+                    - text: )
+              - paragraph [ref=e191]:
+                - text: A huge amount of credit is due to
+                - code [ref=e192]: requests
+                - text: for the API layout that much of this work follows, as well as to
+                - code [ref=e193]: urllib3
+                - text: for plenty of design inspiration around the lower-level networking details.
+              - separator [ref=e194]
+              - paragraph [ref=e195]:
+                - generic [ref=e196]:
+                  - text: HTTPX is
+                  - link "BSD licensed" [ref=e197] [cursor=pointer]:
+                    - /url: https://github.com/encode/httpx/blob/master/LICENSE.md
+                  - text: code.
+                  - text: Designed & crafted with care.
+                - text: — 🦋 —
+              - heading "Release Information" [level=2] [ref=e198]
+              - heading "Fixed" [level=3] [ref=e199]
+              - list [ref=e200]:
+                - listitem [ref=e201]:
+                  - text: Reintroduced supposedly-private
+                  - code [ref=e202]: URLTypes
+                  - text: shortcut. (#2673)
+              - separator [ref=e203]
+              - paragraph [ref=e204]:
+                - link "Full changelog" [ref=e205] [cursor=pointer]:
+                  - /url: https://github.com/encode/httpx/blob/master/CHANGELOG.md
+        - generic [ref=e206]:
+          - generic [ref=e207]:
+            - heading "Details" [level=2] [ref=e208]
+            - generic [ref=e209]:
+              - generic [ref=e210]:
+                - term [ref=e211]: Version
+                - definition [ref=e212]: 0.28.1
+              - generic [ref=e213]:
+                - term [ref=e214]: License
+                - definition [ref=e215]: BSD License
+              - generic [ref=e216]:
+                - term [ref=e217]: Python
+                - definition [ref=e218]: ">=3.8"
+              - generic [ref=e219]:
+                - term [ref=e220]: Maintainer
+                - definition [ref=e221]: Tom Christie <tom@tomchristie.com>
+          - generic [ref=e222]:
+            - heading "Links" [level=2] [ref=e223]
+            - list [ref=e224]:
+              - listitem [ref=e225]:
+                - link "Changelog" [ref=e226] [cursor=pointer]:
+                  - /url: https://github.com/encode/httpx/blob/master/CHANGELOG.md
+                  - img [ref=e227]
+                  - text: Changelog
+              - listitem [ref=e231]:
+                - link "Documentation" [ref=e232] [cursor=pointer]:
+                  - /url: https://www.python-httpx.org
+                  - img [ref=e233]
+                  - text: Documentation
+              - listitem [ref=e237]:
+                - link "Homepage" [ref=e238] [cursor=pointer]:
+                  - /url: https://github.com/encode/httpx
+                  - img [ref=e239]
+                  - text: Homepage
+              - listitem [ref=e243]:
+                - link "Source" [ref=e244] [cursor=pointer]:
+                  - /url: https://github.com/encode/httpx
+                  - img [ref=e245]
+                  - text: Source
+          - link "Documentation →" [ref=e250] [cursor=pointer]:
+            - /url: https://www.python-httpx.org
+          - generic [ref=e251]:
+            - generic [ref=e252]: Release Cadence
+            - generic [ref=e253]: 3 releases in the past year · avg 31 days apart
+          - generic [ref=e256]:
+            - generic [ref=e257]: Maintainers
+            - list [ref=e258]:
+              - listitem [ref=e259]:
+                - text: Tom Christie ·
+                - link "tom@tomchristie.com" [ref=e260] [cursor=pointer]:
+                  - /url: mailto:tom@tomchristie.com

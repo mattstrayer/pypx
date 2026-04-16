@@ -1,0 +1,2168 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "pypx" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: pypx
+      - generic [ref=e10]:
+        - img
+        - textbox "Search packages..." [ref=e11]
+        - generic: ⌘K
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - link "click" [ref=e17] [cursor=pointer]:
+            - /url: /packages/click
+          - generic [ref=e18]: v8.3.2
+        - paragraph [ref=e19]: Composable command line interface toolkit
+      - generic [ref=e20]:
+        - link "Overview" [ref=e21] [cursor=pointer]:
+          - /url: /packages/click
+        - link "Dependencies" [ref=e22] [cursor=pointer]:
+          - /url: /packages/click
+        - link "Versions" [ref=e23] [cursor=pointer]:
+          - /url: /packages/click
+        - link "Stats" [ref=e24] [cursor=pointer]:
+          - /url: /packages/click
+        - generic [ref=e25]: Docs
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - paragraph [ref=e28]: Contents
+          - paragraph [ref=e29]: Functions (55)
+          - button "get_current_context" [ref=e30]
+          - button "push_context" [ref=e31]
+          - button "pop_context" [ref=e32]
+          - button "resolve_color_default" [ref=e33]
+          - button "shell_complete" [ref=e34]
+          - button "add_completion_class" [ref=e35]
+          - button "get_completion_class" [ref=e36]
+          - button "split_arg_string" [ref=e37]
+          - button "batch" [ref=e38]
+          - button "augment_usage_errors" [ref=e39]
+          - button "iter_params_for_processing" [ref=e40]
+          - button "pass_context" [ref=e41]
+          - button "pass_obj" [ref=e42]
+          - button "make_pass_decorator" [ref=e43]
+          - button "pass_meta_key" [ref=e44]
+          - button "command" [ref=e45]
+          - button "group" [ref=e46]
+          - button "argument" [ref=e47]
+          - button "option" [ref=e48]
+          - button "confirmation_option" [ref=e49]
+          - button "password_option" [ref=e50]
+          - button "version_option" [ref=e51]
+          - button "help_option" [ref=e52]
+          - button "convert_type" [ref=e53]
+          - button "hidden_prompt_func" [ref=e54]
+          - button "prompt" [ref=e55]
+          - button "confirm" [ref=e56]
+          - button "echo_via_pager" [ref=e57]
+          - button "progressbar" [ref=e58]
+          - button "clear" [ref=e59]
+          - button "style" [ref=e60]
+          - button "unstyle" [ref=e61]
+          - button "secho" [ref=e62]
+          - button "edit" [ref=e63]
+          - button "launch" [ref=e64]
+          - button "getchar" [ref=e65]
+          - button "raw_terminal" [ref=e66]
+          - button "pause" [ref=e67]
+          - button "safecall" [ref=e68]
+          - button "make_str" [ref=e69]
+          - button "make_default_short_help" [ref=e70]
+          - button "echo" [ref=e71]
+          - button "get_binary_stream" [ref=e72]
+          - button "get_text_stream" [ref=e73]
+          - button "open_file" [ref=e74]
+          - button "format_filename" [ref=e75]
+          - button "get_app_dir" [ref=e76]
+          - button "measure_table" [ref=e77]
+          - button "iter_rows" [ref=e78]
+          - button "wrap_text" [ref=e79]
+          - button "section" [ref=e80]
+          - button "indentation" [ref=e81]
+          - button "getvalue" [ref=e82]
+          - button "join_options" [ref=e83]
+          - button "make_input_stream" [ref=e84]
+          - paragraph [ref=e85]: Classes (40)
+          - button "CompletionItem" [ref=e86]
+          - button "ShellComplete" [ref=e87]
+          - button "BashComplete" [ref=e88]
+          - button "ZshComplete" [ref=e89]
+          - button "FishComplete" [ref=e90]
+          - button "ParameterSource" [ref=e91]
+          - button "Context" [ref=e92]
+          - button "Command" [ref=e93]
+          - button "Group" [ref=e94]
+          - button "CommandCollection" [ref=e95]
+          - button "Parameter" [ref=e96]
+          - button "Option" [ref=e97]
+          - button "Argument" [ref=e98]
+          - button "ParamType" [ref=e99]
+          - button "CompositeParamType" [ref=e100]
+          - button "FuncParamType" [ref=e101]
+          - button "UnprocessedParamType" [ref=e102]
+          - button "StringParamType" [ref=e103]
+          - button "Choice" [ref=e104]
+          - button "DateTime" [ref=e105]
+          - button "IntParamType" [ref=e106]
+          - button "IntRange" [ref=e107]
+          - button "FloatParamType" [ref=e108]
+          - button "FloatRange" [ref=e109]
+          - button "BoolParamType" [ref=e110]
+          - button "UUIDParameterType" [ref=e111]
+          - button "File" [ref=e112]
+          - button "Path" [ref=e113]
+          - button "Tuple" [ref=e114]
+          - button "OptionHelpExtra" [ref=e115]
+          - button "LazyFile" [ref=e116]
+          - button "KeepOpenFile" [ref=e117]
+          - button "PacifyFlushWrapper" [ref=e118]
+          - button "HelpFormatter" [ref=e119]
+          - button "MissingParameter" [ref=e120]
+          - button "EchoingStdin" [ref=e121]
+          - button "BytesIOCopy" [ref=e122]
+          - button "StreamMixer" [ref=e123]
+          - button "Result" [ref=e124]
+          - button "CliRunner" [ref=e125]
+          - paragraph [ref=e126]: Exceptions (10)
+          - button "ClickException" [ref=e127]
+          - button "UsageError" [ref=e128]
+          - button "BadParameter" [ref=e129]
+          - button "NoSuchOption" [ref=e130]
+          - button "BadOptionUsage" [ref=e131]
+          - button "BadArgumentUsage" [ref=e132]
+          - button "NoArgsIsHelpError" [ref=e133]
+          - button "FileError" [ref=e134]
+          - button "Abort" [ref=e135]
+          - button "Exit" [ref=e136]
+        - generic [ref=e137]:
+          - generic [ref=e138]:
+            - generic [ref=e139]:
+              - generic [ref=e140]: get_current_context
+              - generic [ref=e141]: function
+            - generic [ref=e142]: "def get_current_context(silent: t.Literal[False] = False) -> Context"
+            - generic [ref=e143]:
+              - paragraph [ref=e144]: Parameters
+              - generic [ref=e146]: silentt.Literal[False]
+            - generic [ref=e147]:
+              - paragraph [ref=e148]: Returns
+              - text: Context
+          - generic [ref=e150]:
+            - generic [ref=e151]:
+              - generic [ref=e152]: push_context
+              - generic [ref=e153]: function
+            - generic [ref=e154]: "def push_context(ctx: Context) -> None"
+            - paragraph [ref=e156]: Pushes a new context to the current stack.
+            - generic [ref=e157]:
+              - paragraph [ref=e158]: Parameters
+              - generic [ref=e160]: ctxContext
+            - generic [ref=e161]:
+              - paragraph [ref=e162]: Returns
+              - text: None
+          - generic [ref=e164]:
+            - generic [ref=e165]:
+              - generic [ref=e166]: pop_context
+              - generic [ref=e167]: function
+            - generic [ref=e168]: def pop_context() -> None
+            - paragraph [ref=e170]: Removes the top level from the stack.
+            - generic [ref=e171]:
+              - paragraph [ref=e172]: Returns
+              - text: None
+          - generic [ref=e174]:
+            - generic [ref=e175]:
+              - generic [ref=e176]: resolve_color_default
+              - generic [ref=e177]: function
+            - generic [ref=e178]: "def resolve_color_default(color: bool | None = None) -> bool | None"
+            - paragraph [ref=e180]: Internal helper to get the default value of the color flag. If a value is passed it's returned unchanged, otherwise it's looked up from the current context.
+            - generic [ref=e181]:
+              - paragraph [ref=e182]: Parameters
+              - generic [ref=e184]: colorbool | None
+            - generic [ref=e185]:
+              - paragraph [ref=e186]: Returns
+              - text: bool | None
+          - generic [ref=e188]:
+            - generic [ref=e189]:
+              - generic [ref=e190]: shell_complete
+              - generic [ref=e191]: function
+            - generic [ref=e192]: "def shell_complete(cli: Command, ctx_args: cabc.MutableMapping[str, t.Any], prog_name: str, complete_var: str, instruction: str) -> int"
+            - generic [ref=e193]:
+              - paragraph [ref=e194]: Perform shell completion for the given CLI program.
+              - paragraph [ref=e195]:
+                - text: ":param cli: Command being called. :param ctx_args: Extra arguments to pass to"
+                - code [ref=e196]: cli.make_context
+                - text: ". :param prog_name: Name of the executable in the shell. :param complete_var: Name of the environment variable that holds the completion instruction. :param instruction: Value of"
+                - code [ref=e197]: complete_var
+                - text: with the completion instruction and shell, in the form
+                - code [ref=e198]: instruction_shell
+                - text: ". :return: Status code to exit with."
+            - generic [ref=e199]:
+              - paragraph [ref=e200]: Parameters
+              - generic [ref=e201]:
+                - generic [ref=e202]:
+                  - text: cliCommand
+                  - paragraph [ref=e203]: Command being called.
+                - generic [ref=e204]:
+                  - text: ctx_argscabc.MutableMapping[str, t.Any]
+                  - paragraph [ref=e205]: "Extra arguments to pass to ``cli.make_context``."
+                - generic [ref=e206]:
+                  - text: prog_namestr
+                  - paragraph [ref=e207]: Name of the executable in the shell.
+                - generic [ref=e208]:
+                  - text: complete_varstr
+                  - paragraph [ref=e209]: Name of the environment variable that holds the completion instruction.
+                - generic [ref=e210]:
+                  - text: instructionstr
+                  - paragraph [ref=e211]: "Value of ``complete_var`` with the completion instruction and shell, in the form ``instruction_shell``."
+            - generic [ref=e212]:
+              - paragraph [ref=e213]: Returns
+              - text: int
+          - generic [ref=e215]:
+            - generic [ref=e216]:
+              - generic [ref=e217]: add_completion_class
+              - generic [ref=e218]: function
+            - generic [ref=e219]: "def add_completion_class(name: str | None = None) -> ShellCompleteType"
+            - generic [ref=e220]:
+              - paragraph [ref=e221]:
+                - text: Register a
+                - code [ref=e222]: ShellComplete
+                - text: subclass under the given name. The name will be provided by the completion instruction environment variable during completion.
+              - paragraph [ref=e223]:
+                - text: ":param cls: The completion class that will handle completion for the shell. :param name: Name to register the class under. Defaults to the class's"
+                - code [ref=e224]: name
+                - text: attribute.
+            - generic [ref=e225]:
+              - paragraph [ref=e226]: Parameters
+              - generic [ref=e227]:
+                - generic [ref=e228]:
+                  - text: clsShellCompleteType
+                  - paragraph [ref=e229]: The completion class that will handle completion for the shell.
+                - generic [ref=e230]:
+                  - text: namestr | None
+                  - paragraph [ref=e231]: "Name to register the class under. Defaults to the class's ``name`` attribute."
+            - generic [ref=e232]:
+              - paragraph [ref=e233]: Returns
+              - text: ShellCompleteType
+          - generic [ref=e235]:
+            - generic [ref=e236]:
+              - generic [ref=e237]: get_completion_class
+              - generic [ref=e238]: function
+            - generic [ref=e239]: "def get_completion_class(shell: str) -> type[ShellComplete] | None"
+            - generic [ref=e240]:
+              - paragraph [ref=e241]:
+                - text: Look up a registered
+                - code [ref=e242]: ShellComplete
+                - text: subclass by the name provided by the completion instruction environment variable. If the name isn't registered, returns
+                - code [ref=e243]: None
+                - text: .
+              - paragraph [ref=e244]: ":param shell: Name the class is registered under."
+            - generic [ref=e245]:
+              - paragraph [ref=e246]: Parameters
+              - generic [ref=e248]:
+                - text: shellstr
+                - paragraph [ref=e249]: Name the class is registered under.
+            - generic [ref=e250]:
+              - paragraph [ref=e251]: Returns
+              - text: type[ShellComplete] | None
+          - generic [ref=e253]:
+            - generic [ref=e254]:
+              - generic [ref=e255]: split_arg_string
+              - generic [ref=e256]: function
+            - generic [ref=e257]: "def split_arg_string(string: str) -> list[str]"
+            - generic [ref=e258]:
+              - paragraph [ref=e259]:
+                - text: Split an argument string as with
+                - code [ref=e260]: shlex.split
+                - text: ", but don't fail if the string is incomplete. Ignores a missing closing quote or incomplete escape sequence and uses the partial token as-is."
+              - paragraph [ref=e261]: ".. code-block:: python"
+              - code [ref=e263]: split_arg_string("example 'my file") ["example", "my file"]
+              - code [ref=e265]: split_arg_string("example my\\") ["example", "my"]
+              - paragraph [ref=e266]: ":param string: String to split."
+              - paragraph [ref=e267]: "versionchanged: 8.2 Moved to ``shell_completion`` from ``parser``."
+            - generic [ref=e268]:
+              - paragraph [ref=e269]: Parameters
+              - generic [ref=e271]:
+                - text: stringstr
+                - paragraph [ref=e272]: String to split.
+            - generic [ref=e273]:
+              - paragraph [ref=e274]: Returns
+              - text: list[str]
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - generic [ref=e278]: batch
+              - generic [ref=e279]: function
+            - generic [ref=e280]: "def batch(iterable: cabc.Iterable[V], batch_size: int) -> list[tuple[V, ...]]"
+            - generic [ref=e281]:
+              - paragraph [ref=e282]: Parameters
+              - generic [ref=e283]:
+                - generic [ref=e284]: iterablecabc.Iterable[V]
+                - generic [ref=e285]: batch_sizeint
+            - generic [ref=e286]:
+              - paragraph [ref=e287]: Returns
+              - text: list[tuple[V, ...]]
+          - generic [ref=e289]:
+            - generic [ref=e290]:
+              - generic [ref=e291]: augment_usage_errors
+              - generic [ref=e292]: function
+            - generic [ref=e293]: "def augment_usage_errors(ctx: Context, param: Parameter | None = None) -> cabc.Iterator[None]"
+            - paragraph [ref=e295]: Context manager that attaches extra information to exceptions.
+            - generic [ref=e296]:
+              - paragraph [ref=e297]: Parameters
+              - generic [ref=e298]:
+                - generic [ref=e299]: ctxContext
+                - generic [ref=e300]: paramParameter | None
+            - generic [ref=e301]:
+              - paragraph [ref=e302]: Returns
+              - text: cabc.Iterator[None]
+          - generic [ref=e304]:
+            - generic [ref=e305]:
+              - generic [ref=e306]: iter_params_for_processing
+              - generic [ref=e307]: function
+            - generic [ref=e308]: "def iter_params_for_processing(invocation_order: cabc.Sequence[Parameter], declaration_order: cabc.Sequence[Parameter]) -> list[Parameter]"
+            - generic [ref=e309]:
+              - paragraph [ref=e310]: Returns all declared parameters in the order they should be processed.
+              - code [ref=e312]: The declared parameters are re-shuffled depending on the order in which they were invoked, as well as the eagerness of each parameters.
+              - paragraph [ref=e313]: The invocation order takes precedence over the declaration order. I.e. the order in which the user provided them to the CLI is respected.
+              - code [ref=e315]: "This behavior and its effect on callback evaluation is detailed at: https://click.palletsprojects.com/en/stable/advanced/#callback-evaluation-order"
+            - generic [ref=e316]:
+              - paragraph [ref=e317]: Parameters
+              - generic [ref=e318]:
+                - generic [ref=e319]: invocation_ordercabc.Sequence[Parameter]
+                - generic [ref=e320]: declaration_ordercabc.Sequence[Parameter]
+            - generic [ref=e321]:
+              - paragraph [ref=e322]: Returns
+              - text: list[Parameter]
+          - generic [ref=e324]:
+            - generic [ref=e325]:
+              - generic [ref=e326]: pass_context
+              - generic [ref=e327]: function
+            - generic [ref=e328]: "def pass_context(f: t.Callable[te.Concatenate[Context, P], R]) -> t.Callable[P, R]"
+            - paragraph [ref=e330]: Marks a callback as wanting to receive the current context object as first argument.
+            - generic [ref=e331]:
+              - paragraph [ref=e332]: Parameters
+              - generic [ref=e334]: ft.Callable[te.Concatenate[Context, P], R]
+            - generic [ref=e335]:
+              - paragraph [ref=e336]: Returns
+              - text: t.Callable[P, R]
+          - generic [ref=e338]:
+            - generic [ref=e339]:
+              - generic [ref=e340]: pass_obj
+              - generic [ref=e341]: function
+            - generic [ref=e342]: "def pass_obj(f: t.Callable[te.Concatenate[T, P], R]) -> t.Callable[P, R]"
+            - paragraph [ref=e344]:
+              - text: Similar to
+              - code [ref=e345]: pass_context
+              - text: ", but only pass the object on the context onwards ("
+              - code [ref=e346]: Context.obj
+              - text: ). This is useful if that object represents the state of a nested system.
+            - generic [ref=e347]:
+              - paragraph [ref=e348]: Parameters
+              - generic [ref=e350]: ft.Callable[te.Concatenate[T, P], R]
+            - generic [ref=e351]:
+              - paragraph [ref=e352]: Returns
+              - text: t.Callable[P, R]
+          - generic [ref=e354]:
+            - generic [ref=e355]:
+              - generic [ref=e356]: make_pass_decorator
+              - generic [ref=e357]: function
+            - generic [ref=e358]: "def make_pass_decorator(object_type: type[T], ensure: bool = False) -> t.Callable[[t.Callable[te.Concatenate[T, P], R]], t.Callable[P, R]]"
+            - generic [ref=e359]:
+              - paragraph [ref=e360]:
+                - text: Given an object type this creates a decorator that will work similar to
+                - code [ref=e361]: pass_obj
+                - text: but instead of passing the object of the current context, it will find the innermost context of type
+                - code [ref=e362]: object_type
+                - text: .
+              - code [ref=e364]: "This generates a decorator that works roughly like this::"
+              - code [ref=e366]: from functools import update_wrapper
+              - code [ref=e368]: "def decorator(f): @pass_context def new_func(ctx, *args, **kwargs): obj = ctx.find_object(object_type) return ctx.invoke(f, obj, *args, **kwargs) return update_wrapper(new_func, f) return decorator"
+              - paragraph [ref=e369]:
+                - text: ":param object_type: the type of the object to pass. :param ensure: if set to"
+                - code [ref=e370]: "True"
+                - text: ", a new object will be created and remembered on the context if it's not there yet."
+            - generic [ref=e371]:
+              - paragraph [ref=e372]: Parameters
+              - generic [ref=e373]:
+                - generic [ref=e374]:
+                  - text: object_typetype[T]
+                  - paragraph [ref=e375]: the type of the object to pass.
+                - generic [ref=e376]:
+                  - text: ensurebool
+                  - paragraph [ref=e377]: "if set to `True`, a new object will be created and remembered on the context if it's not there yet."
+            - generic [ref=e378]:
+              - paragraph [ref=e379]: Returns
+              - text: t.Callable[[t.Callable[te.Concatenate[T, P], R]], t.Callable[P, R]]
+          - generic [ref=e381]:
+            - generic [ref=e382]:
+              - generic [ref=e383]: pass_meta_key
+              - generic [ref=e384]: function
+            - generic [ref=e385]: "def pass_meta_key(key: str, *, doc_description: str | None = None) -> t.Callable[[t.Callable[te.Concatenate[T, P], R]], t.Callable[P, R]]"
+            - generic [ref=e386]:
+              - paragraph [ref=e387]:
+                - text: Create a decorator that passes a key from
+                - code [ref=e388]: click.Context.meta
+                - text: as the first argument to the decorated function.
+              - paragraph [ref=e389]:
+                - text: ":param key: Key in"
+                - code [ref=e390]: Context.meta
+                - text: "to pass. :param doc_description: Description of the object being passed, inserted into the decorator's docstring. Defaults to \"the 'key' key from Context.meta\"."
+              - paragraph [ref=e391]: "versionadded: 8.0"
+            - generic [ref=e392]:
+              - paragraph [ref=e393]: Parameters
+              - generic [ref=e394]:
+                - generic [ref=e395]:
+                  - text: keystr
+                  - paragraph [ref=e396]: "Key in ``Context.meta`` to pass."
+                - generic [ref=e397]:
+                  - text: doc_descriptionstr | None
+                  - paragraph [ref=e398]: Description of the object being passed, inserted into the decorator's docstring. Defaults to "the 'key' key from Context.meta".
+            - generic [ref=e399]:
+              - paragraph [ref=e400]: Returns
+              - text: t.Callable[[t.Callable[te.Concatenate[T, P], R]], t.Callable[P, R]]
+          - generic [ref=e402]:
+            - generic [ref=e403]:
+              - generic [ref=e404]: command
+              - generic [ref=e405]: function
+            - generic [ref=e406]: "def command(name: _AnyCallable) -> Command"
+            - generic [ref=e407]:
+              - paragraph [ref=e408]: Parameters
+              - generic [ref=e410]: name_AnyCallable
+            - generic [ref=e411]:
+              - paragraph [ref=e412]: Returns
+              - text: Command
+          - generic [ref=e414]:
+            - generic [ref=e415]:
+              - generic [ref=e416]: group
+              - generic [ref=e417]: function
+            - generic [ref=e418]: "def group(name: _AnyCallable) -> Group"
+            - generic [ref=e419]:
+              - paragraph [ref=e420]: Parameters
+              - generic [ref=e422]: name_AnyCallable
+            - generic [ref=e423]:
+              - paragraph [ref=e424]: Returns
+              - text: Group
+          - generic [ref=e426]:
+            - generic [ref=e427]:
+              - generic [ref=e428]: argument
+              - generic [ref=e429]: function
+            - generic [ref=e430]: "def argument(*param_decls: str, **attrs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e431]:
+              - paragraph [ref=e432]:
+                - text: Attaches an argument to the command. All positional arguments are passed as parameter declarations to
+                - code [ref=e433]: Argument
+                - text: ; all keyword arguments are forwarded unchanged (except
+                - code [ref=e434]: cls
+                - text: ). This is equivalent to creating an
+                - code [ref=e435]: Argument
+                - text: instance manually and attaching it to the
+                - code [ref=e436]: Command.params
+                - text: list.
+              - code [ref=e438]: "For the default argument class, refer to :class:`Argument` and :class:`Parameter` for descriptions of parameters."
+              - paragraph [ref=e439]:
+                - text: ":param cls: the argument class to instantiate. This defaults to"
+                - code [ref=e440]: Argument
+                - text: ". :param param_decls: Passed as positional arguments to the constructor of"
+                - code [ref=e441]: cls
+                - text: ". :param attrs: Passed as keyword arguments to the constructor of"
+                - code [ref=e442]: cls
+                - text: .
+            - generic [ref=e443]:
+              - paragraph [ref=e444]: Parameters
+              - generic [ref=e445]:
+                - generic [ref=e446]:
+                  - text: param_declsstr
+                  - paragraph [ref=e447]: "Passed as positional arguments to the constructor of ``cls``."
+                - generic [ref=e448]:
+                  - text: clstype[Argument] | None
+                  - paragraph [ref=e449]: the argument class to instantiate. This defaults to
+                - generic [ref=e450]:
+                  - text: attrst.Any
+                  - paragraph [ref=e451]: "Passed as keyword arguments to the constructor of ``cls``."
+            - generic [ref=e452]:
+              - paragraph [ref=e453]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e455]:
+            - generic [ref=e456]:
+              - generic [ref=e457]: option
+              - generic [ref=e458]: function
+            - generic [ref=e459]: "def option(*param_decls: str, **attrs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e460]:
+              - paragraph [ref=e461]:
+                - text: Attaches an option to the command. All positional arguments are passed as parameter declarations to
+                - code [ref=e462]: Option
+                - text: ; all keyword arguments are forwarded unchanged (except
+                - code [ref=e463]: cls
+                - text: ). This is equivalent to creating an
+                - code [ref=e464]: Option
+                - text: instance manually and attaching it to the
+                - code [ref=e465]: Command.params
+                - text: list.
+              - code [ref=e467]: "For the default option class, refer to :class:`Option` and :class:`Parameter` for descriptions of parameters."
+              - paragraph [ref=e468]:
+                - text: ":param cls: the option class to instantiate. This defaults to"
+                - code [ref=e469]: Option
+                - text: ". :param param_decls: Passed as positional arguments to the constructor of"
+                - code [ref=e470]: cls
+                - text: ". :param attrs: Passed as keyword arguments to the constructor of"
+                - code [ref=e471]: cls
+                - text: .
+            - generic [ref=e472]:
+              - paragraph [ref=e473]: Parameters
+              - generic [ref=e474]:
+                - generic [ref=e475]:
+                  - text: param_declsstr
+                  - paragraph [ref=e476]: "Passed as positional arguments to the constructor of ``cls``."
+                - generic [ref=e477]:
+                  - text: clstype[Option] | None
+                  - paragraph [ref=e478]: the option class to instantiate. This defaults to
+                - generic [ref=e479]:
+                  - text: attrst.Any
+                  - paragraph [ref=e480]: "Passed as keyword arguments to the constructor of ``cls``."
+            - generic [ref=e481]:
+              - paragraph [ref=e482]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e484]:
+            - generic [ref=e485]:
+              - generic [ref=e486]: confirmation_option
+              - generic [ref=e487]: function
+            - generic [ref=e488]: "def confirmation_option(*param_decls: str, **kwargs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e489]:
+              - paragraph [ref=e490]:
+                - text: Add a
+                - code [ref=e491]: "--yes"
+                - text: option which shows a prompt before continuing if not passed. If the prompt is declined, the program will exit.
+              - paragraph [ref=e492]:
+                - text: ":param param_decls: One or more option names. Defaults to the single value"
+                - code [ref=e493]: "\"--yes\""
+                - text: ". :param kwargs: Extra arguments are passed to"
+                - code [ref=e494]: option
+                - text: .
+            - generic [ref=e495]:
+              - paragraph [ref=e496]: Parameters
+              - generic [ref=e497]:
+                - generic [ref=e498]:
+                  - text: param_declsstr
+                  - paragraph [ref=e499]: "One or more option names. Defaults to the single value ``\"--yes\"``."
+                - generic [ref=e500]:
+                  - text: kwargst.Any
+                  - paragraph [ref=e501]: "Extra arguments are passed to :func:`option`."
+            - generic [ref=e502]:
+              - paragraph [ref=e503]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e505]:
+            - generic [ref=e506]:
+              - generic [ref=e507]: password_option
+              - generic [ref=e508]: function
+            - generic [ref=e509]: "def password_option(*param_decls: str, **kwargs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e510]:
+              - paragraph [ref=e511]:
+                - text: Add a
+                - code [ref=e512]: "--password"
+                - text: option which prompts for a password, hiding input and asking to enter the value again for confirmation.
+              - paragraph [ref=e513]:
+                - text: ":param param_decls: One or more option names. Defaults to the single value"
+                - code [ref=e514]: "\"--password\""
+                - text: ". :param kwargs: Extra arguments are passed to"
+                - code [ref=e515]: option
+                - text: .
+            - generic [ref=e516]:
+              - paragraph [ref=e517]: Parameters
+              - generic [ref=e518]:
+                - generic [ref=e519]:
+                  - text: param_declsstr
+                  - paragraph [ref=e520]: "One or more option names. Defaults to the single value ``\"--password\"``."
+                - generic [ref=e521]:
+                  - text: kwargst.Any
+                  - paragraph [ref=e522]: "Extra arguments are passed to :func:`option`."
+            - generic [ref=e523]:
+              - paragraph [ref=e524]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e526]:
+            - generic [ref=e527]:
+              - generic [ref=e528]: version_option
+              - generic [ref=e529]: function
+            - generic [ref=e530]: "def version_option(version: str | None = None, *param_decls: str, package_name: str | None = None, prog_name: str | None = None, message: str | None = None, **kwargs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e531]:
+              - paragraph [ref=e532]:
+                - text: Add a
+                - code [ref=e533]: "--version"
+                - text: option which immediately prints the version number and exits the program.
+              - code [ref=e535]: "If ``version`` is not provided, Click will try to detect it using :func:`importlib.metadata.version` to get the version for the ``package_name``."
+              - paragraph [ref=e536]:
+                - text: If
+                - code [ref=e537]: package_name
+                - text: is not provided, Click will try to detect it by inspecting the stack frames. This will be used to detect the version, so it must match the name of the installed package.
+              - paragraph [ref=e538]:
+                - text: ":param version: The version number to show. If not provided, Click will try to detect it. :param param_decls: One or more option names. Defaults to the single value"
+                - code [ref=e539]: "\"--version\""
+                - text: ". :param package_name: The package name to detect the version from. If not provided, Click will try to detect it. :param prog_name: The name of the CLI to show in the message. If not provided, it will be detected from the command. :param message: The message to show. The values"
+                - code [ref=e540]: "%(prog)s"
+                - text: ","
+                - code [ref=e541]: "%(package)s"
+                - text: ", and"
+                - code [ref=e542]: "%(version)s"
+                - text: are available. Defaults to
+                - code [ref=e543]: "\"%(prog)s, version %(version)s\""
+                - text: ". :param kwargs: Extra arguments are passed to"
+                - code [ref=e544]: option
+                - text: ". :raise RuntimeError:"
+                - code [ref=e545]: version
+                - text: could not be detected.
+              - paragraph [ref=e546]: "versionchanged: 8.0 Add the ``package_name`` parameter, and the ``%(package)s`` value for messages."
+              - paragraph [ref=e547]: "versionchanged: 8.0 Use :mod:`importlib.metadata` instead of ``pkg_resources``. The version is detected based on the package name, not the entry point name. The Python package name must match the installed package name, or be passed with ``package_name=``."
+            - generic [ref=e548]:
+              - paragraph [ref=e549]: Parameters
+              - generic [ref=e550]:
+                - generic [ref=e551]:
+                  - text: versionstr | None
+                  - paragraph [ref=e552]: The version number to show. If not provided, Click will try to detect it.
+                - generic [ref=e553]:
+                  - text: param_declsstr
+                  - paragraph [ref=e554]: "One or more option names. Defaults to the single value ``\"--version\"``."
+                - generic [ref=e555]:
+                  - text: package_namestr | None
+                  - paragraph [ref=e556]: The package name to detect the version from. If not provided, Click will try to detect it.
+                - generic [ref=e557]:
+                  - text: prog_namestr | None
+                  - paragraph [ref=e558]: The name of the CLI to show in the message. If not provided, it will be detected from the command.
+                - generic [ref=e559]:
+                  - text: messagestr | None
+                  - paragraph [ref=e560]: "The message to show. The values ``%(prog)s``, ``%(package)s``, and ``%(version)s`` are available. Defaults to ``\"%(prog)s, version %(version)s\"``."
+                - generic [ref=e561]:
+                  - text: kwargst.Any
+                  - paragraph [ref=e562]: "Extra arguments are passed to :func:`option`."
+            - generic [ref=e563]:
+              - paragraph [ref=e564]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e566]:
+            - generic [ref=e567]:
+              - generic [ref=e568]: help_option
+              - generic [ref=e569]: function
+            - generic [ref=e570]: "def help_option(*param_decls: str, **kwargs: t.Any) -> t.Callable[[FC], FC]"
+            - generic [ref=e571]:
+              - paragraph [ref=e572]:
+                - text: Pre-configured
+                - code [ref=e573]: "--help"
+                - text: option which immediately prints the help page and exits the program.
+              - paragraph [ref=e574]:
+                - text: ":param param_decls: One or more option names. Defaults to the single value"
+                - code [ref=e575]: "\"--help\""
+                - text: ". :param kwargs: Extra arguments are passed to"
+                - code [ref=e576]: option
+                - text: .
+            - generic [ref=e577]:
+              - paragraph [ref=e578]: Parameters
+              - generic [ref=e579]:
+                - generic [ref=e580]:
+                  - text: param_declsstr
+                  - paragraph [ref=e581]: "One or more option names. Defaults to the single value ``\"--help\"``."
+                - generic [ref=e582]:
+                  - text: kwargst.Any
+                  - paragraph [ref=e583]: "Extra arguments are passed to :func:`option`."
+            - generic [ref=e584]:
+              - paragraph [ref=e585]: Returns
+              - text: t.Callable[[FC], FC]
+          - generic [ref=e587]:
+            - generic [ref=e588]:
+              - generic [ref=e589]: convert_type
+              - generic [ref=e590]: function
+            - generic [ref=e591]: "def convert_type(ty: t.Any | None, default: t.Any | None = None) -> ParamType"
+            - paragraph [ref=e593]:
+              - text: Find the most appropriate
+              - code [ref=e594]: ParamType
+              - text: for the given Python type. If the type isn't provided, it can be inferred from a default value.
+            - generic [ref=e595]:
+              - paragraph [ref=e596]: Parameters
+              - generic [ref=e597]:
+                - generic [ref=e598]: tyt.Any | None
+                - generic [ref=e599]: defaultt.Any | None
+            - generic [ref=e600]:
+              - paragraph [ref=e601]: Returns
+              - text: ParamType
+          - generic [ref=e603]:
+            - generic [ref=e604]:
+              - generic [ref=e605]: hidden_prompt_func
+              - generic [ref=e606]: function
+            - generic [ref=e607]: "def hidden_prompt_func(prompt: str) -> str"
+            - generic [ref=e608]:
+              - paragraph [ref=e609]: Parameters
+              - generic [ref=e611]: promptstr
+            - generic [ref=e612]:
+              - paragraph [ref=e613]: Returns
+              - text: str
+          - generic [ref=e615]:
+            - generic [ref=e616]:
+              - generic [ref=e617]: prompt
+              - generic [ref=e618]: function
+            - generic [ref=e619]: "def prompt(text: str, default: t.Any | None = None, hide_input: bool = False, confirmation_prompt: bool | str = False, type: ParamType | t.Any | None = None, value_proc: t.Callable[[str], t.Any] | None = None, prompt_suffix: str = \": \", show_default: bool = True, err: bool = False, show_choices: bool = True) -> t.Any"
+            - generic [ref=e620]:
+              - paragraph [ref=e621]: Prompts a user for input. This is a convenience function that can be used to prompt a user for input later.
+              - code [ref=e623]: "If the user aborts the input by sending an interrupt signal, this function will catch it and raise a :exc:`Abort` exception."
+              - paragraph [ref=e624]:
+                - text: ":param text: the text to show for the prompt. :param default: the default value to use if no input happens. If this is not given it will prompt until it's aborted. :param hide_input: if this is set to true then the input value will be hidden. :param confirmation_prompt: Prompt a second time to confirm the value. Can be set to a string instead of"
+                - code [ref=e625]: "True"
+                - text: "to customize the message. :param type: the type to use to check the value against. :param value_proc: if this parameter is provided it's a function that is invoked instead of the type conversion to convert a value. :param prompt_suffix: a suffix that should be added to the prompt. :param show_default: shows or hides the default value in the prompt. :param err: if set to true the file defaults to"
+                - code [ref=e626]: stderr
+                - text: instead of
+                - code [ref=e627]: stdout
+                - text: ", the same as with echo. :param show_choices: Show or hide choices if the passed type is a Choice. For example if type is a Choice of either day or week, show_choices is true and text is \"Group by\" then the prompt will be \"Group by (day, week): \"."
+              - paragraph [ref=e628]: "versionchanged: 8.3.1 A space is no longer appended to the prompt."
+              - paragraph [ref=e629]: "versionadded: 8.0 ``confirmation_prompt`` can be a custom string."
+              - paragraph [ref=e630]: "versionadded: 7.0 Added the ``show_choices`` parameter."
+              - paragraph [ref=e631]: "versionadded: 6.0 Added unicode support for cmd.exe on Windows."
+              - paragraph [ref=e632]: "versionadded: 4.0 Added the `err` parameter."
+            - generic [ref=e633]:
+              - paragraph [ref=e634]: Parameters
+              - generic [ref=e635]:
+                - generic [ref=e636]:
+                  - text: textstr
+                  - paragraph [ref=e637]: the text to show for the prompt.
+                - generic [ref=e638]:
+                  - text: defaultt.Any | None
+                  - paragraph [ref=e639]: the default value to use if no input happens. If this is not given it will prompt until it's aborted.
+                - generic [ref=e640]:
+                  - text: hide_inputbool
+                  - paragraph [ref=e641]: if this is set to true then the input value will be hidden.
+                - generic [ref=e642]:
+                  - text: confirmation_promptbool | str
+                  - paragraph [ref=e643]: "Prompt a second time to confirm the value. Can be set to a string instead of ``True`` to customize the message."
+                - generic [ref=e644]:
+                  - text: typeParamType | t.Any | None
+                  - paragraph [ref=e645]: the type to use to check the value against.
+                - generic [ref=e646]:
+                  - text: value_proct.Callable[[str], t.Any] | None
+                  - paragraph [ref=e647]: if this parameter is provided it's a function that is invoked instead of the type conversion to convert a value.
+                - generic [ref=e648]:
+                  - text: prompt_suffixstr
+                  - paragraph [ref=e649]: a suffix that should be added to the prompt.
+                - generic [ref=e650]:
+                  - text: show_defaultbool
+                  - paragraph [ref=e651]: shows or hides the default value in the prompt.
+                - generic [ref=e652]:
+                  - text: errbool
+                  - paragraph [ref=e653]: "if set to true the file defaults to ``stderr`` instead of ``stdout``, the same as with echo."
+                - generic [ref=e654]:
+                  - text: show_choicesbool
+                  - paragraph [ref=e655]: "Show or hide choices if the passed type is a Choice. For example if type is a Choice of either day or week, show_choices is true and text is \"Group by\" then the prompt will be \"Group by (day, week): \"."
+            - generic [ref=e656]:
+              - paragraph [ref=e657]: Returns
+              - text: t.Any
+          - generic [ref=e659]:
+            - generic [ref=e660]:
+              - generic [ref=e661]: confirm
+              - generic [ref=e662]: function
+            - generic [ref=e663]: "def confirm(text: str, default: bool | None = False, abort: bool = False, prompt_suffix: str = \": \", show_default: bool = True, err: bool = False) -> bool"
+            - generic [ref=e664]:
+              - paragraph [ref=e665]: Prompts for confirmation (yes/no question).
+              - code [ref=e667]: "If the user aborts the input by sending a interrupt signal this function will catch it and raise a :exc:`Abort` exception."
+              - paragraph [ref=e668]:
+                - text: ":param text: the question to ask. :param default: The default value to use when no input is given. If"
+                - code [ref=e669]: None
+                - text: ", repeat until input is given. :param abort: if this is set to"
+                - code [ref=e670]: "True"
+                - text: a negative answer aborts the exception by raising
+                - code [ref=e671]: Abort
+                - text: ". :param prompt_suffix: a suffix that should be added to the prompt. :param show_default: shows or hides the default value in the prompt. :param err: if set to true the file defaults to"
+                - code [ref=e672]: stderr
+                - text: instead of
+                - code [ref=e673]: stdout
+                - text: ", the same as with echo."
+              - paragraph [ref=e674]: "versionchanged: 8.3.1 A space is no longer appended to the prompt."
+              - paragraph [ref=e675]: "versionchanged: 8.0 Repeat until input is given if ``default`` is ``None``."
+              - paragraph [ref=e676]: "versionadded: 4.0 Added the ``err`` parameter."
+            - generic [ref=e677]:
+              - paragraph [ref=e678]: Parameters
+              - generic [ref=e679]:
+                - generic [ref=e680]:
+                  - text: textstr
+                  - paragraph [ref=e681]: the question to ask.
+                - generic [ref=e682]:
+                  - text: defaultbool | None
+                  - paragraph [ref=e683]: "The default value to use when no input is given. If ``None``, repeat until input is given."
+                - generic [ref=e684]:
+                  - text: abortbool
+                  - paragraph [ref=e685]: "if this is set to `True` a negative answer aborts the exception by raising :exc:`Abort`."
+                - generic [ref=e686]:
+                  - text: prompt_suffixstr
+                  - paragraph [ref=e687]: a suffix that should be added to the prompt.
+                - generic [ref=e688]:
+                  - text: show_defaultbool
+                  - paragraph [ref=e689]: shows or hides the default value in the prompt.
+                - generic [ref=e690]:
+                  - text: errbool
+                  - paragraph [ref=e691]: "if set to true the file defaults to ``stderr`` instead of ``stdout``, the same as with echo."
+            - generic [ref=e692]:
+              - paragraph [ref=e693]: Returns
+              - text: bool
+          - generic [ref=e695]:
+            - generic [ref=e696]:
+              - generic [ref=e697]: echo_via_pager
+              - generic [ref=e698]: function
+            - generic [ref=e699]: "def echo_via_pager(text_or_generator: cabc.Iterable[str] | t.Callable[[], cabc.Iterable[str]] | str, color: bool | None = None) -> None"
+            - generic [ref=e700]:
+              - paragraph [ref=e701]: This function takes a text and shows it via an environment specific pager on stdout.
+              - paragraph [ref=e702]: "versionchanged: 3.0 Added the `color` flag."
+              - paragraph [ref=e703]: ":param text_or_generator: the text to page, or alternatively, a generator emitting the text to page. :param color: controls if the pager supports ANSI colors or not. The default is autodetection."
+            - generic [ref=e704]:
+              - paragraph [ref=e705]: Parameters
+              - generic [ref=e706]:
+                - generic [ref=e707]:
+                  - text: text_or_generatorcabc.Iterable[str] | t.Callable[[], cabc.Iterable[str]] | str
+                  - paragraph [ref=e708]: the text to page, or alternatively, a generator emitting the text to page.
+                - generic [ref=e709]:
+                  - text: colorbool | None
+                  - paragraph [ref=e710]: controls if the pager supports ANSI colors or not. The default is autodetection.
+            - generic [ref=e711]:
+              - paragraph [ref=e712]: Returns
+              - text: None
+          - generic [ref=e714]:
+            - generic [ref=e715]:
+              - generic [ref=e716]: progressbar
+              - generic [ref=e717]: function
+            - generic [ref=e718]: "def progressbar(*, length: int, label: str | None = None, hidden: bool = False, show_eta: bool = True, show_percent: bool | None = None, show_pos: bool = False, fill_char: str = \"#\", empty_char: str = \"-\", bar_template: str = \"%(label)s [%(bar)s] %(info)s\", info_sep: str = \" \", width: int = 36, file: t.TextIO | None = None, color: bool | None = None, update_min_steps: int = 1) -> ProgressBar[int]"
+            - generic [ref=e719]:
+              - paragraph [ref=e720]: Parameters
+              - generic [ref=e721]:
+                - generic [ref=e722]: lengthint
+                - generic [ref=e723]: labelstr | None
+                - generic [ref=e724]: hiddenbool
+                - generic [ref=e725]: show_etabool
+                - generic [ref=e726]: show_percentbool | None
+                - generic [ref=e727]: show_posbool
+                - generic [ref=e728]: fill_charstr
+                - generic [ref=e729]: empty_charstr
+                - generic [ref=e730]: bar_templatestr
+                - generic [ref=e731]: info_sepstr
+                - generic [ref=e732]: widthint
+                - generic [ref=e733]: filet.TextIO | None
+                - generic [ref=e734]: colorbool | None
+                - generic [ref=e735]: update_min_stepsint
+            - generic [ref=e736]:
+              - paragraph [ref=e737]: Returns
+              - text: ProgressBar[int]
+          - generic [ref=e739]:
+            - generic [ref=e740]:
+              - generic [ref=e741]: clear
+              - generic [ref=e742]: function
+            - generic [ref=e743]: def clear() -> None
+            - generic [ref=e744]:
+              - paragraph [ref=e745]: Clears the terminal screen. This will have the effect of clearing the whole visible space of the terminal and moving the cursor to the top left. This does not do anything if not connected to a terminal.
+              - paragraph [ref=e746]: "versionadded: 2.0"
+            - generic [ref=e747]:
+              - paragraph [ref=e748]: Returns
+              - text: None
+          - generic [ref=e750]:
+            - generic [ref=e751]:
+              - generic [ref=e752]: style
+              - generic [ref=e753]: function
+            - generic [ref=e754]: "def style(text: t.Any, fg: int | tuple[int, int, int] | str | None = None, bg: int | tuple[int, int, int] | str | None = None, bold: bool | None = None, dim: bool | None = None, underline: bool | None = None, overline: bool | None = None, italic: bool | None = None, blink: bool | None = None, reverse: bool | None = None, strikethrough: bool | None = None, reset: bool = True) -> str"
+            - generic [ref=e755]:
+              - paragraph [ref=e756]:
+                - text: Styles a text with ANSI styles and returns the new string. By default the styling is self contained which means that at the end of the string a reset code is issued. This can be prevented by passing
+                - code [ref=e757]: reset=False
+                - text: .
+              - code [ref=e759]: "Examples::"
+              - code [ref=e761]: click.echo(click.style('Hello World!', fg='green')) click.echo(click.style('ATTENTION!', blink=True)) click.echo(click.style('Some things', reverse=True, fg='cyan')) click.echo(click.style('More colors', fg=(255, 12, 128), bg=117))
+              - code [ref=e763]: "Supported color names:"
+              - code [ref=e765]: "* ``black`` (might be a gray) * ``red`` * ``green`` * ``yellow`` (might be an orange) * ``blue`` * ``magenta`` * ``cyan`` * ``white`` (might be light gray) * ``bright_black`` * ``bright_red`` * ``bright_green`` * ``bright_yellow`` * ``bright_blue`` * ``bright_magenta`` * ``bright_cyan`` * ``bright_white`` * ``reset`` (reset the color code only)"
+              - code [ref=e767]: "If the terminal supports it, color may also be specified as:"
+              - paragraph [ref=e768]: "- An integer in the interval [0, 255]. The terminal must support 8-bit/256-color mode. - An RGB tuple of three integers in [0, 255]. The terminal must support 24-bit/true-color mode."
+              - code [ref=e770]: See https://en.wikipedia.org/wiki/ANSI_color and https://gist.github.com/XVilka/8346728 for more information.
+              - paragraph [ref=e771]: ":param text: the string to style with ansi codes. :param fg: if provided this will become the foreground color. :param bg: if provided this will become the background color. :param bold: if provided this will enable or disable bold mode. :param dim: if provided this will enable or disable dim mode. This is badly supported. :param underline: if provided this will enable or disable underline. :param overline: if provided this will enable or disable overline. :param italic: if provided this will enable or disable italic. :param blink: if provided this will enable or disable blinking. :param reverse: if provided this will enable or disable inverse rendering (foreground becomes background and the other way round). :param strikethrough: if provided this will enable or disable striking through text. :param reset: by default a reset-all code is added at the end of the string which means that styles do not carry over. This can be disabled to compose styles."
+              - paragraph [ref=e772]: "versionchanged: 8.0 A non-string ``message`` is converted to a string."
+              - paragraph [ref=e773]: "versionchanged: 8.0 Added support for 256 and RGB color codes."
+              - paragraph [ref=e774]: "versionchanged: 8.0 Added the ``strikethrough``, ``italic``, and ``overline`` parameters."
+              - paragraph [ref=e775]: "versionchanged: 7.0 Added support for bright colors."
+              - paragraph [ref=e776]: "versionadded: 2.0"
+            - generic [ref=e777]:
+              - paragraph [ref=e778]: Parameters
+              - generic [ref=e779]:
+                - generic [ref=e780]:
+                  - text: textt.Any
+                  - paragraph [ref=e781]: the string to style with ansi codes.
+                - generic [ref=e782]:
+                  - text: fgint | tuple[int, int, int] | str | None
+                  - paragraph [ref=e783]: if provided this will become the foreground color.
+                - generic [ref=e784]:
+                  - text: bgint | tuple[int, int, int] | str | None
+                  - paragraph [ref=e785]: if provided this will become the background color.
+                - generic [ref=e786]:
+                  - text: boldbool | None
+                  - paragraph [ref=e787]: if provided this will enable or disable bold mode.
+                - generic [ref=e788]:
+                  - text: dimbool | None
+                  - paragraph [ref=e789]: if provided this will enable or disable dim mode. This is badly supported.
+                - generic [ref=e790]:
+                  - text: underlinebool | None
+                  - paragraph [ref=e791]: if provided this will enable or disable underline.
+                - generic [ref=e792]:
+                  - text: overlinebool | None
+                  - paragraph [ref=e793]: if provided this will enable or disable overline.
+                - generic [ref=e794]:
+                  - text: italicbool | None
+                  - paragraph [ref=e795]: if provided this will enable or disable italic.
+                - generic [ref=e796]:
+                  - text: blinkbool | None
+                  - paragraph [ref=e797]: if provided this will enable or disable blinking.
+                - generic [ref=e798]:
+                  - text: reversebool | None
+                  - paragraph [ref=e799]: if provided this will enable or disable inverse rendering (foreground becomes background and the other way round).
+                - generic [ref=e800]:
+                  - text: strikethroughbool | None
+                  - paragraph [ref=e801]: if provided this will enable or disable striking through text.
+                - generic [ref=e802]:
+                  - text: resetbool
+                  - paragraph [ref=e803]: by default a reset-all code is added at the end of the string which means that styles do not carry over. This can be disabled to compose styles.
+            - generic [ref=e804]:
+              - paragraph [ref=e805]: Returns
+              - text: str
+          - generic [ref=e807]:
+            - generic [ref=e808]:
+              - generic [ref=e809]: unstyle
+              - generic [ref=e810]: function
+            - generic [ref=e811]: "def unstyle(text: str) -> str"
+            - generic [ref=e812]:
+              - paragraph [ref=e813]: Removes ANSI styling information from a string. Usually it's not necessary to use this function as Click's echo function will automatically remove styling if necessary.
+              - paragraph [ref=e814]: "versionadded: 2.0"
+              - paragraph [ref=e815]: ":param text: the text to remove style information from."
+            - generic [ref=e816]:
+              - paragraph [ref=e817]: Parameters
+              - generic [ref=e819]:
+                - text: textstr
+                - paragraph [ref=e820]: the text to remove style information from.
+            - generic [ref=e821]:
+              - paragraph [ref=e822]: Returns
+              - text: str
+          - generic [ref=e824]:
+            - generic [ref=e825]:
+              - generic [ref=e826]: secho
+              - generic [ref=e827]: function
+            - generic [ref=e828]: "def secho(message: t.Any | None = None, file: t.IO[t.AnyStr] | None = None, nl: bool = True, err: bool = False, color: bool | None = None, **styles: t.Any) -> None"
+            - generic [ref=e829]:
+              - paragraph [ref=e830]:
+                - text: This function combines
+                - code [ref=e831]: echo
+                - text: and
+                - code [ref=e832]: style
+                - text: into one call. As such the following two calls are the same
+              - code [ref=e834]: click.secho('Hello World!', fg='green') click.echo(click.style('Hello World!', fg='green'))
+              - code [ref=e836]: All keyword arguments are forwarded to the underlying functions depending on which one they go with.
+              - paragraph [ref=e837]:
+                - text: Non-string types will be converted to
+                - code [ref=e838]: str
+                - text: . However,
+                - code [ref=e839]: bytes
+                - text: are passed directly to
+                - code [ref=e840]: echo
+                - text: without applying style. If you want to style bytes that represent text, call
+                - code [ref=e841]: bytes.decode
+                - text: first.
+              - paragraph [ref=e842]: "versionchanged: 8.0 A non-string ``message`` is converted to a string. Bytes are passed through without style applied."
+              - paragraph [ref=e843]: "versionadded: 2.0"
+            - generic [ref=e844]:
+              - paragraph [ref=e845]: Parameters
+              - generic [ref=e846]:
+                - generic [ref=e847]: messaget.Any | None
+                - generic [ref=e848]: filet.IO[t.AnyStr] | None
+                - generic [ref=e849]: nlbool
+                - generic [ref=e850]: errbool
+                - generic [ref=e851]: colorbool | None
+                - generic [ref=e852]: stylest.Any
+            - generic [ref=e853]:
+              - paragraph [ref=e854]: Returns
+              - text: None
+          - generic [ref=e856]:
+            - generic [ref=e857]:
+              - generic [ref=e858]: edit
+              - generic [ref=e859]: function
+            - generic [ref=e860]: "def edit(text: bytes | bytearray, editor: str | None = None, env: cabc.Mapping[str, str] | None = None, require_save: bool = False, extension: str = \".txt\") -> bytes | None"
+            - generic [ref=e861]:
+              - paragraph [ref=e862]: Parameters
+              - generic [ref=e863]:
+                - generic [ref=e864]: textbytes | bytearray
+                - generic [ref=e865]: editorstr | None
+                - generic [ref=e866]: envcabc.Mapping[str, str] | None
+                - generic [ref=e867]: require_savebool
+                - generic [ref=e868]: extensionstr
+            - generic [ref=e869]:
+              - paragraph [ref=e870]: Returns
+              - text: bytes | None
+          - generic [ref=e872]:
+            - generic [ref=e873]:
+              - generic [ref=e874]: launch
+              - generic [ref=e875]: function
+            - generic [ref=e876]: "def launch(url: str, wait: bool = False, locate: bool = False) -> int"
+            - generic [ref=e877]:
+              - paragraph [ref=e878]:
+                - text: This function launches the given URL (or filename) in the default viewer application for this file type. If this is an executable, it might launch the executable in a new session. The return value is the exit code of the launched application. Usually,
+                - code [ref=e879]: "0"
+                - text: indicates success.
+              - code [ref=e881]: "Examples::"
+              - code [ref=e883]: click.launch('https://click.palletsprojects.com/') click.launch('/my/downloaded/file', locate=True)
+              - paragraph [ref=e884]: "versionadded: 2.0"
+              - paragraph [ref=e885]:
+                - text: ":param url: URL or filename of the thing to launch. :param wait: Wait for the program to exit before returning. This only works if the launched program blocks. In particular,"
+                - code [ref=e886]: xdg-open
+                - text: "on Linux does not block. :param locate: if this is set to"
+                - code [ref=e887]: "True"
+                - text: then instead of launching the application associated with the URL it will attempt to launch a file manager with the file located. This might have weird effects if the URL does not point to the filesystem.
+            - generic [ref=e888]:
+              - paragraph [ref=e889]: Parameters
+              - generic [ref=e890]:
+                - generic [ref=e891]:
+                  - text: urlstr
+                  - paragraph [ref=e892]: URL or filename of the thing to launch.
+                - generic [ref=e893]:
+                  - text: waitbool
+                  - paragraph [ref=e894]: "Wait for the program to exit before returning. This only works if the launched program blocks. In particular, ``xdg-open`` on Linux does not block."
+                - generic [ref=e895]:
+                  - text: locatebool
+                  - paragraph [ref=e896]: "if this is set to `True` then instead of launching the application associated with the URL it will attempt to launch a file manager with the file located. This might have weird effects if the URL does not point to the filesystem."
+            - generic [ref=e897]:
+              - paragraph [ref=e898]: Returns
+              - text: int
+          - generic [ref=e900]:
+            - generic [ref=e901]:
+              - generic [ref=e902]: getchar
+              - generic [ref=e903]: function
+            - generic [ref=e904]: "def getchar(echo: bool = False) -> str"
+            - generic [ref=e905]:
+              - paragraph [ref=e906]: Fetches a single character from the terminal and returns it. This will always return a unicode character and under certain rare circumstances this might return more than one character. The situations which more than one character is returned is when for whatever reason multiple characters end up in the terminal buffer or standard input was not actually a terminal.
+              - code [ref=e908]: Note that this will always read from the terminal, even if something is piped into the standard input.
+              - paragraph [ref=e909]: "Note for Windows: in rare cases when typing non-ASCII characters, this function might wait for a second character and then return both at once. This is because certain Unicode characters look like special-key markers."
+              - paragraph [ref=e910]: "versionadded: 2.0"
+              - paragraph [ref=e911]:
+                - text: ":param echo: if set to"
+                - code [ref=e912]: "True"
+                - text: ", the character read will also show up on the terminal. The default is to not show it."
+            - generic [ref=e913]:
+              - paragraph [ref=e914]: Parameters
+              - generic [ref=e916]:
+                - text: echobool
+                - paragraph [ref=e917]: "if set to `True`, the character read will also show up on the terminal. The default is to not show it."
+            - generic [ref=e918]:
+              - paragraph [ref=e919]: Returns
+              - text: str
+          - generic [ref=e921]:
+            - generic [ref=e922]:
+              - generic [ref=e923]: raw_terminal
+              - generic [ref=e924]: function
+            - generic [ref=e925]: def raw_terminal() -> AbstractContextManager[int]
+            - generic [ref=e926]:
+              - paragraph [ref=e927]: Returns
+              - text: AbstractContextManager[int]
+          - generic [ref=e929]:
+            - generic [ref=e930]:
+              - generic [ref=e931]: pause
+              - generic [ref=e932]: function
+            - generic [ref=e933]: "def pause(info: str | None = None, err: bool = False) -> None"
+            - generic [ref=e934]:
+              - paragraph [ref=e935]: This command stops execution and waits for the user to press any key to continue. This is similar to the Windows batch "pause" command. If the program is not run through a terminal, this command will instead do nothing.
+              - paragraph [ref=e936]: "versionadded: 2.0"
+              - paragraph [ref=e937]: "versionadded: 4.0 Added the `err` parameter."
+              - paragraph [ref=e938]:
+                - text: ":param info: The message to print before pausing. Defaults to"
+                - code [ref=e939]: "\"Press any key to continue...\""
+                - text: ". :param err: if set to message goes to"
+                - code [ref=e940]: stderr
+                - text: instead of
+                - code [ref=e941]: stdout
+                - text: ", the same as with echo."
+            - generic [ref=e942]:
+              - paragraph [ref=e943]: Parameters
+              - generic [ref=e944]:
+                - generic [ref=e945]:
+                  - text: infostr | None
+                  - paragraph [ref=e946]: "The message to print before pausing. Defaults to ``\"Press any key to continue...\"``."
+                - generic [ref=e947]:
+                  - text: errbool
+                  - paragraph [ref=e948]: "if set to message goes to ``stderr`` instead of ``stdout``, the same as with echo."
+            - generic [ref=e949]:
+              - paragraph [ref=e950]: Returns
+              - text: None
+          - generic [ref=e952]:
+            - generic [ref=e953]:
+              - generic [ref=e954]: safecall
+              - generic [ref=e955]: function
+            - generic [ref=e956]: "def safecall(func: t.Callable[P, R]) -> t.Callable[P, R | None]"
+            - paragraph [ref=e958]: Wraps a function so that it swallows exceptions.
+            - generic [ref=e959]:
+              - paragraph [ref=e960]: Parameters
+              - generic [ref=e962]: funct.Callable[P, R]
+            - generic [ref=e963]:
+              - paragraph [ref=e964]: Returns
+              - text: t.Callable[P, R | None]
+          - generic [ref=e966]:
+            - generic [ref=e967]:
+              - generic [ref=e968]: make_str
+              - generic [ref=e969]: function
+            - generic [ref=e970]: "def make_str(value: t.Any) -> str"
+            - paragraph [ref=e972]: Converts a value into a valid string.
+            - generic [ref=e973]:
+              - paragraph [ref=e974]: Parameters
+              - generic [ref=e976]: valuet.Any
+            - generic [ref=e977]:
+              - paragraph [ref=e978]: Returns
+              - text: str
+          - generic [ref=e980]:
+            - generic [ref=e981]:
+              - generic [ref=e982]: make_default_short_help
+              - generic [ref=e983]: function
+            - generic [ref=e984]: "def make_default_short_help(help: str, max_length: int = 45) -> str"
+            - paragraph [ref=e986]: Returns a condensed version of help string.
+            - generic [ref=e987]:
+              - paragraph [ref=e988]: Parameters
+              - generic [ref=e989]:
+                - generic [ref=e990]: helpstr
+                - generic [ref=e991]: max_lengthint
+            - generic [ref=e992]:
+              - paragraph [ref=e993]: Returns
+              - text: str
+          - generic [ref=e995]:
+            - generic [ref=e996]:
+              - generic [ref=e997]: echo
+              - generic [ref=e998]: function
+            - generic [ref=e999]: "def echo(message: t.Any | None = None, file: t.IO[t.Any] | None = None, nl: bool = True, err: bool = False, color: bool | None = None) -> None"
+            - generic [ref=e1000]:
+              - paragraph [ref=e1001]:
+                - text: Print a message and newline to stdout or a file. This should be used instead of
+                - code [ref=e1002]: print
+                - text: because it provides better support for different data, files, and environments.
+              - code [ref=e1004]: "Compared to :func:`print`, this does the following:"
+              - paragraph [ref=e1005]: "- Ensures that the output encoding is not misconfigured on Linux. - Supports Unicode in the Windows console. - Supports writing to binary outputs, and supports writing bytes to text outputs. - Supports colors and styles on Windows. - Removes ANSI color and style codes if the output does not look like an interactive terminal. - Always flushes the output."
+              - paragraph [ref=e1006]:
+                - text: ":param message: The string or bytes to output. Other objects are converted to strings. :param file: The file to write to. Defaults to"
+                - code [ref=e1007]: stdout
+                - text: ". :param err: Write to"
+                - code [ref=e1008]: stderr
+                - text: instead of
+                - code [ref=e1009]: stdout
+                - text: ". :param nl: Print a newline after the message. Enabled by default. :param color: Force showing or hiding colors and other styles. By default Click will remove color if the output does not look like an interactive terminal."
+              - paragraph [ref=e1010]: "versionchanged: 6.0 Support Unicode output on the Windows console. Click does not modify ``sys.stdout``, so ``sys.stdout.write()`` and ``print()`` will still not support Unicode."
+              - paragraph [ref=e1011]: "versionchanged: 4.0 Added the ``color`` parameter."
+              - paragraph [ref=e1012]: "versionadded: 3.0 Added the ``err`` parameter."
+              - paragraph [ref=e1013]: "versionchanged: 2.0 Support colors on Windows if colorama is installed."
+            - generic [ref=e1014]:
+              - paragraph [ref=e1015]: Parameters
+              - generic [ref=e1016]:
+                - generic [ref=e1017]:
+                  - text: messaget.Any | None
+                  - paragraph [ref=e1018]: The string or bytes to output. Other objects are converted to strings.
+                - generic [ref=e1019]:
+                  - text: filet.IO[t.Any] | None
+                  - paragraph [ref=e1020]: "The file to write to. Defaults to ``stdout``."
+                - generic [ref=e1021]:
+                  - text: nlbool
+                  - paragraph [ref=e1022]: Print a newline after the message. Enabled by default.
+                - generic [ref=e1023]:
+                  - text: errbool
+                  - paragraph [ref=e1024]: "Write to ``stderr`` instead of ``stdout``."
+                - generic [ref=e1025]:
+                  - text: colorbool | None
+                  - paragraph [ref=e1026]: Force showing or hiding colors and other styles. By default Click will remove color if the output does not look like an interactive terminal.
+            - generic [ref=e1027]:
+              - paragraph [ref=e1028]: Returns
+              - text: None
+          - generic [ref=e1030]:
+            - generic [ref=e1031]:
+              - generic [ref=e1032]: get_binary_stream
+              - generic [ref=e1033]: function
+            - generic [ref=e1034]: "def get_binary_stream(name: t.Literal[\"stdin\", \"stdout\", \"stderr\"]) -> t.BinaryIO"
+            - generic [ref=e1035]:
+              - paragraph [ref=e1036]: Returns a system stream for byte processing.
+              - paragraph [ref=e1037]:
+                - text: ":param name: the name of the stream to open. Valid names are"
+                - code [ref=e1038]: "'stdin'"
+                - text: ","
+                - code [ref=e1039]: "'stdout'"
+                - text: and
+                - code [ref=e1040]: "'stderr'"
+            - generic [ref=e1041]:
+              - paragraph [ref=e1042]: Parameters
+              - generic [ref=e1044]:
+                - text: namet.Literal["stdin", "stdout", "stderr"]
+                - paragraph [ref=e1045]: "the name of the stream to open. Valid names are ``'stdin'``, ``'stdout'`` and ``'stderr'``"
+            - generic [ref=e1046]:
+              - paragraph [ref=e1047]: Returns
+              - text: t.BinaryIO
+          - generic [ref=e1049]:
+            - generic [ref=e1050]:
+              - generic [ref=e1051]: get_text_stream
+              - generic [ref=e1052]: function
+            - generic [ref=e1053]: "def get_text_stream(name: t.Literal[\"stdin\", \"stdout\", \"stderr\"], encoding: str | None = None, errors: str | None = \"strict\") -> t.TextIO"
+            - generic [ref=e1054]:
+              - paragraph [ref=e1055]:
+                - text: Returns a system stream for text processing. This usually returns a wrapped stream around a binary stream returned from
+                - code [ref=e1056]: get_binary_stream
+                - text: but it also can take shortcuts for already correctly configured streams.
+              - paragraph [ref=e1057]:
+                - text: ":param name: the name of the stream to open. Valid names are"
+                - code [ref=e1058]: "'stdin'"
+                - text: ","
+                - code [ref=e1059]: "'stdout'"
+                - text: and
+                - code [ref=e1060]: "'stderr'"
+                - text: ":param encoding: overrides the detected default encoding. :param errors: overrides the default error mode."
+            - generic [ref=e1061]:
+              - paragraph [ref=e1062]: Parameters
+              - generic [ref=e1063]:
+                - generic [ref=e1064]:
+                  - text: namet.Literal["stdin", "stdout", "stderr"]
+                  - paragraph [ref=e1065]: "the name of the stream to open. Valid names are ``'stdin'``, ``'stdout'`` and ``'stderr'``"
+                - generic [ref=e1066]:
+                  - text: encodingstr | None
+                  - paragraph [ref=e1067]: overrides the detected default encoding.
+                - generic [ref=e1068]:
+                  - text: errorsstr | None
+                  - paragraph [ref=e1069]: overrides the default error mode.
+            - generic [ref=e1070]:
+              - paragraph [ref=e1071]: Returns
+              - text: t.TextIO
+          - generic [ref=e1073]:
+            - generic [ref=e1074]:
+              - generic [ref=e1075]: open_file
+              - generic [ref=e1076]: function
+            - generic [ref=e1077]: "def open_file(filename: str | os.PathLike[str], mode: str = \"r\", encoding: str | None = None, errors: str | None = \"strict\", lazy: bool = False, atomic: bool = False) -> t.IO[t.Any]"
+            - generic [ref=e1078]:
+              - paragraph [ref=e1079]:
+                - text: Open a file, with extra behavior to handle
+                - code [ref=e1080]: "'-'"
+                - text: to indicate a standard stream, lazy open on write, and atomic write. Similar to the behavior of the
+                - code [ref=e1081]: ~click.File
+                - text: param type.
+              - paragraph [ref=e1082]:
+                - text: If
+                - code [ref=e1083]: "'-'"
+                - text: is given to open
+                - code [ref=e1084]: stdout
+                - text: or
+                - code [ref=e1085]: stdin
+                - text: ", the stream is wrapped so that using it in a context manager will not close it. This makes it possible to use the function without accidentally closing a standard stream:"
+              - paragraph [ref=e1086]: ".. code-block:: python"
+              - code [ref=e1088]: "with open_file(filename) as f: ..."
+              - paragraph [ref=e1089]:
+                - text: ":param filename: The name or Path of the file to open, or"
+                - code [ref=e1090]: "'-'"
+                - text: for
+                - code [ref=e1091]: stdin
+                - text: /
+                - code [ref=e1092]: stdout
+                - text: ". :param mode: The mode in which to open the file. :param encoding: The encoding to decode or encode a file opened in text mode. :param errors: The error handling mode. :param lazy: Wait to open the file until it is accessed. For read mode, the file is temporarily opened to raise access errors early, then closed until it is read again. :param atomic: Write to a temporary file and replace the given file on close."
+              - paragraph [ref=e1093]: "versionadded: 3.0"
+            - generic [ref=e1094]:
+              - paragraph [ref=e1095]: Parameters
+              - generic [ref=e1096]:
+                - generic [ref=e1097]:
+                  - text: filenamestr | os.PathLike[str]
+                  - paragraph [ref=e1098]: "The name or Path of the file to open, or ``'-'`` for ``stdin``/``stdout``."
+                - generic [ref=e1099]:
+                  - text: modestr
+                  - paragraph [ref=e1100]: The mode in which to open the file.
+                - generic [ref=e1101]:
+                  - text: encodingstr | None
+                  - paragraph [ref=e1102]: The encoding to decode or encode a file opened in text mode.
+                - generic [ref=e1103]:
+                  - text: errorsstr | None
+                  - paragraph [ref=e1104]: The error handling mode.
+                - generic [ref=e1105]:
+                  - text: lazybool
+                  - paragraph [ref=e1106]: Wait to open the file until it is accessed. For read mode, the file is temporarily opened to raise access errors early, then closed until it is read again.
+                - generic [ref=e1107]:
+                  - text: atomicbool
+                  - paragraph [ref=e1108]: Write to a temporary file and replace the given file on close.
+            - generic [ref=e1109]:
+              - paragraph [ref=e1110]: Returns
+              - text: t.IO[t.Any]
+          - generic [ref=e1112]:
+            - generic [ref=e1113]:
+              - generic [ref=e1114]: format_filename
+              - generic [ref=e1115]: function
+            - generic [ref=e1116]: "def format_filename(filename: str | bytes | os.PathLike[str] | os.PathLike[bytes], shorten: bool = False) -> str"
+            - generic [ref=e1117]:
+              - paragraph [ref=e1118]:
+                - text: Format a filename as a string for display. Ensures the filename can be displayed by replacing any invalid bytes or surrogate escapes in the name with the replacement character
+                - code [ref=e1119]: �
+                - text: .
+              - paragraph [ref=e1120]:
+                - text: Invalid bytes or surrogate escapes will raise an error when written to a stream with
+                - code [ref=e1121]: errors="strict"
+                - text: . This will typically happen with
+                - code [ref=e1122]: stdout
+                - text: when the locale is something like
+                - code [ref=e1123]: en_GB.UTF-8
+                - text: .
+              - code [ref=e1125]: "Many scenarios *are* safe to write surrogates though, due to PEP 538 and PEP 540, including:"
+              - paragraph [ref=e1126]:
+                - text: "- Writing to"
+                - code [ref=e1127]: stderr
+                - text: ", which uses"
+                - code [ref=e1128]: errors="backslashreplace"
+                - text: . - The system has
+                - code [ref=e1129]: LANG=C.UTF-8
+                - text: ","
+                - code [ref=e1130]: C
+                - text: ", or"
+                - code [ref=e1131]: POSIX
+                - text: . Python opens stdout and stderr with
+                - code [ref=e1132]: errors="surrogateescape"
+                - text: . - None of
+                - code [ref=e1133]: LANG/LC_*
+                - text: are set. Python assumes
+                - code [ref=e1134]: LANG=C.UTF-8
+                - text: . - Python is started in UTF-8 mode with
+                - code [ref=e1135]: PYTHONUTF8=1
+                - text: or
+                - code [ref=e1136]: "-X utf8"
+                - text: . Python opens stdout and stderr with
+                - code [ref=e1137]: errors="surrogateescape"
+                - text: .
+              - paragraph [ref=e1138]: ":param filename: formats a filename for UI display. This will also convert the filename into unicode without failing. :param shorten: this optionally shortens the filename to strip of the path that leads up to it."
+            - generic [ref=e1139]:
+              - paragraph [ref=e1140]: Parameters
+              - generic [ref=e1141]:
+                - generic [ref=e1142]:
+                  - text: filenamestr | bytes | os.PathLike[str] | os.PathLike[bytes]
+                  - paragraph [ref=e1143]: formats a filename for UI display. This will also convert the filename into unicode without failing.
+                - generic [ref=e1144]:
+                  - text: shortenbool
+                  - paragraph [ref=e1145]: this optionally shortens the filename to strip of the path that leads up to it.
+            - generic [ref=e1146]:
+              - paragraph [ref=e1147]: Returns
+              - text: str
+          - generic [ref=e1149]:
+            - generic [ref=e1150]:
+              - generic [ref=e1151]: get_app_dir
+              - generic [ref=e1152]: function
+            - generic [ref=e1153]: "def get_app_dir(app_name: str, roaming: bool = True, force_posix: bool = False) -> str"
+            - generic [ref=e1154]:
+              - paragraph [ref=e1155]: Returns the config folder for the application. The default behavior is to return whatever is most appropriate for the operating system.
+              - code [ref=e1157]: "To give you an idea, for an app called ``\"Foo Bar\"``, something like the following folders could be returned:"
+              - code [ref=e1159]: "Mac OS X: ``~/Library/Application Support/Foo Bar`` Mac OS X (POSIX): ``~/.foo-bar`` Unix: ``~/.config/foo-bar`` Unix (POSIX): ``~/.foo-bar`` Windows (roaming): ``C:\\Users\\<user>\\AppData\\Roaming\\Foo Bar`` Windows (not roaming): ``C:\\Users\\<user>\\AppData\\Local\\Foo Bar``"
+              - paragraph [ref=e1160]: "versionadded: 2.0"
+              - paragraph [ref=e1161]:
+                - text: ":param app_name: the application name. This should be properly capitalized and can contain whitespace. :param roaming: controls if the folder should be roaming or not on Windows. Has no effect otherwise. :param force_posix: if this is set to"
+                - code [ref=e1162]: "True"
+                - text: then on any POSIX system the folder will be stored in the home folder with a leading dot instead of the XDG config home or darwin's application support folder.
+            - generic [ref=e1163]:
+              - paragraph [ref=e1164]: Parameters
+              - generic [ref=e1165]:
+                - generic [ref=e1166]:
+                  - text: app_namestr
+                  - paragraph [ref=e1167]: the application name. This should be properly capitalized and can contain whitespace.
+                - generic [ref=e1168]:
+                  - text: roamingbool
+                  - paragraph [ref=e1169]: controls if the folder should be roaming or not on Windows. Has no effect otherwise.
+                - generic [ref=e1170]:
+                  - text: force_posixbool
+                  - paragraph [ref=e1171]: "if this is set to `True` then on any POSIX system the folder will be stored in the home folder with a leading dot instead of the XDG config home or darwin's application support folder."
+            - generic [ref=e1172]:
+              - paragraph [ref=e1173]: Returns
+              - text: str
+          - generic [ref=e1175]:
+            - generic [ref=e1176]:
+              - generic [ref=e1177]: measure_table
+              - generic [ref=e1178]: function
+            - generic [ref=e1179]: "def measure_table(rows: cabc.Iterable[tuple[str, str]]) -> tuple[int, ...]"
+            - generic [ref=e1180]:
+              - paragraph [ref=e1181]: Parameters
+              - generic [ref=e1183]: rowscabc.Iterable[tuple[str, str]]
+            - generic [ref=e1184]:
+              - paragraph [ref=e1185]: Returns
+              - text: tuple[int, ...]
+          - generic [ref=e1187]:
+            - generic [ref=e1188]:
+              - generic [ref=e1189]: iter_rows
+              - generic [ref=e1190]: function
+            - generic [ref=e1191]: "def iter_rows(rows: cabc.Iterable[tuple[str, str]], col_count: int) -> cabc.Iterator[tuple[str, ...]]"
+            - generic [ref=e1192]:
+              - paragraph [ref=e1193]: Parameters
+              - generic [ref=e1194]:
+                - generic [ref=e1195]: rowscabc.Iterable[tuple[str, str]]
+                - generic [ref=e1196]: col_countint
+            - generic [ref=e1197]:
+              - paragraph [ref=e1198]: Returns
+              - text: cabc.Iterator[tuple[str, ...]]
+          - generic [ref=e1200]:
+            - generic [ref=e1201]:
+              - generic [ref=e1202]: wrap_text
+              - generic [ref=e1203]: function
+            - generic [ref=e1204]: "def wrap_text(text: str, width: int = 78, initial_indent: str = \"\", subsequent_indent: str = \"\", preserve_paragraphs: bool = False) -> str"
+            - generic [ref=e1205]:
+              - paragraph [ref=e1206]:
+                - text: A helper function that intelligently wraps text. By default, it assumes that it operates on a single paragraph of text but if the
+                - code [ref=e1207]: preserve_paragraphs
+                - text: parameter is provided it will intelligently handle paragraphs (defined by two empty lines).
+              - code [ref=e1209]: "If paragraphs are handled, a paragraph can be prefixed with an empty line containing the ``\\\\b`` character (``\\\\x08``) to indicate that no rewrapping should happen in that block."
+              - paragraph [ref=e1210]: ":param text: the text that should be rewrapped. :param width: the maximum width for the text. :param initial_indent: the initial indent that should be placed on the first line as a string. :param subsequent_indent: the indent string that should be placed on each consecutive line. :param preserve_paragraphs: if this flag is set then the wrapping will intelligently handle paragraphs."
+            - generic [ref=e1211]:
+              - paragraph [ref=e1212]: Parameters
+              - generic [ref=e1213]:
+                - generic [ref=e1214]:
+                  - text: textstr
+                  - paragraph [ref=e1215]: the text that should be rewrapped.
+                - generic [ref=e1216]:
+                  - text: widthint
+                  - paragraph [ref=e1217]: the maximum width for the text.
+                - generic [ref=e1218]:
+                  - text: initial_indentstr
+                  - paragraph [ref=e1219]: the initial indent that should be placed on the first line as a string.
+                - generic [ref=e1220]:
+                  - text: subsequent_indentstr
+                  - paragraph [ref=e1221]: the indent string that should be placed on each consecutive line.
+                - generic [ref=e1222]:
+                  - text: preserve_paragraphsbool
+                  - paragraph [ref=e1223]: if this flag is set then the wrapping will intelligently handle paragraphs.
+            - generic [ref=e1224]:
+              - paragraph [ref=e1225]: Returns
+              - text: str
+          - generic [ref=e1227]:
+            - generic [ref=e1228]:
+              - generic [ref=e1229]: section
+              - generic [ref=e1230]: function
+            - generic [ref=e1231]: "def section(name: str) -> cabc.Iterator[None]"
+            - generic [ref=e1232]:
+              - paragraph [ref=e1233]: Helpful context manager that writes a paragraph, a heading, and the indents.
+              - paragraph [ref=e1234]: ":param name: the section name that is written as heading."
+            - generic [ref=e1235]:
+              - paragraph [ref=e1236]: Parameters
+              - generic [ref=e1237]:
+                - generic [ref=e1238]: self
+                - generic [ref=e1239]:
+                  - text: namestr
+                  - paragraph [ref=e1240]: the section name that is written as heading.
+            - generic [ref=e1241]:
+              - paragraph [ref=e1242]: Returns
+              - text: cabc.Iterator[None]
+          - generic [ref=e1244]:
+            - generic [ref=e1245]:
+              - generic [ref=e1246]: indentation
+              - generic [ref=e1247]: function
+            - generic [ref=e1248]: def indentation() -> cabc.Iterator[None]
+            - paragraph [ref=e1250]: A context manager that increases the indentation.
+            - generic [ref=e1251]:
+              - paragraph [ref=e1252]: Parameters
+              - generic [ref=e1254]: self
+            - generic [ref=e1255]:
+              - paragraph [ref=e1256]: Returns
+              - text: cabc.Iterator[None]
+          - generic [ref=e1258]:
+            - generic [ref=e1259]:
+              - generic [ref=e1260]: getvalue
+              - generic [ref=e1261]: function
+            - generic [ref=e1262]: def getvalue() -> str
+            - paragraph [ref=e1264]: Returns the buffer contents.
+            - generic [ref=e1265]:
+              - paragraph [ref=e1266]: Parameters
+              - generic [ref=e1268]: self
+            - generic [ref=e1269]:
+              - paragraph [ref=e1270]: Returns
+              - text: str
+          - generic [ref=e1272]:
+            - generic [ref=e1273]:
+              - generic [ref=e1274]: join_options
+              - generic [ref=e1275]: function
+            - generic [ref=e1276]: "def join_options(options: cabc.Sequence[str]) -> tuple[str, bool]"
+            - paragraph [ref=e1278]:
+              - text: Given a list of option strings this joins them in the most appropriate way and returns them in the form
+              - code [ref=e1279]: (formatted_string, any_prefix_is_slash)
+              - text: where the second item in the tuple is a flag that indicates if any of the option prefixes was a slash.
+            - generic [ref=e1280]:
+              - paragraph [ref=e1281]: Parameters
+              - generic [ref=e1283]: optionscabc.Sequence[str]
+            - generic [ref=e1284]:
+              - paragraph [ref=e1285]: Returns
+              - text: tuple[str, bool]
+          - generic [ref=e1287]:
+            - generic [ref=e1288]:
+              - generic [ref=e1289]: make_input_stream
+              - generic [ref=e1290]: function
+            - generic [ref=e1291]: "def make_input_stream(input: str | bytes | t.IO[t.Any] | None, charset: str) -> t.BinaryIO"
+            - generic [ref=e1292]:
+              - paragraph [ref=e1293]: Parameters
+              - generic [ref=e1294]:
+                - generic [ref=e1295]: inputstr | bytes | t.IO[t.Any] | None
+                - generic [ref=e1296]: charsetstr
+            - generic [ref=e1297]:
+              - paragraph [ref=e1298]: Returns
+              - text: t.BinaryIO
+          - generic [ref=e1300]:
+            - generic [ref=e1301]:
+              - generic [ref=e1302]: CompletionItem
+              - generic [ref=e1303]: class
+            - generic [ref=e1304]: class CompletionItem
+            - generic [ref=e1305]:
+              - paragraph [ref=e1306]:
+                - text: Represents a completion value and metadata about the value. The default metadata is
+                - code [ref=e1307]: type
+                - text: to indicate special shell handling, and
+                - code [ref=e1308]: help
+                - text: if a shell supports showing a help string next to the value.
+              - paragraph [ref=e1309]:
+                - text: Arbitrary parameters can be passed when creating the object, and accessed using
+                - code [ref=e1310]: item.attr
+                - text: . If an attribute wasn't passed, accessing it returns
+                - code [ref=e1311]: None
+                - text: .
+              - paragraph [ref=e1312]:
+                - text: ":param value: The completion suggestion. :param type: Tells the shell script to provide special completion support for the type. Click uses"
+                - code [ref=e1313]: "\"dir\""
+                - text: and
+                - code [ref=e1314]: "\"file\""
+                - text: ". :param help: String shown next to the value if supported. :param kwargs: Arbitrary metadata. The built-in implementations don't use this, but custom type completions paired with custom shell support could use it."
+          - generic [ref=e1316]:
+            - generic [ref=e1317]:
+              - generic [ref=e1318]: ShellComplete
+              - generic [ref=e1319]: class
+            - generic [ref=e1320]: class ShellComplete
+            - generic [ref=e1321]:
+              - paragraph [ref=e1322]:
+                - text: Base class for providing shell completion support. A subclass for a given shell will override attributes and methods to implement the completion instructions (
+                - code [ref=e1323]: source
+                - text: and
+                - code [ref=e1324]: complete
+                - text: ).
+              - paragraph [ref=e1325]: ":param cli: Command being called. :param prog_name: Name of the executable in the shell. :param complete_var: Name of the environment variable that holds the completion instruction."
+              - paragraph [ref=e1326]: "versionadded: 8.0"
+          - generic [ref=e1328]:
+            - generic [ref=e1329]:
+              - generic [ref=e1330]: BashComplete
+              - generic [ref=e1331]: class
+            - generic [ref=e1332]: class BashComplete(ShellComplete)
+            - paragraph [ref=e1334]: Shell completion for Bash.
+          - generic [ref=e1336]:
+            - generic [ref=e1337]:
+              - generic [ref=e1338]: ZshComplete
+              - generic [ref=e1339]: class
+            - generic [ref=e1340]: class ZshComplete(ShellComplete)
+            - paragraph [ref=e1342]: Shell completion for Zsh.
+          - generic [ref=e1344]:
+            - generic [ref=e1345]:
+              - generic [ref=e1346]: FishComplete
+              - generic [ref=e1347]: class
+            - generic [ref=e1348]: class FishComplete(ShellComplete)
+            - paragraph [ref=e1350]: Shell completion for Fish.
+          - generic [ref=e1352]:
+            - generic [ref=e1353]:
+              - generic [ref=e1354]: ParameterSource
+              - generic [ref=e1355]: class
+            - generic [ref=e1356]: class ParameterSource(enum.Enum)
+            - generic [ref=e1357]:
+              - paragraph [ref=e1358]:
+                - text: This is an
+                - code [ref=e1359]: ~enum.Enum
+                - text: that indicates the source of a parameter's value.
+              - code [ref=e1361]: "Use :meth:`click.Context.get_parameter_source` to get the source for a parameter by name."
+              - paragraph [ref=e1362]: "versionchanged: 8.0 Use :class:`~enum.Enum` and drop the ``validate`` method."
+              - paragraph [ref=e1363]: "versionchanged: 8.0 Added the ``PROMPT`` value."
+          - generic [ref=e1365]:
+            - generic [ref=e1366]:
+              - generic [ref=e1367]: Context
+              - generic [ref=e1368]: class
+            - generic [ref=e1369]: class Context
+            - generic [ref=e1370]:
+              - paragraph [ref=e1371]: The context is a special internal object that holds state relevant for the script execution at every single level. It's normally invisible to commands unless they opt-in to getting access to it.
+              - code [ref=e1373]: The context is useful as it can pass internal objects around and can control special execution features such as reading data from environment variables.
+              - code [ref=e1375]: "A context can be used as context manager in which case it will call :meth:`close` on teardown."
+              - paragraph [ref=e1376]:
+                - text: ":param command: the command class for this context. :param parent: the parent context. :param info_name: the info name for this invocation. Generally this is the most descriptive name for the script or command. For the toplevel script it is usually the name of the script, for commands below it it's the name of the script. :param obj: an arbitrary object of user data. :param auto_envvar_prefix: the prefix to use for automatic environment variables. If this is"
+                - code [ref=e1377]: None
+                - text: "then reading from environment variables is disabled. This does not affect manually set environment variables which are always read. :param default_map: a dictionary (like object) with default values for parameters. :param terminal_width: the width of the terminal. The default is inherit from parent context. If no context defines the terminal width then auto detection will be applied. :param max_content_width: the maximum width for content rendered by Click (this currently only affects help pages). This defaults to 80 characters if not overridden. In other words: even if the terminal is larger than that, Click will not format things wider than 80 characters by default. In addition to that, formatters might add some safety mapping on the right. :param resilient_parsing: if this flag is enabled then Click will parse without any interactivity or callback invocation. Default values will also be ignored. This is useful for implementing things such as completion support. :param allow_extra_args: if this is set to"
+                - code [ref=e1378]: "True"
+                - text: "then extra arguments at the end will not raise an error and will be kept on the context. The default is to inherit from the command. :param allow_interspersed_args: if this is set to"
+                - code [ref=e1379]: "False"
+                - text: "then options and arguments cannot be mixed. The default is to inherit from the command. :param ignore_unknown_options: instructs click to ignore options it does not know and keeps them for later processing. :param help_option_names: optionally a list of strings that define how the default help parameter is named. The default is"
+                - code [ref=e1380]: "['--help']"
+                - text: ". :param token_normalize_func: an optional function that is used to normalize tokens (options, choices, etc.). This for instance can be used to implement case insensitive behavior. :param color: controls if the terminal supports ANSI colors or not. The default is autodetection. This is only needed if ANSI codes are used in texts that Click prints which is by default not the case. This for instance would affect help output. :param show_default: Show the default value for commands. If this value is not set, it defaults to the value from the parent context."
+                - code [ref=e1381]: Command.show_default
+                - text: overrides this default for the specific command.
+              - paragraph [ref=e1382]: "versionchanged: 8.2 The ``protected_args`` attribute is deprecated and will be removed in Click 9.0. ``args`` will contain remaining unparsed tokens."
+              - paragraph [ref=e1383]: "versionchanged: 8.1 The ``show_default`` parameter is overridden by ``Command.show_default``, instead of the other way around."
+              - paragraph [ref=e1384]: "versionchanged: 8.0 The ``show_default`` parameter defaults to the value from the parent context."
+              - paragraph [ref=e1385]: "versionchanged: 7.1 Added the ``show_default`` parameter."
+              - paragraph [ref=e1386]: "versionchanged: 4.0 Added the ``color``, ``ignore_unknown_options``, and ``max_content_width`` parameters."
+              - paragraph [ref=e1387]: "versionchanged: 3.0 Added the ``allow_extra_args`` and ``allow_interspersed_args`` parameters."
+              - paragraph [ref=e1388]: "versionchanged: 2.0 Added the ``resilient_parsing``, ``help_option_names``, and ``token_normalize_func`` parameters."
+          - generic [ref=e1390]:
+            - generic [ref=e1391]:
+              - generic [ref=e1392]: Command
+              - generic [ref=e1393]: class
+            - generic [ref=e1394]: class Command
+            - generic [ref=e1395]:
+              - paragraph [ref=e1396]: Commands are the basic building block of command line interfaces in Click. A basic command handles command line parsing and might dispatch more parsing to commands nested below it.
+              - paragraph [ref=e1397]:
+                - text: ":param name: the name of the command to use unless a group overrides it. :param context_settings: an optional dictionary with defaults that are passed to the context object. :param callback: the callback to invoke. This is optional. :param params: the parameters to register with this command. This can be either"
+                - code [ref=e1398]: Option
+                - text: or
+                - code [ref=e1399]: Argument
+                - text: "objects. :param help: the help string to use for this command. :param epilog: like the help string but it's printed at the end of the help page after everything else. :param short_help: the short help to use for this command. This is shown on the command listing of the parent command. :param add_help_option: by default each command registers a"
+                - code [ref=e1400]: "--help"
+                - text: "option. This can be disabled by this parameter. :param no_args_is_help: this controls what happens if no arguments are provided. This option is disabled by default. If enabled this will add"
+                - code [ref=e1401]: "--help"
+                - text: "as argument if no arguments are passed :param hidden: hide this command from help outputs. :param deprecated: If"
+                - code [ref=e1402]: "True"
+                - text: or non-empty string, issues a message indicating that the command is deprecated and highlights its deprecation in --help. The message can be customized by using a string as the value.
+              - paragraph [ref=e1403]: "versionchanged: 8.2 This is the base class for all commands, not ``BaseCommand``. ``deprecated`` can be set to a string as well to customize the deprecation message."
+              - paragraph [ref=e1404]: "versionchanged: 8.1 ``help``, ``epilog``, and ``short_help`` are stored unprocessed, all formatting is done when outputting help text, not at init, and is done even if not using the ``@command`` decorator."
+              - paragraph [ref=e1405]: "versionchanged: 8.0 Added a ``repr`` showing the command name."
+              - paragraph [ref=e1406]: "versionchanged: 7.1 Added the ``no_args_is_help`` parameter."
+              - paragraph [ref=e1407]: "versionchanged: 2.0 Added the ``context_settings`` parameter."
+          - generic [ref=e1409]:
+            - generic [ref=e1410]:
+              - generic [ref=e1411]: Group
+              - generic [ref=e1412]: class
+            - generic [ref=e1413]: class Group(Command)
+            - generic [ref=e1414]:
+              - paragraph [ref=e1415]: A group is a command that nests other commands (or more groups).
+              - paragraph [ref=e1416]:
+                - text: ":param name: The name of the group command. :param commands: Map names to"
+                - code [ref=e1417]: Command
+                - text: objects. Can be a list, which will use
+                - code [ref=e1418]: Command.name
+                - text: "as the keys. :param invoke_without_command: Invoke the group's callback even if a subcommand is not given. :param no_args_is_help: If no arguments are given, show the group's help and exit. Defaults to the opposite of"
+                - code [ref=e1419]: invoke_without_command
+                - text: ". :param subcommand_metavar: How to represent the subcommand argument in help. The default will represent whether"
+                - code [ref=e1420]: chain
+                - text: "is set or not. :param chain: Allow passing more than one subcommand argument. After parsing a command's arguments, if any arguments remain another command will be matched, and so on. :param result_callback: A function to call after the group's and subcommand's callbacks. The value returned by the subcommand is passed. If"
+                - code [ref=e1421]: chain
+                - text: is enabled, the value will be a list of values returned by all the commands. If
+                - code [ref=e1422]: invoke_without_command
+                - text: is enabled, the value will be the value returned by the group's callback, or an empty list if
+                - code [ref=e1423]: chain
+                - text: "is enabled. :param kwargs: Other arguments passed to"
+                - code [ref=e1424]: Command
+                - text: .
+              - paragraph [ref=e1425]: "versionchanged: 8.0 The ``commands`` argument can be a list of command objects."
+              - paragraph [ref=e1426]: "versionchanged: 8.2 Merged with and replaces the ``MultiCommand`` base class."
+          - generic [ref=e1428]:
+            - generic [ref=e1429]:
+              - generic [ref=e1430]: CommandCollection
+              - generic [ref=e1431]: class
+            - generic [ref=e1432]: class CommandCollection(Group)
+            - generic [ref=e1433]:
+              - paragraph [ref=e1434]:
+                - text: A
+                - code [ref=e1435]: Group
+                - text: that looks up subcommands on other groups. If a command is not found on this group, each registered source is checked in order. Parameters on a source are not added to this group, and a source's callback is not invoked when invoking its commands. In other words, this "flattens" commands in many groups into this one group.
+              - paragraph [ref=e1436]:
+                - text: ":param name: The name of the group command. :param sources: A list of"
+                - code [ref=e1437]: Group
+                - text: "objects to look up commands from. :param kwargs: Other arguments passed to"
+                - code [ref=e1438]: Group
+                - text: .
+              - paragraph [ref=e1439]: "versionchanged: 8.2 This is a subclass of ``Group``. Commands are looked up first on this group, then each of its sources."
+          - generic [ref=e1441]:
+            - generic [ref=e1442]:
+              - generic [ref=e1443]: Parameter
+              - generic [ref=e1444]: class
+            - generic [ref=e1445]: class Parameter
+            - generic [ref=e1446]:
+              - paragraph [ref=e1447]:
+                - text: "A parameter to a command comes in two versions: they are either"
+                - code [ref=e1448]: Option
+                - text: \s or
+                - code [ref=e1449]: Argument
+                - text: \s. Other subclasses are currently not supported by design as some of the internals for parsing are intentionally not finalized.
+              - code [ref=e1451]: Some settings are supported by both options and arguments.
+              - paragraph [ref=e1452]:
+                - text: ":param param_decls: the parameter declarations for this option or argument. This is a list of flags or argument names. :param type: the type that should be used. Either a"
+                - code [ref=e1453]: ParamType
+                - text: "or a Python type. The latter is converted into the former automatically if supported. :param required: controls if this is optional or not. :param default: the default value if omitted. This can also be a callable, in which case it's invoked when the default is needed without any arguments. :param callback: A function to further process or validate the value after type conversion. It is called as"
+                - code [ref=e1454]: f(ctx, param, value)
+                - text: "and must return the value. It is called for all sources, including prompts. :param nargs: the number of arguments to match. If not"
+                - code [ref=e1455]: "1"
+                - text: the return value is a tuple instead of single value. The default for nargs is
+                - code [ref=e1456]: "1"
+                - text: (except if the type is a tuple, then it's the arity of the tuple). If
+                - code [ref=e1457]: nargs=-1
+                - text: ", all remaining parameters are collected. :param metavar: how the value is represented in the help page. :param expose_value: if this is"
+                - code [ref=e1458]: "True"
+                - text: "then the value is passed onwards to the command callback and stored on the context, otherwise it's skipped. :param is_eager: eager values are processed before non eager ones. This should not be set for arguments or it will inverse the order of processing. :param envvar: environment variable(s) that are used to provide a default value for this parameter. This can be a string or a sequence of strings. If a sequence is given, only the first non-empty environment variable is used for the parameter. :param shell_complete: A function that returns custom shell completions. Used instead of the param's type completion if given. Takes"
+                - code [ref=e1459]: ctx, param, incomplete
+                - text: and must return a list of
+                - code [ref=e1460]: ~click.shell_completion.CompletionItem
+                - text: "or a list of strings. :param deprecated: If"
+                - code [ref=e1461]: "True"
+                - text: or non-empty string, issues a message indicating that the argument is deprecated and highlights its deprecation in --help. The message can be customized by using a string as the value. A deprecated parameter cannot be required, a ValueError will be raised otherwise.
+              - paragraph [ref=e1462]: "versionchanged: 8.2.0 Introduction of ``deprecated``."
+              - paragraph [ref=e1463]: "versionchanged: 8.2 Adding duplicate parameter names to a :class:`~click.core.Command` will result in a ``UserWarning`` being shown."
+              - paragraph [ref=e1464]: "versionchanged: 8.2 Adding duplicate parameter names to a :class:`~click.core.Command` will result in a ``UserWarning`` being shown."
+              - paragraph [ref=e1465]: "versionchanged: 8.0 ``process_value`` validates required parameters and bounded ``nargs``, and invokes the parameter callback before returning the value. This allows the callback to validate prompts. ``full_process_value`` is removed."
+              - paragraph [ref=e1466]: "versionchanged: 8.0 ``autocompletion`` is renamed to ``shell_complete`` and has new semantics described above. The old name is deprecated and will be removed in 8.1, until then it will be wrapped to match the new requirements."
+              - paragraph [ref=e1467]: "versionchanged: 8.0 For ``multiple=True, nargs>1``, the default must be a list of tuples."
+              - paragraph [ref=e1468]: "versionchanged: 8.0 Setting a default is no longer required for ``nargs>1``, it will default to ``None``. ``multiple=True`` or ``nargs=-1`` will default to ``()``."
+              - paragraph [ref=e1469]: "versionchanged: 7.1 Empty environment variables are ignored rather than taking the empty string value. This makes it possible for scripts to clear variables if they can't unset them."
+              - paragraph [ref=e1470]: "versionchanged: 2.0 Changed signature for parameter callback to also be passed the parameter. The old callback format will still work, but it will raise a warning to give you a chance to migrate the code easier."
+          - generic [ref=e1472]:
+            - generic [ref=e1473]:
+              - generic [ref=e1474]: Option
+              - generic [ref=e1475]: class
+            - generic [ref=e1476]: class Option(Parameter)
+            - generic [ref=e1477]:
+              - paragraph [ref=e1478]: Options are usually optional values on the command line and have some extra features that arguments don't have.
+              - code [ref=e1480]: All other parameters are passed onwards to the parameter constructor.
+              - paragraph [ref=e1481]:
+                - text: ":param show_default: Show the default value for this option in its help text. Values are not shown by default, unless"
+                - code [ref=e1482]: Context.show_default
+                - text: is
+                - code [ref=e1483]: "True"
+                - text: . If this value is a string, it shows that string in parentheses instead of the actual value. This is particularly useful for dynamic options. For single option boolean flags, the default remains hidden if its value is
+                - code [ref=e1484]: "False"
+                - text: ". :param show_envvar: Controls if an environment variable should be shown on the help page and error messages. Normally, environment variables are not shown. :param prompt: If set to"
+                - code [ref=e1485]: "True"
+                - text: or a non empty string then the user will be prompted for input. If set to
+                - code [ref=e1486]: "True"
+                - text: "the prompt will be the option name capitalized. A deprecated option cannot be prompted. :param confirmation_prompt: Prompt a second time to confirm the value if it was prompted for. Can be set to a string instead of"
+                - code [ref=e1487]: "True"
+                - text: "to customize the message. :param prompt_required: If set to"
+                - code [ref=e1488]: "False"
+                - text: ", the user will be prompted for input only when the option was specified as a flag without a value. :param hide_input: If this is"
+                - code [ref=e1489]: "True"
+                - text: "then the input on the prompt will be hidden from the user. This is useful for password input. :param is_flag: forces this option to act as a flag. The default is auto detection. :param flag_value: which value should be used for this flag if it's enabled. This is set to a boolean automatically if the option string contains a slash to mark two options. :param multiple: if this is set to"
+                - code [ref=e1490]: "True"
+                - text: then the argument is accepted multiple times and recorded. This is similar to
+                - code [ref=e1491]: nargs
+                - text: "in how it works but supports arbitrary number of arguments. :param count: this flag makes an option increment an integer. :param allow_from_autoenv: if this is enabled then the value of this parameter will be pulled from an environment variable in case a prefix is defined on the context. :param help: the help string. :param hidden: hide this option from help outputs. :param attrs: Other command arguments described in"
+                - code [ref=e1492]: Parameter
+                - text: .
+              - paragraph [ref=e1493]: "versionchanged: 8.2 ``envvar`` used with ``flag_value`` will always use the ``flag_value``, previously it would use the value of the environment variable."
+              - paragraph [ref=e1494]: "versionchanged: 8.1 Help text indentation is cleaned here instead of only in the ``@option`` decorator."
+              - paragraph [ref=e1495]: "versionchanged: 8.1 The ``show_default`` parameter overrides ``Context.show_default``."
+              - paragraph [ref=e1496]: "versionchanged: 8.1 The default of a single option boolean flag is not shown if the default value is ``False``."
+              - paragraph [ref=e1497]: "versionchanged: 8.0.1 ``type`` is detected from ``flag_value`` if given."
+          - generic [ref=e1499]:
+            - generic [ref=e1500]:
+              - generic [ref=e1501]: Argument
+              - generic [ref=e1502]: class
+            - generic [ref=e1503]: class Argument(Parameter)
+            - generic [ref=e1504]:
+              - paragraph [ref=e1505]:
+                - text: Arguments are positional parameters to a command. They generally provide fewer features than options but can have infinite
+                - code [ref=e1506]: nargs
+                - text: and are required by default.
+              - code [ref=e1508]: "All parameters are passed onwards to the constructor of :class:`Parameter`."
+          - generic [ref=e1510]:
+            - generic [ref=e1511]:
+              - generic [ref=e1512]: ParamType
+              - generic [ref=e1513]: class
+            - generic [ref=e1514]: class ParamType
+            - generic [ref=e1515]:
+              - paragraph [ref=e1516]: Represents the type of a parameter. Validates and converts values from the command line or Python into the correct type.
+              - code [ref=e1518]: "To implement a custom type, subclass and implement at least the following:"
+              - paragraph [ref=e1519]:
+                - text: "- The"
+                - code [ref=e1520]: name
+                - text: class attribute must be set. - Calling an instance of the type with
+                - code [ref=e1521]: None
+                - text: must return
+                - code [ref=e1522]: None
+                - text: . This is already implemented by default. -
+                - code [ref=e1523]: convert
+                - text: must convert string values to the correct type. -
+                - code [ref=e1524]: convert
+                - text: must accept values that are already the correct type. - It must be able to convert a value if the
+                - code [ref=e1525]: ctx
+                - text: and
+                - code [ref=e1526]: param
+                - text: arguments are
+                - code [ref=e1527]: None
+                - text: . This can occur when converting prompt input.
+          - generic [ref=e1529]:
+            - generic [ref=e1530]:
+              - generic [ref=e1531]: CompositeParamType
+              - generic [ref=e1532]: class
+            - generic [ref=e1533]: class CompositeParamType(ParamType)
+          - generic [ref=e1535]:
+            - generic [ref=e1536]:
+              - generic [ref=e1537]: FuncParamType
+              - generic [ref=e1538]: class
+            - generic [ref=e1539]: class FuncParamType(ParamType)
+          - generic [ref=e1541]:
+            - generic [ref=e1542]:
+              - generic [ref=e1543]: UnprocessedParamType
+              - generic [ref=e1544]: class
+            - generic [ref=e1545]: class UnprocessedParamType(ParamType)
+          - generic [ref=e1547]:
+            - generic [ref=e1548]:
+              - generic [ref=e1549]: StringParamType
+              - generic [ref=e1550]: class
+            - generic [ref=e1551]: class StringParamType(ParamType)
+          - generic [ref=e1553]:
+            - generic [ref=e1554]:
+              - generic [ref=e1555]: Choice
+              - generic [ref=e1556]: class
+            - generic [ref=e1557]: class Choice(ParamType, t.Generic[ParamTypeValue])
+            - generic [ref=e1558]:
+              - paragraph [ref=e1559]: The choice type allows a value to be checked against a fixed set of supported values.
+              - code [ref=e1561]: You may pass any iterable value which will be converted to a tuple and thus will only be iterated once.
+              - paragraph [ref=e1562]:
+                - text: The resulting value will always be one of the originally passed choices. See
+                - code [ref=e1563]: normalize_choice
+                - text: for more info on the mapping of strings to choices. See
+                - code [ref=e1564]: choice-opts
+                - text: for an example.
+              - paragraph [ref=e1565]: ":param case_sensitive: Set to false to make choices case insensitive. Defaults to true."
+              - paragraph [ref=e1566]: "versionchanged: 8.2.0 Non-``str`` ``choices`` are now supported. It can additionally be any iterable. Before you were not recommended to pass anything but a list or tuple."
+              - paragraph [ref=e1567]: "versionadded: 8.2.0 Choice normalization can be overridden via :meth:`normalize_choice`."
+          - generic [ref=e1569]:
+            - generic [ref=e1570]:
+              - generic [ref=e1571]: DateTime
+              - generic [ref=e1572]: class
+            - generic [ref=e1573]: class DateTime(ParamType)
+            - generic [ref=e1574]:
+              - paragraph [ref=e1575]:
+                - text: The DateTime type converts date strings into
+                - code [ref=e1576]: datetime
+                - text: objects.
+              - code [ref=e1578]: The format strings which are checked are configurable, but default to some common (non-timezone aware) ISO 8601 formats.
+              - paragraph [ref=e1579]: When specifying *DateTime* formats, you should only pass a list or a tuple. Other iterables, like generators, may lead to surprising results.
+              - code [ref=e1581]: "The format strings are processed using ``datetime.strptime``, and this consequently defines the format strings which are allowed."
+              - code [ref=e1583]: Parsing is tried using each format, in order, and the first format which parses successfully is used.
+              - paragraph [ref=e1584]:
+                - text: ":param formats: A list or tuple of date format strings, in the order in which they should be tried. Defaults to"
+                - code [ref=e1585]: "'%Y-%m-%d'"
+                - text: ","
+                - code [ref=e1586]: "'%Y-%m-%dT%H:%M:%S'"
+                - text: ","
+                - code [ref=e1587]: "'%Y-%m-%d %H:%M:%S'"
+                - text: .
+          - generic [ref=e1589]:
+            - generic [ref=e1590]:
+              - generic [ref=e1591]: IntParamType
+              - generic [ref=e1592]: class
+            - generic [ref=e1593]: class IntParamType(_NumberParamTypeBase)
+          - generic [ref=e1595]:
+            - generic [ref=e1596]:
+              - generic [ref=e1597]: IntRange
+              - generic [ref=e1598]: class
+            - generic [ref=e1599]: class IntRange(_NumberRangeBase, IntParamType)
+            - generic [ref=e1600]:
+              - paragraph [ref=e1601]:
+                - text: Restrict an
+                - code [ref=e1602]: click.INT
+                - text: value to a range of accepted values. See
+                - code [ref=e1603]: ranges
+                - text: .
+              - paragraph [ref=e1604]:
+                - text: If
+                - code [ref=e1605]: min
+                - text: or
+                - code [ref=e1606]: max
+                - text: are not passed, any value is accepted in that direction. If
+                - code [ref=e1607]: min_open
+                - text: or
+                - code [ref=e1608]: max_open
+                - text: are enabled, the corresponding boundary is not included in the range.
+              - code [ref=e1610]: "If ``clamp`` is enabled, a value outside the range is clamped to the boundary instead of failing."
+              - paragraph [ref=e1611]: "versionchanged: 8.0 Added the ``min_open`` and ``max_open`` parameters."
+          - generic [ref=e1613]:
+            - generic [ref=e1614]:
+              - generic [ref=e1615]: FloatParamType
+              - generic [ref=e1616]: class
+            - generic [ref=e1617]: class FloatParamType(_NumberParamTypeBase)
+          - generic [ref=e1619]:
+            - generic [ref=e1620]:
+              - generic [ref=e1621]: FloatRange
+              - generic [ref=e1622]: class
+            - generic [ref=e1623]: class FloatRange(_NumberRangeBase, FloatParamType)
+            - generic [ref=e1624]:
+              - paragraph [ref=e1625]:
+                - text: Restrict a
+                - code [ref=e1626]: click.FLOAT
+                - text: value to a range of accepted values. See
+                - code [ref=e1627]: ranges
+                - text: .
+              - paragraph [ref=e1628]:
+                - text: If
+                - code [ref=e1629]: min
+                - text: or
+                - code [ref=e1630]: max
+                - text: are not passed, any value is accepted in that direction. If
+                - code [ref=e1631]: min_open
+                - text: or
+                - code [ref=e1632]: max_open
+                - text: are enabled, the corresponding boundary is not included in the range.
+              - paragraph [ref=e1633]:
+                - text: If
+                - code [ref=e1634]: clamp
+                - text: is enabled, a value outside the range is clamped to the boundary instead of failing. This is not supported if either boundary is marked
+                - code [ref=e1635]: open
+                - text: .
+              - paragraph [ref=e1636]: "versionchanged: 8.0 Added the ``min_open`` and ``max_open`` parameters."
+          - generic [ref=e1638]:
+            - generic [ref=e1639]:
+              - generic [ref=e1640]: BoolParamType
+              - generic [ref=e1641]: class
+            - generic [ref=e1642]: class BoolParamType(ParamType)
+          - generic [ref=e1644]:
+            - generic [ref=e1645]:
+              - generic [ref=e1646]: UUIDParameterType
+              - generic [ref=e1647]: class
+            - generic [ref=e1648]: class UUIDParameterType(ParamType)
+          - generic [ref=e1650]:
+            - generic [ref=e1651]:
+              - generic [ref=e1652]: File
+              - generic [ref=e1653]: class
+            - generic [ref=e1654]: class File(ParamType)
+            - generic [ref=e1655]:
+              - paragraph [ref=e1656]: Declares a parameter to be a file for reading or writing. The file is automatically closed once the context tears down (after the command finished working).
+              - paragraph [ref=e1657]:
+                - text: Files can be opened for reading or writing. The special value
+                - code [ref=e1658]: "-"
+                - text: indicates stdin or stdout depending on the mode.
+              - paragraph [ref=e1659]: By default, the file is opened for reading text data, but it can also be opened in binary mode or for writing. The encoding parameter can be used to force a specific encoding.
+              - paragraph [ref=e1660]:
+                - text: The
+                - code [ref=e1661]: lazy
+                - text: flag controls if the file should be opened immediately or upon first IO. The default is to be non-lazy for standard input and output streams as well as files opened for reading,
+                - code [ref=e1662]: lazy
+                - text: otherwise. When opening a file lazily for reading, it is still opened temporarily for validation, but will not be held open until first IO. lazy is mainly useful when opening for writing to avoid creating the file until it is needed.
+              - paragraph [ref=e1663]: Files can also be opened atomically in which case all writes go into a separate file in the same folder and upon completion the file will be moved over to the original location. This is useful if a file regularly read by other users is modified.
+              - code [ref=e1665]: "See :ref:`file-args` for more information."
+              - paragraph [ref=e1666]: "versionchanged: 2.0 Added the ``atomic`` parameter."
+          - generic [ref=e1668]:
+            - generic [ref=e1669]:
+              - generic [ref=e1670]: Path
+              - generic [ref=e1671]: class
+            - generic [ref=e1672]: class Path(ParamType)
+            - generic [ref=e1673]:
+              - paragraph [ref=e1674]:
+                - text: The
+                - code [ref=e1675]: Path
+                - text: type is similar to the
+                - code [ref=e1676]: File
+                - text: type, but returns the filename instead of an open file. Various checks can be enabled to validate the type of file and permissions.
+              - paragraph [ref=e1677]:
+                - text: ":param exists: The file or directory needs to exist for the value to be valid. If this is not set to"
+                - code [ref=e1678]: "True"
+                - text: ", and the file does not exist, then all further checks are silently skipped. :param file_okay: Allow a file as a value. :param dir_okay: Allow a directory as a value. :param readable: if true, a readable check is performed. :param writable: if true, a writable check is performed. :param executable: if true, an executable check is performed. :param resolve_path: Make the value absolute and resolve any symlinks. A"
+                - code [ref=e1679]: ~
+                - text: "is not expanded, as this is supposed to be done by the shell only. :param allow_dash: Allow a single dash as a value, which indicates a standard stream (but does not open it). Use"
+                - code [ref=e1680]: ~click.open_file
+                - text: "to handle opening this value. :param path_type: Convert the incoming path value to this type. If"
+                - code [ref=e1681]: None
+                - text: ", keep Python's default, which is"
+                - code [ref=e1682]: str
+                - text: . Useful to convert to
+                - code [ref=e1683]: pathlib.Path
+                - text: .
+              - paragraph [ref=e1684]: "versionchanged: 8.1 Added the ``executable`` parameter."
+              - paragraph [ref=e1685]: "versionchanged: 8.0 Allow passing ``path_type=pathlib.Path``."
+              - paragraph [ref=e1686]: "versionchanged: 6.0 Added the ``allow_dash`` parameter."
+          - generic [ref=e1688]:
+            - generic [ref=e1689]:
+              - generic [ref=e1690]: Tuple
+              - generic [ref=e1691]: class
+            - generic [ref=e1692]: class Tuple(CompositeParamType)
+            - generic [ref=e1693]:
+              - paragraph [ref=e1694]:
+                - text: The default behavior of Click is to apply a type on a value directly. This works well in most cases, except for when
+                - code [ref=e1695]: nargs
+                - text: is set to a fixed count and different types should be used for different items. In this case the
+                - code [ref=e1696]: Tuple
+                - text: type can be used. This type can only be used if
+                - code [ref=e1697]: nargs
+                - text: is set to a fixed number.
+              - code [ref=e1699]: "For more information see :ref:`tuple-type`."
+              - code [ref=e1701]: This can be selected by using a Python tuple literal as a type.
+              - paragraph [ref=e1702]: ":param types: a list of types that should be used for the tuple items."
+          - generic [ref=e1704]:
+            - generic [ref=e1705]:
+              - generic [ref=e1706]: OptionHelpExtra
+              - generic [ref=e1707]: class
+            - generic [ref=e1708]: class OptionHelpExtra(t.TypedDict)
+          - generic [ref=e1710]:
+            - generic [ref=e1711]:
+              - generic [ref=e1712]: LazyFile
+              - generic [ref=e1713]: class
+            - generic [ref=e1714]: class LazyFile
+            - paragraph [ref=e1716]: A lazy file works like a regular file but it does not fully open the file but it does perform some basic checks early to see if the filename parameter does make sense. This is useful for safely opening files for writing.
+          - generic [ref=e1718]:
+            - generic [ref=e1719]:
+              - generic [ref=e1720]: KeepOpenFile
+              - generic [ref=e1721]: class
+            - generic [ref=e1722]: class KeepOpenFile
+          - generic [ref=e1724]:
+            - generic [ref=e1725]:
+              - generic [ref=e1726]: PacifyFlushWrapper
+              - generic [ref=e1727]: class
+            - generic [ref=e1728]: class PacifyFlushWrapper
+            - paragraph [ref=e1730]:
+              - text: This wrapper is used to catch and suppress BrokenPipeErrors resulting from
+              - code [ref=e1731]: .flush()
+              - text: being called on broken pipe during the shutdown/final-GC of the Python interpreter. Notably
+              - code [ref=e1732]: .flush()
+              - text: is always called on
+              - code [ref=e1733]: sys.stdout
+              - text: and
+              - code [ref=e1734]: sys.stderr
+              - text: . So as to have minimal impact on any other cleanup code, and the case where the underlying file is not a broken pipe, all calls and attributes are proxied.
+          - generic [ref=e1736]:
+            - generic [ref=e1737]:
+              - generic [ref=e1738]: HelpFormatter
+              - generic [ref=e1739]: class
+            - generic [ref=e1740]: class HelpFormatter
+            - generic [ref=e1741]:
+              - paragraph [ref=e1742]: This class helps with formatting text-based help pages. It's usually just needed for very special internal cases, but it's also exposed so that developers can write their own fancy outputs.
+              - code [ref=e1744]: At present, it always writes into memory.
+              - paragraph [ref=e1745]: ":param indent_increment: the additional increment for each level. :param width: the width for the text. This defaults to the terminal width clamped to a maximum of 78."
+          - generic [ref=e1747]:
+            - generic [ref=e1748]:
+              - generic [ref=e1749]: MissingParameter
+              - generic [ref=e1750]: class
+            - generic [ref=e1751]: class MissingParameter(BadParameter)
+            - generic [ref=e1752]:
+              - paragraph [ref=e1753]: Raised if click required an option or argument but it was not provided when invoking the script.
+              - paragraph [ref=e1754]: "versionadded: 4.0"
+              - paragraph [ref=e1755]:
+                - text: ":param param_type: a string that indicates the type of the parameter. The default is to inherit the parameter type from the given"
+                - code [ref=e1756]: param
+                - text: . Valid values are
+                - code [ref=e1757]: "'parameter'"
+                - text: ","
+                - code [ref=e1758]: "'option'"
+                - text: or
+                - code [ref=e1759]: "'argument'"
+                - text: .
+          - generic [ref=e1761]:
+            - generic [ref=e1762]:
+              - generic [ref=e1763]: EchoingStdin
+              - generic [ref=e1764]: class
+            - generic [ref=e1765]: class EchoingStdin
+          - generic [ref=e1767]:
+            - generic [ref=e1768]:
+              - generic [ref=e1769]: BytesIOCopy
+              - generic [ref=e1770]: class
+            - generic [ref=e1771]: class BytesIOCopy(io.BytesIO)
+            - generic [ref=e1772]:
+              - paragraph [ref=e1773]:
+                - text: Patch
+                - code [ref=e1774]: io.BytesIO
+                - text: to let the written stream be copied to another.
+              - paragraph [ref=e1775]: "versionadded: 8.2"
+          - generic [ref=e1777]:
+            - generic [ref=e1778]:
+              - generic [ref=e1779]: StreamMixer
+              - generic [ref=e1780]: class
+            - generic [ref=e1781]: class StreamMixer
+            - generic [ref=e1782]:
+              - paragraph [ref=e1783]:
+                - text: Mixes
+                - code [ref=e1784]: <stdout>
+                - text: and
+                - code [ref=e1785]: <stderr>
+                - text: streams.
+              - code [ref=e1787]: "The result is available in the ``output`` attribute."
+              - paragraph [ref=e1788]: "versionadded: 8.2"
+          - generic [ref=e1790]:
+            - generic [ref=e1791]:
+              - generic [ref=e1792]: Result
+              - generic [ref=e1793]: class
+            - generic [ref=e1794]: class Result
+            - generic [ref=e1795]:
+              - paragraph [ref=e1796]: Holds the captured result of an invoked CLI script.
+              - paragraph [ref=e1797]:
+                - text: ":param runner: The runner that created the result :param stdout_bytes: The standard output as bytes. :param stderr_bytes: The standard error as bytes. :param output_bytes: A mix of"
+                - code [ref=e1798]: stdout_bytes
+                - text: and
+                - code [ref=e1799]: stderr_bytes
+                - text: ", as the user would see it in its terminal. :param return_value: The value returned from the invoked command. :param exit_code: The exit code as integer. :param exception: The exception that happened if one did. :param exc_info: Exception information (exception type, exception instance, traceback type)."
+              - paragraph [ref=e1800]: "versionchanged: 8.2 ``stderr_bytes`` no longer optional, ``output_bytes`` introduced and ``mix_stderr`` has been removed."
+              - paragraph [ref=e1801]: "versionadded: 8.0 Added ``return_value``."
+          - generic [ref=e1803]:
+            - generic [ref=e1804]:
+              - generic [ref=e1805]: CliRunner
+              - generic [ref=e1806]: class
+            - generic [ref=e1807]: class CliRunner
+            - generic [ref=e1808]:
+              - paragraph [ref=e1809]: The CLI runner provides functionality to invoke a Click command line script for unittesting purposes in a isolated environment. This only works in single-threaded systems without any concurrency as it changes the global interpreter state.
+              - paragraph [ref=e1810]:
+                - text: ":param charset: the character set for the input and output data. :param env: a dictionary with environment variables for overriding. :param echo_stdin: if this is set to"
+                - code [ref=e1811]: "True"
+                - text: ", then reading from"
+                - code [ref=e1812]: <stdin>
+                - text: writes to
+                - code [ref=e1813]: <stdout>
+                - text: ". This is useful for showing examples in some circumstances. Note that regular prompts will automatically echo the input. :param catch_exceptions: Whether to catch any exceptions other than"
+                - code [ref=e1814]: SystemExit
+                - text: when running
+                - code [ref=e1815]: ~CliRunner.invoke
+                - text: .
+              - paragraph [ref=e1816]: "versionchanged: 8.2 Added the ``catch_exceptions`` parameter."
+              - paragraph [ref=e1817]: "versionchanged: 8.2 ``mix_stderr`` parameter has been removed."
+          - generic [ref=e1819]:
+            - generic [ref=e1820]:
+              - generic [ref=e1821]: ClickException
+              - generic [ref=e1822]: exception
+            - generic [ref=e1823]: class ClickException(Exception)
+            - paragraph [ref=e1825]: An exception that Click can handle and show to the user.
+          - generic [ref=e1827]:
+            - generic [ref=e1828]:
+              - generic [ref=e1829]: UsageError
+              - generic [ref=e1830]: exception
+            - generic [ref=e1831]: class UsageError(ClickException)
+            - generic [ref=e1832]:
+              - paragraph [ref=e1833]: An internal exception that signals a usage error. This typically aborts any further handling.
+              - paragraph [ref=e1834]: ":param message: the error message to display. :param ctx: optionally the context that caused this error. Click will fill in the context automatically in some situations."
+          - generic [ref=e1836]:
+            - generic [ref=e1837]:
+              - generic [ref=e1838]: BadParameter
+              - generic [ref=e1839]: exception
+            - generic [ref=e1840]: class BadParameter(UsageError)
+            - generic [ref=e1841]:
+              - paragraph [ref=e1842]: An exception that formats out a standardized error message for a bad parameter. This is useful when thrown from a callback or type as Click will attach contextual information to it (for instance, which parameter it is).
+              - paragraph [ref=e1843]: "versionadded: 2.0"
+              - paragraph [ref=e1844]:
+                - text: ":param param: the parameter object that caused this error. This can be left out, and Click will attach this info itself if possible. :param param_hint: a string that shows up as parameter name. This can be used as alternative to"
+                - code [ref=e1845]: param
+                - text: in cases where custom validation should happen. If it is a string it's used as such, if it's a list then each item is quoted and separated.
+          - generic [ref=e1847]:
+            - generic [ref=e1848]:
+              - generic [ref=e1849]: NoSuchOption
+              - generic [ref=e1850]: exception
+            - generic [ref=e1851]: class NoSuchOption(UsageError)
+            - generic [ref=e1852]:
+              - paragraph [ref=e1853]: Raised if click attempted to handle an option that does not exist.
+              - paragraph [ref=e1854]: "versionadded: 4.0"
+          - generic [ref=e1856]:
+            - generic [ref=e1857]:
+              - generic [ref=e1858]: BadOptionUsage
+              - generic [ref=e1859]: exception
+            - generic [ref=e1860]: class BadOptionUsage(UsageError)
+            - generic [ref=e1861]:
+              - paragraph [ref=e1862]: Raised if an option is generally supplied but the use of the option was incorrect. This is for instance raised if the number of arguments for an option is not correct.
+              - paragraph [ref=e1863]: "versionadded: 4.0"
+              - paragraph [ref=e1864]: ":param option_name: the name of the option being used incorrectly."
+          - generic [ref=e1866]:
+            - generic [ref=e1867]:
+              - generic [ref=e1868]: BadArgumentUsage
+              - generic [ref=e1869]: exception
+            - generic [ref=e1870]: class BadArgumentUsage(UsageError)
+            - generic [ref=e1871]:
+              - paragraph [ref=e1872]: Raised if an argument is generally supplied but the use of the argument was incorrect. This is for instance raised if the number of values for an argument is not correct.
+              - paragraph [ref=e1873]: "versionadded: 6.0"
+          - generic [ref=e1875]:
+            - generic [ref=e1876]:
+              - generic [ref=e1877]: NoArgsIsHelpError
+              - generic [ref=e1878]: exception
+            - generic [ref=e1879]: class NoArgsIsHelpError(UsageError)
+          - generic [ref=e1881]:
+            - generic [ref=e1882]:
+              - generic [ref=e1883]: FileError
+              - generic [ref=e1884]: exception
+            - generic [ref=e1885]: class FileError(ClickException)
+            - paragraph [ref=e1887]: Raised if a file cannot be opened.
+          - generic [ref=e1889]:
+            - generic [ref=e1890]:
+              - generic [ref=e1891]: Abort
+              - generic [ref=e1892]: exception
+            - generic [ref=e1893]: class Abort(RuntimeError)
+            - paragraph [ref=e1895]: An internal signalling exception that signals Click to abort.
+          - generic [ref=e1897]:
+            - generic [ref=e1898]:
+              - generic [ref=e1899]: Exit
+              - generic [ref=e1900]: exception
+            - generic [ref=e1901]: class Exit(RuntimeError)
+            - generic [ref=e1902]:
+              - paragraph [ref=e1903]: An exception that indicates that the application should exit with some status code.
+              - paragraph [ref=e1904]: ":param code: the status code to exit with."

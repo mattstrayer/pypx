@@ -1,0 +1,221 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "pypx" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: pypx
+        - generic [ref=e10]:
+          - img
+          - textbox "Search packages..." [ref=e11]
+          - generic: ⌘K
+    - main [ref=e12]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - heading "numpy" [level=1] [ref=e17]
+            - generic [ref=e18]: v2.4.4
+          - paragraph [ref=e19]: Fundamental package for array computing in Python
+          - generic [ref=e21]:
+            - generic [ref=e22]: 5.0 MB
+            - generic [ref=e23]: Python 3.11+
+            - generic [ref=e24]: platform-specific
+            - generic [ref=e25]: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+        - generic [ref=e26]:
+          - button "Overview" [ref=e27]
+          - button "Dependencies" [ref=e28]
+          - button "Versions" [ref=e29]
+          - button "Stats" [ref=e30]
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]:
+                - button "uv" [ref=e37]
+                - button "pip" [ref=e38]
+                - button "poetry" [ref=e39]
+                - button "pipx" [ref=e40]
+              - generic [ref=e41]:
+                - code [ref=e42]: $ uv add numpy
+                - button "Copy" [ref=e43]:
+                  - img [ref=e44]
+            - generic [ref=e47]:
+              - heading "Description" [level=2] [ref=e48]
+              - generic [ref=e49]:
+                - heading [level=1] [ref=e50]:
+                  - img [ref=e51]
+                - paragraph [ref=e52]:
+                  - link "Powered by NumFOCUS" [ref=e53] [cursor=pointer]:
+                    - /url: https://numfocus.org
+                    - img "Powered by NumFOCUS" [ref=e54]
+                  - link "PyPI Downloads" [ref=e55] [cursor=pointer]:
+                    - /url: https://pypi.org/project/numpy/
+                    - img "PyPI Downloads" [ref=e56]
+                  - link "Conda Downloads" [ref=e57] [cursor=pointer]:
+                    - /url: https://anaconda.org/conda-forge/numpy
+                    - img "Conda Downloads" [ref=e58]
+                  - link "Stack Overflow" [ref=e59] [cursor=pointer]:
+                    - /url: https://stackoverflow.com/questions/tagged/numpy
+                    - img "Stack Overflow" [ref=e60]
+                  - link "Nature Paper" [ref=e61] [cursor=pointer]:
+                    - /url: https://doi.org/10.1038/s41586-020-2649-2
+                    - img "Nature Paper" [ref=e62]
+                  - link "LFX Health Score" [ref=e63] [cursor=pointer]:
+                    - /url: https://insights.linuxfoundation.org/project/numpy
+                    - img "LFX Health Score" [ref=e64]
+                  - link "OpenSSF Scorecard" [ref=e65] [cursor=pointer]:
+                    - /url: https://securityscorecards.dev/viewer/?uri=github.com/numpy/numpy
+                    - img "OpenSSF Scorecard" [ref=e66]
+                  - link "Typing" [ref=e67] [cursor=pointer]:
+                    - /url: https://pypi.org/project/numpy/
+                    - img "Typing" [ref=e68]
+                - paragraph [ref=e69]: NumPy is the fundamental package for scientific computing with Python.
+                - list [ref=e70]:
+                  - listitem [ref=e71]:
+                    - strong [ref=e72]: "Website:"
+                    - link "https://numpy.org" [ref=e73] [cursor=pointer]:
+                      - /url: https://numpy.org
+                  - listitem [ref=e74]:
+                    - strong [ref=e75]: "Documentation:"
+                    - link "https://numpy.org/doc" [ref=e76] [cursor=pointer]:
+                      - /url: https://numpy.org/doc
+                  - listitem [ref=e77]:
+                    - strong [ref=e78]: "Mailing list:"
+                    - link "https://mail.python.org/mailman/listinfo/numpy-discussion" [ref=e79] [cursor=pointer]:
+                      - /url: https://mail.python.org/mailman/listinfo/numpy-discussion
+                  - listitem [ref=e80]:
+                    - strong [ref=e81]: "Source code:"
+                    - link "https://github.com/numpy/numpy" [ref=e82] [cursor=pointer]:
+                      - /url: https://github.com/numpy/numpy
+                  - listitem [ref=e83]:
+                    - strong [ref=e84]: "Contributing:"
+                    - link "https://numpy.org/devdocs/dev/index.html" [ref=e85] [cursor=pointer]:
+                      - /url: https://numpy.org/devdocs/dev/index.html
+                  - listitem [ref=e86]:
+                    - strong [ref=e87]: "Bug reports:"
+                    - link "https://github.com/numpy/numpy/issues" [ref=e88] [cursor=pointer]:
+                      - /url: https://github.com/numpy/numpy/issues
+                  - listitem [ref=e89]:
+                    - strong [ref=e90]: "Report a security vulnerability:"
+                    - link "https://tidelift.com/docs/security" [ref=e91] [cursor=pointer]:
+                      - /url: https://tidelift.com/docs/security
+                - paragraph [ref=e92]: "It provides:"
+                - list [ref=e93]:
+                  - listitem [ref=e94]: a powerful N-dimensional array object
+                  - listitem [ref=e95]: sophisticated (broadcasting) functions
+                  - listitem [ref=e96]: tools for integrating C/C++ and Fortran code
+                  - listitem [ref=e97]: useful linear algebra, Fourier transform, and random number capabilities
+                - paragraph [ref=e98]: "Testing:"
+                - paragraph [ref=e99]:
+                  - text: NumPy requires
+                  - code [ref=e100]: pytest
+                  - text: and
+                  - code [ref=e101]: hypothesis
+                  - text: ". Tests can then be run after installation with:"
+                - code [ref=e103]: python -c "import numpy, sys; sys.exit(numpy.test() is False)"
+                - heading "Code of Conduct" [level=2] [ref=e104]
+                - paragraph [ref=e105]:
+                  - text: NumPy is a community-driven open source project developed by a diverse group of
+                  - link "contributors" [ref=e106] [cursor=pointer]:
+                    - /url: https://numpy.org/teams/
+                  - text: . The NumPy leadership has made a strong commitment to creating an open, inclusive, and positive community. Please read the
+                  - link "NumPy Code of Conduct" [ref=e107] [cursor=pointer]:
+                    - /url: https://numpy.org/code-of-conduct/
+                  - text: for guidance on how to interact with others in a way that makes our community thrive.
+                - heading "Call for Contributions" [level=2] [ref=e108]
+                - paragraph [ref=e109]: The NumPy project welcomes your expertise and enthusiasm!
+                - paragraph [ref=e110]:
+                  - text: Small improvements or fixes are always appreciated. If you are considering larger contributions to the source code, please contact us through the
+                  - link "mailing list" [ref=e111] [cursor=pointer]:
+                    - /url: https://mail.python.org/mailman/listinfo/numpy-discussion
+                  - text: first.
+                - paragraph [ref=e112]: "Writing code isn’t the only way to contribute to NumPy. You can also:"
+                - list [ref=e113]:
+                  - listitem [ref=e114]: review pull requests
+                  - listitem [ref=e115]: help us stay on top of new and old issues
+                  - listitem [ref=e116]: develop tutorials, presentations, and other educational materials
+                  - listitem [ref=e117]:
+                    - text: maintain and improve
+                    - link "our website" [ref=e118] [cursor=pointer]:
+                      - /url: https://github.com/numpy/numpy.org
+                  - listitem [ref=e119]: develop graphic design for our brand assets and promotional materials
+                  - listitem [ref=e120]: translate website content
+                  - listitem [ref=e121]: help with outreach and onboard new contributors
+                  - listitem [ref=e122]: write grant proposals and help with other fundraising efforts
+                - paragraph [ref=e123]:
+                  - text: For more information about the ways you can contribute to NumPy, visit
+                  - link "our website" [ref=e124] [cursor=pointer]:
+                    - /url: https://numpy.org/contribute/
+                  - text: . If you’re unsure where to start or how your skills fit in, reach out! You can ask on the mailing list or here, on GitHub, by opening a new issue or leaving a comment on a relevant issue that is already open.
+                - paragraph [ref=e125]:
+                  - text: Our preferred channels of communication are all public, but if you’d like to speak to us in private first, contact our community coordinators at
+                  - link "numpy-team@googlegroups.com" [ref=e126] [cursor=pointer]:
+                    - /url: mailto:numpy-team@googlegroups.com
+                  - text: or on Slack (write
+                  - link "numpy-team@googlegroups.com" [ref=e127] [cursor=pointer]:
+                    - /url: mailto:numpy-team@googlegroups.com
+                  - text: for an invitation).
+                - paragraph [ref=e128]: We also have a biweekly community call, details of which are announced on the mailing list. You are very welcome to join.
+                - paragraph [ref=e129]:
+                  - text: If you are new to contributing to open source,
+                  - link "this guide" [ref=e130] [cursor=pointer]:
+                    - /url: https://opensource.guide/how-to-contribute/
+                  - text: helps explain why, what, and how to successfully get involved.
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - heading "Details" [level=2] [ref=e133]
+              - generic [ref=e134]:
+                - generic [ref=e135]:
+                  - term [ref=e136]: Version
+                  - definition [ref=e137]: 2.4.4
+                - generic [ref=e138]:
+                  - term [ref=e139]: License
+                  - definition [ref=e140]: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+                - generic [ref=e141]:
+                  - term [ref=e142]: Python
+                  - definition [ref=e143]: ">=3.11"
+                - generic [ref=e144]:
+                  - term [ref=e145]: Maintainer
+                  - definition [ref=e146]: Travis E. Oliphant et al.
+            - generic [ref=e147]:
+              - heading "Links" [level=2] [ref=e148]
+              - list [ref=e149]:
+                - listitem [ref=e150]:
+                  - link "documentation" [ref=e151] [cursor=pointer]:
+                    - /url: https://numpy.org/doc/
+                    - img [ref=e152]
+                    - text: documentation
+                - listitem [ref=e156]:
+                  - link "download" [ref=e157] [cursor=pointer]:
+                    - /url: https://pypi.org/project/numpy/#files
+                    - img [ref=e158]
+                    - text: download
+                - listitem [ref=e162]:
+                  - link "homepage" [ref=e163] [cursor=pointer]:
+                    - /url: https://numpy.org
+                    - img [ref=e164]
+                    - text: homepage
+                - listitem [ref=e168]:
+                  - link "release notes" [ref=e169] [cursor=pointer]:
+                    - /url: https://numpy.org/doc/stable/release
+                    - img [ref=e170]
+                    - text: release notes
+                - listitem [ref=e174]:
+                  - link "source" [ref=e175] [cursor=pointer]:
+                    - /url: https://github.com/numpy/numpy
+                    - img [ref=e176]
+                    - text: source
+                - listitem [ref=e180]:
+                  - link "tracker" [ref=e181] [cursor=pointer]:
+                    - /url: https://github.com/numpy/numpy/issues
+                    - img [ref=e182]
+                    - text: tracker
+  - generic:
+    - img
+  - generic [ref=e186]:
+    - button "Toggle Nuxt DevTools" [ref=e187] [cursor=pointer]:
+      - img [ref=e188]
+    - generic "Page load time" [ref=e191]:
+      - generic [ref=e192]: "19"
+      - generic [ref=e193]: ms
+    - button "Toggle Component Inspector" [ref=e195] [cursor=pointer]:
+      - img [ref=e196]

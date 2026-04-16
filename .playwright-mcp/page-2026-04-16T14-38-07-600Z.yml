@@ -1,0 +1,163 @@
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - navigation "Main" [ref=e7]:
+      - button "Open command palette" [ref=e8]:
+        - generic [ref=e9]: jump to...
+        - generic [ref=e11]: Ctrl+K
+      - generic [ref=e12]:
+        - link "compare" [ref=e13] [cursor=pointer]:
+          - /url: /compare
+          - text: compare
+          - generic [ref=e14]: c
+        - link "settings" [ref=e15] [cursor=pointer]:
+          - /url: /settings
+          - text: settings
+          - generic [ref=e16]: ","
+        - generic [ref=e19]: connect
+  - main [ref=e22]:
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - heading "npmx logo" [level=1] [ref=e26]
+          - generic [ref=e27]:
+            - img [ref=e28]
+            - generic [ref=e36]: alpha
+          - paragraph [ref=e37]: a fast, modern browser for the npm registry
+        - search [ref=e38]:
+          - generic [ref=e39]:
+            - generic [ref=e40]: Search npm packages
+            - generic [ref=e42]:
+              - generic: /
+              - searchbox "Search npm packages" [active] [ref=e43]
+              - button "search" [ref=e44]:
+                - generic [ref=e46]: search
+            - paragraph [ref=e47]:
+              - generic [ref=e49]:
+                - text: Instant search
+                - strong [ref=e50]: "on"
+                - text: —
+                - button "turn off" [ref=e51]
+        - generic [ref=e52]:
+          - text: built
+          - time [ref=e54]: Apr 14, 2026
+          - generic [ref=e55]: ·
+          - link "v0.9.0" [ref=e56] [cursor=pointer]:
+            - /url: https://github.com/npmx-dev/npmx.dev/releases/tag/v0.9.0
+            - text: v0.9.0
+      - navigation "Popular packages" [ref=e58]:
+        - list [ref=e59]:
+          - listitem [ref=e60]:
+            - link "nuxt" [ref=e61] [cursor=pointer]:
+              - /url: /package/nuxt
+              - text: nuxt
+          - listitem [ref=e63]:
+            - link "vue" [ref=e64] [cursor=pointer]:
+              - /url: /package/vue
+              - text: vue
+          - listitem [ref=e66]:
+            - link "nitro" [ref=e67] [cursor=pointer]:
+              - /url: /package/nitro
+              - text: nitro
+          - listitem [ref=e69]:
+            - link "react" [ref=e70] [cursor=pointer]:
+              - /url: /package/react
+              - text: react
+          - listitem [ref=e72]:
+            - link "svelte" [ref=e73] [cursor=pointer]:
+              - /url: /package/svelte
+              - text: svelte
+          - listitem [ref=e75]:
+            - link "vite" [ref=e76] [cursor=pointer]:
+              - /url: /package/vite
+              - text: vite
+          - listitem [ref=e78]:
+            - link "next" [ref=e79] [cursor=pointer]:
+              - /url: /package/next
+              - text: next
+          - listitem [ref=e81]:
+            - link "astro" [ref=e82] [cursor=pointer]:
+              - /url: /package/astro
+              - text: astro
+          - listitem [ref=e84]:
+            - link "typescript" [ref=e85] [cursor=pointer]:
+              - /url: /package/typescript
+              - text: typescript
+          - listitem [ref=e87]:
+            - link "angular" [ref=e88] [cursor=pointer]:
+              - /url: /package/@angular/core
+              - text: angular
+          - listitem [ref=e90]:
+            - link "analog" [ref=e91] [cursor=pointer]:
+              - /url: /package/@analogjs/platform
+              - text: analog
+          - listitem [ref=e93]:
+            - link "solid" [ref=e94] [cursor=pointer]:
+              - /url: /package/solid-js
+              - text: solid
+          - listitem [ref=e96]:
+            - link "tanstack start" [ref=e97] [cursor=pointer]:
+              - /url: /package/@tanstack/react-start
+              - text: tanstack start
+          - listitem [ref=e99]:
+            - link "storybook" [ref=e100] [cursor=pointer]:
+              - /url: /package/storybook
+              - text: storybook
+    - generic [ref=e104]:
+      - heading "Get involved" [level=2] [ref=e105]
+      - generic [ref=e106]:
+        - generic [ref=e107] [cursor=pointer]:
+          - heading "Contribute" [level=3] [ref=e108]:
+            - generic [ref=e110]: Contribute
+          - paragraph [ref=e111]: Help us build the npm experience we all want.
+          - link "View on GitHub" [ref=e112]:
+            - /url: https://repo.npmx.dev
+            - text: View on GitHub
+        - generic [ref=e114] [cursor=pointer]:
+          - heading "Join the community" [level=3] [ref=e115]:
+            - generic [ref=e117]: Join the community
+          - paragraph [ref=e118]: Chat, ask questions, and share ideas.
+          - link "Join Discord" [ref=e119]:
+            - /url: https://chat.npmx.dev
+            - text: Join Discord
+        - generic [ref=e121] [cursor=pointer]:
+          - heading "Stay updated" [level=3] [ref=e122]:
+            - generic [ref=e124]: Stay updated
+          - paragraph [ref=e125]: Find out the latest on npmx.
+          - link "Follow on Bluesky" [ref=e126]:
+            - /url: https://social.npmx.dev
+            - text: Follow on Bluesky
+  - contentinfo [ref=e128]:
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - paragraph [ref=e132]: a fast, modern browser for the npm registry
+        - generic [ref=e133]:
+          - generic [ref=e134]:
+            - link "about" [ref=e135] [cursor=pointer]:
+              - /url: /about
+            - link "blog" [ref=e136] [cursor=pointer]:
+              - /url: /blog
+            - link "privacy policy" [ref=e137] [cursor=pointer]:
+              - /url: /privacy
+            - link "a11y" [ref=e138] [cursor=pointer]:
+              - /url: /accessibility
+            - link "translation status" [ref=e139] [cursor=pointer]:
+              - /url: /translation-status
+            - link "brand" [ref=e140] [cursor=pointer]:
+              - /url: /brand
+            - button "keyboard shortcuts" [ref=e141] [cursor=pointer]
+          - generic [ref=e142]:
+            - link "docs" [ref=e143] [cursor=pointer]:
+              - /url: https://docs.npmx.dev
+              - text: docs
+            - link "source" [ref=e145] [cursor=pointer]:
+              - /url: https://repo.npmx.dev
+              - text: source
+            - link "social" [ref=e147] [cursor=pointer]:
+              - /url: https://social.npmx.dev
+              - text: social
+            - link "chat" [ref=e149] [cursor=pointer]:
+              - /url: https://chat.npmx.dev
+              - text: chat
+      - generic [ref=e151]: npm is a registered trademark of npm, Inc. This site is not affiliated with npm, Inc.

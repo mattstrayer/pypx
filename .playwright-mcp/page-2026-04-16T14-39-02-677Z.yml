@@ -1,0 +1,274 @@
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - navigation "Main" [ref=e7]:
+      - link "npmx home" [ref=e9] [cursor=pointer]:
+        - /url: /
+        - img [ref=e10]
+        - generic [ref=e18]: alpha
+      - button "Open command palette" [ref=e19]:
+        - generic [ref=e20]: jump to...
+        - generic [ref=e22]: ⌘ K
+      - search [ref=e24]:
+        - generic [ref=e25]:
+          - generic [ref=e26]: Search npm packages
+          - generic [ref=e28]:
+            - generic: /
+            - searchbox "Search npm packages" [ref=e29]
+            - button "search" [ref=e30]
+      - generic [ref=e31]:
+        - link "compare" [ref=e32] [cursor=pointer]:
+          - /url: /compare
+          - text: compare
+          - generic [ref=e33]: c
+        - link "settings" [ref=e34] [cursor=pointer]:
+          - /url: /settings
+          - text: settings
+          - generic [ref=e35]: ","
+        - button "connect" [ref=e37]:
+          - generic [ref=e38]: connect
+  - alert [ref=e40]: ~wesleytodd - npmx
+  - main [ref=e42]:
+    - generic [ref=e44]:
+      - img "Avatar for wesleytodd" [ref=e45]
+      - generic [ref=e46]:
+        - heading "~wesleytodd" [level=1] [ref=e47]
+        - paragraph [ref=e48]: 154 public packages
+      - generic [ref=e49]:
+        - navigation "External links" [ref=e50]:
+          - link "npm" [ref=e51] [cursor=pointer]:
+            - /url: https://www.npmjs.com/~wesleytodd
+            - text: npm
+        - paragraph [ref=e53]:
+          - generic [ref=e55]: 1,665,689,794 / week
+    - generic [ref=e56]:
+      - heading "Packages" [level=2] [ref=e57]
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]: Filter packages
+          - searchbox "Filter packages" [ref=e61]
+        - generic [ref=e62]:
+          - generic [ref=e63]: Sort packages
+          - combobox "Sort packages" [ref=e65]:
+            - option "Most downloaded" [selected]
+            - option "Recently published"
+            - option "Name (A-Z)"
+            - option "Name (Z-A)"
+      - generic [ref=e66]:
+        - list [ref=e67]:
+          - listitem [ref=e68]:
+            - article [ref=e70] [cursor=pointer]:
+              - generic [ref=e71]:
+                - heading "mime-db" [level=3] [ref=e72]:
+                  - link "mime-db" [ref=e73]:
+                    - /url: /package/mime-db
+                - generic [ref=e75]:
+                  - generic [ref=e76]: "Select package: mime-db"
+                  - 'checkbox "Select package: mime-db" [ref=e77]'
+              - generic [ref=e78]:
+                - generic [ref=e79]:
+                  - paragraph [ref=e80]: Media Type Database
+                  - generic [ref=e83]:
+                    - term [ref=e84]: Published
+                    - definition [ref=e85]:
+                      - time [ref=e87]: May 14, 2025
+                - generic [ref=e88]:
+                  - generic "1.54.0" [ref=e90]: v1.54.0
+                  - generic [ref=e93]: 209,197,760 / week
+              - list "Keywords":
+                - listitem:
+                  - button "mime" [ref=e94]
+                - listitem:
+                  - button "db" [ref=e95]
+                - listitem:
+                  - button "type" [ref=e96]
+                - listitem:
+                  - button "types" [ref=e97]
+                - listitem:
+                  - button "database" [ref=e98]
+                - listitem: "+2"
+          - listitem [ref=e99]:
+            - article [ref=e101] [cursor=pointer]:
+              - generic [ref=e102]:
+                - heading "iconv-lite" [level=3] [ref=e103]:
+                  - link "iconv-lite" [ref=e104]:
+                    - /url: /package/iconv-lite
+                - generic [ref=e106]:
+                  - generic [ref=e107]: "Select package: iconv-lite"
+                  - 'checkbox "Select package: iconv-lite" [ref=e108]'
+              - generic [ref=e109]:
+                - generic [ref=e110]:
+                  - paragraph [ref=e111]: Convert character encodings in pure javascript.
+                  - generic [ref=e114]:
+                    - term [ref=e115]: Published
+                    - definition [ref=e116]:
+                      - time [ref=e118]: Jan 8, 2026
+                - generic [ref=e119]:
+                  - generic "0.7.2" [ref=e121]: v0.7.2
+                  - generic [ref=e124]: 202,517,223 / week
+              - list "Keywords":
+                - listitem:
+                  - button "iconv" [ref=e125]
+                - listitem:
+                  - button "convert" [ref=e126]
+                - listitem:
+                  - button "charset" [ref=e127]
+                - listitem:
+                  - button "icu" [ref=e128]
+                - listitem
+          - listitem [ref=e129]:
+            - article [ref=e131] [cursor=pointer]:
+              - generic [ref=e132]:
+                - heading "mime-types" [level=3] [ref=e133]:
+                  - link "mime-types" [ref=e134]:
+                    - /url: /package/mime-types
+                - generic [ref=e136]:
+                  - generic [ref=e137]: "Select package: mime-types"
+                  - 'checkbox "Select package: mime-types" [ref=e138]'
+              - generic [ref=e139]:
+                - generic [ref=e140]:
+                  - paragraph [ref=e141]: The ultimate javascript content-type utility.
+                  - generic [ref=e144]:
+                    - term [ref=e145]: Published
+                    - definition [ref=e146]:
+                      - time [ref=e148]: Nov 20, 2025
+                - generic [ref=e149]:
+                  - generic "3.0.2" [ref=e151]: v3.0.2
+                  - generic [ref=e154]: 194,149,417 / week
+              - list "Keywords":
+                - listitem:
+                  - button "mime" [ref=e155]
+                - listitem:
+                  - button "types" [ref=e156]
+                - listitem
+          - listitem [ref=e157]:
+            - article [ref=e159] [cursor=pointer]:
+              - generic [ref=e160]:
+                - heading "negotiator" [level=3] [ref=e161]:
+                  - link "negotiator" [ref=e162]:
+                    - /url: /package/negotiator
+                - generic [ref=e164]:
+                  - generic [ref=e165]: "Select package: negotiator"
+                  - 'checkbox "Select package: negotiator" [ref=e166]'
+              - generic [ref=e167]:
+                - generic [ref=e168]:
+                  - paragraph [ref=e169]: HTTP content negotiation
+                  - generic [ref=e172]:
+                    - term [ref=e173]: Published
+                    - definition [ref=e174]:
+                      - time [ref=e176]: May 14, 2025
+                - generic [ref=e177]:
+                  - generic "1.0.0" [ref=e179]: v1.0.0
+                  - generic [ref=e182]: 138,348,902 / week
+              - list "Keywords":
+                - listitem:
+                  - button "http" [ref=e183]
+                - listitem:
+                  - button "content negotiation" [ref=e184]
+                - listitem:
+                  - button "accept" [ref=e185]
+                - listitem:
+                  - button "accept-language" [ref=e186]
+                - listitem:
+                  - button "accept-encoding" [ref=e187]
+                - listitem: "+1"
+          - listitem [ref=e188]:
+            - article [ref=e190] [cursor=pointer]:
+              - generic [ref=e191]:
+                - heading "content-disposition" [level=3] [ref=e192]:
+                  - link "content-disposition" [ref=e193]:
+                    - /url: /package/content-disposition
+                - generic [ref=e195]:
+                  - generic [ref=e196]: "Select package: content-disposition"
+                  - 'checkbox "Select package: content-disposition" [ref=e197]'
+              - generic [ref=e198]:
+                - generic [ref=e199]:
+                  - paragraph [ref=e200]: Create and parse Content-Disposition header
+                  - generic [ref=e203]:
+                    - term [ref=e204]: Published
+                    - definition [ref=e205]:
+                      - time [ref=e207]: Apr 7, 2026
+                - generic [ref=e208]:
+                  - generic "1.1.0" [ref=e210]: v1.1.0
+                  - generic [ref=e213]: 103,336,289 / week
+              - list "Keywords":
+                - listitem:
+                  - button "content-disposition" [ref=e214]
+                - listitem:
+                  - button "http" [ref=e215]
+                - listitem:
+                  - button "rfc6266" [ref=e216]
+                - listitem:
+                  - button "res" [ref=e217]
+                - listitem
+          - listitem [ref=e218]:
+            - article [ref=e220] [cursor=pointer]:
+              - generic [ref=e221]:
+                - heading "send" [level=3] [ref=e222]:
+                  - link "send" [ref=e223]:
+                    - /url: /package/send
+                - generic [ref=e225]:
+                  - generic [ref=e226]: "Select package: send"
+                  - 'checkbox "Select package: send" [ref=e227]'
+              - generic [ref=e228]:
+                - generic [ref=e229]:
+                  - paragraph [ref=e230]: Better streaming static file server with Range and conditional-GET support
+                  - generic [ref=e233]:
+                    - term [ref=e234]: Published
+                    - definition [ref=e235]:
+                      - time [ref=e237]: Dec 15, 2025
+                - generic [ref=e238]:
+                  - generic "1.2.1" [ref=e240]: v1.2.1
+                  - generic [ref=e243]: 98,560,475 / week
+              - list "Keywords":
+                - listitem:
+                  - button "static" [ref=e244]
+                - listitem:
+                  - button "file" [ref=e245]
+                - listitem:
+                  - button "server" [ref=e246]
+                - listitem
+        - paragraph [ref=e247]: End of results
+  - status [ref=e248]
+  - contentinfo [ref=e249]:
+    - generic [ref=e250]:
+      - generic [ref=e251]:
+        - generic [ref=e252]:
+          - paragraph [ref=e253]: a fast, modern browser for the npm registry
+          - generic [ref=e254]:
+            - text: built
+            - time [ref=e256]: Apr 14, 2026
+            - generic [ref=e257]: ·
+            - link "v0.9.0" [ref=e258] [cursor=pointer]:
+              - /url: https://github.com/npmx-dev/npmx.dev/releases/tag/v0.9.0
+              - text: v0.9.0
+        - generic [ref=e260]:
+          - generic [ref=e261]:
+            - link "about" [ref=e262] [cursor=pointer]:
+              - /url: /about
+            - link "blog" [ref=e263] [cursor=pointer]:
+              - /url: /blog
+            - link "privacy policy" [ref=e264] [cursor=pointer]:
+              - /url: /privacy
+            - link "a11y" [ref=e265] [cursor=pointer]:
+              - /url: /accessibility
+            - link "translation status" [ref=e266] [cursor=pointer]:
+              - /url: /translation-status
+            - link "brand" [ref=e267] [cursor=pointer]:
+              - /url: /brand
+            - button "keyboard shortcuts" [ref=e268] [cursor=pointer]
+          - generic [ref=e269]:
+            - link "docs" [ref=e270] [cursor=pointer]:
+              - /url: https://docs.npmx.dev
+              - text: docs
+            - link "source" [ref=e272] [cursor=pointer]:
+              - /url: https://repo.npmx.dev
+              - text: source
+            - link "social" [ref=e274] [cursor=pointer]:
+              - /url: https://social.npmx.dev
+              - text: social
+            - link "chat" [ref=e276] [cursor=pointer]:
+              - /url: https://chat.npmx.dev
+              - text: chat
+      - generic [ref=e278]: npm is a registered trademark of npm, Inc. This site is not affiliated with npm, Inc.
