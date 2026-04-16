@@ -37,31 +37,30 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         v-model="searchInput"
         type="text"
         placeholder="Search Python packages..."
-        class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder-zinc-500 outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
+        class="w-full rounded-lg border border-subtle bg-surface px-4 py-3 text-primary placeholder-muted outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
       />
     </form>
 
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
+      <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
     <!-- Results -->
     <template v-else-if="results">
-      <p class="mb-4 text-sm text-zinc-500">
+      <p class="mb-4 text-sm text-muted">
         {{ results.length }} {{ results.length === 1 ? "package" : "packages" }} found
         <span v-if="query">
-          for <span class="text-zinc-300">"{{ query }}"</span></span
+          for <span class="text-zinc-700 dark:text-zinc-300">"{{ query }}"</span></span
         >
       </p>
 
       <SearchResults v-if="results.length > 0" :results="results" />
 
       <div v-else class="py-24 text-center">
-        <p class="text-lg font-medium text-zinc-300">No packages found</p>
-        <p class="mt-1 text-sm text-zinc-500">
-          No results for <span class="text-zinc-400">"{{ query }}"</span>. Try a different search
-          term.
+        <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">No packages found</p>
+        <p class="mt-1 text-sm text-muted">
+          No results for <span class="text-muted">"{{ query }}"</span>. Try a different search term.
         </p>
       </div>
     </template>
