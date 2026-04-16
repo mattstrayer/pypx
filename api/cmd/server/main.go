@@ -86,7 +86,6 @@ func main() {
 
 	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
-	defer workerCancel()
 	bgWorker.Start(workerCtx)
 
 	r := chi.NewRouter()
@@ -145,6 +144,9 @@ func main() {
 
 	<-quit
 	log.Println("shutting down server...")
+
+	// Stop background worker first so in-flight DB writes complete.
+	workerCancel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
