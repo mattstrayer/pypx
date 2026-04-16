@@ -18,15 +18,15 @@ function formatDownloads(n: number): string {
       v-for="pkg in results"
       :key="pkg.name"
       :to="`/packages/${pkg.name}`"
-      class="flex items-start justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 transition-colors hover:border-zinc-700 hover:bg-zinc-900"
+      class="flex items-start justify-between rounded-lg border border-subtle bg-surface p-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-surface"
     >
       <div class="min-w-0 flex-1 pr-4">
-        <span class="font-mono font-semibold text-zinc-50 hover:text-[var(--color-brand)]">{{
+        <span class="font-mono font-semibold text-primary hover:text-[var(--color-brand)]">{{
           pkg.name
         }}</span>
-        <p v-if="pkg.summary" class="mt-1 text-sm text-zinc-400 line-clamp-2">{{ pkg.summary }}</p>
+        <p v-if="pkg.summary" class="mt-1 text-sm text-muted line-clamp-2">{{ pkg.summary }}</p>
       </div>
-      <span class="shrink-0 font-mono text-xs text-zinc-500"
+      <span class="shrink-0 font-mono text-xs text-muted"
         >{{ formatDownloads(pkg.downloads) }}/mo</span
       >
     </NuxtLink>
