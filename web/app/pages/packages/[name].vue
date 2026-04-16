@@ -106,13 +106,13 @@ useSchemaOrg(
   <div v-else>
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
+      <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
     <!-- Error state -->
     <div v-else-if="status === 'error'" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-300">Package not found</p>
-      <p class="mt-1 text-sm text-zinc-500">No package named "{{ name }}" could be found.</p>
+      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
+      <p class="mt-1 text-sm text-muted">No package named "{{ name }}" could be found.</p>
     </div>
 
     <!-- Loaded state -->
@@ -120,12 +120,12 @@ useSchemaOrg(
       <!-- Header -->
       <div class="mb-6">
         <div class="flex flex-wrap items-baseline gap-3">
-          <h1 class="text-3xl font-bold text-zinc-50">{{ pkg.name }}</h1>
-          <span class="rounded bg-zinc-800 px-2 py-0.5 font-mono text-sm text-zinc-400">
+          <h1 class="text-3xl font-bold text-primary">{{ pkg.name }}</h1>
+          <span class="rounded bg-raised px-2 py-0.5 font-mono text-sm text-muted">
             v{{ pkg.version }}
           </span>
         </div>
-        <p v-if="pkg.summary" class="mt-2 text-zinc-400">{{ pkg.summary }}</p>
+        <p v-if="pkg.summary" class="mt-2 text-muted">{{ pkg.summary }}</p>
         <div class="mt-3">
           <PackageBadges
             :pkg="pkg"
@@ -137,14 +137,16 @@ useSchemaOrg(
       </div>
 
       <!-- Tabs -->
-      <div class="mb-6 flex gap-1 overflow-x-auto border-b border-zinc-800 pb-0">
+      <div class="mb-6 flex gap-1 overflow-x-auto border-b border-subtle pb-0">
         <!-- In-page tabs -->
         <button
           v-for="tab in inPageTabs"
           :key="tab.key"
           class="group cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
           :class="
-            activeTab === tab.key ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'
+            activeTab === tab.key
+              ? 'bg-raised text-primary'
+              : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
           "
           @click="activeTab = tab.key"
         >
@@ -156,7 +158,7 @@ useSchemaOrg(
         <NuxtLink
           v-if="docsData?.available"
           :to="`/packages/${pkg.name}/docs`"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-zinc-700 dark:hover:text-zinc-300"
         >
           Docs
         </NuxtLink>
