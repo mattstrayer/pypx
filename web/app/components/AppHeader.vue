@@ -1,4 +1,8 @@
 <script setup lang="ts">
+defineProps<{
+  hideSearch?: boolean;
+}>();
+
 const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToResult, close } =
   useSearchTypeahead();
 const searchWrapper = ref<HTMLElement | null>(null);
@@ -29,7 +33,7 @@ onUnmounted(() => {
         >
       </NuxtLink>
 
-      <div ref="searchWrapper" class="relative flex-1 max-w-md">
+      <div v-if="!hideSearch" ref="searchWrapper" class="relative flex-1 max-w-md">
         <form @submit.prevent>
           <div class="relative">
             <svg
@@ -49,6 +53,7 @@ onUnmounted(() => {
               v-model="query"
               type="text"
               placeholder="Search packages..."
+              aria-label="Search Python packages"
               class="w-full rounded-md border border-zinc-800 bg-zinc-900 py-1.5 pl-8 pr-12 text-sm text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"
@@ -56,7 +61,7 @@ onUnmounted(() => {
             <kbd
               class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline"
             >
-              ⌘K
+              /
             </kbd>
           </div>
         </form>

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/pypx/api/internal/cache"
@@ -22,10 +23,12 @@ type Config struct {
 
 // Worker periodically syncs the PyPI Simple API index into the search index.
 type Worker struct {
-	pypi   *pypi.Client
-	cache  cache.Cacher
-	index  *search.Index
-	config Config
+	pypi       *pypi.Client
+	cache      cache.Cacher
+	index      *search.Index
+	httpClient *http.Client
+	config     Config
+	wg         sync.WaitGroup
 }
 
 // New creates a new Worker. Zero-value Config fields are filled with defaults:
@@ -41,10 +44,11 @@ func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config)
 		cfg.IndexSyncEvery = 6 * time.Hour
 	}
 	return &Worker{
-		pypi:   pypiClient,
-		cache:  c,
-		index:  idx,
-		config: cfg,
+		pypi:       pypiClient,
+		cache:      c,
+		index:      idx,
+		httpClient: &http.Client{Timeout: 5 * time.Minute},
+		config:     cfg,
 	}
 }
 
@@ -60,8 +64,7 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	// Request JSON format — much faster to parse than the 100MB+ HTML page.
 	req.Header.Set("Accept", "application/vnd.pypi.simple.v1+json")
 
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch simple index: %w", err)
 	}
@@ -125,8 +128,7 @@ func (w *Worker) SyncDownloads(ctx context.Context) error {
 		return fmt.Errorf("worker: build downloads request: %w", err)
 	}
 
-	client := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := client.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch top packages: %w", err)
 	}
@@ -178,8 +180,12 @@ func (w *Worker) SyncDownloads(ctx context.Context) error {
 
 // Start launches an initial SyncIndex in a goroutine and then re-syncs on
 // every IndexSyncEvery tick. It returns immediately; use the context to stop.
+// Call Wait after cancelling the context to ensure all in-flight DB writes complete.
 func (w *Worker) Start(ctx context.Context) {
+	w.wg.Add(2)
+
 	go func() {
+		defer w.wg.Done()
 		if err := w.SyncIndex(ctx); err != nil {
 			log.Printf("worker: initial sync error: %v", err)
 		}
@@ -190,6 +196,7 @@ func (w *Worker) Start(ctx context.Context) {
 	}()
 
 	go func() {
+		defer w.wg.Done()
 		ticker := time.NewTicker(w.config.IndexSyncEvery)
 		defer ticker.Stop()
 		for {
@@ -206,4 +213,10 @@ func (w *Worker) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// Wait blocks until all goroutines started by Start have returned.
+// Call this after cancelling the worker context to ensure in-flight DB writes complete.
+func (w *Worker) Wait() {
+	w.wg.Wait()
 }

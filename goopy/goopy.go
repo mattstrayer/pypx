@@ -32,7 +32,7 @@ func ExtractModule(name string, src []byte) (*model.Module, []error) {
 // ExtractPackage parses multiple Python source files and returns a Package.
 // files maps relative paths (e.g., "mypackage/module.py") to source bytes.
 // Module extraction is parallelized across available CPUs.
-func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string) *model.Package {
+func ExtractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string) *model.Package {
 	// Collect eligible files.
 	type work struct {
 		modName string
@@ -54,6 +54,9 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 	if len(items) <= 4 {
 		pkg := &model.Package{Name: name}
 		for _, item := range items {
+			if ctx.Err() != nil {
+				break
+			}
 			mod, _ := ExtractModule(item.modName, item.src)
 			if hasContent(mod) {
 				pkg.Modules = append(pkg.Modules, mod)
@@ -83,6 +86,9 @@ func ExtractPackage(name string, files map[string][]byte, topLevelPkgs []string)
 			defer wg.Done()
 			defer func() { recover() }() // don't let one bad module crash the pool
 			for idx := range ch {
+				if ctx.Err() != nil {
+					return
+				}
 				mod, _ := ExtractModule(items[idx].modName, items[idx].src)
 				results[idx] = mod
 			}
@@ -121,7 +127,7 @@ func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version 
 	if err != nil {
 		return nil, err
 	}
-	pkg := ExtractPackage(name, contents.Files, contents.TopLevelPkgs)
+	pkg := ExtractPackage(ctx, name, contents.Files, contents.TopLevelPkgs)
 	pkg.Version = version
 	return pkg, nil
 }

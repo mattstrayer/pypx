@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -44,7 +45,7 @@ type Source struct {
 // NewSource creates a new wheel Source with defaults.
 func NewSource() *Source {
 	return &Source{
-		HTTPClient: http.DefaultClient,
+		HTTPClient: &http.Client{Timeout: 60 * time.Second},
 		MaxSize:    DefaultMaxSize,
 		BaseURL:    pypiBaseURL,
 	}

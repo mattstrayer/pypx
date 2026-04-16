@@ -47,9 +47,15 @@ func (mc *MemoryCache) Get(key string, ttl time.Duration) (data []byte, fresh bo
 		return data, fresh, err
 	}
 
-	// Promote to memory cache.
+	// Promote to memory cache with double-check to avoid overwriting
+	// a fresher write that happened between RUnlock and Lock.
 	mc.mu.Lock()
-	mc.items[key] = &memItem{data: data, createdAt: time.Now()}
+	if _, exists := mc.items[key]; !exists {
+		if len(mc.items) >= mc.maxSize {
+			mc.evictOldest()
+		}
+		mc.items[key] = &memItem{data: data, createdAt: time.Now()}
+	}
 	mc.mu.Unlock()
 
 	return data, fresh, nil

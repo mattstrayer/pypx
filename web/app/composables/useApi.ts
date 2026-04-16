@@ -58,6 +58,14 @@ export function useApi() {
     return $fetch<DocsData>(`${baseURL}/packages/${name}/docs`);
   }
 
+  async function fetchPopular(
+    limit = 24,
+  ): Promise<Array<{ name: string; summary: string; downloads: number }>> {
+    return $fetch(`${baseURL}/popular`, {
+      params: { limit },
+    });
+  }
+
   return {
     fetchPackage,
     fetchVersions,
@@ -68,5 +76,6 @@ export function useApi() {
     fetchSecurity,
     fetchExtras,
     fetchDocs,
+    fetchPopular,
   };
 }

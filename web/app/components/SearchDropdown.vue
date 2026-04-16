@@ -17,6 +17,8 @@ const emit = defineEmits<{
 <template>
   <div
     v-if="hasQuery"
+    role="listbox"
+    aria-label="Search results"
     class="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/95 shadow-xl backdrop-blur"
   >
     <!-- Loading -->
@@ -29,6 +31,8 @@ const emit = defineEmits<{
       <button
         v-for="(result, index) in results"
         :key="result.name"
+        role="option"
+        :aria-selected="index === selectedIndex"
         class="cursor-pointer flex w-full items-center gap-2 px-3 py-2 text-left transition-colors"
         :class="index === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"
         @click="emit('select', result)"

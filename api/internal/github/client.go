@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pypx/api/internal/circuitbreaker"
 )
 
 // githubURLPattern matches github.com/{owner}/{repo} with optional trailing
@@ -143,6 +145,7 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
+	breaker    *circuitbreaker.Breaker
 }
 
 // Option is a functional option for configuring a Client.
@@ -169,6 +172,7 @@ func NewClient(opts ...Option) *Client {
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+		breaker: circuitbreaker.New(5, 30*time.Second),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -179,6 +183,10 @@ func NewClient(opts ...Option) *Client {
 // FetchReleases retrieves up to 100 releases for the given owner/repo.
 // It returns an empty slice (not an error) on 404 or 403 responses.
 func (c *Client) FetchReleases(owner, repo string) ([]Release, error) {
+	if err := c.breaker.Allow(); err != nil {
+		return nil, fmt.Errorf("github: %w", err)
+	}
+
 	url := fmt.Sprintf("%s/repos/%s/%s/releases?per_page=100", c.baseURL, owner, repo)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -192,22 +200,27 @@ func (c *Client) FetchReleases(owner, repo string) ([]Release, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
+		// Not a service failure — repo simply doesn't exist or isn't accessible.
 		return []Release{}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: unexpected status %d for %s/%s", resp.StatusCode, owner, repo)
 	}
 
 	var raw []ghRelease
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: failed to decode response: %w", err)
 	}
 
+	c.breaker.RecordSuccess()
 	releases := make([]Release, len(raw))
 	for i, r := range raw {
 		releases[i] = Release{
@@ -225,6 +238,10 @@ func (c *Client) FetchReleases(owner, repo string) ([]Release, error) {
 // FetchRepoInfo retrieves health signals for owner/repo.
 // Returns nil (no error) on 404 or 403 — the package simply has no GitHub repo.
 func (c *Client) FetchRepoInfo(owner, repo string) (*RepoInfo, error) {
+	if err := c.breaker.Allow(); err != nil {
+		return nil, fmt.Errorf("github: %w", err)
+	}
+
 	url := fmt.Sprintf("%s/repos/%s/%s", c.baseURL, owner, repo)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -238,22 +255,27 @@ func (c *Client) FetchRepoInfo(owner, repo string) (*RepoInfo, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: repo request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
+		// Not a service failure — repo simply doesn't exist or isn't accessible.
 		return nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: unexpected status %d for %s/%s", resp.StatusCode, owner, repo)
 	}
 
 	var raw ghRepo
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: decode repo: %w", err)
 	}
 
+	c.breaker.RecordSuccess()
 	isOrg := strings.EqualFold(raw.Owner.Type, "Organization")
 	displayName := c.fetchOwnerName(raw.Owner.Login, isOrg)
 

@@ -1,21 +1,36 @@
 <script setup lang="ts">
-const searchQuery = ref("");
-const router = useRouter();
+const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToResult, close } =
+  useSearchTypeahead();
+const searchWrapper = ref<HTMLElement | null>(null);
 
 function onSearch() {
-  if (searchQuery.value.trim()) {
-    router.push({ path: "/search", query: { q: searchQuery.value.trim() } });
+  if (query.value.trim()) {
+    navigateTo({ path: "/search", query: { q: query.value.trim() } });
+    close();
   }
 }
 
+// Close dropdown when clicking outside
+function onClickOutside(e: MouseEvent) {
+  if (searchWrapper.value && !searchWrapper.value.contains(e.target as Node)) {
+    close();
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("mousedown", onClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("mousedown", onClickOutside);
+});
+
 const POPULAR_LIMIT = 24;
 
-const config = useRuntimeConfig();
-const { data: popularPackages, status } = await useFetch<
-  Array<{ name: string; summary: string; downloads: number }>
->(`${config.public.apiBase}/popular`, {
-  params: { limit: POPULAR_LIMIT },
-});
+const api = useApi();
+const { data: popularPackages, status } = await useAsyncData("popular", () =>
+  api.fetchPopular(POPULAR_LIMIT),
+);
 
 useHead({ titleTemplate: "%s" });
 useSeoMeta({
@@ -38,14 +53,38 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         The Python Package Index, reimagined. Fast search, dependency insights, and download trends
         — all in one place.
       </p>
-      <form class="mt-8 w-full max-w-xl" @submit.prevent="onSearch">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search 500,000+ Python packages..."
-          class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
-        />
-      </form>
+      <div ref="searchWrapper" class="relative mt-8 w-full max-w-xl">
+        <form @submit.prevent="onSearch">
+          <div class="relative">
+            <input
+              v-model="query"
+              type="text"
+              aria-label="Search Python packages"
+              placeholder="Search 500,000+ Python packages..."
+              class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 pr-16 text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
+              @keydown="onKeydown"
+              @focus="query.trim() && (isOpen = true)"
+            />
+            <kbd
+              class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline"
+            >
+              ⌘K
+            </kbd>
+          </div>
+        </form>
+
+        <!-- Typeahead dropdown -->
+        <div v-if="isOpen" class="absolute top-full left-0 right-0 z-50 mt-1">
+          <SearchDropdown
+            :results="results"
+            :selected-index="selectedIndex"
+            :loading="isLoading"
+            :has-query="!!query.trim()"
+            @select="navigateToResult"
+            @hover="(i) => (selectedIndex = i)"
+          />
+        </div>
+      </div>
     </section>
 
     <section class="pb-16">

@@ -24,9 +24,19 @@ function onModalKeydown(e: KeyboardEvent) {
   onKeydown(e);
 }
 
+const route = useRoute();
+
 function onGlobalKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === "k") {
     e.preventDefault();
+    // On the homepage, focus the hero search input instead of opening the modal.
+    if (route.path === "/") {
+      const heroInput = document.querySelector<HTMLInputElement>('main input[type="text"]');
+      if (heroInput) {
+        heroInput.focus();
+        return;
+      }
+    }
     if (isModalOpen.value) {
       closeModal();
     } else {
@@ -83,6 +93,7 @@ onUnmounted(() => {
               v-model="query"
               type="text"
               placeholder="Search packages..."
+              aria-label="Search Python packages"
               class="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-500 outline-none"
               @keydown="onModalKeydown"
             />

@@ -1,5 +1,5 @@
 # Dependencies
-web/node_modules/
+node_modules/
 web/.nuxt/
 web/.output/
 
@@ -12,8 +12,20 @@ web/.output/
 .vscode/
 .idea/
 
+# Tool artifacts
+.playwright-mcp/
+.claude/
+.serena/
+
 # OS
 .DS_Store
+
+# Screenshots / test artifacts
+*.png
+
+# Python
+__pycache__/
+*.pyc
 
 # Environment
 .env

@@ -81,3 +81,15 @@ func TestCacheMiss(t *testing.T) {
 		t.Error("expected fresh=false for cache miss")
 	}
 }
+
+func TestCacheBusyTimeout(t *testing.T) {
+	c := newTestCache(t)
+
+	var timeout int
+	if err := c.db.QueryRow(`PRAGMA busy_timeout`).Scan(&timeout); err != nil {
+		t.Fatalf("PRAGMA busy_timeout: %v", err)
+	}
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", timeout)
+	}
+}
