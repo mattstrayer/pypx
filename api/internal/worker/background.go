@@ -22,10 +22,11 @@ type Config struct {
 
 // Worker periodically syncs the PyPI Simple API index into the search index.
 type Worker struct {
-	pypi   *pypi.Client
-	cache  cache.Cacher
-	index  *search.Index
-	config Config
+	pypi       *pypi.Client
+	cache      cache.Cacher
+	index      *search.Index
+	httpClient *http.Client
+	config     Config
 }
 
 // New creates a new Worker. Zero-value Config fields are filled with defaults:
@@ -41,10 +42,11 @@ func New(pypiClient *pypi.Client, c cache.Cacher, idx *search.Index, cfg Config)
 		cfg.IndexSyncEvery = 6 * time.Hour
 	}
 	return &Worker{
-		pypi:   pypiClient,
-		cache:  c,
-		index:  idx,
-		config: cfg,
+		pypi:       pypiClient,
+		cache:      c,
+		index:      idx,
+		httpClient: &http.Client{Timeout: 5 * time.Minute},
+		config:     cfg,
 	}
 }
 
@@ -60,8 +62,7 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	// Request JSON format — much faster to parse than the 100MB+ HTML page.
 	req.Header.Set("Accept", "application/vnd.pypi.simple.v1+json")
 
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch simple index: %w", err)
 	}
@@ -125,8 +126,7 @@ func (w *Worker) SyncDownloads(ctx context.Context) error {
 		return fmt.Errorf("worker: build downloads request: %w", err)
 	}
 
-	client := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := client.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("worker: fetch top packages: %w", err)
 	}
