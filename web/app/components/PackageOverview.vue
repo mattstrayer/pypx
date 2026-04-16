@@ -30,22 +30,20 @@ const lastPushedAgo = computed(() =>
       <!-- Description -->
       <div
         v-if="pkg.description"
-        class="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+        class="overflow-hidden rounded-lg border border-subtle bg-surface p-5"
       >
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Description
-        </h2>
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Description</h2>
         <div class="flex gap-6">
           <div class="min-w-0 flex-1">
             <div
               v-if="pkg.description_html"
               id="readme-content"
-              class="prose prose-invert prose-sm max-w-none"
+              class="prose prose-sm max-w-none"
               v-html="pkg.description_html"
             />
             <div
               v-else
-              class="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300"
+              class="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"
             >
               {{ pkg.description }}
             </div>
@@ -63,41 +61,38 @@ const lastPushedAgo = computed(() =>
     <!-- Sidebar -->
     <div class="space-y-4">
       <!-- Metadata card -->
-      <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Details</h2>
+      <div class="rounded-lg border border-subtle bg-surface p-4">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Details</h2>
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between gap-2">
-            <dt class="text-zinc-500">Version</dt>
-            <dd class="font-mono text-zinc-300">{{ pkg.version }}</dd>
+            <dt class="text-muted">Version</dt>
+            <dd class="font-mono text-zinc-700 dark:text-zinc-300">{{ pkg.version }}</dd>
           </div>
           <div v-if="pkg.license" class="flex justify-between gap-2">
-            <dt class="text-zinc-500">License</dt>
-            <dd class="text-right text-zinc-300">{{ pkg.license }}</dd>
+            <dt class="text-muted">License</dt>
+            <dd class="text-right text-zinc-700 dark:text-zinc-300">{{ pkg.license }}</dd>
           </div>
           <div v-if="pkg.requires_python" class="flex justify-between gap-2">
-            <dt class="text-zinc-500">Python</dt>
-            <dd class="font-mono text-zinc-300">{{ pkg.requires_python }}</dd>
+            <dt class="text-muted">Python</dt>
+            <dd class="font-mono text-zinc-700 dark:text-zinc-300">{{ pkg.requires_python }}</dd>
           </div>
           <div v-if="maintainer" class="flex justify-between gap-2">
-            <dt class="text-zinc-500">Maintainer</dt>
-            <dd class="truncate text-right text-zinc-300">{{ maintainer }}</dd>
+            <dt class="text-muted">Maintainer</dt>
+            <dd class="truncate text-right text-zinc-700 dark:text-zinc-300">{{ maintainer }}</dd>
           </div>
         </dl>
       </div>
 
       <!-- Project links card -->
-      <div
-        v-if="projectLinks.length > 0"
-        class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
-      >
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Links</h2>
+      <div v-if="projectLinks.length > 0" class="rounded-lg border border-subtle bg-surface p-4">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Links</h2>
         <ul class="space-y-1.5 text-sm">
           <li v-for="link in projectLinks" :key="link.label">
             <a
               :href="link.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center gap-1.5 text-zinc-400 transition-colors hover:text-zinc-200"
+              class="flex items-center gap-1.5 text-muted transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
