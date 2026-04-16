@@ -1,5 +1,5 @@
 # Dependencies
-web/node_modules/
+node_modules/
 web/.nuxt/
 web/.output/
 
@@ -22,6 +22,10 @@ web/.output/
 
 # Screenshots / test artifacts
 *.png
+
+# Python
+__pycache__/
+*.pyc
 
 # Environment
 .env
