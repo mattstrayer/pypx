@@ -79,7 +79,12 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <ThemeToggle class="ml-auto" />
+      <ClientOnly>
+        <ThemeToggle class="ml-auto" />
+        <template #fallback>
+          <div class="ml-auto size-8" />
+        </template>
+      </ClientOnly>
     </div>
   </header>
 </template>

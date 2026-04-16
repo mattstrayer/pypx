@@ -13,8 +13,10 @@ import type {
 export function useApi() {
   const config = useRuntimeConfig();
   // Server-side: use private apiBase (http://api:8080 inside Docker network).
-  // Client-side: fall back to public apiBase (http://localhost:8080/api from browser).
-  const baseURL = (config.apiBase as string) || config.public.apiBase;
+  // Client-side: use public apiBase (relative /api path proxied by Nuxt dev server or Caddy).
+  const baseURL = import.meta.server
+    ? (config.apiBase as string) || config.public.apiBase
+    : config.public.apiBase;
 
   async function fetchPackage(name: string): Promise<PackageData> {
     return $fetch<PackageData>(`${baseURL}/packages/${name}`);
