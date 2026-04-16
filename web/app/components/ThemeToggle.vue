@@ -24,7 +24,7 @@ const ariaLabel = computed(() => {
   >
     <!-- Sun — light mode -->
     <svg
-      v-if="colorMode.value === 'light'"
+      v-if="colorMode.preference === 'light'"
       xmlns="http://www.w3.org/2000/svg"
       width="18"
       height="18"
@@ -48,7 +48,7 @@ const ariaLabel = computed(() => {
     </svg>
     <!-- Moon — dark mode -->
     <svg
-      v-else-if="colorMode.value === 'dark'"
+      v-else-if="colorMode.preference === 'dark'"
       xmlns="http://www.w3.org/2000/svg"
       width="18"
       height="18"
