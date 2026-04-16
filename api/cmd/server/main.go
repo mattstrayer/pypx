@@ -13,6 +13,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	mw "github.com/pypx/api/internal/middleware"
+
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/conda"
 	"github.com/pypx/api/internal/github"
@@ -99,6 +101,9 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	limiter := mw.NewRateLimiter(30, 60) // 30 req/s sustained, burst of 60
+	r.Use(limiter.Limit)
+
 	// Most routes get a 30s timeout.
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Timeout(30 * time.Second))
@@ -120,8 +125,11 @@ func main() {
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
 
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
+		Addr:           ":" + port,
+		Handler:        r,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   60 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
 
 	// Graceful shutdown on SIGINT / SIGTERM.
