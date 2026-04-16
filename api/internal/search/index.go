@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -33,6 +34,14 @@ func NewIndex(dsn string) (*Index, error) {
 		db.Close()
 		return nil, fmt.Errorf("search: set WAL: %w", err)
 	}
+	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("search: set busy_timeout: %w", err)
+	}
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	// packages_meta holds authoritative data (name, summary, downloads).
 	if _, err := db.Exec(`

@@ -383,6 +383,20 @@ func TestTopByDownloads_Empty(t *testing.T) {
 	}
 }
 
+// TestIndexBusyTimeout verifies that the busy_timeout PRAGMA is configured to
+// 5000ms so that concurrent writers wait instead of immediately returning SQLITE_BUSY.
+func TestIndexBusyTimeout(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	var timeout int
+	if err := idx.db.QueryRow(`PRAGMA busy_timeout`).Scan(&timeout); err != nil {
+		t.Fatalf("PRAGMA busy_timeout: %v", err)
+	}
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", timeout)
+	}
+}
+
 // TestTopByDownloads_DefaultLimit verifies that calling TopByDownloads(0)
 // uses the default limit of 12 and returns results in correct order.
 func TestTopByDownloads_DefaultLimit(t *testing.T) {

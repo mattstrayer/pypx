@@ -35,6 +35,14 @@ func New(dsn string) (*Cache, error) {
 		db.Close()
 		return nil, err
 	}
+	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS cache (
