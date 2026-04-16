@@ -55,8 +55,15 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	cacheKey := "changelog:" + strings.ToLower(name)
 
 	// Serve from cache if fresh.
-	if data, fresh, err := h.cache.Get(cacheKey, changelogTTL); err == nil && data != nil && fresh {
-		w.Header().Set("Cache-Control", "public, max-age=604800")
+	if data, fresh, err := h.cache.Get(cacheKey, changelogTTL); err == nil && data != nil {
+		if fresh {
+			w.Header().Set("Cache-Control", "public, max-age=604800")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(data) //nolint:errcheck
+			return
+		}
+		// Stale data exists — serve it immediately with a short max-age.
+		w.Header().Set("Cache-Control", "public, max-age=60")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data) //nolint:errcheck
 		return
@@ -67,6 +74,13 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			http.Error(w, "package not found", http.StatusNotFound)
+			return
+		}
+		// Last resort: try serving any cached data regardless of TTL.
+		if data, _, cacheErr := h.cache.Get(cacheKey, 0); cacheErr == nil && data != nil {
+			w.Header().Set("Cache-Control", "public, max-age=60")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(data) //nolint:errcheck
 			return
 		}
 		http.Error(w, "failed to fetch package", http.StatusBadGateway)
