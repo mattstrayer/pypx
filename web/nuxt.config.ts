@@ -5,7 +5,14 @@ export default defineNuxtConfig({
   modules: [
     '@vueuse/nuxt',
     '@nuxtjs/seo',
+    '@nuxtjs/color-mode',
   ],
+
+  colorMode: {
+    classSuffix: '',
+    defaultValue: 'system',
+    storageKey: 'pypx-color-mode',
+  },
 
   css: ['~/assets/css/main.css'],
 
