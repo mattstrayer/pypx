@@ -20,6 +20,9 @@ web/.output/
 # OS
 .DS_Store
 
+# Screenshots / test artifacts
+*.png
+
 # Environment
 .env
 
