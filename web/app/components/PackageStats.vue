@@ -76,38 +76,38 @@ const dateRangeLabel = computed(() => {
         :class="
           period === opt.value
             ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
-            : 'text-zinc-500 hover:text-zinc-300'
+            : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
         "
         @click="setPeriod(opt.value)"
       >
         {{ opt.label }}
       </button>
-      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-zinc-600">
+      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-zinc-400 dark:text-zinc-600">
         {{ dateRangeLabel }}
       </span>
     </div>
 
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
+      <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
     <div v-else-if="stats" class="space-y-8">
       <!-- Download Trends -->
       <div v-if="overallTrend.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           Download Trends
         </h2>
         <div class="space-y-2">
           <div v-for="point in overallTrend" :key="point.category" class="flex items-center gap-3">
-            <span class="w-20 shrink-0 font-mono text-xs text-zinc-500">{{ point.category }}</span>
+            <span class="w-20 shrink-0 font-mono text-xs text-muted">{{ point.category }}</span>
             <div class="flex-1">
               <div
                 class="h-4 rounded-sm bg-[var(--color-brand-border)]"
                 :style="{ width: barWidth(point.downloads, maxDownloads(overallTrend)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>
@@ -116,7 +116,7 @@ const dateRangeLabel = computed(() => {
 
       <!-- By Python Version -->
       <div v-if="pythonVersions.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           By Python Version
         </h2>
         <div class="space-y-2">
@@ -134,7 +134,7 @@ const dateRangeLabel = computed(() => {
                 :style="{ width: barWidth(point.downloads, maxDownloads(pythonVersions)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>
@@ -143,7 +143,7 @@ const dateRangeLabel = computed(() => {
 
       <!-- By Operating System -->
       <div v-if="systems.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           By Operating System
         </h2>
         <div class="space-y-2">
@@ -155,7 +155,7 @@ const dateRangeLabel = computed(() => {
                 :style="{ width: barWidth(point.downloads, maxDownloads(systems)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>
