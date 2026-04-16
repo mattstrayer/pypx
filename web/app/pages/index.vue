@@ -10,12 +10,10 @@ function onSearch() {
 
 const POPULAR_LIMIT = 24;
 
-const config = useRuntimeConfig();
-const { data: popularPackages, status } = await useFetch<
-  Array<{ name: string; summary: string; downloads: number }>
->(`${config.public.apiBase}/popular`, {
-  params: { limit: POPULAR_LIMIT },
-});
+const api = useApi();
+const { data: popularPackages, status } = await useAsyncData("popular", () =>
+  api.fetchPopular(POPULAR_LIMIT),
+);
 
 useHead({ titleTemplate: "%s" });
 useSeoMeta({
