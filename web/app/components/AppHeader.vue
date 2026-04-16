@@ -1,4 +1,8 @@
 <script setup lang="ts">
+defineProps<{
+  hideSearch?: boolean;
+}>();
+
 const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToResult, close } =
   useSearchTypeahead();
 const searchWrapper = ref<HTMLElement | null>(null);
@@ -29,7 +33,7 @@ onUnmounted(() => {
         >
       </NuxtLink>
 
-      <div ref="searchWrapper" class="relative flex-1 max-w-md">
+      <div v-if="!hideSearch" ref="searchWrapper" class="relative flex-1 max-w-md">
         <form @submit.prevent>
           <div class="relative">
             <svg

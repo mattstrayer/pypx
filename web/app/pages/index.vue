@@ -37,12 +37,20 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         — all in one place.
       </p>
       <form class="mt-8 w-full max-w-xl" @submit.prevent="onSearch">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search 500,000+ Python packages..."
-          class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
-        />
+        <div class="relative">
+          <input
+            v-model="searchQuery"
+            type="text"
+            aria-label="Search Python packages"
+            placeholder="Search 500,000+ Python packages..."
+            class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 pr-16 text-zinc-50 placeholder-zinc-500 outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
+          />
+          <kbd
+            class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline"
+          >
+            ⌘K
+          </kbd>
+        </div>
       </form>
     </section>
 
