@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pypx/api/internal/circuitbreaker"
 )
 
 // validPackageName matches valid PyPI package names: alphanumeric, hyphens,
@@ -76,6 +78,7 @@ type PyPIResponse struct {
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	breaker    *circuitbreaker.Breaker
 }
 
 // Option is a functional option for configuring a Client.
@@ -95,6 +98,7 @@ func NewClient(opts ...Option) *Client {
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+		breaker: circuitbreaker.New(5, 30*time.Second),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -108,25 +112,34 @@ func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
 		return nil, err
 	}
 
+	if err := c.breaker.Allow(); err != nil {
+		return nil, fmt.Errorf("pypi: %w", err)
+	}
+
 	url := fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
 
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		// 404 is a valid "not found" response — not a service failure.
 		return nil, fmt.Errorf("pypi: package %q not found", name)
 	}
 	if resp.StatusCode != http.StatusOK {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: unexpected status %d for package %q", resp.StatusCode, name)
 	}
 
 	var result PyPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: failed to decode response: %w", err)
 	}
 
+	c.breaker.RecordSuccess()
 	return &result, nil
 }
