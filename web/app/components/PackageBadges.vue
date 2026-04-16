@@ -44,7 +44,7 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     </span>
     <span
       v-if="pkg.license"
-      class="inline-flex items-center rounded bg-zinc-500/10 px-2 py-0.5 font-mono text-xs text-zinc-400 ring-1 ring-zinc-500/20"
+      class="inline-flex items-center rounded bg-raised/50 px-2 py-0.5 font-mono text-xs text-muted ring-1 ring-subtle/50"
     >
       {{ pkg.license }}
     </span>
