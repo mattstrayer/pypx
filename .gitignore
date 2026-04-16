@@ -12,6 +12,11 @@ web/.output/
 .vscode/
 .idea/
 
+# Tool artifacts
+.playwright-mcp/
+.claude/
+.serena/
+
 # OS
 .DS_Store
 
