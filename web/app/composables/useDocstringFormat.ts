@@ -129,11 +129,11 @@ function renderBlock(block: Block): string {
         .join(" ");
       const content = escapeHtml(rest);
       const label = content ? `${directiveType}: ${content}` : directiveType;
-      return `<p class="text-[11px] italic text-zinc-600">${label}</p>`;
+      return `<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${label}</p>`;
     }
     // Fallback
     const content = escapeHtml(block.lines.join(" ").trim());
-    return `<p class="text-[11px] italic text-zinc-600">${content}</p>`;
+    return `<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${content}</p>`;
   }
 
   // Paragraph: join lines, escape, then apply inline formatting
