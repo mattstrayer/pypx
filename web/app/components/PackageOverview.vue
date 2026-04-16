@@ -35,13 +35,27 @@ const lastPushedAgo = computed(() =>
         <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Description
         </h2>
-        <div
-          v-if="pkg.description_html"
-          class="prose prose-invert prose-sm max-w-none"
-          v-html="pkg.description_html"
-        />
-        <div v-else class="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300">
-          {{ pkg.description }}
+        <div class="flex gap-6">
+          <div class="min-w-0 flex-1">
+            <div
+              v-if="pkg.description_html"
+              id="readme-content"
+              class="prose prose-invert prose-sm max-w-none"
+              v-html="pkg.description_html"
+            />
+            <div
+              v-else
+              class="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300"
+            >
+              {{ pkg.description }}
+            </div>
+          </div>
+          <div
+            v-if="pkg.description_html"
+            class="sticky top-20 hidden w-48 shrink-0 self-start xl:block"
+          >
+            <ReadmeOutline container-selector="#readme-content" />
+          </div>
         </div>
       </div>
     </div>
