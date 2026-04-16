@@ -2,9 +2,11 @@ package handler_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -13,6 +15,29 @@ import (
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
 )
+
+// mockCache is a controllable cache.Cacher implementation for testing.
+type mockCache struct {
+	// getFunc is called for each Get. If nil, returns nothing.
+	getFunc func(key string, ttl time.Duration) ([]byte, bool, error)
+	setFunc func(key string, value []byte, ttl time.Duration) error
+}
+
+func (m *mockCache) Get(key string, ttl time.Duration) ([]byte, bool, error) {
+	if m.getFunc != nil {
+		return m.getFunc(key, ttl)
+	}
+	return nil, false, errors.New("not found")
+}
+
+func (m *mockCache) Set(key string, value []byte, ttl time.Duration) error {
+	if m.setFunc != nil {
+		return m.setFunc(key, value, ttl)
+	}
+	return nil
+}
+
+func (m *mockCache) Close() error { return nil }
 
 // pypiResponse builds a minimal PyPI JSON response with the given project URL.
 func pypiResponse(sourceURL string) string {
@@ -216,5 +241,131 @@ func TestChangelogGet_NoRepoURL_ReturnsEmpty(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
 	if len(resp.Entries) != 0 {
 		t.Errorf("expected empty entries for package without repo URL")
+	}
+}
+
+// TestChangelogGet_ServesStaleCache verifies that when the cache holds data
+// that is no longer fresh, the handler serves it immediately with a short
+// Cache-Control max-age instead of reaching out to upstream.
+func TestChangelogGet_ServesStaleCache(t *testing.T) {
+	stalePayload := []byte(`{"package":"testpkg","source":"github_releases","repo_url":"","entries":[]}`)
+
+	mc := &mockCache{
+		getFunc: func(key string, ttl time.Duration) ([]byte, bool, error) {
+			// Return stale data (fresh=false) regardless of TTL argument.
+			return stalePayload, false, nil
+		},
+	}
+
+	// PyPI server should never be called; if it is, fail the test.
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("unexpected call to PyPI server — handler should have served stale cache")
+		http.Error(w, "unexpected", http.StatusInternalServerError)
+	}))
+	defer pypiSrv.Close()
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
+	ghClient := gh.NewClient()
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, mc, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		t.Errorf("Cache-Control = %q, want %q", got, "public, max-age=60")
+	}
+	if rec.Body.String() != string(stalePayload) {
+		t.Errorf("body = %q, want %q", rec.Body.String(), string(stalePayload))
+	}
+}
+
+// TestChangelogGet_FallbackOnUpstreamFailure verifies that when PyPI returns a
+// non-404 error, the handler falls back to any cached data (TTL=0 query) and
+// serves it rather than returning 502.
+func TestChangelogGet_FallbackOnUpstreamFailure(t *testing.T) {
+	cachedPayload := []byte(`{"package":"testpkg","source":"github_releases","repo_url":"","entries":[]}`)
+
+	// First Get call (TTL=7d) returns nothing; second call (TTL=0) returns data.
+	callCount := 0
+	mc := &mockCache{
+		getFunc: func(key string, ttl time.Duration) ([]byte, bool, error) {
+			callCount++
+			if ttl == 0 {
+				// Emergency fallback query — return data.
+				return cachedPayload, false, nil
+			}
+			// Normal TTL query — cache miss.
+			return nil, false, errors.New("not found")
+		},
+	}
+
+	// PyPI server returns 500 (non-404 error).
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}))
+	defer pypiSrv.Close()
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
+	ghClient := gh.NewClient()
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, mc, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != string(cachedPayload) {
+		t.Errorf("body = %q, want %q", rec.Body.String(), string(cachedPayload))
+	}
+}
+
+// TestChangelogGet_Returns502WhenNoCacheAndUpstreamFails verifies that when
+// PyPI returns a non-404 error and there is no cached data at all, the handler
+// returns 502 Bad Gateway.
+func TestChangelogGet_Returns502WhenNoCacheAndUpstreamFails(t *testing.T) {
+	mc := &mockCache{
+		getFunc: func(key string, ttl time.Duration) ([]byte, bool, error) {
+			// Cache always misses — no data at any TTL.
+			return nil, false, errors.New("not found")
+		},
+	}
+
+	// PyPI server returns 500 (non-404 error).
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}))
+	defer pypiSrv.Close()
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, mc)
+	ghClient := gh.NewClient()
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, mc, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body: %s", rec.Code, rec.Body.String())
 	}
 }
