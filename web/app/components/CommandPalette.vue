@@ -16,6 +16,11 @@ function closeModal() {
   reset();
 }
 
+function setTheme(mode: string) {
+  colorMode.preference = mode;
+  closeModal();
+}
+
 function onModalKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -137,10 +142,7 @@ onUnmounted(() => {
               :key="item.mode"
               type="button"
               class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-sm text-primary transition-colors hover:bg-raised"
-              @click="
-                colorMode.preference = item.mode;
-                closeModal();
-              "
+              @click="setTheme(item.mode)"
             >
               <!-- Sun icon -->
               <svg

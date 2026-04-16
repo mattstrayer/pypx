@@ -3,14 +3,14 @@ const colorMode = useColorMode();
 
 const modes = ["light", "dark", "system"] as const;
 
+const currentIndex = computed(() => modes.indexOf(colorMode.preference as (typeof modes)[number]));
+
 function cycle() {
-  const current = modes.indexOf(colorMode.preference as (typeof modes)[number]);
-  colorMode.preference = modes[(current + 1) % modes.length];
+  colorMode.preference = modes[(currentIndex.value + 1) % modes.length];
 }
 
 const ariaLabel = computed(() => {
-  const next =
-    modes[(modes.indexOf(colorMode.preference as (typeof modes)[number]) + 1) % modes.length];
+  const next = modes[(currentIndex.value + 1) % modes.length];
   return `Switch to ${next} mode`;
 });
 </script>
