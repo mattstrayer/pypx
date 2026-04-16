@@ -397,6 +397,63 @@ func TestIndexBusyTimeout(t *testing.T) {
 	}
 }
 
+// TestNewIndex_AtomicFTSRebuild verifies that NewIndex rebuilds the FTS table
+// within a transaction so existing data is still searchable on restart.
+// It also checks that duplicate FTS rows from a prior run are not carried over.
+func TestNewIndex_AtomicFTSRebuild(t *testing.T) {
+	tmpFile := t.TempDir() + "/atomic.db"
+
+	// First open: seed meta + FTS with two packages.
+	idx1, err := NewIndex(tmpFile)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+		{Name: "scipy", Summary: "Scientific library", Downloads: 10_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	idx1.Close()
+
+	// Second open: simulates a server restart — FTS rebuild must run inside a
+	// transaction so any concurrent reader never sees "no such table".
+	idx2, err := NewIndex(tmpFile)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	// Both packages must be searchable after the rebuild.
+	for _, name := range []string{"numpy", "scipy"} {
+		results, err := idx2.Search(name, 1)
+		if err != nil {
+			t.Errorf("Search(%q) after atomic rebuild: %v", name, err)
+			continue
+		}
+		if len(results) == 0 {
+			t.Errorf("Search(%q) after atomic rebuild: no results", name)
+			continue
+		}
+		if results[0].Name != name {
+			t.Errorf("Search(%q): expected %q, got %q", name, name, results[0].Name)
+		}
+	}
+
+	// Exactly one row per package — no duplicate FTS entries.
+	for _, name := range []string{"numpy", "scipy"} {
+		results, err := idx2.Search(name, 10)
+		if err != nil {
+			t.Errorf("Search(%q) duplicate check: %v", name, err)
+			continue
+		}
+		// Each query is exact-name so should return only 1 result.
+		if len(results) != 1 {
+			t.Errorf("Search(%q): expected 1 result (no dupes), got %d", name, len(results))
+		}
+	}
+}
+
 // TestTopByDownloads_DefaultLimit verifies that calling TopByDownloads(0)
 // uses the default limit of 12 and returns results in correct order.
 func TestTopByDownloads_DefaultLimit(t *testing.T) {

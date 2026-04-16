@@ -57,9 +57,17 @@ func NewIndex(dsn string) (*Index, error) {
 
 	// Rebuild the FTS5 table from meta on every startup to clear any dupes
 	// (FTS5 has no unique constraint) and ensure a clean 1:1 mapping.
-	db.Exec(`DROP TABLE IF EXISTS packages_fts`) //nolint:errcheck
+	// Wrap in a transaction so concurrent readers either see the old table
+	// or the new one — never "no such table".
+	tx, err := db.Begin()
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("search: begin fts rebuild tx: %w", err)
+	}
 
-	if _, err := db.Exec(`
+	tx.Exec(`DROP TABLE IF EXISTS packages_fts`) //nolint:errcheck
+
+	if _, err := tx.Exec(`
 		CREATE VIRTUAL TABLE packages_fts USING fts5(
 			name,
 			summary,
@@ -67,17 +75,24 @@ func NewIndex(dsn string) (*Index, error) {
 			tokenize='porter unicode61'
 		)
 	`); err != nil {
+		tx.Rollback() //nolint:errcheck
 		db.Close()
 		return nil, fmt.Errorf("search: create fts table: %w", err)
 	}
 
 	// Populate FTS from existing meta data (fast local copy, no network).
-	if _, err := db.Exec(`
+	if _, err := tx.Exec(`
 		INSERT INTO packages_fts (name, summary, downloads)
 		SELECT name, summary, downloads FROM packages_meta
 	`); err != nil {
+		tx.Rollback() //nolint:errcheck
 		db.Close()
 		return nil, fmt.Errorf("search: populate fts from meta: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("search: commit fts rebuild: %w", err)
 	}
 
 	return &Index{db: db}, nil
