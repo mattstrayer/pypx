@@ -1,12 +1,16 @@
 <script setup lang="ts">
 const colorMode = useColorMode();
+const { withTransition } = useThemeTransition();
 
 const modes = ["light", "dark", "system"] as const;
 
 const currentIndex = computed(() => modes.indexOf(colorMode.preference as (typeof modes)[number]));
 
 function cycle() {
-  colorMode.preference = modes[(currentIndex.value + 1) % modes.length];
+  const next = modes[(currentIndex.value + 1) % modes.length];
+  withTransition(() => {
+    colorMode.preference = next;
+  });
 }
 
 const ariaLabel = computed(() => {

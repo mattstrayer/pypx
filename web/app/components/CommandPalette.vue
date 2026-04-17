@@ -4,6 +4,7 @@ const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToR
 const inputRef = ref<HTMLInputElement | null>(null);
 const isModalOpen = ref(false);
 const colorMode = useColorMode();
+const { withTransition } = useThemeTransition();
 
 function openModal() {
   isModalOpen.value = true;
@@ -17,7 +18,9 @@ function closeModal() {
 }
 
 function setTheme(mode: string) {
-  colorMode.preference = mode;
+  withTransition(() => {
+    colorMode.preference = mode;
+  });
   closeModal();
 }
 
