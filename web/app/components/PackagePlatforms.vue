@@ -29,13 +29,13 @@ const hasAnyCoverage = computed(() => supported.value.length > 0);
 
 <template>
   <div v-if="hasAnyCoverage">
-    <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">Platforms</div>
+    <div class="text-xs font-medium text-muted uppercase tracking-wide mb-2">Platforms</div>
     <div class="flex flex-wrap gap-1.5">
       <span
         v-for="p in supported"
         :key="p.key"
         :title="p.label"
-        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-neutral-800 text-neutral-300 ring-1 ring-neutral-700"
+        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-zinc-100 text-zinc-600 ring-1 ring-zinc-200 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700"
       >
         {{ p.short }}
       </span>

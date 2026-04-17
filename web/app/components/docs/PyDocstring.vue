@@ -33,7 +33,7 @@ const formattedHtml = computedAsync(async () => {
 <template>
   <div
     v-if="formattedHtml"
-    class="docstring-content text-sm leading-relaxed text-zinc-400"
+    class="docstring-content text-sm leading-relaxed text-muted"
     v-html="formattedHtml"
   />
 </template>
@@ -43,7 +43,7 @@ const formattedHtml = computedAsync(async () => {
   margin-bottom: 0.75rem;
 }
 .docstring-content :deep(code) {
-  background: #27272a;
+  background: var(--color-raised);
   padding: 1px 4px;
   border-radius: 3px;
   color: var(--py-name);
@@ -51,8 +51,8 @@ const formattedHtml = computedAsync(async () => {
   font-family: var(--font-mono);
 }
 .docstring-content :deep(pre) {
-  background: #0f0f10;
-  border: 1px solid #27272a;
+  background: var(--color-base);
+  border: 1px solid var(--color-subtle);
   border-radius: 6px;
   padding: 12px 16px;
   margin-bottom: 0.75rem;

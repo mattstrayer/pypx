@@ -136,7 +136,7 @@ const tokens = computed<Token[]>(() => {
 
 <template>
   <div
-    class="rounded-md border border-zinc-800 bg-zinc-900 px-4 py-2.5 font-mono text-[11px] leading-relaxed overflow-x-auto"
+    class="rounded-md border border-subtle bg-surface px-4 py-2.5 font-mono text-[11px] leading-relaxed overflow-x-auto"
   >
     <span v-for="(token, i) in tokens" :key="i" :class="token.cls || undefined">{{
       token.text

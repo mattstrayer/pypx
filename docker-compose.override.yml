@@ -11,4 +11,3 @@ services:
       - "3000:3000"
     environment:
       - NUXT_API_BASE=http://api:8080/api
-      - NUXT_PUBLIC_API_BASE=http://localhost:8080/api

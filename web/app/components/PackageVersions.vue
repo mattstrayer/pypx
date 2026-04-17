@@ -76,13 +76,13 @@ function formatDate(iso: string): string {
   <div>
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-16">
-      <div class="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
+      <div class="h-6 w-6 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
     <!-- Source badge: shown when changelog data comes from a non-default source -->
     <div v-if="showSourceBadge" class="flex items-center justify-end mb-2">
       <span
-        class="flex items-center gap-1 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] px-1.5 py-0.5 rounded font-mono"
+        class="flex items-center gap-1 bg-raised border border-subtle text-muted text-[10px] px-1.5 py-0.5 rounded font-mono"
       >
         <!-- Tag icon for tag-based sources -->
         <svg
@@ -123,7 +123,7 @@ function formatDate(iso: string): string {
     <!-- Table -->
     <table class="w-full text-sm">
       <thead>
-        <tr class="border-b border-zinc-800 text-left text-zinc-500">
+        <tr class="border-b border-subtle text-left text-muted">
           <th class="pb-2 pr-6 font-medium">Version</th>
           <th class="pb-2 pr-6 font-medium">Released</th>
           <th class="hidden pb-2 pr-6 font-medium sm:table-cell">Size</th>
@@ -133,31 +133,29 @@ function formatDate(iso: string): string {
       <tbody>
         <template v-for="v in sortedVersions" :key="v.version">
           <tr
-            class="border-b border-zinc-800 last:border-0"
-            :class="{ 'cursor-pointer hover:bg-zinc-800/30': changelogMap.has(v.version) }"
+            class="border-b border-subtle last:border-0"
+            :class="{ 'cursor-pointer hover:bg-raised/30': changelogMap.has(v.version) }"
             @click="changelogMap.has(v.version) ? toggleVersion(v.version) : undefined"
           >
             <td class="py-3 pr-6">
               <div class="flex items-center gap-2">
-                <span
-                  v-if="changelogMap.has(v.version)"
-                  class="text-xs text-zinc-500 select-none"
-                  >{{ expandedVersions.has(v.version) ? "▼" : "▶" }}</span
-                >
+                <span v-if="changelogMap.has(v.version)" class="text-xs text-muted select-none">{{
+                  expandedVersions.has(v.version) ? "▼" : "▶"
+                }}</span>
                 <NuxtLink
                   :to="`/packages/${name}/${v.version}`"
-                  class="font-mono hover:text-[var(--color-brand)] text-zinc-200 transition-colors"
+                  class="font-mono hover:text-[var(--color-brand)] text-zinc-800 dark:text-zinc-200 transition-colors"
                   @click.stop
                 >
                   {{ v.version }}
                 </NuxtLink>
               </div>
             </td>
-            <td class="py-3 pr-6 text-zinc-400">{{ formatDate(v.upload_time) }}</td>
+            <td class="py-3 pr-6 text-muted">{{ formatDate(v.upload_time) }}</td>
             <td class="hidden py-3 pr-6 font-mono text-[var(--color-brand)] sm:table-cell">
               {{ formatSize(v.install_size) }}
             </td>
-            <td class="hidden py-3 font-mono text-xs text-zinc-500 sm:table-cell">
+            <td class="hidden py-3 font-mono text-xs text-muted sm:table-cell">
               {{ v.module_format || "—" }}
             </td>
           </tr>
@@ -166,11 +164,13 @@ function formatDate(iso: string): string {
               <div
                 v-for="entry in [changelogMap.get(v.version)!]"
                 :key="entry.version"
-                class="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4"
+                class="bg-surface border border-subtle rounded-lg p-4"
               >
-                <h4 class="text-sm font-semibold text-zinc-200 mb-1">{{ entry.title }}</h4>
-                <p class="text-xs text-zinc-500 mb-3">{{ formatDate(entry.published_at) }}</p>
-                <div class="prose prose-invert prose-sm max-w-none mb-3">
+                <h4 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
+                  {{ entry.title }}
+                </h4>
+                <p class="text-xs text-muted mb-3">{{ formatDate(entry.published_at) }}</p>
+                <div class="prose prose-sm max-w-none mb-3">
                   <div v-if="entry.body_html" v-html="entry.body_html" />
                   <div v-else class="whitespace-pre-wrap">{{ entry.body }}</div>
                 </div>

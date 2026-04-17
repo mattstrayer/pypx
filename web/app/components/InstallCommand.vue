@@ -14,9 +14,9 @@ const { copy, copied } = useClipboard({ source: command });
 </script>
 
 <template>
-  <div class="rounded-lg border border-zinc-800 bg-zinc-900">
+  <div class="rounded-lg border border-subtle bg-surface">
     <!-- Tab row -->
-    <div class="flex gap-1 border-b border-zinc-800 px-3 pt-2">
+    <div class="flex gap-1 border-b border-subtle px-3 pt-2">
       <button
         v-for="mgr in managers"
         :key="mgr"
@@ -24,7 +24,7 @@ const { copy, copied } = useClipboard({ source: command });
         :class="
           activeManager === mgr
             ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
-            : 'text-zinc-500 hover:text-zinc-300'
+            : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
         "
         @click="activeManager = mgr"
       >
@@ -34,11 +34,11 @@ const { copy, copied } = useClipboard({ source: command });
 
     <!-- Command line -->
     <div class="flex items-center justify-between gap-3 px-4 py-3">
-      <code class="min-w-0 truncate font-mono text-sm text-zinc-300">
-        <span class="text-zinc-500">$ </span>{{ command }}
+      <code class="min-w-0 truncate font-mono text-sm text-zinc-700 dark:text-zinc-300">
+        <span class="text-muted">$ </span>{{ command }}
       </code>
       <button
-        class="cursor-pointer shrink-0 rounded p-1.5 text-zinc-500 transition-colors hover:bg-[var(--color-brand-muted)] hover:text-[var(--color-brand)]"
+        class="cursor-pointer shrink-0 rounded p-1.5 text-muted transition-colors hover:bg-[var(--color-brand-muted)] hover:text-[var(--color-brand)]"
         :title="copied ? 'Copied!' : 'Copy'"
         @click="copy()"
       >

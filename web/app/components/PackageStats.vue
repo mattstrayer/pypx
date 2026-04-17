@@ -76,38 +76,38 @@ const dateRangeLabel = computed(() => {
         :class="
           period === opt.value
             ? 'bg-[var(--color-brand-muted)] text-[var(--color-brand)] ring-1 ring-[var(--color-brand-border)]'
-            : 'text-zinc-500 hover:text-zinc-300'
+            : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
         "
         @click="setPeriod(opt.value)"
       >
         {{ opt.label }}
       </button>
-      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-zinc-600">
+      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-muted">
         {{ dateRangeLabel }}
       </span>
     </div>
 
     <!-- Loading state -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300" />
+      <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
     <div v-else-if="stats" class="space-y-8">
       <!-- Download Trends -->
       <div v-if="overallTrend.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           Download Trends
         </h2>
         <div class="space-y-2">
           <div v-for="point in overallTrend" :key="point.category" class="flex items-center gap-3">
-            <span class="w-20 shrink-0 font-mono text-xs text-zinc-500">{{ point.category }}</span>
+            <span class="w-20 shrink-0 font-mono text-xs text-muted">{{ point.category }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-[var(--color-brand-border)]"
+                class="h-4 rounded-sm bg-emerald-500/60 dark:bg-emerald-400/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(overallTrend)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>
@@ -116,7 +116,7 @@ const dateRangeLabel = computed(() => {
 
       <!-- By Python Version -->
       <div v-if="pythonVersions.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           By Python Version
         </h2>
         <div class="space-y-2">
@@ -125,16 +125,16 @@ const dateRangeLabel = computed(() => {
             :key="point.category"
             class="flex items-center gap-3"
           >
-            <span class="w-20 shrink-0 font-mono text-xs text-indigo-400">{{
+            <span class="w-20 shrink-0 font-mono text-xs text-indigo-600 dark:text-indigo-400">{{
               point.category
             }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-indigo-500/30"
+                class="h-4 rounded-sm bg-indigo-500/50 dark:bg-indigo-500/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(pythonVersions)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>
@@ -143,19 +143,21 @@ const dateRangeLabel = computed(() => {
 
       <!-- By Operating System -->
       <div v-if="systems.length">
-        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">
+        <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
           By Operating System
         </h2>
         <div class="space-y-2">
           <div v-for="point in systems" :key="point.category" class="flex items-center gap-3">
-            <span class="w-20 shrink-0 font-mono text-xs text-amber-400">{{ point.category }}</span>
+            <span class="w-20 shrink-0 font-mono text-xs text-amber-700 dark:text-amber-400">{{
+              point.category
+            }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-amber-500/30"
+                class="h-4 rounded-sm bg-amber-500/50 dark:bg-amber-400/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(systems)) }"
               />
             </div>
-            <span class="w-12 shrink-0 text-right font-mono text-xs text-zinc-400">
+            <span class="w-12 shrink-0 text-right font-mono text-xs text-muted">
               {{ formatDownloads(point.downloads) }}
             </span>
           </div>

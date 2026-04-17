@@ -85,15 +85,15 @@ onUnmounted(() => {
 
 <template>
   <nav v-if="items.length >= 3" class="hidden xl:block">
-    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">On this page</h3>
-    <ul class="space-y-1 border-l border-zinc-800">
+    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">On this page</h3>
+    <ul class="space-y-1 border-l border-subtle">
       <li v-for="item in items" :key="item.id">
         <button
           class="block w-full truncate border-l-2 py-0.5 text-left text-xs transition-colors"
           :class="[
             activeId === item.id
-              ? 'border-[var(--color-brand)] text-zinc-200'
-              : 'border-transparent text-zinc-500 hover:text-zinc-300',
+              ? 'border-[var(--color-brand)] text-zinc-800 dark:text-zinc-200'
+              : 'border-transparent text-muted hover:text-zinc-700 dark:hover:text-zinc-300',
             item.level <= 2 ? 'pl-3' : 'pl-5',
           ]"
           @click="scrollTo(item.id)"

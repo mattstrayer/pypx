@@ -1,17 +1,60 @@
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap");
+
+@theme inline {
+  --color-base: var(--color-base);
+  --color-surface: var(--color-surface);
+  --color-raised: var(--color-raised);
+  --color-subtle: var(--color-subtle);
+  --color-primary: var(--color-primary);
+  --color-muted: var(--color-muted);
+}
 
 :root {
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  /* Brand */
+  /* Structural tokens — light mode */
+  --color-base: #fafafa;
+  --color-surface: #ffffff;
+  --color-raised: #f4f4f5;
+  --color-subtle: #e4e4e7;
+  --color-primary: #18181b;
+  --color-muted: #71717a;
+
+  /* Brand — light mode (emerald-700, 5.25:1 on #fafafa) */
+  --color-brand: #047857;
+  --color-brand-light: #059669;
+  --color-brand-muted: rgba(4, 120, 87, 0.08);
+  --color-brand-border: rgba(4, 120, 87, 0.25);
+
+  /* Python syntax tokens — light mode */
+  --py-keyword: #7c3aed;
+  --py-name: #b45309;
+  --py-param: #374151;
+  --py-type: #1d4ed8;
+  --py-default: #047857;
+  --py-punct: #6b7280;
+  --py-decorator: #be123c;
+}
+
+.dark {
+  /* Structural tokens — dark mode */
+  --color-base: #09090b;
+  --color-surface: #18181b;
+  --color-raised: #27272a;
+  --color-subtle: #3f3f46;
+  --color-primary: #fafafa;
+  --color-muted: #a1a1aa;
+
+  /* Brand — dark mode (original mint) */
   --color-brand: #4ade80;
   --color-brand-light: #86efac;
   --color-brand-muted: rgba(74, 222, 128, 0.08);
   --color-brand-border: rgba(74, 222, 128, 0.25);
 
-  /* Python syntax highlighting tokens */
+  /* Python syntax tokens — dark mode (One Dark) */
   --py-keyword: #c678dd;
   --py-name: #e5c07b;
   --py-param: #abb2bf;
@@ -49,6 +92,7 @@ pre,
     margin-top: 1.5em;
     margin-bottom: 0.5em;
     line-height: 1.3;
+    color: var(--color-primary);
   }
   & h1 {
     font-size: 1.5em;
@@ -66,9 +110,14 @@ pre,
   & a {
     text-decoration: underline;
     text-underline-offset: 2px;
+    color: var(--color-brand);
+  }
+  & a:hover {
+    color: var(--color-brand-light);
   }
   & strong {
     font-weight: 600;
+    color: var(--color-primary);
   }
   & ul,
   & ol {
@@ -87,15 +136,18 @@ pre,
     margin-bottom: 0.25em;
   }
   & blockquote {
-    border-left: 3px solid var(--color-zinc-700);
+    border-left: 3px solid var(--color-subtle);
     padding-left: 1em;
     font-style: italic;
+    color: var(--color-muted);
   }
   & code {
     font-family: var(--font-mono);
     font-size: 0.875em;
     padding: 0.15em 0.3em;
     border-radius: 0.25rem;
+    background-color: var(--color-raised);
+    color: var(--color-primary);
   }
   & pre {
     font-family: var(--font-mono);
@@ -105,6 +157,8 @@ pre,
     overflow-x: auto;
     margin-top: 1em;
     margin-bottom: 1em;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-subtle);
   }
   & pre code {
     padding: 0;
@@ -117,7 +171,7 @@ pre,
     margin-bottom: 1em;
   }
   & hr {
-    border-color: var(--color-zinc-800);
+    border-color: var(--color-subtle);
     margin-top: 2em;
     margin-bottom: 2em;
   }
@@ -131,47 +185,25 @@ pre,
   & th,
   & td {
     padding: 0.5em 0.75em;
-    border: 1px solid var(--color-zinc-800);
+    border: 1px solid var(--color-subtle);
     text-align: left;
   }
   & th {
     font-weight: 600;
+    background-color: var(--color-raised);
   }
 }
 
-.prose-invert {
-  color: var(--color-zinc-300);
-  & a {
-    color: var(--color-brand);
-  }
-  & a:hover {
-    color: var(--color-brand-light);
-  }
-  & h1,
-  & h2,
-  & h3,
-  & h4,
-  & h5,
-  & h6 {
-    color: var(--color-zinc-100);
-  }
-  & strong {
-    color: var(--color-zinc-100);
-  }
-  & code {
-    background-color: var(--color-zinc-800);
-    color: var(--color-zinc-200);
-  }
-  & pre {
-    background-color: var(--color-zinc-900);
-    border: 1px solid var(--color-zinc-800);
-  }
-  & blockquote {
-    color: var(--color-zinc-400);
-  }
-  & th {
-    background-color: var(--color-zinc-900);
-  }
+/* Shiki dual-theme: light by default, dark under .dark */
+.shiki,
+.shiki span {
+  color: var(--shiki-light) !important;
+  background-color: var(--shiki-light-bg) !important;
+}
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
 }
 
 .prose-sm {
@@ -194,10 +226,16 @@ body::before {
   inset: 0;
   z-index: -1;
   background-image:
-    linear-gradient(rgba(74, 222, 128, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(74, 222, 128, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(4, 120, 87, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(4, 120, 87, 0.03) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
+}
+
+.dark body::before {
+  background-image:
+    linear-gradient(rgba(74, 222, 128, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 222, 128, 0.04) 1px, transparent 1px);
 }
 
 body::after {
@@ -207,8 +245,48 @@ body::after {
   right: -120px;
   width: 480px;
   height: 480px;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.08), transparent 70%);
+  background: radial-gradient(circle, rgba(4, 120, 87, 0.04), transparent 70%);
   border-radius: 50%;
   z-index: -1;
   pointer-events: none;
+}
+
+.dark body::after {
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.08), transparent 70%);
+}
+
+/* Theme transitions */
+::view-transition-old(root) {
+  animation: 200ms ease out theme-fade-out;
+}
+::view-transition-new(root) {
+  animation: 250ms ease in theme-fade-in;
+}
+@keyframes theme-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes theme-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition:
+    color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    fill 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    stroke 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
 }
