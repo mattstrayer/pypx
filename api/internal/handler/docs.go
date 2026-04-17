@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -123,7 +125,8 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	docsResp := convertToDocsResponse(name, version, result, make(stubIndex))
+	stubs := resolveStubs(r.Context(), h.pypi, strings.ToLower(name), version)
+	docsResp := convertToDocsResponse(name, version, result, stubs)
 
 	encoded, err := json.Marshal(docsResp)
 	if err != nil {
@@ -141,6 +144,37 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// resolveStubs fetches and parses a stub package for the given source package,
+// returning a populated stubIndex. Returns an empty index if no stubs are
+// available or if any step fails — stubs are best-effort enrichment only.
+func resolveStubs(ctx context.Context, pypiClient *pypi.Client, pkgName, sourceVersion string) stubIndex {
+	stubPkgName, ok := lookupStubPackage(pkgName)
+	if !ok {
+		return make(stubIndex)
+	}
+
+	stubPyPI, err := pypiClient.FetchPackage(stubPkgName)
+	if err != nil {
+		log.Printf("stubs: failed to fetch %s metadata: %v", stubPkgName, err)
+		return make(stubIndex)
+	}
+
+	sourceMajor := strings.SplitN(sourceVersion, ".", 2)[0]
+	stubVersion := resolveStubVersion(stubPyPI.Releases, sourceMajor)
+	if stubVersion == "" {
+		log.Printf("stubs: no releases found for %s", stubPkgName)
+		return make(stubIndex)
+	}
+
+	stubPkg, err := fetchStubPackage(ctx, stubPkgName, stubPyPI.Releases, stubVersion)
+	if err != nil {
+		log.Printf("stubs: failed to extract %s@%s: %v", stubPkgName, stubVersion, err)
+		return make(stubIndex)
+	}
+
+	return buildStubIndex(stubPkg)
 }
 
 // convertToDocsResponse transforms goopy's model.Package into the API response
