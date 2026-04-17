@@ -1,10 +1,17 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
+	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/goopy"
+	"github.com/pypx/goopy/model"
 )
 
 // stubRegistry maps lowercase PyPI package names to their known type stub packages.
@@ -83,4 +90,103 @@ func compareVersions(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// normalizeStubFiles renames .pyi files to .py and maps stub top-level package
+// directories to their source equivalents (e.g. django_stubs/ → django/).
+// Non-.pyi files (dist-info, etc.) are excluded.
+func normalizeStubFiles(files map[string][]byte, topLevelPkgs []string) (map[string][]byte, []string) {
+	renames := make(map[string]string, len(topLevelPkgs))
+	normalized := make([]string, 0, len(topLevelPkgs))
+	for _, pkg := range topLevelPkgs {
+		src := strings.TrimSuffix(strings.TrimSuffix(pkg, "_stubs"), "-stubs")
+		renames[pkg] = src
+		normalized = append(normalized, src)
+	}
+
+	result := make(map[string][]byte, len(files))
+	for path, data := range files {
+		if !strings.HasSuffix(path, ".pyi") {
+			continue
+		}
+		// .pyi → .py
+		p := strings.TrimSuffix(path, ".pyi") + ".py"
+		// stub dir → source dir
+		for stubDir, srcDir := range renames {
+			if strings.HasPrefix(p, stubDir+"/") {
+				p = srcDir + "/" + p[len(stubDir)+1:]
+				break
+			}
+		}
+		result[p] = data
+	}
+	return result, normalized
+}
+
+// fetchStubPackage downloads a stub wheel, extracts and normalizes .pyi files,
+// and returns a parsed model.Package. Returns nil, nil if no wheel URL is found.
+func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[string][]pypi.ReleaseFile, version string) (*model.Package, error) {
+	files := releases[version]
+	var wheelURL string
+	for _, f := range files {
+		if strings.HasSuffix(f.Filename, ".whl") {
+			wheelURL = f.URL
+			break
+		}
+	}
+	if wheelURL == "" {
+		return nil, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wheelURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
+	if err != nil {
+		return nil, err
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+
+	rawFiles := make(map[string][]byte)
+	topLevelSet := make(map[string]bool)
+	for _, f := range zr.File {
+		if !strings.HasSuffix(f.Name, ".pyi") {
+			continue
+		}
+		parts := strings.SplitN(f.Name, "/", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		topLevelSet[parts[0]] = true
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		src, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			continue
+		}
+		rawFiles[f.Name] = src
+	}
+
+	topLevelPkgs := make([]string, 0, len(topLevelSet))
+	for pkg := range topLevelSet {
+		topLevelPkgs = append(topLevelPkgs, pkg)
+	}
+
+	normalizedFiles, normalizedPkgs := normalizeStubFiles(rawFiles, topLevelPkgs)
+	pkg := goopy.ExtractPackage(ctx, stubPkgName, normalizedFiles, normalizedPkgs)
+	return pkg, nil
 }

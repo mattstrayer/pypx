@@ -58,6 +58,45 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
+func TestNormalizeStubFiles(t *testing.T) {
+	input := map[string][]byte{
+		"django_stubs/__init__.pyi":           []byte("x: int"),
+		"django_stubs/db/models/__init__.pyi": []byte("class QuerySet: ..."),
+		"django_stubs/http/__init__.pyi":      []byte("class HttpRequest: ..."),
+		"django_stubs-1.0.dist-info/METADATA": []byte("meta"),
+	}
+	topLevelPkgs := []string{"django_stubs"}
+
+	files, pkgs := normalizeStubFiles(input, topLevelPkgs)
+
+	wantFiles := map[string]bool{
+		"django/__init__.py":           true,
+		"django/db/models/__init__.py": true,
+		"django/http/__init__.py":      true,
+	}
+	if len(files) != len(wantFiles) {
+		t.Errorf("normalizeStubFiles: got %d files, want %d", len(files), len(wantFiles))
+	}
+	for path := range wantFiles {
+		if _, ok := files[path]; !ok {
+			t.Errorf("normalizeStubFiles: missing expected path %q", path)
+		}
+	}
+	if len(pkgs) != 1 || pkgs[0] != "django" {
+		t.Errorf("normalizeStubFiles: pkgs = %v, want [\"django\"]", pkgs)
+	}
+}
+
+func TestNormalizeStubFiles_HyphenSuffix(t *testing.T) {
+	input := map[string][]byte{
+		"requests_stubs/__init__.pyi": []byte("x: int"),
+	}
+	_, pkgs := normalizeStubFiles(input, []string{"requests_stubs"})
+	if len(pkgs) != 1 || pkgs[0] != "requests" {
+		t.Errorf("normalizeStubFiles: pkgs = %v, want [\"requests\"]", pkgs)
+	}
+}
+
 func TestLookupStubPackage(t *testing.T) {
 	tests := []struct {
 		name     string
