@@ -31,12 +31,14 @@ type DocModule struct {
 
 // DocSymbol is a single documented symbol (function, class, or exception).
 type DocSymbol struct {
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	Signature  string     `json:"signature"`
-	Docstring  string     `json:"docstring"`
-	Parameters []DocParam `json:"parameters"`
-	Returns    *DocReturn `json:"returns,omitempty"`
+	Name       string      `json:"name"`
+	Kind       string      `json:"kind"`
+	Signature  string      `json:"signature"`
+	Docstring  string      `json:"docstring"`
+	Parameters []DocParam  `json:"parameters"`
+	Returns    *DocReturn  `json:"returns,omitempty"`
+	Raises     []DocRaise  `json:"raises,omitempty"`
+	Methods    []DocSymbol `json:"methods,omitempty"`
 }
 
 // DocParam is a function parameter.
@@ -51,6 +53,12 @@ type DocParam struct {
 // DocReturn is the return type annotation and description.
 type DocReturn struct {
 	Type        string `json:"type,omitempty"`
+	Description string `json:"description"`
+}
+
+// DocRaise is an exception documented in a docstring.
+type DocRaise struct {
+	Type        string `json:"type"`
 	Description string `json:"description"`
 }
 
@@ -184,7 +192,7 @@ func convertFunction(fn *model.Function) DocSymbol {
 		Name:       fn.Name,
 		Kind:       "function",
 		Signature:  buildFuncSignature(fn),
-		Docstring:  docstringText(fn.Docstring),
+		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 	}
 
@@ -213,7 +221,7 @@ func convertClass(cls *model.Class) DocSymbol {
 		Name:      cls.Name,
 		Kind:      "class",
 		Signature: buildClassSignature(cls),
-		Docstring: docstringText(cls.Docstring),
+		Docstring: cleanDocstringText(cls.Docstring),
 	}
 	return sym
 }
@@ -267,11 +275,48 @@ func buildClassSignature(cls *model.Class) string {
 	return b.String()
 }
 
-func docstringText(ds *model.Docstring) string {
+// cleanDocstringText returns the prose summary from a parsed docstring,
+// stripping Sphinx field lists and Google section headers.
+func cleanDocstringText(ds *model.Docstring) string {
 	if ds == nil {
 		return ""
 	}
-	return ds.Text
+	lines := strings.Split(ds.Text, "\n")
+	cutAt := len(lines)
+	for i, line := range lines {
+		if isDocstringFieldLine(line, ds.Style) {
+			cutAt = i
+			break
+		}
+	}
+	result := strings.Join(lines[:cutAt], "\n")
+	return strings.TrimSpace(result)
+}
+
+func isDocstringFieldLine(line string, style model.DocstringStyle) bool {
+	t := strings.TrimSpace(line)
+	switch style {
+	case model.DocstringSphinx:
+		return len(t) > 1 && t[0] == ':' && strings.ContainsRune(t[1:], ':')
+	case model.DocstringGoogle:
+		if line != t || !strings.HasSuffix(t, ":") {
+			return false
+		}
+		return isGoogleSection(strings.TrimSuffix(t, ":"))
+	}
+	return false
+}
+
+func isGoogleSection(word string) bool {
+	switch word {
+	case "Args", "Arguments", "Parameters", "Params",
+		"Returns", "Return", "Raises", "Raise",
+		"Note", "Notes", "Example", "Examples",
+		"Attributes", "Yields", "Yield", "Todo",
+		"References", "See Also":
+		return true
+	}
+	return false
 }
 
 // isException returns true if the class inherits from an exception base.
