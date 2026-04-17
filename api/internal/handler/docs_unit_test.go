@@ -132,3 +132,90 @@ func TestCleanDocstringText_EmptyText(t *testing.T) {
 		t.Errorf("cleanDocstringText(empty text) = %q, want empty", got)
 	}
 }
+
+func TestConvertFunction_DocstringTypeBackfill(t *testing.T) {
+	fn := &model.Function{
+		Name: "validate",
+		Parameters: []*model.Parameter{
+			{
+				Name: "value",
+				Kind: model.ParamPositionalOrKeyword,
+				// No annotation type
+				DocParam: &model.DocParam{
+					Name:        "value",
+					Type:        "str",
+					Description: "The value to validate",
+				},
+			},
+			{
+				Name: "strict",
+				Kind: model.ParamPositionalOrKeyword,
+				// Has annotation — should NOT be overridden
+				Type: &model.TypeExpr{Raw: "bool"},
+				DocParam: &model.DocParam{
+					Name: "strict",
+					Type: "int", // docstring says int but annotation says bool — annotation wins
+				},
+			},
+		},
+		Docstring: &model.Docstring{
+			Style: model.DocstringSphinx,
+			Text:  "Validate the value.\n\n:param value: The value\n:type value: str",
+			Returns: &model.DocReturn{
+				Type:        "None",
+				Description: "Nothing returned",
+			},
+		},
+	}
+
+	sym := convertFunction(fn)
+
+	// value param: annotation absent, docstring type used
+	if sym.Parameters[0].Type != "str" {
+		t.Errorf("param[0].Type = %q, want str", sym.Parameters[0].Type)
+	}
+	if sym.Parameters[0].Description != "The value to validate" {
+		t.Errorf("param[0].Description = %q", sym.Parameters[0].Description)
+	}
+
+	// strict param: annotation present, annotation wins
+	if sym.Parameters[1].Type != "bool" {
+		t.Errorf("param[1].Type = %q, want bool (annotation wins)", sym.Parameters[1].Type)
+	}
+
+	// Returns: no annotation on fn, docstring return used
+	if sym.Returns == nil {
+		t.Fatal("Returns should not be nil")
+	}
+	if sym.Returns.Type != "None" {
+		t.Errorf("Returns.Type = %q, want None", sym.Returns.Type)
+	}
+	if sym.Returns.Description != "Nothing returned" {
+		t.Errorf("Returns.Description = %q", sym.Returns.Description)
+	}
+}
+
+func TestConvertFunction_AnnotationTakesPrecedence(t *testing.T) {
+	fn := &model.Function{
+		Name:    "fetch",
+		Returns: &model.TypeExpr{Raw: "QuerySet"},
+		Docstring: &model.Docstring{
+			Style: model.DocstringSphinx,
+			Returns: &model.DocReturn{
+				Type:        "list",
+				Description: "A list of things",
+			},
+		},
+	}
+
+	sym := convertFunction(fn)
+
+	// Annotation return type wins over docstring
+	if sym.Returns == nil || sym.Returns.Type != "QuerySet" {
+		t.Errorf("Returns.Type = %v, want QuerySet", sym.Returns)
+	}
+	// Description comes from docstring
+	if sym.Returns.Description != "A list of things" {
+		t.Errorf("Returns.Description = %q", sym.Returns.Description)
+	}
+}

@@ -200,6 +200,9 @@ func convertFunction(fn *model.Function) DocSymbol {
 		dp := DocParam{Name: p.Name}
 		if p.Type != nil {
 			dp.Type = p.Type.Raw
+		} else if p.DocParam != nil && p.DocParam.Type != "" {
+			// No source annotation — fall back to docstring-declared type.
+			dp.Type = p.DocParam.Type
 		}
 		if p.DocParam != nil {
 			dp.Description = p.DocParam.Description
@@ -209,8 +212,18 @@ func convertFunction(fn *model.Function) DocSymbol {
 		sym.Parameters = append(sym.Parameters, dp)
 	}
 
+	// Returns: annotation takes precedence; docstring fills type and/or description.
 	if fn.Returns != nil {
-		sym.Returns = &DocReturn{Type: fn.Returns.Raw}
+		r := &DocReturn{Type: fn.Returns.Raw}
+		if fn.Docstring != nil && fn.Docstring.Returns != nil {
+			r.Description = fn.Docstring.Returns.Description
+		}
+		sym.Returns = r
+	} else if fn.Docstring != nil && fn.Docstring.Returns != nil && fn.Docstring.Returns.Type != "" {
+		sym.Returns = &DocReturn{
+			Type:        fn.Docstring.Returns.Type,
+			Description: fn.Docstring.Returns.Description,
+		}
 	}
 
 	return sym
