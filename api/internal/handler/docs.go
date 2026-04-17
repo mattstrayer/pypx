@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -106,6 +107,14 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the context was cancelled mid-extraction, goopy returns 0 modules
+	// without an error. Treat this as a transient failure so future requests retry.
+	if r.Context().Err() != nil {
+		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), 300) //nolint:errcheck
+		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		return
+	}
+
 	docsResp := convertToDocsResponse(name, version, result)
 
 	encoded, err := json.Marshal(docsResp)
@@ -114,7 +123,13 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.cache.Set(cacheKey, encoded, 0) //nolint:errcheck
+	// Only cache indefinitely if we got actual content. An empty result may mean
+	// a genuine binary-only package (24h retry) vs. a successfully parsed package.
+	ttl := time.Duration(0)
+	if !docsResp.Available {
+		ttl = 24 * time.Hour // retry after 24h for packages with no extractable docs
+	}
+	h.cache.Set(cacheKey, encoded, ttl) //nolint:errcheck
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
