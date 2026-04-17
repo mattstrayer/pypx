@@ -182,6 +182,11 @@ export interface DocReturn {
   description: string;
 }
 
+export interface DocRaise {
+  type: string;
+  description: string;
+}
+
 export interface DocSymbol {
   name: string;
   kind: "function" | "class" | "exception";
@@ -189,6 +194,8 @@ export interface DocSymbol {
   docstring: string;
   parameters?: DocParam[];
   returns?: DocReturn;
+  raises?: DocRaise[];
+  methods?: DocSymbol[];
 }
 
 export interface DocModule {
