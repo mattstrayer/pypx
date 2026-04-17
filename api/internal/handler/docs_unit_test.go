@@ -256,3 +256,76 @@ func TestConvertFunction_NoRaises(t *testing.T) {
 		t.Errorf("Raises should be nil for function with no docstring raises, got %v", sym.Raises)
 	}
 }
+
+func TestConvertClass_Methods(t *testing.T) {
+	cls := &model.Class{
+		Name: "QuerySet",
+		Docstring: &model.Docstring{
+			Style: model.DocstringSphinx,
+			Text:  "A lazy database lookup for a set of objects.",
+		},
+		BaseClasses: []*model.TypeRef{{Name: "object"}},
+		Methods: []*model.Function{
+			{
+				Name: "filter",
+				Parameters: []*model.Parameter{
+					{Name: "self", Kind: model.ParamPositionalOrKeyword},
+					{
+						Name: "kwargs",
+						Kind: model.ParamVarKeyword,
+						DocParam: &model.DocParam{
+							Name:        "kwargs",
+							Type:        "Any",
+							Description: "Field lookups",
+						},
+					},
+				},
+				Docstring: &model.Docstring{
+					Style: model.DocstringSphinx,
+					Text:  "Return a new QuerySet filtered by the given lookups.",
+				},
+			},
+			{
+				Name: "first",
+				Docstring: &model.Docstring{
+					Style:   model.DocstringSphinx,
+					Text:    "Return the first object matched.\n\n:rtype: Model or None",
+					Returns: &model.DocReturn{Type: "Model or None"},
+				},
+			},
+		},
+	}
+
+	sym := convertClass(cls)
+
+	if len(sym.Methods) != 2 {
+		t.Fatalf("Methods len = %d, want 2", len(sym.Methods))
+	}
+	if sym.Methods[0].Name != "filter" {
+		t.Errorf("Methods[0].Name = %q, want filter", sym.Methods[0].Name)
+	}
+	if sym.Methods[0].Kind != "function" {
+		t.Errorf("Methods[0].Kind = %q, want function", sym.Methods[0].Kind)
+	}
+	// Docstring type backfill on method param (kwargs has no annotation, docstring type used)
+	kwargsParam := sym.Methods[0].Parameters[1]
+	if kwargsParam.Type != "Any" {
+		t.Errorf("kwargs.Type = %q, want Any", kwargsParam.Type)
+	}
+	// Return type from docstring on method
+	if sym.Methods[1].Returns == nil || sym.Methods[1].Returns.Type != "Model or None" {
+		t.Errorf("first.Returns = %v, want type 'Model or None'", sym.Methods[1].Returns)
+	}
+	// Class docstring still present
+	if sym.Docstring != "A lazy database lookup for a set of objects." {
+		t.Errorf("class Docstring = %q", sym.Docstring)
+	}
+}
+
+func TestConvertClass_NoMethods(t *testing.T) {
+	cls := &model.Class{Name: "Empty"}
+	sym := convertClass(cls)
+	if sym.Methods != nil {
+		t.Errorf("Methods should be nil for class with no methods, got %v", sym.Methods)
+	}
+}

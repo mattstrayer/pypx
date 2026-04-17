@@ -247,6 +247,14 @@ func convertClass(cls *model.Class) DocSymbol {
 		Signature: buildClassSignature(cls),
 		Docstring: cleanDocstringText(cls.Docstring),
 	}
+
+	if len(cls.Methods) > 0 {
+		sym.Methods = make([]DocSymbol, 0, len(cls.Methods))
+		for _, m := range cls.Methods {
+			sym.Methods = append(sym.Methods, convertFunction(m))
+		}
+	}
+
 	return sym
 }
 
