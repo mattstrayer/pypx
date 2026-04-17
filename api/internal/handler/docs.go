@@ -123,7 +123,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	docsResp := convertToDocsResponse(name, version, result)
+	docsResp := convertToDocsResponse(name, version, result, make(stubIndex))
 
 	encoded, err := json.Marshal(docsResp)
 	if err != nil {
@@ -145,7 +145,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // convertToDocsResponse transforms goopy's model.Package into the API response
 // format expected by the frontend.
-func convertToDocsResponse(name, version string, pkg *model.Package) DocsResponse {
+func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubIndex) DocsResponse {
 	var modules []DocModule
 
 	for _, mod := range pkg.Modules {
@@ -157,11 +157,12 @@ func convertToDocsResponse(name, version string, pkg *model.Package) DocsRespons
 		}
 
 		for _, fn := range mod.Functions {
-			dm.Functions = append(dm.Functions, convertFunction(fn))
+			stubFn := stubs[mod.Name+"."+fn.Name]
+			dm.Functions = append(dm.Functions, convertFunction(fn, stubFn))
 		}
 
 		for _, cls := range mod.Classes {
-			sym := convertClass(cls)
+			sym := convertClass(cls, stubs, mod.Name)
 			if isException(cls) {
 				sym.Kind = "exception"
 				dm.Exceptions = append(dm.Exceptions, sym)
@@ -187,7 +188,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package) DocsRespons
 	}
 }
 
-func convertFunction(fn *model.Function) DocSymbol {
+func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	sym := DocSymbol{
 		Name:       fn.Name,
 		Kind:       "function",
@@ -196,13 +197,24 @@ func convertFunction(fn *model.Function) DocSymbol {
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 	}
 
+	// Build stub parameter lookup by name for O(1) access.
+	var stubParams map[string]*model.Parameter
+	if stubFn != nil && len(stubFn.Parameters) > 0 {
+		stubParams = make(map[string]*model.Parameter, len(stubFn.Parameters))
+		for _, sp := range stubFn.Parameters {
+			stubParams[sp.Name] = sp
+		}
+	}
+
 	for _, p := range fn.Parameters {
 		dp := DocParam{Name: p.Name}
 		if p.Type != nil {
 			dp.Type = p.Type.Raw
 		} else if p.DocParam != nil && p.DocParam.Type != "" {
-			// No source annotation — fall back to docstring-declared type.
 			dp.Type = p.DocParam.Type
+		} else if sp, ok := stubParams[p.Name]; ok && sp.Type != nil && sp.Type.Raw != "" {
+			// No source annotation or docstring type — fall back to stub.
+			dp.Type = sp.Type.Raw
 		}
 		if p.DocParam != nil {
 			dp.Description = p.DocParam.Description
@@ -212,7 +224,7 @@ func convertFunction(fn *model.Function) DocSymbol {
 		sym.Parameters = append(sym.Parameters, dp)
 	}
 
-	// Returns: annotation takes precedence; docstring fills type and/or description.
+	// Returns: source annotation > docstring > stub.
 	if fn.Returns != nil {
 		r := &DocReturn{Type: fn.Returns.Raw}
 		if fn.Docstring != nil && fn.Docstring.Returns != nil {
@@ -224,9 +236,11 @@ func convertFunction(fn *model.Function) DocSymbol {
 			Type:        fn.Docstring.Returns.Type,
 			Description: fn.Docstring.Returns.Description,
 		}
+	} else if stubFn != nil && stubFn.Returns != nil && stubFn.Returns.Raw != "" {
+		sym.Returns = &DocReturn{Type: stubFn.Returns.Raw}
 	}
 
-	// Raises: populate from docstring
+	// Raises: populate from docstring (stubs don't carry raise docs).
 	if fn.Docstring != nil && len(fn.Docstring.Raises) > 0 {
 		sym.Raises = make([]DocRaise, 0, len(fn.Docstring.Raises))
 		for _, r := range fn.Docstring.Raises {
@@ -240,7 +254,7 @@ func convertFunction(fn *model.Function) DocSymbol {
 	return sym
 }
 
-func convertClass(cls *model.Class) DocSymbol {
+func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 	sym := DocSymbol{
 		Name:      cls.Name,
 		Kind:      "class",
@@ -251,7 +265,8 @@ func convertClass(cls *model.Class) DocSymbol {
 	if len(cls.Methods) > 0 {
 		sym.Methods = make([]DocSymbol, 0, len(cls.Methods))
 		for _, m := range cls.Methods {
-			sym.Methods = append(sym.Methods, convertFunction(m))
+			stubFn := stubs[modName+"."+cls.Name+"."+m.Name]
+			sym.Methods = append(sym.Methods, convertFunction(m, stubFn))
 		}
 	}
 

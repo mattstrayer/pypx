@@ -168,7 +168,7 @@ func TestConvertFunction_DocstringTypeBackfill(t *testing.T) {
 		},
 	}
 
-	sym := convertFunction(fn)
+	sym := convertFunction(fn, nil)
 
 	// value param: annotation absent, docstring type used
 	if sym.Parameters[0].Type != "str" {
@@ -208,7 +208,7 @@ func TestConvertFunction_AnnotationTakesPrecedence(t *testing.T) {
 		},
 	}
 
-	sym := convertFunction(fn)
+	sym := convertFunction(fn, nil)
 
 	// Annotation return type wins over docstring
 	if sym.Returns == nil || sym.Returns.Type != "QuerySet" {
@@ -233,7 +233,7 @@ func TestConvertFunction_Raises(t *testing.T) {
 		},
 	}
 
-	sym := convertFunction(fn)
+	sym := convertFunction(fn, nil)
 
 	if len(sym.Raises) != 2 {
 		t.Fatalf("Raises len = %d, want 2", len(sym.Raises))
@@ -251,7 +251,7 @@ func TestConvertFunction_Raises(t *testing.T) {
 
 func TestConvertFunction_NoRaises(t *testing.T) {
 	fn := &model.Function{Name: "noop"}
-	sym := convertFunction(fn)
+	sym := convertFunction(fn, nil)
 	if sym.Raises != nil {
 		t.Errorf("Raises should be nil for function with no docstring raises, got %v", sym.Raises)
 	}
@@ -296,7 +296,7 @@ func TestConvertClass_Methods(t *testing.T) {
 		},
 	}
 
-	sym := convertClass(cls)
+	sym := convertClass(cls, make(stubIndex), "mymod")
 
 	if len(sym.Methods) != 2 {
 		t.Fatalf("Methods len = %d, want 2", len(sym.Methods))
@@ -324,8 +324,85 @@ func TestConvertClass_Methods(t *testing.T) {
 
 func TestConvertClass_NoMethods(t *testing.T) {
 	cls := &model.Class{Name: "Empty"}
-	sym := convertClass(cls)
+	sym := convertClass(cls, make(stubIndex), "mymod")
 	if sym.Methods != nil {
 		t.Errorf("Methods should be nil for class with no methods, got %v", sym.Methods)
+	}
+}
+
+func TestConvertFunction_StubTypeBackfill(t *testing.T) {
+	// Source function has no type annotation; stub has type info.
+	src := &model.Function{
+		Name: "filter",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "kwargs", Kind: model.ParamVarKeyword},
+		},
+	}
+	stub := &model.Function{
+		Name: "filter",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "kwargs", Kind: model.ParamVarKeyword, Type: &model.TypeExpr{Raw: "Any"}},
+		},
+		Returns: &model.TypeExpr{Raw: "QuerySet[_QS]"},
+	}
+
+	sym := convertFunction(src, stub)
+
+	if sym.Returns == nil {
+		t.Fatal("convertFunction: Returns should be backfilled from stub")
+	}
+	if sym.Returns.Type != "QuerySet[_QS]" {
+		t.Errorf("convertFunction: Returns.Type = %q, want %q", sym.Returns.Type, "QuerySet[_QS]")
+	}
+	// self has no type — stub has none either
+	if sym.Parameters[0].Type != "" {
+		t.Errorf("convertFunction: self.Type = %q, want \"\"", sym.Parameters[0].Type)
+	}
+	// kwargs filled from stub
+	if sym.Parameters[1].Type != "Any" {
+		t.Errorf("convertFunction: kwargs.Type = %q, want \"Any\"", sym.Parameters[1].Type)
+	}
+}
+
+func TestConvertFunction_SourceAnnotationWinsOverStub(t *testing.T) {
+	src := &model.Function{
+		Name: "save",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "value", Kind: model.ParamPositionalOrKeyword, Type: &model.TypeExpr{Raw: "str"}},
+		},
+		Returns: &model.TypeExpr{Raw: "None"},
+	}
+	stub := &model.Function{
+		Name: "save",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "value", Kind: model.ParamPositionalOrKeyword, Type: &model.TypeExpr{Raw: "Any"}},
+		},
+		Returns: &model.TypeExpr{Raw: "int"},
+	}
+
+	sym := convertFunction(src, stub)
+
+	// Source annotation wins
+	if sym.Parameters[1].Type != "str" {
+		t.Errorf("convertFunction: value.Type = %q, want \"str\" (source wins)", sym.Parameters[1].Type)
+	}
+	if sym.Returns == nil || sym.Returns.Type != "None" {
+		t.Errorf("convertFunction: Returns.Type = %q, want \"None\" (source wins)", sym.Returns.Type)
+	}
+}
+
+func TestConvertFunction_NilStub(t *testing.T) {
+	src := &model.Function{
+		Name:       "simple",
+		Parameters: []*model.Parameter{{Name: "x", Kind: model.ParamPositionalOrKeyword}},
+	}
+	// Should not panic with nil stub
+	sym := convertFunction(src, nil)
+	if sym.Name != "simple" {
+		t.Errorf("convertFunction with nil stub: Name = %q, want \"simple\"", sym.Name)
 	}
 }
