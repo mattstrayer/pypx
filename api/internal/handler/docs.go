@@ -297,12 +297,21 @@ func isDocstringFieldLine(line string, style model.DocstringStyle) bool {
 	t := strings.TrimSpace(line)
 	switch style {
 	case model.DocstringSphinx:
+		// Matches ":word...: ..." field list lines. False-positives are possible
+		// for RST rubrics like ":Note:" embedded in prose, but these are rare.
 		return len(t) > 1 && t[0] == ':' && strings.ContainsRune(t[1:], ':')
 	case model.DocstringGoogle:
 		if line != t || !strings.HasSuffix(t, ":") {
 			return false
 		}
 		return isGoogleSection(strings.TrimSuffix(t, ":"))
+	case model.DocstringNumpy:
+		// NumPy section headers are flush-left lines matching known section names
+		// (the dashes underline follows on the next line, which we don't need to check).
+		if line != t {
+			return false // indented lines are content, not headers
+		}
+		return isGoogleSection(t)
 	}
 	return false
 }

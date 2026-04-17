@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pypx/goopy/model"
@@ -73,5 +74,61 @@ func TestCleanDocstringText_NoFields(t *testing.T) {
 	got := cleanDocstringText(ds)
 	if got != "One-liner with no field markers." {
 		t.Errorf("unexpected: %q", got)
+	}
+}
+
+func TestCleanDocstringText_NumPy(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringNumpy,
+		Text: `Compute the result.
+
+More detail here.
+
+Parameters
+----------
+x : int
+    The input value.
+
+Returns
+-------
+int
+    The output value.`,
+	}
+	got := cleanDocstringText(ds)
+	want := "Compute the result.\n\nMore detail here."
+	if got != want {
+		t.Errorf("cleanDocstringText(numpy) =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestCleanDocstringText_SphinxProseColon(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringSphinx,
+		Text: `Return the result, which is an integer.
+
+Note: this always returns a positive value.
+
+:param x: The input
+:type x: int`,
+	}
+	got := cleanDocstringText(ds)
+	// "Note: this..." starts with "Note" not ":", so it must not be truncated.
+	if !strings.Contains(got, "Note: this always returns a positive value.") {
+		t.Errorf("prose colon was incorrectly truncated: %q", got)
+	}
+	// The :param line must be stripped.
+	if strings.Contains(got, ":param") {
+		t.Errorf(":param line not stripped: %q", got)
+	}
+}
+
+func TestCleanDocstringText_EmptyText(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringSphinx,
+		Text:  "",
+	}
+	got := cleanDocstringText(ds)
+	if got != "" {
+		t.Errorf("cleanDocstringText(empty text) = %q, want empty", got)
 	}
 }
