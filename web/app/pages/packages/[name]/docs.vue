@@ -1,6 +1,6 @@
 <!-- web/app/pages/packages/[name]/docs.vue -->
 <script setup lang="ts">
-import type { DocSymbol } from "~/types/api";
+import type { DocSymbol, DocRaise } from "~/types/api";
 
 const route = useRoute();
 const name = computed(() => route.params.name as string);
@@ -267,6 +267,23 @@ defineOgImage(
                 <span v-if="sym.returns.description" class="ml-2 text-[11px] text-muted">{{
                   sym.returns.description
                 }}</span>
+              </div>
+
+              <!-- Raises -->
+              <div v-if="sym.raises && sym.raises.length" class="mb-3">
+                <p
+                  class="mb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
+                >
+                  Raises
+                </p>
+                <div class="border-l-2 border-subtle pl-3 space-y-2">
+                  <div v-for="r in sym.raises" :key="r.type">
+                    <span class="font-mono text-[11px] text-red-400">{{ r.type }}</span>
+                    <p v-if="r.description" class="mt-0.5 text-[11px] text-muted">
+                      {{ r.description }}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div class="mt-8 border-t border-base" />
