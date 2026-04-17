@@ -1,6 +1,18 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-09',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
+
+  routeRules: {
+    '/packages/**': {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    },
+    '/': {
+      headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' },
+    },
+    '/search': {
+      headers: { 'Cache-Control': 'no-store' },
+    },
+  },
 
   modules: [
     '@vueuse/nuxt',
