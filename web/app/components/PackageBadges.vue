@@ -50,7 +50,7 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     </span>
     <span
       v-if="pkg.dependencies?.required?.length"
-      class="inline-flex items-center rounded bg-amber-500/10 px-2 py-0.5 font-mono text-xs text-amber-400 ring-1 ring-amber-500/20"
+      class="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 font-mono text-xs text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:ring-amber-800"
     >
       {{ pkg.dependencies.required.length }} deps
     </span>
@@ -58,11 +58,11 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     <!-- Type support badge -->
     <span
       v-if="typeStatus && typeStatus !== 'untyped'"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1"
+      class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs ring-1"
       :class="
         typeStatus === 'typed'
-          ? 'bg-blue-950 text-blue-300 ring-blue-800'
-          : 'bg-neutral-800 text-neutral-300 ring-neutral-700'
+          ? 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800'
+          : 'bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700'
       "
     >
       <span v-if="typeStatus === 'typed'">typed</span>
@@ -75,7 +75,7 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
       :href="condaUrl"
       target="_blank"
       rel="noopener noreferrer"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-green-950 text-green-300 ring-green-800 hover:bg-green-900 transition-colors"
+      class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs ring-1 transition-colors bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100 dark:bg-green-950 dark:text-green-300 dark:ring-green-800 dark:hover:bg-green-900"
     >
       conda
     </a>
@@ -86,7 +86,7 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
       :href="`https://osv.dev/list?ecosystem=PyPI&q=${pkg.name}`"
       target="_blank"
       rel="noopener noreferrer"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800 hover:bg-red-900 transition-colors"
+      class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs ring-1 transition-colors bg-red-50 text-red-700 ring-red-200 hover:bg-red-100 dark:bg-red-950 dark:text-red-300 dark:ring-red-800 dark:hover:bg-red-900"
     >
       {{ vulnCount }} {{ vulnCount === 1 ? "CVE" : "CVEs" }}
     </a>
@@ -94,13 +94,13 @@ const condaUrl = computed(() => props.extras?.conda_forge?.url ?? null);
     <!-- Maintenance status badge -->
     <span
       v-if="maintenanceStatus === 'possibly_unmaintained'"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-amber-950 text-amber-300 ring-amber-800"
+      class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs ring-1 bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800"
     >
       Possibly Unmaintained
     </span>
     <span
       v-if="maintenanceStatus === 'likely_unmaintained'"
-      class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ring-1 bg-red-950 text-red-300 ring-red-800"
+      class="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs ring-1 bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-800"
     >
       Likely Unmaintained
     </span>
