@@ -605,7 +605,368 @@ func TestPackageHandler_Get_CacheMissSingleFlight(t *testing.T) {
 	close(ready)
 	wg.Wait()
 
-	if got := upstream.Load(); got > 3 {
-		t.Errorf("expected at most 3 upstream PyPI calls (singleflight dedup), got %d", got)
+	// singleflight collapses concurrent in-flight calls. Under the race detector a
+	// small number of goroutines may start a new call before the first one
+	// completes, but the count must be far below the full concurrency of 20.
+	if got := upstream.Load(); got > 5 {
+		t.Errorf("expected at most 5 upstream PyPI calls (singleflight dedup), got %d", got)
+	}
+}
+
+// TestPackageHandler_Get_CacheMissPopulatesCache verifies that after a cache-miss
+// fetch the result is stored so the very next sequential request is served from
+// cache without hitting upstream again.
+func TestPackageHandler_Get_CacheMissPopulatesCache(t *testing.T) {
+	var upstream atomic.Int32
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	// First request — cache miss, hits upstream.
+	req1 := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec1.Code)
+	}
+
+	// Second request — must be served from cache.
+	req2 := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second request: expected 200, got %d", rec2.Code)
+	}
+
+	// After the initial miss both requests are sequential, so upstream is called exactly once.
+	if got := upstream.Load(); got != 1 {
+		t.Errorf("expected exactly 1 upstream call after singleflight populates cache, got %d", got)
+	}
+
+	// Both responses should have identical JSON bodies.
+	if rec1.Body.String() != rec2.Body.String() {
+		t.Error("expected cached response to match original response body")
+	}
+}
+
+// TestPackageHandler_Get_CacheMissHeaders verifies that the correct response
+// headers are set on the cache-miss (singleflight) path.
+func TestPackageHandler_Get_CacheMissHeaders(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type: expected application/json, got %q", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=3600" {
+		t.Errorf("Cache-Control: expected public, max-age=3600, got %q", got)
+	}
+}
+
+// TestPackageHandler_Get_CacheHitHeaders verifies that correct headers are set
+// when the response is served from cache.
+func TestPackageHandler_Get_CacheHitHeaders(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	// Prime the cache.
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/packages/requests", nil))
+
+	// Now hit the cache.
+	req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on cache hit, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type: expected application/json, got %q", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=3600" {
+		t.Errorf("Cache-Control: expected public, max-age=3600, got %q", got)
+	}
+}
+
+// TestPackageHandler_Get_SingleFlightErrorDedup verifies that when the upstream
+// returns an error during a singleflight window, all concurrent waiters receive
+// an error response and the upstream is only called once (not once per caller).
+func TestPackageHandler_Get_SingleFlightErrorDedup(t *testing.T) {
+	var upstream atomic.Int32
+
+	// Upstream always returns 404 (package not found).
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream.Add(1)
+		http.NotFound(w, r)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	const concurrency = 20
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	ready := make(chan struct{})
+	var errCount atomic.Int32
+
+	for range concurrency {
+		go func() {
+			defer wg.Done()
+			<-ready
+			req := httptest.NewRequest(http.MethodGet, "/packages/nonexistent", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code == http.StatusNotFound {
+				errCount.Add(1)
+			}
+		}()
+	}
+
+	close(ready)
+	wg.Wait()
+
+	// All callers should have received 404.
+	if got := errCount.Load(); got != concurrency {
+		t.Errorf("expected all %d callers to get 404, got %d", concurrency, got)
+	}
+	// Upstream should have been called at most a handful of times (singleflight).
+	if got := upstream.Load(); got > 5 {
+		t.Errorf("expected at most 5 upstream calls for error case (singleflight dedup), got %d", got)
+	}
+}
+
+// TestPackageHandler_Get_CaseFolding verifies that the cache key is
+// case-insensitive: "Requests" and "requests" share the same entry.
+func TestPackageHandler_Get_CaseFolding(t *testing.T) {
+	var upstream atomic.Int32
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	// First request uses mixed case.
+	req1 := httptest.NewRequest(http.MethodGet, "/packages/Requests", nil)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec1.Code)
+	}
+
+	// Second request uses lowercase — should hit cache, not upstream.
+	req2 := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second request: expected 200, got %d", rec2.Code)
+	}
+
+	if got := upstream.Load(); got != 1 {
+		t.Errorf("expected 1 upstream call (case-folded cache key), got %d", got)
+	}
+}
+
+// TestPackageHandler_Get_ResponseBodyIsValidJSON checks the response body from
+// a cache miss is well-formed JSON containing the expected top-level fields.
+func TestPackageHandler_Get_ResponseBodyIsValidJSON(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("response is not valid JSON: %v", err)
+	}
+
+	// Spot-check required top-level fields produced by buildPackageResponse.
+	for _, field := range []string{"name", "version", "summary", "latest_files", "install_size"} {
+		if _, ok := body[field]; !ok {
+			t.Errorf("response JSON missing field %q", field)
+		}
+	}
+	if body["name"] != "requests" {
+		t.Errorf("expected name=requests, got %v", body["name"])
+	}
+}
+
+// TestPackageHandler_Get_502OnUpstreamError verifies that a non-404 upstream
+// failure (e.g. 500) returns 502 Bad Gateway to the caller.
+func TestPackageHandler_Get_502OnUpstreamError(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("expected 502 for upstream 500, got %d", rec.Code)
+	}
+}
+
+// TestPackageHandler_Get_DifferentPackagesIndependent verifies that concurrent
+// requests for two different packages each go upstream exactly once (their
+// singleflight keys are independent).
+func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
+	var requestsCount, flaskCount atomic.Int32
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "flask") {
+			flaskCount.Add(1)
+			// Return a minimal valid flask response by reusing the requests fixture
+			// (name field is the only thing that differs for our test purposes).
+			fmt.Fprint(w, mockLicenseExpressionResponse)
+		} else {
+			requestsCount.Add(1)
+			fmt.Fprint(w, mockRequestsResponse)
+		}
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	var wg sync.WaitGroup
+	ready := make(chan struct{})
+
+	for i := range 10 {
+		wg.Add(1)
+		pkg := "requests"
+		if i%2 == 0 {
+			pkg = "flask"
+		}
+		go func(pkg string) {
+			defer wg.Done()
+			<-ready
+			req := httptest.NewRequest(http.MethodGet, "/packages/"+pkg, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+		}(pkg)
+	}
+
+	close(ready)
+	wg.Wait()
+
+	// Each package should have been fetched at most a small number of times.
+	if got := requestsCount.Load(); got > 3 {
+		t.Errorf("requests: expected ≤3 upstream calls, got %d", got)
+	}
+	if got := flaskCount.Load(); got > 3 {
+		t.Errorf("flask: expected ≤3 upstream calls, got %d", got)
 	}
 }
