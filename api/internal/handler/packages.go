@@ -14,6 +14,7 @@ import (
 	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/rst"
 	"github.com/pypx/api/internal/pypi"
+	"golang.org/x/sync/singleflight"
 )
 
 const packageTTL = time.Hour
@@ -58,6 +59,7 @@ type PackageResponse struct {
 type PackageHandler struct {
 	pypiClient *pypi.Client
 	cache      cache.Cacher
+	sf         singleflight.Group
 }
 
 // NewPackageHandler creates a new PackageHandler.
@@ -165,8 +167,21 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache miss — fetch from PyPI.
-	resp, err := h.fetchPackage(name)
+	// Cache miss — fetch, enrich, and cache. singleflight collapses concurrent
+	// misses for the same package into one upstream call.
+	v, err, _ := h.sf.Do(cacheKey, func() (any, error) {
+		resp, err := h.fetchPackage(name)
+		if err != nil {
+			return nil, err
+		}
+		pkg := buildPackageResponse(resp)
+		b, err := json.Marshal(pkg)
+		if err != nil {
+			return nil, err
+		}
+		h.cache.Set(cacheKey, b, packageTTL) //nolint:errcheck
+		return b, nil
+	})
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			http.Error(w, "package not found", http.StatusNotFound)
@@ -176,16 +191,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg := buildPackageResponse(resp)
-
-	encoded, err := json.Marshal(pkg)
-	if err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
-
-	// Cache for future requests.
-	h.cache.Set(cacheKey, encoded, packageTTL) //nolint:errcheck
+	encoded := v.([]byte)
 
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "application/json")

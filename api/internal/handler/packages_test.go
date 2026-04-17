@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -560,5 +561,51 @@ func TestPackageGet_RendersMarkdownDescription(t *testing.T) {
 	// HTML should contain rendered bold text.
 	if !strings.Contains(resp.DescriptionHTML, "<strong>Humans</strong>") {
 		t.Errorf("expected description_html to contain <strong>Humans</strong>, got %q", resp.DescriptionHTML)
+	}
+}
+
+func TestPackageHandler_Get_CacheMissSingleFlight(t *testing.T) {
+	var upstream atomic.Int32
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockRequestsResponse)
+	}))
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	const concurrency = 20
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	ready := make(chan struct{})
+
+	for range concurrency {
+		go func() {
+			defer wg.Done()
+			<-ready
+			req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected 200, got %d", rec.Code)
+			}
+		}()
+	}
+
+	close(ready)
+	wg.Wait()
+
+	if got := upstream.Load(); got > 3 {
+		t.Errorf("expected at most 3 upstream PyPI calls (singleflight dedup), got %d", got)
 	}
 }
