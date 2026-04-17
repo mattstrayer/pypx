@@ -219,3 +219,40 @@ func TestConvertFunction_AnnotationTakesPrecedence(t *testing.T) {
 		t.Errorf("Returns.Description = %q", sym.Returns.Description)
 	}
 }
+
+func TestConvertFunction_Raises(t *testing.T) {
+	fn := &model.Function{
+		Name: "delete",
+		Docstring: &model.Docstring{
+			Style: model.DocstringSphinx,
+			Text:  "Delete the object.\n\n:raises ValueError: If pk is None\n:raises PermissionError: If not allowed",
+			Raises: []*model.DocRaises{
+				{Type: "ValueError", Description: "If pk is None"},
+				{Type: "PermissionError", Description: "If not allowed"},
+			},
+		},
+	}
+
+	sym := convertFunction(fn)
+
+	if len(sym.Raises) != 2 {
+		t.Fatalf("Raises len = %d, want 2", len(sym.Raises))
+	}
+	if sym.Raises[0].Type != "ValueError" {
+		t.Errorf("Raises[0].Type = %q, want ValueError", sym.Raises[0].Type)
+	}
+	if sym.Raises[0].Description != "If pk is None" {
+		t.Errorf("Raises[0].Description = %q", sym.Raises[0].Description)
+	}
+	if sym.Raises[1].Type != "PermissionError" {
+		t.Errorf("Raises[1].Type = %q", sym.Raises[1].Type)
+	}
+}
+
+func TestConvertFunction_NoRaises(t *testing.T) {
+	fn := &model.Function{Name: "noop"}
+	sym := convertFunction(fn)
+	if sym.Raises != nil {
+		t.Errorf("Raises should be nil for function with no docstring raises, got %v", sym.Raises)
+	}
+}

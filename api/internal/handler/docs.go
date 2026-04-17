@@ -226,6 +226,17 @@ func convertFunction(fn *model.Function) DocSymbol {
 		}
 	}
 
+	// Raises: populate from docstring
+	if fn.Docstring != nil && len(fn.Docstring.Raises) > 0 {
+		sym.Raises = make([]DocRaise, 0, len(fn.Docstring.Raises))
+		for _, r := range fn.Docstring.Raises {
+			sym.Raises = append(sym.Raises, DocRaise{
+				Type:        r.Type,
+				Description: r.Description,
+			})
+		}
+	}
+
 	return sym
 }
 
