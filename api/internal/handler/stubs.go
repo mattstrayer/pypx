@@ -44,6 +44,7 @@ func resolveStubVersion(releases map[string][]pypi.ReleaseFile, sourceMajor stri
 	return latestVersion(all)
 }
 
+// latestVersion returns the highest version from versions by numeric segment comparison.
 func latestVersion(versions []string) string {
 	if len(versions) == 0 {
 		return ""
