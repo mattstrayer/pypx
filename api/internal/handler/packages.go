@@ -191,7 +191,11 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	encoded := v.([]byte)
+	encoded, ok := v.([]byte)
+	if !ok || encoded == nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "application/json")
