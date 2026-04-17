@@ -423,3 +423,30 @@ func TestConvertFunction_DocstringReturnWinsOverStub(t *testing.T) {
 		t.Errorf("docstring return should win over stub: Returns = %v", sym.Returns)
 	}
 }
+
+func TestConvertFunction_SignatureReflectsStubTypes(t *testing.T) {
+	src := &model.Function{
+		Name: "filter",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "kwargs", Kind: model.ParamVarKeyword},
+		},
+	}
+	stub := &model.Function{
+		Name: "filter",
+		Parameters: []*model.Parameter{
+			{Name: "self", Kind: model.ParamPositionalOrKeyword},
+			{Name: "kwargs", Kind: model.ParamVarKeyword, Type: &model.TypeExpr{Raw: "Any"}},
+		},
+		Returns: &model.TypeExpr{Raw: "QuerySet"},
+	}
+
+	sym := convertFunction(src, stub)
+
+	if !strings.Contains(sym.Signature, "kwargs: Any") {
+		t.Errorf("Signature should contain stub-filled type: %q", sym.Signature)
+	}
+	if !strings.Contains(sym.Signature, "-> QuerySet") {
+		t.Errorf("Signature should contain stub-filled return type: %q", sym.Signature)
+	}
+}

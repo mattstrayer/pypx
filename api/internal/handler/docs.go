@@ -226,10 +226,10 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	sym := DocSymbol{
 		Name:       fn.Name,
 		Kind:       "function",
-		Signature:  buildFuncSignature(fn),
 		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 	}
+	// Note: Signature is set after the parameter loop so stub-filled types appear.
 
 	// Build stub parameter lookup by name for O(1) access.
 	var stubParams map[string]*model.Parameter
@@ -273,6 +273,9 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	} else if stubFn != nil && stubFn.Returns != nil && stubFn.Returns.Raw != "" {
 		sym.Returns = &DocReturn{Type: stubFn.Returns.Raw}
 	}
+
+	// Build signature after merge so stub-filled types appear in the displayed signature.
+	sym.Signature = buildMergedSignature(fn, sym.Parameters, sym.Returns)
 
 	// Raises: populate from docstring (stubs don't carry raise docs).
 	if fn.Docstring != nil && len(fn.Docstring.Raises) > 0 {
@@ -335,6 +338,40 @@ func buildFuncSignature(fn *model.Function) string {
 	if fn.Returns != nil && fn.Returns.Raw != "" {
 		b.WriteString(" -> ")
 		b.WriteString(fn.Returns.Raw)
+	}
+	return b.String()
+}
+
+// buildMergedSignature builds a function signature using the already-merged DocParam
+// slice (which may include stub-backfilled types) rather than the raw model parameters.
+func buildMergedSignature(fn *model.Function, params []DocParam, returns *DocReturn) string {
+	var b strings.Builder
+	if fn.IsAsync {
+		b.WriteString("async ")
+	}
+	b.WriteString("def ")
+	b.WriteString(fn.Name)
+	b.WriteByte('(')
+
+	for i, dp := range params {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(dp.Name)
+		if dp.Type != "" {
+			b.WriteString(": ")
+			b.WriteString(dp.Type)
+		}
+		if dp.Default != "" {
+			b.WriteString(" = ")
+			b.WriteString(dp.Default)
+		}
+	}
+
+	b.WriteByte(')')
+	if returns != nil && returns.Type != "" {
+		b.WriteString(" -> ")
+		b.WriteString(returns.Type)
 	}
 	return b.String()
 }
