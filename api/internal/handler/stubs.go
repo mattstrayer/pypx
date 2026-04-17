@@ -18,6 +18,10 @@ import (
 // stubHTTPClient is used for downloading stub wheels with an explicit timeout.
 var stubHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
+// stubIndex maps qualified symbol names to stub functions.
+// Keys: "module.FuncName" for functions, "module.ClassName.methodName" for methods.
+type stubIndex map[string]*model.Function
+
 // stubRegistry maps lowercase PyPI package names to their known type stub packages.
 // Only add entries for verified, well-maintained stub packages.
 var stubRegistry = map[string]string{
@@ -197,4 +201,23 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 	normalizedFiles, normalizedPkgs := normalizeStubFiles(rawFiles, topLevelPkgs)
 	pkg := goopy.ExtractPackage(ctx, stubPkgName, normalizedFiles, normalizedPkgs)
 	return pkg, nil
+}
+
+// buildStubIndex builds a flat lookup map from a parsed stub package.
+func buildStubIndex(pkg *model.Package) stubIndex {
+	idx := make(stubIndex)
+	if pkg == nil {
+		return idx
+	}
+	for _, mod := range pkg.Modules {
+		for _, fn := range mod.Functions {
+			idx[mod.Name+"."+fn.Name] = fn
+		}
+		for _, cls := range mod.Classes {
+			for _, m := range cls.Methods {
+				idx[mod.Name+"."+cls.Name+"."+m.Name] = m
+			}
+		}
+	}
+	return idx
 }
