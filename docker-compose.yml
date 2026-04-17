@@ -22,7 +22,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 128M
+          cpus: '0.5'
 
   api:
     build:
@@ -52,6 +53,7 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.5'
 
   web:
     build:
@@ -79,7 +81,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
+          cpus: '0.75'
 
 volumes:
   caddy_data:
