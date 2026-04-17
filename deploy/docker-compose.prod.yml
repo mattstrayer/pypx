@@ -19,7 +19,6 @@ services:
       resources:
         limits:
           memory: 128M
-          cpus: '0.5'
 
   api:
     image: ghcr.io/mattstrayer/pypx/api:latest
@@ -42,7 +41,6 @@ services:
       resources:
         limits:
           memory: 512M
-          cpus: '1.5'
 
   web:
     image: ghcr.io/mattstrayer/pypx/web:latest
@@ -65,7 +63,6 @@ services:
       resources:
         limits:
           memory: 512M
-          cpus: '0.75'
 
 volumes:
   caddy_data:
