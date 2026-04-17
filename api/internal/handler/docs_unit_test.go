@@ -406,3 +406,20 @@ func TestConvertFunction_NilStub(t *testing.T) {
 		t.Errorf("convertFunction with nil stub: Name = %q, want \"simple\"", sym.Name)
 	}
 }
+
+func TestConvertFunction_DocstringReturnWinsOverStub(t *testing.T) {
+	src := &model.Function{
+		Name: "fetch",
+		Docstring: &model.Docstring{
+			Returns: &model.DocReturn{Type: "Response"},
+		},
+	}
+	stub := &model.Function{
+		Name:    "fetch",
+		Returns: &model.TypeExpr{Raw: "Any"},
+	}
+	sym := convertFunction(src, stub)
+	if sym.Returns == nil || sym.Returns.Type != "Response" {
+		t.Errorf("docstring return should win over stub: Returns = %v", sym.Returns)
+	}
+}
