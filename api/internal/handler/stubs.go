@@ -8,11 +8,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
 )
+
+// stubHTTPClient is used for downloading stub wheels with an explicit timeout.
+var stubHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // stubRegistry maps lowercase PyPI package names to their known type stub packages.
 // Only add entries for verified, well-maintained stub packages.
@@ -142,11 +146,15 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := stubHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetchStubPackage: HTTP %d fetching %s", resp.StatusCode, wheelURL)
+	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
 	if err != nil {

@@ -87,11 +87,21 @@ func TestNormalizeStubFiles(t *testing.T) {
 	}
 }
 
-func TestNormalizeStubFiles_HyphenSuffix(t *testing.T) {
+func TestNormalizeStubFiles_UnderscoreSuffix(t *testing.T) {
 	input := map[string][]byte{
 		"requests_stubs/__init__.pyi": []byte("x: int"),
 	}
 	_, pkgs := normalizeStubFiles(input, []string{"requests_stubs"})
+	if len(pkgs) != 1 || pkgs[0] != "requests" {
+		t.Errorf("normalizeStubFiles: pkgs = %v, want [\"requests\"]", pkgs)
+	}
+}
+
+func TestNormalizeStubFiles_HyphenSuffix(t *testing.T) {
+	input := map[string][]byte{
+		"requests-stubs/__init__.pyi": []byte("x: int"),
+	}
+	_, pkgs := normalizeStubFiles(input, []string{"requests-stubs"})
 	if len(pkgs) != 1 || pkgs[0] != "requests" {
 		t.Errorf("normalizeStubFiles: pkgs = %v, want [\"requests\"]", pkgs)
 	}
