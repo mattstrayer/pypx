@@ -168,10 +168,7 @@ func TestLookupStubPackage(t *testing.T) {
 		{"requests", "types-requests", true},
 		{"boto3", "boto3-stubs", true},
 		{"pandas", "pandas-stubs", true},
-		{"pillow", "types-Pillow", true},
-		{"redis", "types-redis", true},
 		{"pyyaml", "types-PyYAML", true},
-		{"stripe", "types-stripe", true},
 		{"unknownpkg", "", false},
 		{"", "", false},
 	}

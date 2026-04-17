@@ -30,10 +30,7 @@ var stubRegistry = map[string]string{
 	"requests":            "types-requests",
 	"boto3":               "boto3-stubs",
 	"pandas":              "pandas-stubs",
-	"pillow":              "types-Pillow",
-	"redis":               "types-redis",
 	"pyyaml":              "types-PyYAML",
-	"stripe":              "types-stripe",
 }
 
 // lookupStubPackage returns the stub package name for a source package, if known.
