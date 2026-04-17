@@ -82,7 +82,7 @@ const dateRangeLabel = computed(() => {
       >
         {{ opt.label }}
       </button>
-      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-zinc-400 dark:text-zinc-600">
+      <span v-if="dateRangeLabel" class="ml-3 font-mono text-xs text-muted">
         {{ dateRangeLabel }}
       </span>
     </div>
@@ -103,7 +103,7 @@ const dateRangeLabel = computed(() => {
             <span class="w-20 shrink-0 font-mono text-xs text-muted">{{ point.category }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-[var(--color-brand-border)]"
+                class="h-4 rounded-sm bg-emerald-500/60 dark:bg-emerald-400/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(overallTrend)) }"
               />
             </div>
@@ -125,12 +125,12 @@ const dateRangeLabel = computed(() => {
             :key="point.category"
             class="flex items-center gap-3"
           >
-            <span class="w-20 shrink-0 font-mono text-xs text-indigo-400">{{
+            <span class="w-20 shrink-0 font-mono text-xs text-indigo-600 dark:text-indigo-400">{{
               point.category
             }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-indigo-500/30"
+                class="h-4 rounded-sm bg-indigo-500/50 dark:bg-indigo-500/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(pythonVersions)) }"
               />
             </div>
@@ -148,10 +148,12 @@ const dateRangeLabel = computed(() => {
         </h2>
         <div class="space-y-2">
           <div v-for="point in systems" :key="point.category" class="flex items-center gap-3">
-            <span class="w-20 shrink-0 font-mono text-xs text-amber-400">{{ point.category }}</span>
+            <span class="w-20 shrink-0 font-mono text-xs text-amber-700 dark:text-amber-400">{{
+              point.category
+            }}</span>
             <div class="flex-1">
               <div
-                class="h-4 rounded-sm bg-amber-500/30"
+                class="h-4 rounded-sm bg-amber-500/50 dark:bg-amber-400/30"
                 :style="{ width: barWidth(point.downloads, maxDownloads(systems)) }"
               />
             </div>
