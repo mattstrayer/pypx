@@ -209,5 +209,6 @@ export interface DocsData {
   package: string;
   version: string;
   available: boolean;
+  stub_package?: string;
   modules: DocModule[];
 }

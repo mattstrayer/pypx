@@ -214,6 +214,36 @@ defineOgImage(
 
         <!-- Main content -->
         <div class="flex-1 min-w-0 px-6 py-5">
+          <!-- Stub enrichment attribution -->
+          <div
+            v-if="docs?.stub_package"
+            class="mb-5 flex items-center gap-2 rounded-md border border-subtle bg-zinc-50 px-3 py-2 text-xs text-muted dark:bg-zinc-900"
+          >
+            <svg
+              class="h-3.5 w-3.5 flex-shrink-0 text-zinc-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"
+              />
+            </svg>
+            <span
+              >Type information enriched from
+              <a
+                :href="`https://pypi.org/project/${docs.stub_package}/`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-mono text-[var(--color-brand)] hover:underline"
+                >{{ docs.stub_package }}</a
+              >
+            </span>
+          </div>
+
           <template
             v-for="sym in [...allFunctions, ...allClasses, ...allExceptions]"
             :key="sym.name"
