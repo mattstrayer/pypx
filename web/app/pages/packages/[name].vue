@@ -142,11 +142,11 @@ useSchemaOrg(
         <button
           v-for="tab in inPageTabs"
           :key="tab.key"
-          class="group cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors"
+          class="group cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors border-b-2 border-transparent"
           :class="
             activeTab === tab.key
               ? 'bg-raised text-primary'
-              : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
+              : 'text-zinc-700 dark:text-zinc-300 hover:border-[rgba(4,120,87,0.65)] dark:hover:border-[rgba(74,222,128,0.65)]'
           "
           @click="activeTab = tab.key"
         >
@@ -158,7 +158,7 @@ useSchemaOrg(
         <NuxtLink
           v-if="docsData?.available"
           :to="`/packages/${pkg.name}/docs`"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-zinc-700 dark:hover:text-zinc-300"
+          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors border-b-2 border-transparent hover:border-[rgba(4,120,87,0.65)] dark:hover:border-[rgba(74,222,128,0.65)]"
         >
           Docs
         </NuxtLink>
