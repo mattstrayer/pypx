@@ -234,12 +234,10 @@ defineOgImage(
             </svg>
             <span
               >Type information enriched from
-              <a
-                :href="`https://pypi.org/project/${docs.stub_package}/`"
-                target="_blank"
-                rel="noopener noreferrer"
+              <NuxtLink
+                :to="`/packages/${docs.stub_package}`"
                 class="font-mono text-[var(--color-brand)] hover:underline"
-                >{{ docs.stub_package }}</a
+                >{{ docs.stub_package }}</NuxtLink
               >
             </span>
           </div>
