@@ -9,9 +9,6 @@ export default defineNuxtConfig({
     '/': {
       headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' },
     },
-    '/search': {
-      headers: { 'Cache-Control': 'no-store' },
-    },
   },
 
   modules: [

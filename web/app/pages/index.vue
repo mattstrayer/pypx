@@ -4,10 +4,7 @@ const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToR
 const searchWrapper = ref<HTMLElement | null>(null);
 
 function onSearch() {
-  if (query.value.trim()) {
-    navigateTo({ path: "/search", query: { q: query.value.trim() } });
-    close();
-  }
+  // Search is handled via the typeahead dropdown; form submit is a no-op.
 }
 
 // Close dropdown when clicking outside
@@ -28,7 +25,7 @@ onUnmounted(() => {
 const POPULAR_LIMIT = 24;
 
 const api = useApi();
-const { data: popularPackages, status } = await useAsyncData("popular", () =>
+const { data: trendingPackages, status } = await useAsyncData("trending", () =>
   api.fetchPopular(POPULAR_LIMIT),
 );
 
@@ -68,7 +65,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
             <kbd
               class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline"
             >
-              ⌘K
+              /
             </kbd>
           </div>
         </form>
@@ -88,7 +85,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
     </section>
 
     <section class="pb-16">
-      <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">Popular Packages</h2>
+      <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">Trending</h2>
 
       <!-- Skeleton loading state -->
       <div v-if="status === 'pending'" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -105,8 +102,8 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       </p>
 
       <!-- Data -->
-      <TrendingPackages v-else-if="popularPackages?.length" :packages="popularPackages" />
-      <p v-else class="text-sm text-muted">No popular packages available.</p>
+      <TrendingPackages v-else-if="trendingPackages?.length" :packages="trendingPackages" />
+      <p v-else class="text-sm text-muted">No trending packages available.</p>
     </section>
   </div>
 </template>

@@ -45,7 +45,6 @@ export function useSearchTypeahead() {
     if (!isOpen.value || results.value.length === 0) {
       if (e.key === "Enter") {
         e.preventDefault();
-        navigateToSearch();
       }
       return;
     }
@@ -60,8 +59,6 @@ export function useSearchTypeahead() {
       const selected = results.value[selectedIndex.value];
       if (selectedIndex.value >= 0 && selected) {
         navigateToResult(selected);
-      } else {
-        navigateToSearch();
       }
     }
   }
@@ -69,13 +66,6 @@ export function useSearchTypeahead() {
   function navigateToResult(result: SearchResult) {
     router.push(`/packages/${result.name}`);
     close();
-  }
-
-  function navigateToSearch() {
-    if (query.value.trim()) {
-      router.push({ path: "/search", query: { q: query.value.trim() } });
-      close();
-    }
   }
 
   function open() {

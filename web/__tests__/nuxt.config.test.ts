@@ -45,12 +45,6 @@ describe('nuxt.config.ts — routeRules cache headers', () => {
     )
   })
 
-  it('/search is not cached (no-store) to prevent stale search results', () => {
-    const rule = config.routeRules?.['/search']
-    expect(rule).toBeDefined()
-    expect(rule.headers?.['Cache-Control']).toBe('no-store')
-  })
-
   it('package pages have longer max-age than home page', () => {
     const pkgCC = config.routeRules?.['/packages/**']?.headers?.['Cache-Control'] ?? ''
     const homeCC = config.routeRules?.['/']?.headers?.['Cache-Control'] ?? ''
@@ -61,11 +55,10 @@ describe('nuxt.config.ts — routeRules cache headers', () => {
     expect(pkgMaxAge).toBeGreaterThan(homeMaxAge)
   })
 
-  it('all three route rules are defined (no missing entries)', () => {
+  it('all route rules are defined (no missing entries)', () => {
     const rules = config.routeRules ?? {}
     expect(Object.keys(rules)).toContain('/packages/**')
     expect(Object.keys(rules)).toContain('/')
-    expect(Object.keys(rules)).toContain('/search')
   })
 })
 

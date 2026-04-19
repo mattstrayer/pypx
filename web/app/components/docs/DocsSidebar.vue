@@ -12,7 +12,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [name: string];
-  "open-palette": [];
 }>();
 
 type SidebarItem =
@@ -83,42 +82,12 @@ watch(activeIndex, (idx) => {
     scrollerRef.value.scrollToItem(idx);
   }
 });
-
-const shortcutLabel = ref("⌘K");
-onMounted(() => {
-  shortcutLabel.value = /mac/i.test(navigator.userAgent) ? "⌘K" : "Ctrl+K";
-});
 </script>
 
 <template>
   <div
     class="w-48 flex-shrink-0 sticky top-0 h-screen flex flex-col border-r border-subtle bg-base hidden md:flex"
   >
-    <!-- ⌘K trigger -->
-    <div class="px-2 py-2 border-b border-subtle flex-shrink-0">
-      <button
-        data-testid="palette-trigger"
-        class="flex w-full items-center gap-2 rounded-md bg-zinc-800/50 px-2.5 py-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-        @click="emit('open-palette')"
-      >
-        <svg
-          class="h-3 w-3 flex-shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
-        <span class="flex-1 text-left">Jump to symbol</span>
-        <kbd class="text-[9px] text-zinc-600">{{ shortcutLabel }}</kbd>
-      </button>
-    </div>
-
     <!-- Virtual symbol list -->
     <DynamicScroller
       ref="scrollerRef"
@@ -133,19 +102,29 @@ onMounted(() => {
           <button
             v-if="item.type === 'header'"
             data-testid="section-header"
-            class="flex w-full items-center justify-between px-3 pb-1 pt-3 hover:bg-zinc-800/30 transition-colors cursor-pointer"
+            class="flex w-full items-center justify-between px-3 hover:bg-raised/50 transition-colors cursor-pointer"
             style="height: 36px"
             @click="toggleSection(item.kind)"
           >
             <span
-              class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+              class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary"
             >
-              <span class="text-[8px]">{{ collapsed.has(item.kind) ? "▸" : "▾" }}</span>
+              <svg
+                class="h-3 w-3 flex-shrink-0 text-[var(--color-brand)] transition-transform duration-150"
+                :class="collapsed.has(item.kind) ? '-rotate-90' : 'rotate-0'"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
               {{ item.label }}
             </span>
-            <span class="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-600">{{
-              item.count
-            }}</span>
+            <span
+              class="rounded-full bg-[var(--color-brand-muted)] px-1.5 py-0.5 text-[9px] text-[var(--color-brand)]"
+              >{{ item.count }}</span
+            >
           </button>
 
           <!-- Symbol row -->
@@ -156,9 +135,10 @@ onMounted(() => {
             style="height: 28px"
             :class="
               activeSymbol === item.name
-                ? 'bg-blue-500/15 border-l-2 border-blue-500 text-white pl-2.5'
-                : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                ? 'bg-[var(--color-brand-muted)] border-l-2 border-[var(--color-brand)] text-primary pl-2.5'
+                : 'text-muted hover:bg-raised hover:text-primary'
             "
+            :aria-current="activeSymbol === item.name ? 'location' : undefined"
             @click="emit('select', item.name)"
           >
             {{ item.name }}
