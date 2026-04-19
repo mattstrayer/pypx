@@ -39,6 +39,39 @@ const allSymbols = computed<DocSymbol[]>(() => [
   ...allExceptions.value,
 ]);
 
+const paletteSections = computed(() => [
+  ...(allFunctions.value.length
+    ? [
+        {
+          label: "Functions",
+          kind: "functions",
+          count: allFunctions.value.length,
+          firstSymbol: allFunctions.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+  ...(allClasses.value.length
+    ? [
+        {
+          label: "Classes",
+          kind: "classes",
+          count: allClasses.value.length,
+          firstSymbol: allClasses.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+  ...(allExceptions.value.length
+    ? [
+        {
+          label: "Exceptions",
+          kind: "exceptions",
+          count: allExceptions.value.length,
+          firstSymbol: allExceptions.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+]);
+
 // ── Deferred rendering ─────────────────────────────────────────────────────
 const BATCH_SIZE = 20;
 const renderedCount = ref(0);
@@ -284,6 +317,7 @@ defineOgImage(
         <DocsCommandPalette
           :symbols="allSymbols"
           :open="paletteOpen"
+          :sections="paletteSections"
           @jump="jumpToSymbol"
           @close="paletteOpen = false"
         />

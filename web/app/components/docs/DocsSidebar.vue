@@ -16,8 +16,17 @@ const emit = defineEmits<{
 }>();
 
 type SidebarItem =
-  | { id: string; type: "header"; label: string; count: number }
+  | { id: string; type: "header"; label: string; kind: string; count: number }
   | { id: string; type: "symbol"; name: string; kind: string };
+
+const collapsed = ref(new Set<string>());
+
+function toggleSection(kind: string) {
+  const next = new Set(collapsed.value);
+  if (next.has(kind)) next.delete(kind);
+  else next.add(kind);
+  collapsed.value = next;
+}
 
 const items = computed<SidebarItem[]>(() => {
   const list: SidebarItem[] = [];
@@ -26,25 +35,39 @@ const items = computed<SidebarItem[]>(() => {
       id: "h-functions",
       type: "header",
       label: "Functions",
+      kind: "functions",
       count: props.functions.length,
     });
-    for (const s of props.functions)
-      list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    if (!collapsed.value.has("functions")) {
+      for (const s of props.functions)
+        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    }
   }
   if (props.classes.length) {
-    list.push({ id: "h-classes", type: "header", label: "Classes", count: props.classes.length });
-    for (const s of props.classes)
-      list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    list.push({
+      id: "h-classes",
+      type: "header",
+      label: "Classes",
+      kind: "classes",
+      count: props.classes.length,
+    });
+    if (!collapsed.value.has("classes")) {
+      for (const s of props.classes)
+        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    }
   }
   if (props.exceptions.length) {
     list.push({
       id: "h-exceptions",
       type: "header",
       label: "Exceptions",
+      kind: "exceptions",
       count: props.exceptions.length,
     });
-    for (const s of props.exceptions)
-      list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    if (!collapsed.value.has("exceptions")) {
+      for (const s of props.exceptions)
+        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+    }
   }
   return list;
 });
@@ -105,18 +128,23 @@ const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
       <template #default="{ item, index, active }">
         <DynamicScrollerItem :item="item" :active="active" :data-index="index">
           <!-- Section header -->
-          <div
+          <button
             v-if="item.type === 'header'"
-            class="flex items-center justify-between px-3 pb-1 pt-3"
+            data-testid="section-header"
+            class="flex w-full items-center justify-between px-3 pb-1 pt-3 hover:bg-zinc-800/30 transition-colors cursor-pointer"
             style="height: 36px"
+            @click="toggleSection(item.kind)"
           >
-            <span class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{{
-              item.label
-            }}</span>
+            <span
+              class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+            >
+              <span class="text-[8px]">{{ collapsed.has(item.kind) ? "▸" : "▾" }}</span>
+              {{ item.label }}
+            </span>
             <span class="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-600">{{
               item.count
             }}</span>
-          </div>
+          </button>
 
           <!-- Symbol row -->
           <button

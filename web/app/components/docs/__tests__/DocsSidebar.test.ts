@@ -79,4 +79,23 @@ describe("DocsSidebar", () => {
     expect(wrapper.emitted("select")).toBeTruthy();
     expect(typeof wrapper.emitted("select")![0][0]).toBe("string");
   });
+
+  it("collapses functions section when header is clicked", async () => {
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: { functions, classes: [], exceptions: [], activeSymbol: null },
+    });
+    // Before collapse: symbol rows exist
+    expect(wrapper.findAll("[data-testid='symbol-row']").length).toBeGreaterThan(0);
+    // Click section header to collapse
+    await wrapper.find("[data-testid='section-header']").trigger("click");
+    // After collapse: no symbol rows visible
+    expect(wrapper.findAll("[data-testid='symbol-row']").length).toBe(0);
+  });
+
+  it("shows collapse indicator on section headers", async () => {
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: { functions, classes, exceptions: [], activeSymbol: null },
+    });
+    expect(wrapper.find("[data-testid='section-header']").text()).toContain("▾");
+  });
 });
