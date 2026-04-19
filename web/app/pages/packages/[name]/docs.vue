@@ -1,6 +1,5 @@
-<!-- web/app/pages/packages/[name]/docs.vue -->
 <script setup lang="ts">
-import type { DocSymbol, DocRaise } from "~/types/api";
+import type { DocSymbol } from "~/types/api";
 
 const route = useRoute();
 const name = computed(() => route.params.name as string);
@@ -34,28 +33,161 @@ const allExceptions = computed<DocSymbol[]>(() =>
   dedup(docs.value?.modules?.flatMap((m) => m.exceptions) ?? []),
 );
 
+function symId(name: string) {
+  return `sym-${encodeURIComponent(name)}`;
+}
+
+const allSymbols = computed<DocSymbol[]>(() => [
+  ...allFunctions.value,
+  ...allClasses.value,
+  ...allExceptions.value,
+]);
+
+const paletteSections = computed(() => [
+  ...(allFunctions.value.length
+    ? [
+        {
+          label: "Functions",
+          kind: "functions",
+          count: allFunctions.value.length,
+          firstSymbol: allFunctions.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+  ...(allClasses.value.length
+    ? [
+        {
+          label: "Classes",
+          kind: "classes",
+          count: allClasses.value.length,
+          firstSymbol: allClasses.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+  ...(allExceptions.value.length
+    ? [
+        {
+          label: "Exceptions",
+          kind: "exceptions",
+          count: allExceptions.value.length,
+          firstSymbol: allExceptions.value[0]?.name ?? null,
+        },
+      ]
+    : []),
+]);
+
+// ── Deferred rendering ─────────────────────────────────────────────────────
+// Safari does not support requestIdleCallback — fall back to setTimeout
+const ric: typeof requestIdleCallback =
+  typeof requestIdleCallback !== "undefined"
+    ? requestIdleCallback
+    : (cb) =>
+        setTimeout(
+          () => cb({ didTimeout: false, timeRemaining: () => 16 } as IdleDeadline),
+          1,
+        ) as unknown as number;
+const cic: typeof cancelIdleCallback =
+  typeof cancelIdleCallback !== "undefined"
+    ? cancelIdleCallback
+    : (id) => clearTimeout(id as unknown as number);
+
+const BATCH_SIZE = 20;
+const renderedCount = ref(0);
+let pendingIdle: ReturnType<typeof requestIdleCallback> | null = null;
+
+function scheduleNextBatch() {
+  if (pendingIdle) cic(pendingIdle);
+  pendingIdle = ric(
+    () => {
+      renderedCount.value = Math.min(renderedCount.value + BATCH_SIZE, allSymbols.value.length);
+      if (renderedCount.value < allSymbols.value.length) scheduleNextBatch();
+    },
+    { timeout: 500 },
+  );
+}
+
+watch(
+  allSymbols,
+  (syms) => {
+    if (syms.length === 0 || !import.meta.client) return;
+    renderedCount.value = Math.min(BATCH_SIZE, syms.length);
+    scheduleNextBatch();
+  },
+  { immediate: true },
+);
+
+const visibleSymbols = computed(() => allSymbols.value.slice(0, renderedCount.value));
+
+// ── Active symbol + scroll tracking ───────────────────────────────────────
 const activeSymbol = ref<string | null>(null);
+let observer: IntersectionObserver | null = null;
 
-const expandedClasses = ref<Set<string>>(new Set());
-
-function toggleClass(className: string) {
-  if (expandedClasses.value.has(className)) {
-    expandedClasses.value.delete(className);
-  } else {
-    expandedClasses.value.add(className);
-  }
-  // Replace the Set reference to trigger Vue reactivity
-  expandedClasses.value = new Set(expandedClasses.value);
+function setupObserver() {
+  observer?.disconnect();
+  observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          activeSymbol.value = (entry.target as HTMLElement).dataset.symbol ?? null;
+          break;
+        }
+      }
+    },
+    { rootMargin: "-10% 0px -80% 0px", threshold: 0 },
+  );
 }
 
-function scrollTo(symbolName: string) {
+watch(renderedCount, (newCount, oldCount) => {
+  if (!import.meta.client) return;
+  if (!observer) setupObserver();
+  for (let i = oldCount; i < newCount; i++) {
+    const sym = allSymbols.value[i];
+    if (!sym) continue;
+    const el = document.getElementById(symId(sym.name));
+    if (el) {
+      el.dataset.symbol = sym.name;
+      observer!.observe(el);
+    }
+  }
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
+  if (pendingIdle) cic(pendingIdle);
+});
+
+// ── Jump to symbol ─────────────────────────────────────────────────────────
+async function jumpToSymbol(symbolName: string) {
+  const targetIndex = allSymbols.value.findIndex((s) => s.name === symbolName);
+  if (targetIndex === -1) return;
+
+  if (targetIndex >= renderedCount.value) {
+    if (pendingIdle) cic(pendingIdle);
+    renderedCount.value = targetIndex + 1;
+    await nextTick();
+  }
+
   activeSymbol.value = symbolName;
-  const el = document.getElementById(`sym-${symbolName}`);
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const el = document.getElementById(symId(symbolName));
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── ⌘K / Ctrl+K global shortcut ──────────────────────────────────────────
+const paletteOpen = ref(false);
+
+function onKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+    e.preventDefault();
+    // stopImmediatePropagation prevents the app-wide CommandPalette from also opening
+    e.stopImmediatePropagation();
+    paletteOpen.value = !paletteOpen.value;
   }
 }
 
+onMounted(() => window.addEventListener("keydown", onKeydown, { capture: true }));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown, { capture: true }));
+
+// ── SEO ────────────────────────────────────────────────────────────────────
 useSeoMeta({
   title: () => (pkg.value ? `${pkg.value.name} API Docs` : "Loading"),
   description: () => `API documentation for ${pkg.value?.name ?? name.value}`,
@@ -73,17 +205,16 @@ defineOgImage(
 
 <template>
   <div>
-    <!-- Loading state -->
+    <!-- Package loading -->
     <div v-if="pkgStatus === 'pending'" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 
-    <!-- Error state -->
+    <!-- Package error -->
     <div v-else-if="pkgStatus === 'error'" class="py-24 text-center">
       <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
     </div>
 
-    <!-- Loaded -->
     <div v-else-if="pkg">
       <!-- Header -->
       <div class="mb-6">
@@ -91,7 +222,7 @@ defineOgImage(
           <NuxtLink
             :to="`/packages/${pkg.name}`"
             class="text-3xl font-bold text-primary hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-            >{{ pkg.name }}</NuxtLink
+            ><span class="mr-1 text-2xl font-normal text-muted">←</span>{{ pkg.name }}</NuxtLink
           >
           <span class="rounded bg-raised px-2 py-0.5 font-mono text-sm text-muted">
             v{{ pkg.version }}
@@ -100,340 +231,100 @@ defineOgImage(
         <p v-if="pkg.summary" class="mt-2 text-muted">{{ pkg.summary }}</p>
       </div>
 
-      <!-- Tab strip — Docs tab active, others link back to package page -->
-      <div class="mb-6 flex gap-1 overflow-x-auto border-b border-subtle pb-0">
-        <NuxtLink
-          v-for="tab in ['Overview', 'Dependencies', 'Versions', 'Stats']"
-          :key="tab"
-          :to="`/packages/${pkg.name}`"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-zinc-700 dark:hover:text-zinc-300"
-          >{{ tab }}</NuxtLink
-        >
-        <span
-          class="cursor-default whitespace-nowrap rounded-t bg-raised px-4 py-2 text-sm font-medium text-primary"
-          >Docs</span
-        >
-      </div>
+      <!-- All docs content is client-only: virtual scroller + IntersectionObserver don't SSR -->
+      <ClientOnly>
+        <template #fallback>
+          <DocsSkeletonLoader mode="fetch" />
+        </template>
 
-      <!-- Docs loading -->
-      <div v-if="docsStatus === 'pending'" class="flex items-center justify-center py-16">
-        <div class="h-6 w-6 animate-spin rounded-full border-2 border-subtle border-t-primary" />
-      </div>
+        <!-- Docs fetch skeleton -->
+        <DocsSkeletonLoader v-if="docsStatus === 'pending'" mode="fetch" />
 
-      <!-- Docs unavailable -->
-      <div v-else-if="!docs?.available" class="py-16 text-center">
-        <p class="text-muted">API documentation is not available for this package.</p>
-        <p class="mt-1 text-sm text-muted">
-          This package may be binary-only or could not be parsed.
-        </p>
-        <a
-          v-if="pkg.doc_url"
-          :href="pkg.doc_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-4 inline-block text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
-          >View external documentation →</a
-        >
-      </div>
-
-      <!-- Docs content: sidebar + main -->
-      <div v-else class="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8">
-        <!-- Fixed sidebar -->
-        <div
-          class="w-48 flex-shrink-0 sticky top-0 h-screen overflow-y-auto border-r border-subtle bg-base py-3 hidden md:block"
-        >
-          <p
-            class="px-3 pb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-          >
-            Contents
+        <!-- Docs unavailable -->
+        <div v-else-if="!docs?.available" class="py-16 text-center">
+          <p class="text-muted">API documentation is not available for this package.</p>
+          <p class="mt-1 text-sm text-muted">
+            This package may be binary-only or could not be parsed.
           </p>
-
-          <!-- Functions -->
-          <template v-if="allFunctions.length">
-            <p class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Functions
-              <span class="text-zinc-400 dark:text-zinc-700">({{ allFunctions.length }})</span>
-            </p>
-            <button
-              v-for="sym in allFunctions"
-              :key="sym.name"
-              class="block w-full px-4 py-1 text-left text-[11px] font-mono transition-colors"
-              :class="
-                activeSymbol === sym.name
-                  ? 'border-r-2 border-[var(--color-brand)] bg-[var(--color-brand)]/5 text-[var(--color-brand)]'
-                  : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
-              "
-              @click="scrollTo(sym.name)"
-            >
-              {{ sym.name }}
-            </button>
-          </template>
-
-          <!-- Classes -->
-          <template v-if="allClasses.length">
-            <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Classes
-              <span class="text-zinc-400 dark:text-zinc-700">({{ allClasses.length }})</span>
-            </p>
-            <button
-              v-for="sym in allClasses"
-              :key="sym.name"
-              class="block w-full px-4 py-1 text-left text-[11px] font-mono transition-colors"
-              :class="
-                activeSymbol === sym.name
-                  ? 'border-r-2 border-[var(--color-brand)] bg-[var(--color-brand)]/5 text-[var(--color-brand)]'
-                  : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
-              "
-              @click="scrollTo(sym.name)"
-            >
-              {{ sym.name }}
-            </button>
-          </template>
-
-          <!-- Exceptions -->
-          <template v-if="allExceptions.length">
-            <p class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Exceptions
-              <span class="text-zinc-400 dark:text-zinc-700">({{ allExceptions.length }})</span>
-            </p>
-            <button
-              v-for="sym in allExceptions"
-              :key="sym.name"
-              class="block w-full px-4 py-1 text-left text-[11px] font-mono transition-colors"
-              :class="
-                activeSymbol === sym.name
-                  ? 'border-r-2 border-[var(--color-brand)] bg-[var(--color-brand)]/5 text-[var(--color-brand)]'
-                  : 'text-muted hover:text-zinc-700 dark:hover:text-zinc-300'
-              "
-              @click="scrollTo(sym.name)"
-            >
-              {{ sym.name }}
-            </button>
-          </template>
+          <a
+            v-if="pkg.doc_url"
+            :href="pkg.doc_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-4 inline-block text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
+            >View external documentation →</a
+          >
         </div>
 
-        <!-- Main content -->
-        <div class="flex-1 min-w-0 px-6 py-5">
-          <!-- Stub enrichment attribution -->
-          <div
-            v-if="docs?.stub_package"
-            class="mb-5 flex items-center gap-2 rounded-md border border-subtle bg-zinc-50 px-3 py-2 text-xs text-muted dark:bg-zinc-900"
-          >
-            <svg
-              class="h-3.5 w-3.5 flex-shrink-0 text-zinc-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
+        <!-- Docs content -->
+        <div v-else class="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8">
+          <!-- Virtual sidebar -->
+          <DocsSidebar
+            :functions="allFunctions"
+            :classes="allClasses"
+            :exceptions="allExceptions"
+            :active-symbol="activeSymbol"
+            @select="jumpToSymbol"
+            @open-palette="paletteOpen = true"
+          />
+
+          <!-- Main content -->
+          <div class="flex-1 min-w-0 px-6 py-5">
+            <!-- Stub attribution -->
+            <div
+              v-if="docs?.stub_package"
+              class="mb-5 flex items-center gap-2 rounded-md border border-subtle bg-zinc-50 px-3 py-2 text-xs text-muted dark:bg-zinc-900"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"
-              />
-            </svg>
-            <span
-              >Type information enriched from
-              <NuxtLink
-                :to="`/packages/${docs.stub_package}`"
-                class="font-mono text-[var(--color-brand)] hover:underline"
-                >{{ docs.stub_package }}</NuxtLink
+              <svg
+                class="h-3.5 w-3.5 flex-shrink-0 text-zinc-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
               >
-            </span>
-          </div>
-
-          <template
-            v-for="sym in [...allFunctions, ...allClasses, ...allExceptions]"
-            :key="sym.name"
-          >
-            <div :id="`sym-${sym.name}`" class="mb-10 scroll-mt-4">
-              <!-- Symbol name + kind badge -->
-              <div class="mb-3 flex items-center gap-2">
-                <span class="font-mono text-base font-bold text-primary">{{ sym.name }}</span>
-                <span
-                  class="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-                  :class="{
-                    'bg-blue-950 text-blue-300': sym.kind === 'function',
-                    'bg-purple-950 text-purple-300': sym.kind === 'class',
-                    'bg-red-950 text-red-300': sym.kind === 'exception',
-                  }"
-                  >{{ sym.kind }}</span
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"
+                />
+              </svg>
+              <span
+                >Type information enriched from
+                <NuxtLink
+                  :to="`/packages/${docs.stub_package}`"
+                  class="font-mono text-[var(--color-brand)] hover:underline"
+                  >{{ docs.stub_package }}</NuxtLink
                 >
-              </div>
-
-              <!-- Signature (semantic highlighting) -->
-              <DocsPySignature :symbol="sym" class="mb-3" />
-
-              <!-- Docstring (formatted with code highlighting) -->
-              <DocsPyDocstring v-if="sym.docstring" :text="sym.docstring" class="mb-3" />
-
-              <!-- Parameters -->
-              <div v-if="sym.parameters && sym.parameters.length" class="mb-3">
-                <p
-                  class="mb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                >
-                  Parameters
-                </p>
-                <div class="border-l-2 border-subtle pl-3 space-y-2">
-                  <div
-                    v-for="param in sym.parameters?.filter(
-                      (p) => p.name !== 'self' && p.name !== 'cls',
-                    )"
-                    :key="param.name"
-                  >
-                    <span class="font-mono text-[11px] text-sky-400">{{ param.name }}</span>
-                    <span
-                      v-if="param.type"
-                      class="ml-1.5 text-[10px] text-zinc-400 dark:text-zinc-600"
-                      >{{ param.type }}</span
-                    >
-                    <p v-if="param.description" class="mt-0.5 text-[11px] text-muted">
-                      {{ param.description }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Returns -->
-              <div v-if="sym.returns" class="mb-3">
-                <p
-                  class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                >
-                  Returns
-                </p>
-                <span v-if="sym.returns.type" class="font-mono text-[11px] text-sky-400">{{
-                  sym.returns.type
-                }}</span>
-                <span v-if="sym.returns.description" class="ml-2 text-[11px] text-muted">{{
-                  sym.returns.description
-                }}</span>
-              </div>
-
-              <!-- Raises -->
-              <div v-if="sym.raises && sym.raises.length" class="mb-3">
-                <p
-                  class="mb-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                >
-                  Raises
-                </p>
-                <div class="border-l-2 border-subtle pl-3 space-y-2">
-                  <div v-for="r in sym.raises" :key="r.type">
-                    <span class="font-mono text-[11px] text-red-400">{{ r.type }}</span>
-                    <p v-if="r.description" class="mt-0.5 text-[11px] text-muted">
-                      {{ r.description }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Methods (classes only) -->
-              <div v-if="sym.kind === 'class' && sym.methods && sym.methods.length" class="mb-3">
-                <button
-                  class="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
-                  @click="toggleClass(sym.name)"
-                >
-                  <span>Methods ({{ sym.methods.length }})</span>
-                  <span class="text-[10px]">{{ expandedClasses.has(sym.name) ? "▾" : "▸" }}</span>
-                </button>
-
-                <div
-                  v-if="expandedClasses.has(sym.name)"
-                  class="mt-3 space-y-6 border-l-2 border-subtle pl-4"
-                >
-                  <div v-for="method in sym.methods" :key="method.name">
-                    <!-- Method name + kind badge -->
-                    <div class="mb-2 flex items-center gap-2">
-                      <span class="font-mono text-[12px] font-semibold text-primary">{{
-                        method.name
-                      }}</span>
-                      <span
-                        class="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-blue-950 text-blue-300"
-                        >method</span
-                      >
-                    </div>
-
-                    <DocsPySignature :symbol="method" class="mb-2" />
-
-                    <DocsPyDocstring
-                      v-if="method.docstring"
-                      :text="method.docstring"
-                      class="mb-2"
-                    />
-
-                    <!-- Method parameters -->
-                    <div
-                      v-if="
-                        method.parameters &&
-                        method.parameters.filter((p) => p.name !== 'self' && p.name !== 'cls')
-                          .length
-                      "
-                      class="mb-2"
-                    >
-                      <p
-                        class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                      >
-                        Parameters
-                      </p>
-                      <div class="border-l-2 border-subtle pl-3 space-y-1.5">
-                        <div
-                          v-for="param in method.parameters.filter(
-                            (p) => p.name !== 'self' && p.name !== 'cls',
-                          )"
-                          :key="param.name"
-                        >
-                          <span class="font-mono text-[11px] text-sky-400">{{ param.name }}</span>
-                          <span
-                            v-if="param.type"
-                            class="ml-1.5 text-[10px] text-zinc-400 dark:text-zinc-600"
-                            >{{ param.type }}</span
-                          >
-                          <p v-if="param.description" class="mt-0.5 text-[11px] text-muted">
-                            {{ param.description }}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Method returns -->
-                    <div v-if="method.returns" class="mb-2">
-                      <p
-                        class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                      >
-                        Returns
-                      </p>
-                      <span v-if="method.returns.type" class="font-mono text-[11px] text-sky-400">{{
-                        method.returns.type
-                      }}</span>
-                      <span v-if="method.returns.description" class="ml-2 text-[11px] text-muted">{{
-                        method.returns.description
-                      }}</span>
-                    </div>
-
-                    <!-- Method raises -->
-                    <div v-if="method.raises && method.raises.length" class="mb-2">
-                      <p
-                        class="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600"
-                      >
-                        Raises
-                      </p>
-                      <div class="border-l-2 border-subtle pl-3 space-y-1.5">
-                        <div v-for="r in method.raises" :key="r.type">
-                          <span class="font-mono text-[11px] text-red-400">{{ r.type }}</span>
-                          <p v-if="r.description" class="mt-0.5 text-[11px] text-muted">
-                            {{ r.description }}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mt-8 border-t border-base" />
+              </span>
             </div>
-          </template>
+
+            <!-- Rendered symbols (deferred) -->
+            <DocsSymbolCard
+              v-for="sym in visibleSymbols"
+              :key="sym.name"
+              :symbol="sym"
+              :is-active="activeSymbol === sym.name"
+            />
+
+            <!-- Render progress indicator -->
+            <DocsSkeletonLoader
+              v-if="renderedCount < allSymbols.length"
+              mode="render"
+              :rendered-count="renderedCount"
+              :total-count="allSymbols.length"
+            />
+          </div>
         </div>
-      </div>
+
+        <!-- ⌘K Command Palette -->
+        <DocsCommandPalette
+          :symbols="allSymbols"
+          :open="paletteOpen"
+          :sections="paletteSections"
+          @jump="jumpToSymbol"
+          @close="paletteOpen = false"
+        />
+      </ClientOnly>
     </div>
   </div>
 </template>
