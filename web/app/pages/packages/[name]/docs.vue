@@ -127,12 +127,14 @@ const paletteOpen = ref(false);
 function onKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === "k") {
     e.preventDefault();
-    paletteOpen.value = true;
+    // stopImmediatePropagation prevents the app-wide CommandPalette from also opening
+    e.stopImmediatePropagation();
+    paletteOpen.value = !paletteOpen.value;
   }
 }
 
-onMounted(() => window.addEventListener("keydown", onKeydown));
-onUnmounted(() => window.removeEventListener("keydown", onKeydown));
+onMounted(() => window.addEventListener("keydown", onKeydown, { capture: true }));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown, { capture: true }));
 
 // ── SEO ────────────────────────────────────────────────────────────────────
 useSeoMeta({
