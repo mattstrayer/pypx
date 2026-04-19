@@ -156,7 +156,7 @@ onMounted(() => {
             style="height: 28px"
             :class="
               activeSymbol === item.name
-                ? 'bg-blue-500/15 border-l-2 border-blue-500 text-white pl-2.5'
+                ? 'bg-[var(--color-brand-muted)] border-l-2 border-[var(--color-brand)] text-primary pl-2.5'
                 : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
             "
             @click="emit('select', item.name)"
