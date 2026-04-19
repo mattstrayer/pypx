@@ -9,7 +9,7 @@ const isHomepage = computed(() => route.path === "/");
     <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
       <slot />
     </main>
-    <footer class="mt-auto border-t border-subtle py-4">
+    <footer aria-label="Site footer" class="mt-auto border-t border-subtle py-4">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 text-xs text-muted">
         <span>pypx — not affiliated with PyPI or the PSF</span>
         <div class="flex gap-4">
