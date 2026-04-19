@@ -14,7 +14,7 @@ function toggleExpand() {
 </script>
 
 <template>
-  <div :id="`sym-${symbol.name}`" class="mb-10 scroll-mt-4">
+  <div :id="`sym-${encodeURIComponent(symbol.name)}`" class="mb-10 scroll-mt-4">
     <!-- Symbol name + kind badge -->
     <div class="mb-3 flex items-center gap-2">
       <span class="font-mono text-base font-bold text-primary">{{ symbol.name }}</span>

@@ -33,6 +33,10 @@ const allExceptions = computed<DocSymbol[]>(() =>
   dedup(docs.value?.modules?.flatMap((m) => m.exceptions) ?? []),
 );
 
+function symId(name: string) {
+  return `sym-${encodeURIComponent(name)}`;
+}
+
 const allSymbols = computed<DocSymbol[]>(() => [
   ...allFunctions.value,
   ...allClasses.value,
@@ -73,13 +77,27 @@ const paletteSections = computed(() => [
 ]);
 
 // ── Deferred rendering ─────────────────────────────────────────────────────
+// Safari does not support requestIdleCallback — fall back to setTimeout
+const ric: typeof requestIdleCallback =
+  typeof requestIdleCallback !== "undefined"
+    ? requestIdleCallback
+    : (cb) =>
+        setTimeout(
+          () => cb({ didTimeout: false, timeRemaining: () => 16 } as IdleDeadline),
+          1,
+        ) as unknown as number;
+const cic: typeof cancelIdleCallback =
+  typeof cancelIdleCallback !== "undefined"
+    ? cancelIdleCallback
+    : (id) => clearTimeout(id as unknown as number);
+
 const BATCH_SIZE = 20;
 const renderedCount = ref(0);
 let pendingIdle: ReturnType<typeof requestIdleCallback> | null = null;
 
 function scheduleNextBatch() {
-  if (pendingIdle) cancelIdleCallback(pendingIdle);
-  pendingIdle = requestIdleCallback(
+  if (pendingIdle) cic(pendingIdle);
+  pendingIdle = ric(
     () => {
       renderedCount.value = Math.min(renderedCount.value + BATCH_SIZE, allSymbols.value.length);
       if (renderedCount.value < allSymbols.value.length) scheduleNextBatch();
@@ -125,7 +143,7 @@ watch(renderedCount, (newCount, oldCount) => {
   for (let i = oldCount; i < newCount; i++) {
     const sym = allSymbols.value[i];
     if (!sym) continue;
-    const el = document.getElementById(`sym-${sym.name}`);
+    const el = document.getElementById(symId(sym.name));
     if (el) {
       el.dataset.symbol = sym.name;
       observer!.observe(el);
@@ -135,7 +153,7 @@ watch(renderedCount, (newCount, oldCount) => {
 
 onUnmounted(() => {
   observer?.disconnect();
-  if (pendingIdle) cancelIdleCallback(pendingIdle);
+  if (pendingIdle) cic(pendingIdle);
 });
 
 // ── Jump to symbol ─────────────────────────────────────────────────────────
@@ -144,13 +162,13 @@ async function jumpToSymbol(symbolName: string) {
   if (targetIndex === -1) return;
 
   if (targetIndex >= renderedCount.value) {
-    if (pendingIdle) cancelIdleCallback(pendingIdle);
+    if (pendingIdle) cic(pendingIdle);
     renderedCount.value = targetIndex + 1;
     await nextTick();
   }
 
   activeSymbol.value = symbolName;
-  const el = document.getElementById(`sym-${symbolName}`);
+  const el = document.getElementById(symId(symbolName));
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

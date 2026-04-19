@@ -79,13 +79,15 @@ const activeIndex = computed(() =>
 const scrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null);
 
 watch(activeIndex, (idx) => {
-  if (idx >= 0 && scrollerRef.value) {
+  if (idx >= 0 && scrollerRef.value?.scrollToItem) {
     scrollerRef.value.scrollToItem(idx);
   }
 });
 
-const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
-const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
+const shortcutLabel = ref("⌘K");
+onMounted(() => {
+  shortcutLabel.value = /mac/i.test(navigator.userAgent) ? "⌘K" : "Ctrl+K";
+});
 </script>
 
 <template>

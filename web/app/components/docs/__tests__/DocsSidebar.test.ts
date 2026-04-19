@@ -12,7 +12,8 @@ vi.mock("vue-virtual-scroller", () => ({
         h(
           "div",
           props.items.map(
-            (item: any, index: number) => slots.default?.({ item, index, active: true }) ?? null,
+            (item: unknown, index: number) =>
+              slots.default?.({ item, index, active: true }) ?? null,
           ),
         );
     },

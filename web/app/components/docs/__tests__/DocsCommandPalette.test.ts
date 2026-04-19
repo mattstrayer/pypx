@@ -116,7 +116,7 @@ describe("DocsCommandPalette", () => {
       { label: "Functions", kind: "functions", count: 3, firstSymbol: "fit" },
       { label: "Classes", kind: "classes", count: 2, firstSymbol: "Pipeline" },
     ];
-    const wrapper = await mountSuspended(DocsCommandPalette, {
+    await mountSuspended(DocsCommandPalette, {
       props: { symbols, open: true, sections },
       attachTo: document.body,
     });
