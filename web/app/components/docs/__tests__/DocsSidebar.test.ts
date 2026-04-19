@@ -57,21 +57,6 @@ describe("DocsSidebar", () => {
     expect(wrapper.text()).not.toContain("Exceptions");
   });
 
-  it("renders the ⌘K trigger button", async () => {
-    const wrapper = await mountSuspended(DocsSidebar, {
-      props: { functions, classes, exceptions: [], activeSymbol: null },
-    });
-    expect(wrapper.find("[data-testid='palette-trigger']").exists()).toBe(true);
-  });
-
-  it("emits open-palette when trigger is clicked", async () => {
-    const wrapper = await mountSuspended(DocsSidebar, {
-      props: { functions, classes, exceptions: [], activeSymbol: null },
-    });
-    await wrapper.find("[data-testid='palette-trigger']").trigger("click");
-    expect(wrapper.emitted("open-palette")).toBeTruthy();
-  });
-
   it("emits select with symbol name when a row is clicked", async () => {
     const wrapper = await mountSuspended(DocsSidebar, {
       props: { functions, classes, exceptions: [], activeSymbol: null },

@@ -288,7 +288,6 @@ defineOgImage(
             :exceptions="allExceptions"
             :active-symbol="activeSymbol"
             @select="jumpToSymbol"
-            @open-palette="paletteOpen = true"
           />
 
           <!-- Main content -->

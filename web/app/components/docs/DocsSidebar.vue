@@ -12,7 +12,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [name: string];
-  "open-palette": [];
 }>();
 
 type SidebarItem =
@@ -83,42 +82,12 @@ watch(activeIndex, (idx) => {
     scrollerRef.value.scrollToItem(idx);
   }
 });
-
-const shortcutLabel = ref("⌘K");
-onMounted(() => {
-  shortcutLabel.value = /mac/i.test(navigator.userAgent) ? "⌘K" : "Ctrl+K";
-});
 </script>
 
 <template>
   <div
     class="w-48 flex-shrink-0 sticky top-0 h-screen flex flex-col border-r border-subtle bg-base hidden md:flex"
   >
-    <!-- ⌘K trigger -->
-    <div class="px-2 py-2 border-b border-subtle flex-shrink-0">
-      <button
-        data-testid="palette-trigger"
-        class="flex w-full items-center gap-2 rounded-md bg-raised px-2.5 py-1.5 text-[11px] text-muted hover:text-primary hover:bg-raised transition-colors"
-        @click="emit('open-palette')"
-      >
-        <svg
-          class="h-3 w-3 flex-shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
-        <span class="flex-1 text-left">Jump to symbol</span>
-        <kbd class="text-[9px] text-muted">{{ shortcutLabel }}</kbd>
-      </button>
-    </div>
-
     <!-- Virtual symbol list -->
     <DynamicScroller
       ref="scrollerRef"
