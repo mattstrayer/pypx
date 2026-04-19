@@ -58,7 +58,7 @@ function scheduleNextBatch() {
 watch(
   allSymbols,
   (syms) => {
-    if (syms.length === 0) return;
+    if (syms.length === 0 || !import.meta.client) return;
     renderedCount.value = Math.min(BATCH_SIZE, syms.length);
     scheduleNextBatch();
   },
@@ -87,6 +87,7 @@ function setupObserver() {
 }
 
 watch(renderedCount, (newCount, oldCount) => {
+  if (!import.meta.client) return;
   if (!observer) setupObserver();
   for (let i = oldCount; i < newCount; i++) {
     const sym = allSymbols.value[i];
