@@ -219,11 +219,11 @@ defineOgImage(
           v-for="tab in ['Overview', 'Dependencies', 'Versions', 'Stats']"
           :key="tab"
           :to="`/packages/${pkg.name}`"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-zinc-700 dark:hover:text-zinc-300"
+          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors border-b-2 border-transparent hover:border-[rgba(4,120,87,0.65)] dark:hover:border-[rgba(74,222,128,0.65)]"
           >{{ tab }}</NuxtLink
         >
         <span
-          class="cursor-default whitespace-nowrap rounded-t bg-raised px-4 py-2 text-sm font-medium text-primary"
+          class="cursor-default whitespace-nowrap rounded-t bg-raised px-4 py-2 text-sm font-medium text-primary border-b-2 border-transparent"
           >Docs</span
         >
       </div>
