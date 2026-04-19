@@ -72,9 +72,6 @@ watch(
     }
   },
 );
-
-const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
-const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
 </script>
 
 <template>

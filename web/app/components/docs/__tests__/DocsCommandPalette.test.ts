@@ -86,6 +86,7 @@ describe("DocsCommandPalette", () => {
     await nextTick();
     expect(wrapper.emitted("jump")).toBeTruthy();
     expect(wrapper.emitted("jump")![0]).toHaveLength(1);
+    expect(wrapper.emitted("jump")![0][0]).toBe("fit");
   });
 
   it("emits close when Escape is pressed", async () => {
