@@ -4,10 +4,7 @@ const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToR
 const searchWrapper = ref<HTMLElement | null>(null);
 
 function onSearch() {
-  if (query.value.trim()) {
-    navigateTo({ path: "/search", query: { q: query.value.trim() } });
-    close();
-  }
+  // Search is handled via the typeahead dropdown; form submit is a no-op.
 }
 
 // Close dropdown when clicking outside
