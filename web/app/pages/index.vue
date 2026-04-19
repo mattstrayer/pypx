@@ -25,7 +25,7 @@ onUnmounted(() => {
 const POPULAR_LIMIT = 24;
 
 const api = useApi();
-const { data: popularPackages, status } = await useAsyncData("popular", () =>
+const { data: trendingPackages, status } = await useAsyncData("trending", () =>
   api.fetchPopular(POPULAR_LIMIT),
 );
 
@@ -65,7 +65,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
             <kbd
               class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline"
             >
-              ⌘K
+              /
             </kbd>
           </div>
         </form>
@@ -84,8 +84,69 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       </div>
     </section>
 
+    <!-- Feature callout strip -->
+    <section class="pb-10">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-lg border border-subtle bg-surface p-4">
+          <div class="mb-2 flex items-center gap-2">
+            <svg
+              class="h-4 w-4 text-[var(--color-brand)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h8m-8 5h16" />
+            </svg>
+            <span class="text-sm font-semibold text-primary">Dependency Insights</span>
+          </div>
+          <p class="text-sm text-muted">
+            Required deps, optional extras, and Python version constraints at a glance.
+          </p>
+        </div>
+        <div class="rounded-lg border border-subtle bg-surface p-4">
+          <div class="mb-2 flex items-center gap-2">
+            <svg
+              class="h-4 w-4 text-[var(--color-brand)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l4-8 4 4 4-6 4 3" />
+            </svg>
+            <span class="text-sm font-semibold text-primary">Download Trends</span>
+          </div>
+          <p class="text-sm text-muted">
+            Weekly and monthly download stats with historical charts.
+          </p>
+        </div>
+        <div class="rounded-lg border border-subtle bg-surface p-4">
+          <div class="mb-2 flex items-center gap-2">
+            <svg
+              class="h-4 w-4 text-[var(--color-brand)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12h6m-6 4h6m-7-8h8a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V10a2 2 0 012-2z"
+              />
+            </svg>
+            <span class="text-sm font-semibold text-primary">API Docs</span>
+          </div>
+          <p class="text-sm text-muted">
+            Browse extracted API docs from published wheels — no external docs site needed.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <section class="pb-16">
-      <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">Popular Packages</h2>
+      <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">Trending</h2>
 
       <!-- Skeleton loading state -->
       <div v-if="status === 'pending'" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -102,8 +163,8 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       </p>
 
       <!-- Data -->
-      <TrendingPackages v-else-if="popularPackages?.length" :packages="popularPackages" />
-      <p v-else class="text-sm text-muted">No popular packages available.</p>
+      <TrendingPackages v-else-if="trendingPackages?.length" :packages="trendingPackages" />
+      <p v-else class="text-sm text-muted">No trending packages available.</p>
     </section>
   </div>
 </template>
