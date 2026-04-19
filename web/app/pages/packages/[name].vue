@@ -104,9 +104,36 @@ useSchemaOrg(
   <NuxtPage v-if="isChildRoute" />
 
   <div v-else>
-    <!-- Loading state -->
-    <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
+    <!-- Loading skeleton -->
+    <div v-if="status === 'pending'">
+      <!-- Package header skeleton -->
+      <div class="mb-6">
+        <div class="flex items-baseline gap-3">
+          <div class="h-8 w-40 animate-pulse rounded bg-raised" />
+          <div class="h-5 w-16 animate-pulse rounded bg-raised" />
+        </div>
+        <div class="mt-2 h-4 w-80 animate-pulse rounded bg-raised" />
+        <div class="mt-3 flex gap-2">
+          <div class="h-5 w-14 animate-pulse rounded bg-raised" />
+          <div class="h-5 w-20 animate-pulse rounded bg-raised" />
+          <div class="h-5 w-16 animate-pulse rounded bg-raised" />
+        </div>
+      </div>
+      <!-- Tab strip skeleton -->
+      <div class="mb-6 flex gap-1 border-b border-subtle pb-0">
+        <div v-for="i in 4" :key="i" class="h-9 w-24 animate-pulse rounded-t bg-raised" />
+      </div>
+      <!-- Two-column content skeleton -->
+      <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
+        <div class="space-y-4">
+          <div class="h-12 w-full animate-pulse rounded-lg bg-raised" />
+          <div class="h-64 w-full animate-pulse rounded-lg bg-raised" />
+        </div>
+        <div class="space-y-4">
+          <div class="h-36 w-full animate-pulse rounded-lg bg-raised" />
+          <div class="h-24 w-full animate-pulse rounded-lg bg-raised" />
+        </div>
+      </div>
     </div>
 
     <!-- Error state -->
