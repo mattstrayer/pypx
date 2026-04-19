@@ -145,7 +145,7 @@ useSchemaOrg(
           class="group cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium transition-colors border-b-2 border-transparent"
           :class="
             activeTab === tab.key
-              ? 'bg-raised text-primary'
+              ? 'bg-raised text-primary border-[var(--color-brand)]'
               : 'text-zinc-700 dark:text-zinc-300 hover:border-[rgba(4,120,87,0.65)] dark:hover:border-[rgba(74,222,128,0.65)]'
           "
           @click="activeTab = tab.key"
