@@ -102,7 +102,7 @@ watch(activeIndex, (idx) => {
           <button
             v-if="item.type === 'header'"
             data-testid="section-header"
-            class="flex w-full items-center justify-between px-3 pb-1 pt-3 hover:bg-raised/50 transition-colors cursor-pointer"
+            class="flex w-full items-center justify-between px-3 hover:bg-raised/50 transition-colors cursor-pointer"
             style="height: 36px"
             @click="toggleSection(item.kind)"
           >
