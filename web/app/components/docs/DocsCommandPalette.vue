@@ -138,6 +138,14 @@ watch(
             v-model="query"
             data-testid="palette-input"
             type="text"
+            role="combobox"
+            aria-label="Jump to symbol"
+            aria-controls="palette-results"
+            aria-autocomplete="list"
+            :aria-expanded="results.length > 0"
+            :aria-activedescendant="
+              results[selectedIndex] ? `palette-opt-${selectedIndex}` : undefined
+            "
             placeholder="Jump to symbol..."
             class="flex-1 bg-transparent font-mono text-sm text-zinc-100 placeholder-zinc-600 outline-none"
             @keydown="onKeydown"
@@ -149,7 +157,12 @@ watch(
         </div>
 
         <!-- Results -->
-        <div class="max-h-80 overflow-y-auto py-1">
+        <div
+          id="palette-results"
+          role="listbox"
+          aria-label="Symbols"
+          class="max-h-80 overflow-y-auto py-1"
+        >
           <div v-if="results.length === 0" class="px-4 py-6 text-center text-sm text-zinc-600">
             No symbols found
           </div>
@@ -160,6 +173,9 @@ watch(
             <!-- Section item -->
             <button
               v-if="item.type === 'section'"
+              :id="`palette-opt-${i}`"
+              role="option"
+              :aria-selected="i === selectedIndex"
               data-testid="palette-section"
               class="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
               :class="i === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"
@@ -176,6 +192,9 @@ watch(
             <!-- Symbol item -->
             <button
               v-else
+              :id="`palette-opt-${i}`"
+              role="option"
+              :aria-selected="i === selectedIndex"
               data-testid="palette-result"
               class="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
               :class="i === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"

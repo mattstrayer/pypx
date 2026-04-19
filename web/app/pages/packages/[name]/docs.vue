@@ -232,7 +232,7 @@ defineOgImage(
             {{ pkg.summary }}
           </span>
           <button
-            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md bg-zinc-800/50 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md bg-raised px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:bg-raised hover:text-primary"
             @click="paletteOpen = true"
           >
             <svg
@@ -249,7 +249,7 @@ defineOgImage(
               />
             </svg>
             <span>Jump to symbol</span>
-            <kbd class="text-[9px] text-zinc-600">⌘K</kbd>
+            <kbd class="text-[9px] text-muted">⌘K</kbd>
           </button>
         </div>
       </div>

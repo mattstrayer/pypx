@@ -98,7 +98,7 @@ onMounted(() => {
     <div class="px-2 py-2 border-b border-subtle flex-shrink-0">
       <button
         data-testid="palette-trigger"
-        class="flex w-full items-center gap-2 rounded-md bg-zinc-800/50 px-2.5 py-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+        class="flex w-full items-center gap-2 rounded-md bg-raised px-2.5 py-1.5 text-[11px] text-muted hover:text-primary hover:bg-raised transition-colors"
         @click="emit('open-palette')"
       >
         <svg
@@ -115,7 +115,7 @@ onMounted(() => {
           />
         </svg>
         <span class="flex-1 text-left">Jump to symbol</span>
-        <kbd class="text-[9px] text-zinc-600">{{ shortcutLabel }}</kbd>
+        <kbd class="text-[9px] text-muted">{{ shortcutLabel }}</kbd>
       </button>
     </div>
 
@@ -133,17 +133,17 @@ onMounted(() => {
           <button
             v-if="item.type === 'header'"
             data-testid="section-header"
-            class="flex w-full items-center justify-between px-3 pb-1 pt-3 hover:bg-zinc-800/30 transition-colors cursor-pointer"
+            class="flex w-full items-center justify-between px-3 pb-1 pt-3 hover:bg-raised/50 transition-colors cursor-pointer"
             style="height: 36px"
             @click="toggleSection(item.kind)"
           >
             <span
-              class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+              class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted"
             >
               <span class="text-[8px]">{{ collapsed.has(item.kind) ? "▸" : "▾" }}</span>
               {{ item.label }}
             </span>
-            <span class="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-600">{{
+            <span class="rounded-full bg-raised px-1.5 py-0.5 text-[9px] text-muted">{{
               item.count
             }}</span>
           </button>
@@ -157,8 +157,9 @@ onMounted(() => {
             :class="
               activeSymbol === item.name
                 ? 'bg-[var(--color-brand-muted)] border-l-2 border-[var(--color-brand)] text-primary pl-2.5'
-                : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-muted hover:bg-raised hover:text-primary'
             "
+            :aria-current="activeSymbol === item.name ? 'location' : undefined"
             @click="emit('select', item.name)"
           >
             {{ item.name }}
