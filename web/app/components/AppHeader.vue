@@ -14,6 +14,14 @@ function onClickOutside(e: MouseEvent) {
   }
 }
 
+function onSubmit() {
+  const target = results.value[selectedIndex.value] ?? results.value[0];
+  if (target) {
+    navigateToResult(target);
+    close();
+  }
+}
+
 onMounted(() => {
   document.addEventListener("mousedown", onClickOutside);
 });
@@ -34,7 +42,7 @@ onUnmounted(() => {
       </NuxtLink>
 
       <div v-if="!hideSearch" ref="searchWrapper" class="relative flex-1 max-w-md">
-        <form @submit.prevent>
+        <form @submit.prevent="onSubmit">
           <div class="relative">
             <svg
               class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted"
