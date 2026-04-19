@@ -216,19 +216,42 @@ defineOgImage(
     </div>
 
     <div v-else-if="pkg">
-      <!-- Header -->
-      <div class="mb-6">
-        <div class="flex flex-wrap items-baseline gap-3">
+      <!-- Docs context bar -->
+      <div class="-mx-4 mb-0 border-b border-subtle bg-base/90 backdrop-blur-sm sm:-mx-6 lg:-mx-8">
+        <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2">
           <NuxtLink
             :to="`/packages/${pkg.name}`"
-            class="text-3xl font-bold text-primary hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-            ><span class="mr-1 text-2xl font-normal text-muted">←</span>{{ pkg.name }}</NuxtLink
+            class="flex items-center gap-1 text-sm font-medium text-[var(--color-brand)] transition-colors hover:text-[var(--color-brand-light)]"
           >
-          <span class="rounded bg-raised px-2 py-0.5 font-mono text-sm text-muted">
-            v{{ pkg.version }}
+            <span>←</span>
+            <span>{{ pkg.name }}</span>
+          </NuxtLink>
+          <span class="text-muted">·</span>
+          <span class="font-mono text-xs text-muted">v{{ pkg.version }}</span>
+          <span v-if="pkg.summary" class="hidden truncate text-xs text-muted sm:block">
+            {{ pkg.summary }}
           </span>
+          <button
+            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md bg-zinc-800/50 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            @click="paletteOpen = true"
+          >
+            <svg
+              class="h-3 w-3 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <span>Jump to symbol</span>
+            <kbd class="text-[9px] text-zinc-600">⌘K</kbd>
+          </button>
         </div>
-        <p v-if="pkg.summary" class="mt-2 text-muted">{{ pkg.summary }}</p>
       </div>
 
       <!-- All docs content is client-only: virtual scroller + IntersectionObserver don't SSR -->
