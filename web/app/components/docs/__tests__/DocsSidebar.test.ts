@@ -82,6 +82,6 @@ describe("DocsSidebar", () => {
     const wrapper = await mountSuspended(DocsSidebar, {
       props: { functions, classes, exceptions: [], activeSymbol: null },
     });
-    expect(wrapper.find("[data-testid='section-header']").text()).toContain("▾");
+    expect(wrapper.find("[data-testid='section-header']").find("svg").exists()).toBe(true);
   });
 });

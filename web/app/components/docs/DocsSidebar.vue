@@ -107,14 +107,24 @@ watch(activeIndex, (idx) => {
             @click="toggleSection(item.kind)"
           >
             <span
-              class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted"
+              class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary"
             >
-              <span class="text-[8px]">{{ collapsed.has(item.kind) ? "▸" : "▾" }}</span>
+              <svg
+                class="h-3 w-3 flex-shrink-0 text-[var(--color-brand)] transition-transform duration-150"
+                :class="collapsed.has(item.kind) ? '-rotate-90' : 'rotate-0'"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
               {{ item.label }}
             </span>
-            <span class="rounded-full bg-raised px-1.5 py-0.5 text-[9px] text-muted">{{
-              item.count
-            }}</span>
+            <span
+              class="rounded-full bg-[var(--color-brand-muted)] px-1.5 py-0.5 text-[9px] text-[var(--color-brand)]"
+              >{{ item.count }}</span
+            >
           </button>
 
           <!-- Symbol row -->
