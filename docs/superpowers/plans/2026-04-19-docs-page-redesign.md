@@ -34,7 +34,7 @@
 - [ ] **Step 1: Install packages**
 
 ```bash
-cd web && npm install vue-virtual-scroller fuse.js
+cd web && pnpm add vue-virtual-scroller fuse.js
 ```
 
 - [ ] **Step 2: Verify installation**
@@ -48,7 +48,7 @@ Expected output: `OK`
 - [ ] **Step 3: Commit**
 
 ```bash
-cd web && git add package.json package-lock.json
+cd /Users/matt/dev/pypx && git add web/package.json web/pnpm-lock.yaml
 git commit -m "chore: add vue-virtual-scroller and fuse.js"
 ```
 
@@ -140,7 +140,7 @@ describe("DocsSymbolCard", () => {
 - [ ] **Step 2: Run test to confirm it fails**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsSymbolCard.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsSymbolCard.test.ts
 ```
 
 Expected: FAIL — `DocsSymbolCard` not found.
@@ -268,7 +268,7 @@ function toggleExpand() {
 - [ ] **Step 4: Run tests**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsSymbolCard.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsSymbolCard.test.ts
 ```
 
 Expected: All 6 tests pass.
@@ -455,7 +455,7 @@ describe("DocsCommandPalette", () => {
 - [ ] **Step 2: Run test to confirm it fails**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsCommandPalette.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsCommandPalette.test.ts
 ```
 
 Expected: FAIL — component not found.
@@ -618,7 +618,7 @@ const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
 - [ ] **Step 4: Run tests**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsCommandPalette.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsCommandPalette.test.ts
 ```
 
 Expected: All 7 tests pass.
@@ -710,7 +710,7 @@ describe("DocsSidebar", () => {
 - [ ] **Step 2: Run tests to confirm they fail**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsSidebar.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsSidebar.test.ts
 ```
 
 Expected: FAIL — component not found.
@@ -836,7 +836,7 @@ const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
 - [ ] **Step 4: Run tests**
 
 ```bash
-cd web && npm run test -- app/components/docs/__tests__/DocsSidebar.test.ts
+cd web && pnpm test -- app/components/docs/__tests__/DocsSidebar.test.ts
 ```
 
 Expected: All 6 tests pass.
@@ -1140,7 +1140,7 @@ Replace the entire `<template>` block in `web/app/pages/packages/[name]/docs.vue
 - [ ] **Step 3: Verify the app builds without errors**
 
 ```bash
-cd web && npm run build 2>&1 | tail -20
+cd web && pnpm build 2>&1 | tail -20
 ```
 
 Expected: build completes without TypeScript or template errors.
@@ -1163,7 +1163,7 @@ Navigate to a package with many symbols, e.g. `http://localhost:3000/packages/nu
 - [ ] **Step 5: Run full test suite**
 
 ```bash
-cd web && npm run test
+cd web && pnpm test
 ```
 
 Expected: All tests pass.
