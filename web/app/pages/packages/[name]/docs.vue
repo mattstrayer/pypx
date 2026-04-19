@@ -204,28 +204,13 @@ defineOgImage(
           <NuxtLink
             :to="`/packages/${pkg.name}`"
             class="text-3xl font-bold text-primary hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-            >{{ pkg.name }}</NuxtLink
+            ><span class="mr-1 text-2xl font-normal text-muted">←</span>{{ pkg.name }}</NuxtLink
           >
           <span class="rounded bg-raised px-2 py-0.5 font-mono text-sm text-muted">
             v{{ pkg.version }}
           </span>
         </div>
         <p v-if="pkg.summary" class="mt-2 text-muted">{{ pkg.summary }}</p>
-      </div>
-
-      <!-- Tab strip -->
-      <div class="mb-6 flex gap-1 overflow-x-auto border-b border-subtle pb-0">
-        <NuxtLink
-          v-for="tab in ['Overview', 'Dependencies', 'Versions', 'Stats']"
-          :key="tab"
-          :to="`/packages/${pkg.name}`"
-          class="cursor-pointer whitespace-nowrap rounded-t px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors border-b-2 border-transparent hover:border-[rgba(4,120,87,0.65)] dark:hover:border-[rgba(74,222,128,0.65)]"
-          >{{ tab }}</NuxtLink
-        >
-        <span
-          class="cursor-default whitespace-nowrap rounded-t bg-raised px-4 py-2 text-sm font-medium text-primary border-b-2 border-transparent"
-          >Docs</span
-        >
       </div>
 
       <!-- All docs content is client-only: virtual scroller + IntersectionObserver don't SSR -->
