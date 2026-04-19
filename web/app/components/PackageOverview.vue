@@ -32,7 +32,6 @@ const lastPushedAgo = computed(() =>
         v-if="pkg.description"
         class="overflow-hidden rounded-lg border border-subtle bg-surface p-5"
       >
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Description</h2>
         <div class="flex gap-6">
           <div class="min-w-0 flex-1">
             <div
@@ -115,27 +114,27 @@ const lastPushedAgo = computed(() =>
       </div>
 
       <!-- GitHub health signals -->
-      <div v-if="repoInfo" class="pt-3 border-t border-neutral-800">
-        <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">GitHub</div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-400">
+      <div v-if="repoInfo" class="pt-3 border-t border-subtle">
+        <div class="text-xs font-medium text-muted uppercase tracking-wide mb-2">GitHub</div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
           <span v-if="repoInfo.stars">
-            <span class="text-neutral-300">{{ repoInfo.stars.toLocaleString() }}</span> stars
+            <span class="text-primary">{{ repoInfo.stars.toLocaleString() }}</span> stars
           </span>
           <span v-if="repoInfo.forks">
-            <span class="text-neutral-300">{{ repoInfo.forks.toLocaleString() }}</span> forks
+            <span class="text-primary">{{ repoInfo.forks.toLocaleString() }}</span> forks
           </span>
           <span v-if="repoInfo.open_issues !== undefined">
-            <span class="text-neutral-300">{{ repoInfo.open_issues.toLocaleString() }}</span> open
+            <span class="text-primary">{{ repoInfo.open_issues.toLocaleString() }}</span> open
             issues
           </span>
         </div>
-        <div v-if="lastPushedAgo" class="text-xs text-neutral-500 mt-1">
+        <div v-if="lastPushedAgo" class="text-xs text-muted mt-1">
           last commit {{ lastPushedAgo }}
         </div>
       </div>
 
       <!-- Doc link button -->
-      <div v-if="pkg.doc_url" class="pt-3 border-t border-neutral-800">
+      <div v-if="pkg.doc_url" class="pt-3 border-t border-subtle">
         <a
           :href="pkg.doc_url"
           target="_blank"
@@ -147,15 +146,12 @@ const lastPushedAgo = computed(() =>
       </div>
 
       <!-- Release cadence -->
-      <div
-        v-if="pkg.release_cadence?.releases_last_12mo > 0"
-        class="pt-3 border-t border-neutral-800"
-      >
-        <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-1">
+      <div v-if="pkg.release_cadence?.releases_last_12mo > 0" class="pt-3 border-t border-subtle">
+        <div class="text-xs font-medium text-muted uppercase tracking-wide mb-1">
           Release Cadence
         </div>
-        <div class="text-sm text-neutral-400">
-          <span class="text-neutral-300">{{ pkg.release_cadence.releases_last_12mo }}</span>
+        <div class="text-sm text-muted">
+          <span class="text-primary">{{ pkg.release_cadence.releases_last_12mo }}</span>
           releases in the past year
           <span v-if="pkg.release_cadence.avg_days_between_releases > 0">
             · avg {{ Math.round(pkg.release_cadence.avg_days_between_releases) }} days apart
@@ -164,12 +160,12 @@ const lastPushedAgo = computed(() =>
       </div>
 
       <!-- Platform coverage -->
-      <div class="pt-3 border-t border-neutral-800">
+      <div class="pt-3 border-t border-subtle">
         <PackagePlatforms :coverage="pkg.platform_coverage" />
       </div>
 
       <!-- Maintainers -->
-      <div class="pt-3 border-t border-neutral-800">
+      <div class="pt-3 border-t border-subtle">
         <PackageMaintainers :maintainers="pkg.maintainers" :repo-info="repoInfo" />
       </div>
     </div>
