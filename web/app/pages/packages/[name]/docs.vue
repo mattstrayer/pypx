@@ -232,7 +232,7 @@ defineOgImage(
             {{ pkg.summary }}
           </span>
           <button
-            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md bg-raised px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:bg-raised hover:text-primary"
+            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] px-2.5 py-1.5 text-[11px] text-[var(--color-brand)] transition-colors hover:bg-[rgba(74,222,128,0.16)]"
             @click="paletteOpen = true"
           >
             <svg

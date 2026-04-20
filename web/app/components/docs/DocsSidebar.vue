@@ -86,7 +86,7 @@ watch(activeIndex, (idx) => {
 
 <template>
   <div
-    class="w-48 flex-shrink-0 sticky top-0 h-screen flex flex-col border-r border-subtle bg-base hidden md:flex"
+    class="hidden w-[216px] flex-shrink-0 flex-col border-r border-subtle bg-base md:sticky md:top-0 md:flex md:h-screen"
   >
     <!-- Virtual symbol list -->
     <DynamicScroller
