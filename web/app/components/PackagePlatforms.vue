@@ -29,7 +29,9 @@ const hasAnyCoverage = computed(() => supported.value.length > 0);
 
 <template>
   <div v-if="hasAnyCoverage">
-    <div class="text-xs font-medium text-muted uppercase tracking-wide mb-2">Platforms</div>
+    <h2 class="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+      Platforms
+    </h2>
     <div class="flex flex-wrap gap-1.5">
       <span
         v-for="p in supported"
