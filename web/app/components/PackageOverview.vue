@@ -96,7 +96,7 @@ const allLinks = computed(() => {
       <div v-if="allLinks.length > 0" class="rounded-lg border border-subtle bg-surface p-4">
         <h2 class="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Links</h2>
         <ul class="space-y-1.5 text-sm">
-          <li v-for="link in allLinks" :key="link.label">
+          <li v-for="link in allLinks" :key="link.url">
             <a
               :href="link.url"
               target="_blank"
@@ -173,8 +173,18 @@ const allLinks = computed(() => {
         </div>
       </div>
 
-      <!-- Platform coverage card -->
-      <div class="rounded-lg border border-subtle bg-surface p-4">
+      <!-- Platform coverage card — only shown when binary wheels exist (pure-python packages have no platform pills) -->
+      <div
+        v-if="
+          pkg.platform_coverage.linux_x86_64 ||
+          pkg.platform_coverage.linux_arm64 ||
+          pkg.platform_coverage.macos_x86_64 ||
+          pkg.platform_coverage.macos_arm64 ||
+          pkg.platform_coverage.windows_x86_64 ||
+          pkg.platform_coverage.musl
+        "
+        class="rounded-lg border border-subtle bg-surface p-4"
+      >
         <PackagePlatforms :coverage="pkg.platform_coverage" />
       </div>
 
