@@ -16,7 +16,9 @@ const hasAny = computed(() => displayMaintainers.value.length > 0 || !!props.rep
 
 <template>
   <div v-if="hasAny">
-    <div class="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">Maintainers</div>
+    <h2 class="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+      Maintainers
+    </h2>
 
     <!-- GitHub org/owner badge -->
     <div v-if="repoInfo?.owner" class="mb-2">
@@ -24,19 +26,19 @@ const hasAny = computed(() => displayMaintainers.value.length > 0 || !!props.rep
         :href="repoInfo.owner.url"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 text-sm text-neutral-300 hover:text-white transition-colors"
+        class="inline-flex items-center gap-2 text-sm text-zinc-700 transition-colors hover:text-primary dark:text-zinc-300"
       >
         <img
           :src="repoInfo.owner.avatar_url"
           :alt="repoInfo.owner.login"
-          class="w-5 h-5 rounded-full"
+          class="h-5 w-5 rounded-full"
         />
         <span class="font-medium">
           {{ repoInfo.owner.display_name || repoInfo.owner.login }}
         </span>
         <span
           v-if="repoInfo.owner.is_org"
-          class="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 ring-1 ring-neutral-700"
+          class="rounded bg-raised px-1.5 py-0.5 text-xs text-muted ring-1 ring-subtle"
         >
           org
         </span>
@@ -45,13 +47,13 @@ const hasAny = computed(() => displayMaintainers.value.length > 0 || !!props.rep
 
     <!-- Individual maintainers -->
     <ul v-if="displayMaintainers.length" class="space-y-1">
-      <li v-for="m in displayMaintainers" :key="m.email || m.name" class="text-sm text-neutral-400">
-        <span v-if="m.name" class="text-neutral-300">{{ m.name }}</span>
-        <span v-if="m.name && m.email" class="text-neutral-600"> · </span>
+      <li v-for="m in displayMaintainers" :key="m.email || m.name" class="text-sm text-muted">
+        <span v-if="m.name" class="text-zinc-700 dark:text-zinc-300">{{ m.name }}</span>
+        <span v-if="m.name && m.email" class="text-muted"> · </span>
         <a
           v-if="m.email"
           :href="`mailto:${m.email}`"
-          class="text-neutral-500 hover:text-neutral-300 transition-colors"
+          class="text-muted transition-colors hover:text-primary"
         >
           {{ m.email }}
         </a>
