@@ -35,6 +35,11 @@ onUnmounted(() => {
   <header class="sticky top-0 z-50 border-b border-subtle bg-base/80 backdrop-blur-sm">
     <div class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
       <NuxtLink to="/" class="flex items-center gap-2">
+        <div
+          class="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[6px] border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] font-mono text-[9px] font-semibold tracking-[-0.04em] text-[var(--color-brand)]"
+        >
+          px
+        </div>
         <span
           class="text-lg font-bold tracking-tight text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
           >pypx</span
