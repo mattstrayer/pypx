@@ -105,46 +105,43 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
 
     <!-- Feature strip — API docs, security, dependencies -->
     <div
-      class="mb-4 mt-16 grid grid-cols-1 gap-px sm:grid-cols-3"
-      style="
-        background-color: var(--color-subtle);
-        border: 1px solid var(--color-subtle);
-        border-radius: 14px;
-        overflow: hidden;
-      "
+      class="mb-4 mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-[14px] border border-subtle bg-subtle sm:grid-cols-3"
     >
       <div class="flex flex-col gap-2 bg-surface px-6 py-5 transition-colors hover:bg-raised">
         <div
+          aria-hidden="true"
           class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] text-base"
         >
           📦
         </div>
-        <p class="text-[13.5px] font-semibold text-primary">API Documentation</p>
-        <p class="text-[12.5px] leading-[1.55] text-muted">
+        <p class="text-sm font-semibold text-primary">API Documentation</p>
+        <p class="text-xs leading-relaxed text-muted">
           Browse extracted docs from any package — functions, classes, type signatures, and
           docstrings.
         </p>
       </div>
       <div class="flex flex-col gap-2 bg-surface px-6 py-5 transition-colors hover:bg-raised">
         <div
+          aria-hidden="true"
           class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] text-base"
         >
           🔒
         </div>
-        <p class="text-[13.5px] font-semibold text-primary">Security Advisories</p>
-        <p class="text-[12.5px] leading-[1.55] text-muted">
+        <p class="text-sm font-semibold text-primary">Security Advisories</p>
+        <p class="text-xs leading-relaxed text-muted">
           CVE and vulnerability data from OSV.dev. Know if a package has known issues before you
           install.
         </p>
       </div>
       <div class="flex flex-col gap-2 bg-surface px-6 py-5 transition-colors hover:bg-raised">
         <div
+          aria-hidden="true"
           class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] text-base"
         >
           🌿
         </div>
-        <p class="text-[13.5px] font-semibold text-primary">Dependency Analysis</p>
-        <p class="text-[12.5px] leading-[1.55] text-muted">
+        <p class="text-sm font-semibold text-primary">Dependency Analysis</p>
+        <p class="text-xs leading-relaxed text-muted">
           Full dependency tree with optional extras, platform coverage, and install size estimates.
         </p>
       </div>
