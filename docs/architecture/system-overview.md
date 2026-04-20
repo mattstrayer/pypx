@@ -10,9 +10,8 @@ graph LR
     CF -->|Cache miss| Caddy
 
     subgraph VPS ["DigitalOcean Droplet"]
-        Caddy -->|"/api/*"| API["Go API\n:8080"]
+        Caddy -->|"/api/*"| API["Go API\n:8080\n(+ goopy in-process)"]
         Caddy -->|"/*"| Nuxt["Nuxt SSR\n:3000"]
-        API -->|wheel download + parse| Worker["docs-worker\n:8000 (Python)"]
         API -->|SQLite files| DB[("SQLite\npypx.db\npypx.db-search")]
     end
 
@@ -45,8 +44,8 @@ The presentation layer. It:
 - Hydrates in the browser and fires parallel non-blocking requests for secondary data (changelog, security, docs, extras)
 - Serves a Vue 3 SPA after hydration
 
-### docs-worker (`:8000`)
-A Python ASGI sidecar that handles a single job: given a package name and version, download the wheel from PyPI, extract the API surface (modules, classes, functions, docstrings) using griffe, and return structured JSON. Heavy dependencies (griffe, httpx) are lazy-loaded on first request. The Go API caches results indefinitely per version.
+### goopy (in-process)
+API doc extraction runs in-process within the Go API using the goopy library. Given a package name and version, goopy downloads the wheel from PyPI and parses Python source with a recursive-descent parser to extract modules, classes, functions, docstrings, and type annotations, returning structured JSON. Results are cached indefinitely per version.
 
 ### SQLite
 Two separate database files:
@@ -126,4 +125,3 @@ sequenceDiagram
 | Caddy | 128 MB |
 | Go API | 512 MB |
 | Nuxt SSR | 256 MB |
-| docs-worker | 512 MB |

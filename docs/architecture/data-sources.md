@@ -121,7 +121,7 @@ graph LR
 
 ## Timeout Policy
 
-All external HTTP clients use a **15-second timeout** by default. The background worker uses a longer timeout for the large Simple API payload. The docs-worker uses its own httpx client with timeouts set per wheel download size.
+All external HTTP clients use a **15-second timeout** by default. The background worker uses a longer timeout for the large Simple API payload. goopy uses its own HTTP client with timeouts set per wheel download size.
 
 ## Failure Handling
 
