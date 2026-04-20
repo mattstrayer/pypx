@@ -45,25 +45,43 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
 <template>
   <div>
     <section class="flex flex-col items-center pt-16 pb-12 text-center">
-      <h1 class="text-5xl font-bold tracking-tight text-[var(--color-brand)]">pypx</h1>
-      <p class="mt-3 max-w-lg text-lg text-muted">
-        The Python Package Index, reimagined. Fast search, dependency insights, and download trends
-        — all in one place.
+      <!-- Eyebrow pill -->
+      <div
+        class="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand)]"
+      >
+        <span
+          class="h-1.5 w-1.5 rounded-full bg-[var(--color-brand)] animate-pulse"
+          aria-hidden="true"
+        />
+        500,000+ packages indexed
+      </div>
+
+      <h1
+        class="text-5xl font-bold tracking-[-0.04em] text-primary leading-[1.05]"
+        style="font-size: clamp(2.5rem, 6vw, 3.25rem)"
+      >
+        The Python Package<br />
+        <span class="text-[var(--color-brand)]">Index, reimagined.</span>
+      </h1>
+
+      <p class="mt-4 max-w-lg text-lg text-muted leading-relaxed">
+        Fast search, dependency insights, API docs, and security advisories — all in one place.
       </p>
-      <div ref="searchWrapper" class="relative mt-8 w-full max-w-xl">
+
+      <div ref="searchWrapper" class="relative mt-8 w-full max-w-[560px]">
         <form @submit.prevent="onSearch">
           <div class="relative">
             <input
               v-model="query"
               type="text"
               aria-label="Search Python packages"
-              placeholder="Search 500,000+ Python packages..."
-              class="w-full rounded-lg border border-subtle bg-surface px-4 py-3 pr-16 text-primary placeholder-muted outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
+              placeholder="Search packages..."
+              class="w-full rounded-xl border border-subtle bg-surface px-4 py-3.5 pr-16 text-primary placeholder-muted outline-none transition-[border-color,box-shadow] focus:border-[var(--color-brand-border)] focus:ring-2 focus:ring-[var(--color-brand-border)] focus:ring-offset-0 shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"
             />
             <kbd
-              class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline"
+              class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-subtle bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted"
             >
               /
             </kbd>
@@ -82,6 +100,8 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
           />
         </div>
       </div>
+
+      <p class="mt-2.5 text-xs text-muted opacity-70">↑↓ to navigate · ↵ to open · esc to close</p>
     </section>
 
     <section class="pb-16">
