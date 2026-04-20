@@ -47,6 +47,17 @@ const overallTrend = computed(() => stats.value?.overall ?? []);
 const pythonVersions = computed(() => stats.value?.python_versions ?? []);
 const systems = computed(() => stats.value?.systems ?? []);
 
+const totalDownloads = computed(() => overallTrend.value.reduce((sum, p) => sum + p.downloads, 0));
+
+const weeklyAverage = computed(() =>
+  overallTrend.value.length ? Math.round(totalDownloads.value / overallTrend.value.length) : 0,
+);
+
+const peakWeek = computed(() => {
+  if (!overallTrend.value.length) return null;
+  return overallTrend.value.reduce((max, p) => (p.downloads > max.downloads ? p : max));
+});
+
 const dateRangeLabel = computed(() => {
   const range = stats.value?.date_range;
   if (!range) return "";
@@ -93,6 +104,39 @@ const dateRangeLabel = computed(() => {
     </div>
 
     <div v-else-if="stats" class="space-y-8">
+      <!-- Hero stats row -->
+      <div v-if="overallTrend.length" class="mb-6 grid grid-cols-3 gap-3">
+        <div class="rounded-lg border border-subtle bg-surface px-4 py-3">
+          <div class="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-muted">
+            {{
+              period === "4w" ? "Last 4 weeks" : period === "3m" ? "Last 3 months" : "Last 6 months"
+            }}
+          </div>
+          <div class="text-2xl font-bold tracking-tight text-primary">
+            {{ formatDownloads(totalDownloads) }}
+          </div>
+          <div class="mt-0.5 text-xs text-muted">downloads</div>
+        </div>
+        <div class="rounded-lg border border-subtle bg-surface px-4 py-3">
+          <div class="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-muted">
+            Weekly average
+          </div>
+          <div class="text-2xl font-bold tracking-tight text-primary">
+            {{ formatDownloads(weeklyAverage) }}
+          </div>
+          <div class="mt-0.5 text-xs text-muted">downloads / week</div>
+        </div>
+        <div class="rounded-lg border border-subtle bg-surface px-4 py-3">
+          <div class="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-muted">
+            Peak week
+          </div>
+          <div class="text-2xl font-bold tracking-tight text-primary">
+            {{ peakWeek ? formatDownloads(peakWeek.downloads) : "—" }}
+          </div>
+          <div class="mt-0.5 text-xs text-muted">{{ peakWeek?.category ?? "" }}</div>
+        </div>
+      </div>
+
       <!-- Download Trends -->
       <div v-if="overallTrend.length">
         <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">
