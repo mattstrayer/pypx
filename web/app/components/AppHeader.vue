@@ -74,7 +74,7 @@ onUnmounted(() => {
             <kbd
               class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden rounded bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline"
             >
-              /
+              ⌘K
             </kbd>
           </div>
         </form>

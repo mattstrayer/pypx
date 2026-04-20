@@ -23,7 +23,7 @@ const ariaLabel = computed(() => {
   <button
     type="button"
     :aria-label="ariaLabel"
-    class="rounded-md p-1.5 text-muted transition-colors hover:bg-raised hover:text-primary"
+    class="cursor-pointer rounded-md p-1.5 text-muted transition-colors hover:bg-raised hover:text-primary"
     @click="cycle"
   >
     <!-- Sun — light mode -->
