@@ -18,6 +18,14 @@ const projectLinks = computed(() => {
 const lastPushedAgo = computed(() =>
   props.repoInfo?.last_pushed_at ? useTimeAgo(new Date(props.repoInfo.last_pushed_at)).value : null,
 );
+
+const allLinks = computed(() => {
+  const links = projectLinks.value.slice();
+  if (props.pkg.doc_url && !links.some((l) => l.url === props.pkg.doc_url)) {
+    links.unshift({ label: "Documentation", url: props.pkg.doc_url });
+  }
+  return links;
+});
 </script>
 
 <template>
@@ -58,10 +66,12 @@ const lastPushedAgo = computed(() =>
     </div>
 
     <!-- Sidebar -->
-    <div class="space-y-4">
+    <div class="space-y-3">
       <!-- Metadata card -->
       <div class="rounded-lg border border-subtle bg-surface p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Details</h2>
+        <h2 class="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+          Details
+        </h2>
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between gap-2">
             <dt class="text-muted">Version</dt>
@@ -82,11 +92,11 @@ const lastPushedAgo = computed(() =>
         </dl>
       </div>
 
-      <!-- Project links card -->
-      <div v-if="projectLinks.length > 0" class="rounded-lg border border-subtle bg-surface p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Links</h2>
+      <!-- Project links card (includes doc_url as first entry if present) -->
+      <div v-if="allLinks.length > 0" class="rounded-lg border border-subtle bg-surface p-4">
+        <h2 class="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Links</h2>
         <ul class="space-y-1.5 text-sm">
-          <li v-for="link in projectLinks" :key="link.label">
+          <li v-for="link in allLinks" :key="link.label">
             <a
               :href="link.url"
               target="_blank"
@@ -113,59 +123,63 @@ const lastPushedAgo = computed(() =>
         </ul>
       </div>
 
-      <!-- GitHub health signals -->
-      <div v-if="repoInfo" class="pt-3 border-t border-subtle">
-        <div class="text-xs font-medium text-muted uppercase tracking-wide mb-2">GitHub</div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-          <span v-if="repoInfo.stars">
-            <span class="text-primary">{{ repoInfo.stars.toLocaleString() }}</span> stars
-          </span>
-          <span v-if="repoInfo.forks">
-            <span class="text-primary">{{ repoInfo.forks.toLocaleString() }}</span> forks
-          </span>
-          <span v-if="repoInfo.open_issues !== undefined">
-            <span class="text-primary">{{ repoInfo.open_issues.toLocaleString() }}</span> open
-            issues
-          </span>
+      <!-- GitHub card -->
+      <div v-if="repoInfo" class="rounded-lg border border-subtle bg-surface p-4">
+        <h2 class="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+          GitHub
+        </h2>
+        <div class="flex gap-4">
+          <div v-if="repoInfo.stars" class="flex flex-col gap-0.5">
+            <span class="text-base font-semibold text-primary">{{
+              repoInfo.stars.toLocaleString()
+            }}</span>
+            <span class="text-xs text-muted">stars</span>
+          </div>
+          <div v-if="repoInfo.forks" class="flex flex-col gap-0.5">
+            <span class="text-base font-semibold text-primary">{{
+              repoInfo.forks.toLocaleString()
+            }}</span>
+            <span class="text-xs text-muted">forks</span>
+          </div>
+          <div v-if="repoInfo.open_issues !== undefined" class="flex flex-col gap-0.5">
+            <span class="text-base font-semibold text-primary">{{
+              repoInfo.open_issues.toLocaleString()
+            }}</span>
+            <span class="text-xs text-muted">open issues</span>
+          </div>
         </div>
-        <div v-if="lastPushedAgo" class="text-xs text-muted mt-1">
+        <div v-if="lastPushedAgo" class="mt-2 text-xs text-muted">
           last commit {{ lastPushedAgo }}
         </div>
       </div>
 
-      <!-- Doc link button -->
-      <div v-if="pkg.doc_url" class="pt-3 border-t border-subtle">
-        <a
-          :href="pkg.doc_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center gap-1.5 text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
-        >
-          Documentation →
-        </a>
-      </div>
-
-      <!-- Release cadence -->
-      <div v-if="pkg.release_cadence?.releases_last_12mo > 0" class="pt-3 border-t border-subtle">
-        <div class="text-xs font-medium text-muted uppercase tracking-wide mb-1">
+      <!-- Release cadence card -->
+      <div
+        v-if="pkg.release_cadence?.releases_last_12mo > 0"
+        class="rounded-lg border border-subtle bg-surface p-4"
+      >
+        <h2 class="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
           Release Cadence
+        </h2>
+        <div class="text-xl font-bold text-primary">
+          {{ pkg.release_cadence.releases_last_12mo }}
         </div>
-        <div class="text-sm text-muted">
-          <span class="text-primary">{{ pkg.release_cadence.releases_last_12mo }}</span>
-          releases in the past year
-          <span v-if="pkg.release_cadence.avg_days_between_releases > 0">
-            · avg {{ Math.round(pkg.release_cadence.avg_days_between_releases) }} days apart
-          </span>
+        <div class="text-xs text-muted">releases in the past year</div>
+        <div
+          v-if="pkg.release_cadence.avg_days_between_releases > 0"
+          class="mt-0.5 text-xs text-muted"
+        >
+          avg {{ Math.round(pkg.release_cadence.avg_days_between_releases) }} days between releases
         </div>
       </div>
 
-      <!-- Platform coverage -->
-      <div class="pt-3 border-t border-subtle">
+      <!-- Platform coverage card -->
+      <div class="rounded-lg border border-subtle bg-surface p-4">
         <PackagePlatforms :coverage="pkg.platform_coverage" />
       </div>
 
-      <!-- Maintainers -->
-      <div class="pt-3 border-t border-subtle">
+      <!-- Maintainers card -->
+      <div class="rounded-lg border border-subtle bg-surface p-4">
         <PackageMaintainers :maintainers="pkg.maintainers" :repo-info="repoInfo" />
       </div>
     </div>
