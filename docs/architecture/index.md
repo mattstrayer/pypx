@@ -13,7 +13,6 @@ This directory documents how pypx works under the hood. Each file covers one sub
 | [search.md](search.md) | FTS5 search index, background sync worker, query sanitization |
 | [changelog.md](changelog.md) | Parallel source registry, priority selection, markdown rendering |
 | [frontend.md](frontend.md) | Nuxt SSR strategy, composables, SSR vs. client-side data split |
-| [docs-worker.md](docs-worker.md) | Python sidecar, wheel download, griffe API doc extraction |
 | [deployment.md](deployment.md) | Docker Compose services, Caddy routing, Cloudflare edge, env vars |
 
 ## Quick mental model
@@ -29,5 +28,5 @@ User visits /packages/requests →
     changelog (GitHub Releases / CHANGELOG.md / GitLab)
     security (OSV CVEs)
     extras (type stubs, conda-forge)
-    docs (griffe wheel extraction, cached indefinitely per version)
+    docs (goopy in-process wheel extraction, cached indefinitely per version)
 ```
