@@ -222,6 +222,39 @@ This makes the sidebar and card respond together when scrolling.
 
 ---
 
+## 11. Command Palettes
+
+### DocsCommandPalette.vue — Token Correctness
+
+**Current:** Uses hardcoded zinc classes throughout (`bg-zinc-900`, `border-zinc-700`, `text-zinc-100`, `text-zinc-600`, `bg-zinc-800`, `placeholder-zinc-600`). These bypass the design system and break theme switching — in light mode the palette would still render dark zinc.
+
+**New:** Replace all hardcoded zinc with design tokens:
+
+| Current | Replace with |
+|---------|-------------|
+| `bg-zinc-900` | `bg-surface` |
+| `border-zinc-700` | `border-subtle` |
+| `text-zinc-100` / `text-zinc-200` | `text-primary` |
+| `text-zinc-300` | `text-zinc-300` (keep — this is a mid-tone accent, not structural) |
+| `text-zinc-500` / `text-zinc-600` | `text-muted` |
+| `bg-zinc-800` | `bg-raised` |
+| `bg-zinc-800/50` | `bg-raised/50` |
+| `placeholder-zinc-600` | `placeholder-muted` |
+
+The kind badges (`bg-blue-950 text-blue-300`, `bg-purple-950`, `bg-red-950`) are intentional semantic colors — keep them, they match `DocsSymbolCard`.
+
+**Files:** `web/app/components/docs/DocsCommandPalette.vue`
+
+### CommandPalette.vue — Brand Consistency
+
+**Current:** Already uses design system tokens correctly. One small gap: the modal container uses `border-subtle` at rest.
+
+**New:** Change the modal container border to `border-[var(--color-brand-border)]` — a faint brand tint that matches the new card language used across the redesign (sidebar cards, symbol cards, feature strip). No other changes needed.
+
+**Files:** `web/app/components/CommandPalette.vue`
+
+---
+
 ## What's Not Changing
 
 - CSS token system (`--color-base`, `--color-surface`, etc.) — no changes.
@@ -258,13 +291,15 @@ This makes the sidebar and card respond together when scrolling.
 - SVG sparkline replacing overall bar chart
 - 2-column breakdown grid for Python versions + OS
 
-### Phase 4 — Docs Page
+### Phase 4 — Docs Page + Command Palettes
 - Symbol cards (card container, active state)
 - Section labels (size + rule)
 - Parameter/returns pill rows
 - Methods toggle button (SVG chevron, count badge)
 - Context bar "Jump to symbol" button styling
 - DocsSidebar width + SVG chevron headers
+- DocsCommandPalette: hardcoded zinc → design tokens
+- CommandPalette: modal container border → brand-border
 
 ---
 
@@ -283,3 +318,5 @@ This makes the sidebar and card respond together when scrolling.
 | `web/app/components/docs/DocsSymbolCard.vue` | Card container, active state, section labels, param/returns rows |
 | `web/app/pages/packages/[name]/docs.vue` | Jump to symbol button styling |
 | `web/app/components/docs/DocsSidebar.vue` | Width 216px, SVG chevrons |
+| `web/app/components/docs/DocsCommandPalette.vue` | Replace hardcoded zinc with design tokens |
+| `web/app/components/CommandPalette.vue` | Modal border → brand-border |
