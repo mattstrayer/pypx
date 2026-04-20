@@ -148,7 +148,13 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
     </div>
 
     <section class="pb-16">
-      <h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted">Trending</h2>
+      <div class="mb-4 flex items-center gap-3">
+        <span class="text-xs font-semibold uppercase tracking-[0.07em] text-muted">Trending</span>
+        <div class="h-px flex-1 bg-subtle" />
+        <span class="font-mono text-[11.5px] text-muted opacity-70"
+          >top 24 by downloads · updated daily</span
+        >
+      </div>
 
       <!-- Skeleton loading state -->
       <div v-if="status === 'pending'" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
