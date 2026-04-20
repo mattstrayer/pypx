@@ -78,7 +78,7 @@ onUnmounted(() => {
         @mousedown.self="closeModal"
       >
         <div
-          class="w-full max-w-lg overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl"
+          class="w-full max-w-lg overflow-hidden rounded-xl border border-[var(--color-brand-border)] bg-surface shadow-2xl"
         >
           <!-- Input area -->
           <div class="flex items-center gap-3 border-b border-subtle px-4 py-3">

@@ -116,12 +116,12 @@ watch(
       <!-- Modal -->
       <div
         data-testid="palette-modal"
-        class="fixed left-1/2 top-[20vh] z-50 w-full max-w-lg -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden"
+        class="fixed left-1/2 top-[20vh] z-50 w-full max-w-lg -translate-x-1/2 rounded-xl border border-subtle bg-surface shadow-2xl overflow-hidden"
       >
         <!-- Search input -->
-        <div class="flex items-center gap-3 border-b border-zinc-700 px-4 py-3">
+        <div class="flex items-center gap-3 border-b border-subtle px-4 py-3">
           <svg
-            class="h-4 w-4 flex-shrink-0 text-zinc-500"
+            class="h-4 w-4 flex-shrink-0 text-muted"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -147,11 +147,10 @@ watch(
               results[selectedIndex] ? `palette-opt-${selectedIndex}` : undefined
             "
             placeholder="Jump to symbol..."
-            class="flex-1 bg-transparent font-mono text-sm text-zinc-100 placeholder-zinc-600 outline-none"
+            class="flex-1 bg-transparent font-mono text-sm text-primary placeholder-muted outline-none"
             @keydown="onKeydown"
           />
-          <kbd
-            class="text-[10px] text-zinc-600 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5"
+          <kbd class="text-[10px] text-muted bg-raised border border-subtle rounded px-1.5 py-0.5"
             >esc</kbd
           >
         </div>
@@ -163,7 +162,7 @@ watch(
           aria-label="Symbols"
           class="max-h-80 overflow-y-auto py-1"
         >
-          <div v-if="results.length === 0" class="px-4 py-6 text-center text-sm text-zinc-600">
+          <div v-if="results.length === 0" class="px-4 py-6 text-center text-sm text-muted">
             No symbols found
           </div>
           <template
@@ -178,16 +177,16 @@ watch(
               :aria-selected="i === selectedIndex"
               data-testid="palette-section"
               class="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
-              :class="i === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"
+              :class="i === selectedIndex ? 'bg-raised' : 'hover:bg-raised/50'"
               @click="select(item)"
               @mouseover="selectedIndex = i"
             >
               <span
-                class="flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-zinc-700 text-zinc-300"
+                class="flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-raised text-primary"
                 >#</span
               >
-              <span class="font-mono text-sm text-zinc-300">{{ item.section.label }}</span>
-              <span class="ml-auto text-[10px] text-zinc-600">{{ item.section.count }}</span>
+              <span class="font-mono text-sm text-primary">{{ item.section.label }}</span>
+              <span class="ml-auto text-[10px] text-muted">{{ item.section.count }}</span>
             </button>
             <!-- Symbol item -->
             <button
@@ -197,7 +196,7 @@ watch(
               :aria-selected="i === selectedIndex"
               data-testid="palette-result"
               class="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
-              :class="i === selectedIndex ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'"
+              :class="i === selectedIndex ? 'bg-raised' : 'hover:bg-raised/50'"
               @click="select(item)"
               @mouseover="selectedIndex = i"
             >
@@ -210,25 +209,21 @@ watch(
                 }"
                 >{{ item.symbol.kind }}</span
               >
-              <span class="font-mono text-sm text-zinc-200">{{ item.symbol.name }}</span>
+              <span class="font-mono text-sm text-primary">{{ item.symbol.name }}</span>
             </button>
           </template>
         </div>
 
         <!-- Footer hint -->
         <div
-          class="border-t border-zinc-700 px-4 py-2 flex items-center gap-3 text-[10px] text-zinc-600"
+          class="border-t border-subtle px-4 py-2 flex items-center gap-3 text-[10px] text-muted"
         >
           <span
-            ><kbd class="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5">↑↓</kbd>
-            navigate</span
+            ><kbd class="bg-raised border border-subtle rounded px-1 py-0.5">↑↓</kbd> navigate</span
           >
+          <span><kbd class="bg-raised border border-subtle rounded px-1 py-0.5">↵</kbd> jump</span>
           <span
-            ><kbd class="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5">↵</kbd> jump</span
-          >
-          <span
-            ><kbd class="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5">esc</kbd>
-            close</span
+            ><kbd class="bg-raised border border-subtle rounded px-1 py-0.5">esc</kbd> close</span
           >
         </div>
       </div>
