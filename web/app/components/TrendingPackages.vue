@@ -11,7 +11,9 @@ function formatDownloads(n: number): string {
   return String(n);
 }
 
-const maxDownloads = computed(() => Math.max(...props.packages.map((p) => p.downloads), 1));
+const maxDownloads = computed(() =>
+  props.packages.reduce((max, p) => Math.max(max, p.downloads), 1),
+);
 </script>
 
 <template>
