@@ -57,8 +57,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       </div>
 
       <h1
-        class="text-5xl font-bold tracking-[-0.04em] text-primary leading-[1.05]"
-        style="font-size: clamp(2.5rem, 6vw, 3.25rem)"
+        class="text-[clamp(2.5rem,6vw,3.25rem)] font-bold tracking-[-0.04em] text-primary leading-[1.05]"
       >
         The Python Package<br />
         <span class="text-[var(--color-brand)]">Index, reimagined.</span>
@@ -101,7 +100,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         </div>
       </div>
 
-      <p class="mt-2.5 text-xs text-muted opacity-70">↑↓ to navigate · ↵ to open · esc to close</p>
+      <p class="mt-2.5 text-xs text-muted">↑↓ to navigate · ↵ to open · esc to close</p>
     </section>
 
     <section class="pb-16">
