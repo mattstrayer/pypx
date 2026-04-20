@@ -37,7 +37,7 @@ PyPI.org works — but it feels dated. No instant search, no at-a-glance package
 ## Quick Start
 
 ```bash
-git clone https://github.com/pypx/pypx.git
+git clone https://github.com/mattstrayer/pypx.git
 cd pypx
 cp .env.example .env        # add GITHUB_TOKEN for higher rate limits (optional)
 docker compose up --build
