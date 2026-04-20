@@ -82,7 +82,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
             <kbd
               class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-subtle bg-raised px-1.5 py-0.5 font-mono text-[10px] text-muted"
             >
-              /
+              ⌘K
             </kbd>
           </div>
         </form>
