@@ -8,7 +8,7 @@ The Go API is the data layer of pypx. It is a lightweight chi-based HTTP server 
 
 ## Routing
 
-All routes have a **30-second timeout** except `/api/packages/{name}/docs` which has **150 seconds** (to accommodate wheel download and griffe parse time).
+All routes have a **30-second timeout** except `/api/packages/{name}/docs` which has **60 seconds** (to accommodate wheel download and goopy parse time).
 
 ```mermaid
 graph TD
@@ -21,7 +21,7 @@ graph TD
     Router --> Changelog["GET /api/packages/{name}/changelog"]
     Router --> Security["GET /api/packages/{name}/security"]
     Router --> Extras["GET /api/packages/{name}/extras"]
-    Router --> Docs["GET /api/packages/{name}/docs\n(150s timeout)"]
+    Router --> Docs["GET /api/packages/{name}/docs\n(60s timeout)"]
     Router --> Search["GET /api/search?q=...&limit=20"]
     Router --> Popular["GET /api/popular"]
 ```
@@ -38,7 +38,7 @@ graph TD
 | `GET /api/packages/{name}/changelog` | `ChangelogHandler.Get` | 7 days | Rendered markdown/HTML |
 | `GET /api/packages/{name}/security` | `SecurityHandler.Get` | 24 hours | OSV vulnerability advisories |
 | `GET /api/packages/{name}/extras` | `ExtrasHandler.Get` | 24 hours | Type stubs, conda-forge |
-| `GET /api/packages/{name}/docs` | `DocsHandler.Get` | Indefinite | griffe API docs per version |
+| `GET /api/packages/{name}/docs` | `DocsHandler.Get` | Indefinite | goopy API docs per version |
 | `GET /api/search` | `SearchHandler.Search` | HTTP header 5m | FTS5 search results |
 | `GET /api/popular` | `PopularHandler.Get` | 1 hour | Top packages by downloads |
 

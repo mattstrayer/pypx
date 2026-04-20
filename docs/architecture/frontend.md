@@ -50,7 +50,7 @@ sequenceDiagram
 
 **Why this split?**
 - Package metadata is critical for the page to be useful — it must be in the server-rendered HTML for SEO and perceived performance.
-- Changelog, security, and extras are supplementary — they load asynchronously without blocking the initial render. If they're slow (GitHub API latency, docs-worker cold start), the rest of the page is already interactive.
+- Changelog, security, and extras are supplementary — they load asynchronously without blocking the initial render. If they're slow (GitHub API latency, goopy extraction latency), the rest of the page is already interactive.
 
 In code, this is achieved with Nuxt's `useAsyncData`:
 

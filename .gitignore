@@ -32,3 +32,6 @@ __pycache__/
 
 # Superpowers
 .superpowers/
+
+# Internal planning docs (kept locally, not version-controlled)
+docs/superpowers/

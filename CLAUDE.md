@@ -12,9 +12,9 @@ pypx is a modern frontend for PyPI (Python Package Index). It enriches PyPI's pu
 | Frontend | Nuxt 4, Vue 3, Tailwind 4, VueUse, @nuxtjs/seo |
 | Search | SQLite FTS5 (porter + unicode61 tokenizer) |
 | Cache | Two-tier: in-memory LRU (1,000 entries) + SQLite persistent TTL store |
-| Doc extraction | Python ASGI sidecar using griffe to parse wheels |
+| Doc extraction | Go, goopy (pure Go in-process wheel parser) |
 | Proxy | Caddy 2 |
-| Deploy | Docker Compose (Caddy + Go API + Nuxt + docs-worker) |
+| Deploy | Docker Compose (Caddy + Go API + Nuxt) |
 
 ## Directory Map
 
@@ -43,8 +43,8 @@ web/                    Nuxt 4 frontend
     types/api.ts        TypeScript interfaces matching Go response shapes
   nuxt.config.ts        Build config, runtime config, SEO config
 
-docs-worker/            Python ASGI sidecar
-  main.py               Wheel download + griffe extraction endpoint
+goopy/                  Pure Go Python doc extractor (in-process)
+  internal/             Parser, extractor, wheel downloader, ecosystem tests
 
 docs/architecture/      Architecture documentation (Mermaid diagrams)
 Caddyfile               Reverse proxy routing + security headers
@@ -78,9 +78,9 @@ go run ./cmd/server          # Run API on :8080
 go test ./...                 # Run all Go tests
 
 # Frontend (from web/)
-npm run dev                   # Dev server on :3000 (proxies /api/* to :8080)
-npm run build && npm run preview
-npm run test
+pnpm run dev                  # Dev server on :3000 (proxies /api/* to :8080)
+pnpm run build && pnpm run preview
+pnpm run test
 
 # Full stack
 docker compose up --build     # Production-like stack
@@ -94,7 +94,7 @@ raw:{name}              Raw PyPI JSON response
 pkg:{name}              Enriched package response
 stats:{name}:{period}   Download stats (period: 4w, 3m, 6m)
 changelog:{name}        Rendered changelog HTML
-docs:{name}:{version}   Griffe-extracted API docs (indefinite TTL)
+docs:{name}:{version}   API docs (indefinite TTL)
 docs-err:{name}:{version}  Docs extraction error (5 min TTL)
 ```
 
@@ -148,7 +148,7 @@ Both are optional. Without `GITHUB_TOKEN`, GitHub API is rate-limited to 60 req/
 
 ## goopy (Python Doc Extraction)
 
-The Go API extracts Python API documentation in-process using the `goopy` library (`goopy/` directory). This replaces the former Python sidecar (docs-worker). goopy downloads wheels from PyPI, parses Python source with a recursive-descent parser, and extracts structured documentation (functions, classes, parameters, docstrings, type annotations).
+The Go API extracts Python API documentation in-process using the `goopy` library (`goopy/` directory). goopy downloads wheels from PyPI, parses Python source with a recursive-descent parser, and extracts structured documentation (functions, classes, parameters, docstrings, type annotations).
 
 The `/api/packages/{name}/docs` route has a **60-second timeout** (vs. 30s for all other routes) to accommodate wheel download + goopy parse time.
 

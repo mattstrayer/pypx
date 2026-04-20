@@ -11,14 +11,12 @@ graph LR
 
     subgraph DO["DigitalOcean Droplet"]
         Caddy["Caddy :80/:443\nTLS termination\nReverse proxy"]
-        API["Go API :8080\n512 MB limit"]
+        API["Go API :8080\n512 MB limit\n(+ goopy in-process)"]
         Nuxt["Nuxt SSR :3000\n256 MB limit"]
-        Worker["docs-worker :8000\n512 MB limit"]
         Vol[("Named volumes\ncaddy_data\ncaddy_config\napi_data")]
 
         Caddy -->|"/api/*"| API
         Caddy -->|"/*"| Nuxt
-        API -->|"wheel fetch"| Worker
         API --- Vol
     end
 ```
@@ -39,18 +37,9 @@ Handles TLS, routes traffic, adds security headers. Volumes for certificate pers
 build: ./api
 ports: [8080 (internal)]
 memory: 512M
-depends_on: [docs-worker (healthy)]
 volumes: [api_data:/data]
 ```
-SQLite databases stored in the `api_data` named volume (persists across container restarts/redeploys).
-
-### docs-worker
-```yaml
-build: ./docs-worker
-ports: [8000 (internal)]
-memory: 512M
-```
-No persistent storage needed — all results cached in the Go API's SQLite.
+SQLite databases stored in the `api_data` named volume (persists across container restarts/redeploys). goopy runs in-process for wheel download and API doc extraction.
 
 ### web
 ```yaml
@@ -62,7 +51,7 @@ depends_on: [api (healthy)]
 
 ### Startup order
 ```
-docs-worker (healthy) → api (healthy) → [web (healthy), caddy]
+api (healthy) → [web (healthy), caddy]
 ```
 
 ## Caddy Configuration
@@ -118,7 +107,7 @@ All other variables have sensible defaults in `docker-compose.yml`.
 
 ```bash
 # First deploy
-git clone https://github.com/pypx/pypx.git
+git clone https://github.com/mattstrayer/pypx.git
 cd pypx
 cp .env.example .env && vim .env
 docker compose up -d --build
@@ -130,7 +119,6 @@ docker compose up -d --build
 # View logs
 docker compose logs -f api
 docker compose logs -f web
-docker compose logs -f docs-worker
 
 # Health check
 curl https://pypx.app/api/health
@@ -143,14 +131,13 @@ Only the Go API has persistent state — the `api_data` named volume contains:
 - `pypx.db-search` — the FTS5 search index (rebuilt by background worker in ~5 minutes)
 - `pypx.db-search-shm`, `pypx.db-search-wal` — SQLite WAL mode files
 
-All other services are stateless. Redeploying Nuxt or docs-worker has zero data impact.
+All other services are stateless. Redeploying Nuxt has zero data impact.
 
 ## Health Checks
 
 | Service | Check command | Interval | Start period |
 |---|---|---|---|
 | api | `wget -q --spider http://localhost:8080/api/health` | 30s | 10s |
-| docs-worker | `urllib.request.urlopen('http://localhost:8000/health')` | 10s | 10s |
 | web | `wget -q --spider http://localhost:3000` | 30s | 15s |
 
 All services have `restart: unless-stopped` — they automatically recover from crashes.
