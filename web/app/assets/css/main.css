@@ -219,6 +219,26 @@ pre,
   }
 }
 
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-subtle);
+  opacity: 0.5;
+}
+
 /* Global grid background */
 body::before {
   content: "";
