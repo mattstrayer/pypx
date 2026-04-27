@@ -43,7 +43,6 @@ type Module struct {
 type Function struct {
 	Name       string       `json:"name"`
 	Docstring  *Docstring   `json:"docstring,omitempty"`
-	Signature  *Function    `json:"signature,omitempty"`
 	Parameters []*Parameter `json:"parameters,omitempty"`
 	Returns    *TypeExpr    `json:"returns,omitempty"`
 	IsAsync    bool         `json:"is_async"`

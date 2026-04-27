@@ -13,8 +13,7 @@ const (
 	TypeExprLiteral   TypeExprKind = "literal"
 	TypeExprNone      TypeExprKind = "none"
 	TypeExprEllipsis  TypeExprKind = "ellipsis"
-	TypeExprUnpack    TypeExprKind = "unpack"
-	TypeExprParamSpec TypeExprKind = "paramspec"
+	TypeExprUnpack TypeExprKind = "unpack"
 )
 
 // TypeExpr represents a type expression.
