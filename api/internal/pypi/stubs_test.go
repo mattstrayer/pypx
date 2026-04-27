@@ -1,6 +1,7 @@
 package pypi_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,7 +42,7 @@ func TestCheckTypeSupport(t *testing.T) {
 	c := pypi.NewClient(pypi.WithBaseURL(srv.URL))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := pypi.CheckTypeSupport(c, tt.pkg)
+			got := pypi.CheckTypeSupport(context.Background(), c, tt.pkg)
 			if got.Status != tt.wantStatus {
 				t.Errorf("Status = %q, want %q", got.Status, tt.wantStatus)
 			}

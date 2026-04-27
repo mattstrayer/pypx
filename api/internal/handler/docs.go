@@ -87,7 +87,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve latest version.
-	pkg, err := h.pypi.FetchPackage(name)
+	pkg, err := h.pypi.FetchPackage(r.Context(), name)
 	if err != nil {
 		http.Error(w, "package not found", http.StatusNotFound)
 		return
@@ -157,7 +157,7 @@ func resolveStubs(ctx context.Context, pypiClient *pypi.Client, pkgName, sourceV
 		return make(stubIndex), ""
 	}
 
-	stubPyPI, err := pypiClient.FetchPackage(stubPkgName)
+	stubPyPI, err := pypiClient.FetchPackage(ctx, stubPkgName)
 	if err != nil {
 		log.Printf("stubs: failed to fetch %s metadata: %v", stubPkgName, err)
 		return make(stubIndex), ""

@@ -3,6 +3,7 @@ package pypi_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -68,7 +69,7 @@ func TestCheckPyTyped(t *testing.T) {
 			defer srv.Close()
 
 			c := pypi.NewClient(pypi.WithBaseURL(srv.URL))
-			got := pypi.CheckPyTyped(c, srv.URL+"/wheel.whl")
+			got := pypi.CheckPyTyped(context.Background(), c, srv.URL+"/wheel.whl")
 			if got != tt.want {
 				t.Errorf("CheckPyTyped() = %v, want %v", got, tt.want)
 			}

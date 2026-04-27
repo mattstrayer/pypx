@@ -71,7 +71,7 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch PyPI package info to get project URLs.
-	pypiResp, err := h.pkg.FetchPackage(name)
+	pypiResp, err := h.pkg.FetchPackage(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)

@@ -1,6 +1,7 @@
 package pypi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -111,7 +112,7 @@ func NewClient(opts ...Option) *Client {
 }
 
 // FetchPackage retrieves the PyPI JSON API response for the named package.
-func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
+func (c *Client) FetchPackage(ctx context.Context, name string) (*PyPIResponse, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
@@ -122,7 +123,11 @@ func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
 
 	url := fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pypi: build request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: request failed: %w", err)
