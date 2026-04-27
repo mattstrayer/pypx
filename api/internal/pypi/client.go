@@ -2,6 +2,7 @@ package pypi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/pypx/api/internal/circuitbreaker"
 )
+
+// ErrNotFound is returned by FetchPackage when the package does not exist on PyPI.
+var ErrNotFound = errors.New("pypi: package not found")
 
 // validPackageName matches valid PyPI package names: alphanumeric, hyphens,
 // underscores, and dots, starting and ending with an alphanumeric character.
@@ -127,7 +131,7 @@ func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
 
 	if resp.StatusCode == http.StatusNotFound {
 		// 404 is a valid "not found" response — not a service failure.
-		return nil, fmt.Errorf("pypi: package %q not found", name)
+		return nil, fmt.Errorf("pypi: package %q: %w", name, ErrNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		c.breaker.RecordFailure()

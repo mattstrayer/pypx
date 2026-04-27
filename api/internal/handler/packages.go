@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"sort"
@@ -183,7 +184,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return b, nil
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -211,7 +212,7 @@ func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request)
 
 	pkg, err := h.fetchPackage(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -241,7 +242,7 @@ func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.fetchPackage(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}

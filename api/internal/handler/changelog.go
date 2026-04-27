@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -72,7 +73,7 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// Fetch PyPI package info to get project URLs.
 	pypiResp, err := h.pkg.FetchPackage(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
