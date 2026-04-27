@@ -554,6 +554,22 @@ func TestAugmentedAssignAllOperators(t *testing.T) {
 	}
 }
 
+// ---- Unicode identifier tests ----
+
+func TestUnicodeIdentifier(t *testing.T) {
+	// Greek letters are valid Python identifiers.
+	src := "αβγ = 1\n"
+	l := lexer.New([]byte(src))
+	toks := collectTokens(l)
+	want := []token.Type{token.NAME, token.ASSIGN, token.NUMBER, token.NEWLINE, token.EOF}
+	if !equalTypes(types(toks), want) {
+		t.Fatalf("expected %v\ngot      %v", want, types(toks))
+	}
+	if toks[0].Lit != "αβγ" {
+		t.Errorf("expected lit %q, got %q", "αβγ", toks[0].Lit)
+	}
+}
+
 // ---- Helper ----
 
 func equalTypes(a, b []token.Type) bool {
