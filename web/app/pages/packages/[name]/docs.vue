@@ -12,7 +12,7 @@ const { data: pkg, status: pkgStatus } = await useAsyncData(`package-${name.valu
 
 const { data: docs, status: docsStatus } = useAsyncData(
   `docs-data-${name.value}`,
-  () => api.fetchDocs(name.value),
+  () => api.fetchDocs(name.value).catch(() => null),
   { server: false, default: () => null },
 );
 

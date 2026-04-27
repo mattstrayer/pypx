@@ -11,7 +11,7 @@ const [{ data: pkg }, { data: versions }] = await Promise.all([
 ]);
 
 const { data: changelog } = useAsyncData(
-  `changelog-${name.value}-${version.value}`,
+  `changelog-${name.value}`,
   () => fetchChangelog(name.value),
   { server: false, default: () => null },
 );
