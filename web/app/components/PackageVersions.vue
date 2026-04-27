@@ -10,8 +10,10 @@ const { data: versions, status } = useAsyncData(`versions-${props.name}`, () =>
   fetchVersions(props.name),
 );
 
-const { data: changelog } = useAsyncData(`changelog-${props.name}`, () =>
-  fetchChangelog(props.name),
+const { data: changelog } = useAsyncData(
+  `changelog-${props.name}`,
+  () => fetchChangelog(props.name),
+  { server: false, default: () => null },
 );
 
 const sortedVersions = computed(() => {
