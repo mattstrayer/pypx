@@ -2,6 +2,7 @@ package osv
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -80,7 +81,7 @@ func NewClient(opts ...Option) *Client {
 // FetchVulns returns vulnerabilities for the named PyPI package. When version
 // is non-empty only vulnerabilities affecting that specific version are returned;
 // otherwise all historical vulnerabilities are returned.
-func (c *Client) FetchVulns(name, version string) ([]VulnInfo, error) {
+func (c *Client) FetchVulns(ctx context.Context, name, version string) ([]VulnInfo, error) {
 	var body osvQueryRequest
 	body.Version = version
 	body.Package.Name = name
@@ -91,7 +92,12 @@ func (c *Client) FetchVulns(name, version string) ([]VulnInfo, error) {
 		return nil, fmt.Errorf("osv: encode request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(c.baseURL+"/v1/query", "application/json", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/query", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("osv: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("osv: request failed: %w", err)
 	}

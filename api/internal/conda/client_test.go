@@ -1,6 +1,7 @@
 package conda_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestFetchCondaInfo_Available(t *testing.T) {
 	defer srv.Close()
 
 	c := conda.NewClient(conda.WithBaseURL(srv.URL))
-	info, err := c.FetchCondaInfo("numpy")
+	info, err := c.FetchCondaInfo(context.Background(), "numpy")
 	if err != nil {
 		t.Fatalf("FetchCondaInfo() error: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestFetchCondaInfo_NotAvailable(t *testing.T) {
 	defer srv.Close()
 
 	c := conda.NewClient(conda.WithBaseURL(srv.URL))
-	info, err := c.FetchCondaInfo("some-obscure-package")
+	info, err := c.FetchCondaInfo(context.Background(), "some-obscure-package")
 	if err != nil {
 		t.Fatalf("FetchCondaInfo() error: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestFetchCondaInfo_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	c := conda.NewClient(conda.WithBaseURL(srv.URL))
-	_, err := c.FetchCondaInfo("numpy")
+	_, err := c.FetchCondaInfo(context.Background(), "numpy")
 	if err == nil {
 		t.Error("expected error for 500 response, got nil")
 	}

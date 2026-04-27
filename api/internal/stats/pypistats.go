@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -52,8 +53,12 @@ func NewClient(opts ...Option) *Client {
 }
 
 // fetch performs a GET request and decodes the JSON response into StatsResponse.
-func (c *Client) fetch(url string) (*StatsResponse, error) {
-	resp, err := c.httpClient.Get(url)
+func (c *Client) fetch(ctx context.Context, url string) (*StatsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pypistats: build request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("pypistats: request failed: %w", err)
 	}
@@ -75,16 +80,16 @@ func (c *Client) fetch(url string) (*StatsResponse, error) {
 }
 
 // FetchOverall retrieves overall download statistics for the named package.
-func (c *Client) FetchOverall(name string) (*StatsResponse, error) {
-	return c.fetch(fmt.Sprintf("%s/api/packages/%s/overall", c.baseURL, name))
+func (c *Client) FetchOverall(ctx context.Context, name string) (*StatsResponse, error) {
+	return c.fetch(ctx, fmt.Sprintf("%s/api/packages/%s/overall", c.baseURL, name))
 }
 
 // FetchPythonVersions retrieves per-Python-minor-version download stats for the named package.
-func (c *Client) FetchPythonVersions(name string) (*StatsResponse, error) {
-	return c.fetch(fmt.Sprintf("%s/api/packages/%s/python_minor", c.baseURL, name))
+func (c *Client) FetchPythonVersions(ctx context.Context, name string) (*StatsResponse, error) {
+	return c.fetch(ctx, fmt.Sprintf("%s/api/packages/%s/python_minor", c.baseURL, name))
 }
 
 // FetchSystem retrieves per-OS download stats for the named package.
-func (c *Client) FetchSystem(name string) (*StatsResponse, error) {
-	return c.fetch(fmt.Sprintf("%s/api/packages/%s/system", c.baseURL, name))
+func (c *Client) FetchSystem(ctx context.Context, name string) (*StatsResponse, error) {
+	return c.fetch(ctx, fmt.Sprintf("%s/api/packages/%s/system", c.baseURL, name))
 }

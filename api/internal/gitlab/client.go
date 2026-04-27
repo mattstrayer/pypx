@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -104,8 +105,8 @@ func (c *Client) encodedPath(projectPath string) string {
 	return url.PathEscape(projectPath)
 }
 
-func (c *Client) get(path string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", c.baseURL+path, nil)
+func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +119,8 @@ func (c *Client) get(path string) (*http.Response, error) {
 var tagVersionRE = regexp.MustCompile(`^v?\d+\.\d[\d.a-zA-Z\-]*$`)
 
 // FetchReleases fetches GitLab releases for the given project path.
-func (c *Client) FetchReleases(projectPath string) ([]Release, error) {
-	resp, err := c.get(fmt.Sprintf("/api/v4/projects/%s/releases", c.encodedPath(projectPath)))
+func (c *Client) FetchReleases(ctx context.Context, projectPath string) ([]Release, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("/api/v4/projects/%s/releases", c.encodedPath(projectPath)))
 	if err != nil {
 		return nil, err
 	}
@@ -158,11 +159,11 @@ func (c *Client) FetchReleases(projectPath string) ([]Release, error) {
 
 // FetchRawFile fetches the first file in candidates that exists in the repo.
 // NOTE: Do NOT use defer inside the loop — bodies are closed explicitly before continue.
-func (c *Client) FetchRawFile(projectPath string, candidates []string) (content, filename string, err error) {
+func (c *Client) FetchRawFile(ctx context.Context, projectPath string, candidates []string) (content, filename string, err error) {
 	for _, name := range candidates {
 		path := fmt.Sprintf("/api/v4/projects/%s/repository/files/%s/raw?ref=HEAD",
 			c.encodedPath(projectPath), url.PathEscape(name))
-		resp, err := c.get(path)
+		resp, err := c.get(ctx, path)
 		if err != nil {
 			continue
 		}
@@ -185,8 +186,8 @@ func (c *Client) FetchRawFile(projectPath string, candidates []string) (content,
 }
 
 // FetchTags returns version-like tags for the project, preserving API order (newest-first).
-func (c *Client) FetchTags(projectPath string) ([]Tag, error) {
-	resp, err := c.get(fmt.Sprintf("/api/v4/projects/%s/repository/tags?per_page=50", c.encodedPath(projectPath)))
+func (c *Client) FetchTags(ctx context.Context, projectPath string) ([]Tag, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("/api/v4/projects/%s/repository/tags?per_page=50", c.encodedPath(projectPath)))
 	if err != nil {
 		return nil, err
 	}
@@ -218,10 +219,10 @@ var noiseCommitRE = regexp.MustCompile(`(?i)^(merge\b|bump version|version bump|
 
 // FetchCompare returns filtered commit messages and the date of the HEAD commit
 // between base and head refs.
-func (c *Client) FetchCompare(projectPath, base, head string) (messages []string, headDate string, err error) {
+func (c *Client) FetchCompare(ctx context.Context, projectPath, base, head string) (messages []string, headDate string, err error) {
 	path := fmt.Sprintf("/api/v4/projects/%s/repository/compare?from=%s&to=%s",
 		c.encodedPath(projectPath), url.QueryEscape(base), url.QueryEscape(head))
-	resp, err := c.get(path)
+	resp, err := c.get(ctx, path)
 	if err != nil {
 		return nil, "", err
 	}

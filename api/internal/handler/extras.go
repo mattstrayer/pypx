@@ -78,7 +78,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		defer wg.Done()
-		condaInfo, condaErr = h.conda.FetchCondaInfo(name)
+		condaInfo, condaErr = h.conda.FetchCondaInfo(ctx, name)
 	}()
 	go func() {
 		defer wg.Done()
@@ -89,7 +89,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		info, err := h.github.FetchRepoInfo(owner, repo)
+		info, err := h.github.FetchRepoInfo(ctx, owner, repo)
 		if err == nil {
 			repoInfo = info
 		}

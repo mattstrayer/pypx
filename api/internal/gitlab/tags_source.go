@@ -16,7 +16,7 @@ type TagsSource struct {
 func (s *TagsSource) Name() string { return "gitlab_tags" }
 
 func (s *TagsSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
-	tags, err := s.Client.FetchTags(s.ProjectPath)
+	tags, err := s.Client.FetchTags(ctx, s.ProjectPath)
 	if err != nil || len(tags) < 2 {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (s *TagsSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
 		newer := tags[i]
 		older := tags[i+1]
 
-		messages, headDate, err := s.Client.FetchCompare(s.ProjectPath, older.Name, newer.Name)
+		messages, headDate, err := s.Client.FetchCompare(ctx, s.ProjectPath, older.Name, newer.Name)
 		if err != nil {
 			continue
 		}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -77,14 +78,14 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if !fresh {
 			// Background revalidation: re-fetch and update cache silently.
 			go func() {
-				h.fetchAndCache(name, period, cfg, cacheKey)
+				h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
 			}()
 		}
 		return
 	}
 
 	// Cache miss — fetch synchronously.
-	encoded := h.fetchAndCache(name, period, cfg, cacheKey)
+	encoded := h.fetchAndCache(r.Context(), name, period, cfg, cacheKey)
 	if encoded == nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -208,23 +209,23 @@ func aggregateByCategory(data []stats.DataPoint, topN int) []stats.DataPoint {
 
 // fetchAndCache fetches all stat types from pypistats.org, filters by period,
 // aggregates, stores in cache, and returns the encoded JSON.
-func (h *StatsHandler) fetchAndCache(name, period string, cfg periodConfig, cacheKey string) []byte {
+func (h *StatsHandler) fetchAndCache(ctx context.Context, name, period string, cfg periodConfig, cacheKey string) []byte {
 	lower := strings.ToLower(name)
 	cutoff := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -cfg.days)
 
 	var rawOverall, rawPython, rawSystem []stats.DataPoint
 
-	if resp, err := h.stats.FetchOverall(lower); err != nil {
+	if resp, err := h.stats.FetchOverall(ctx, lower); err != nil {
 		log.Printf("stats: FetchOverall(%q) error: %v", name, err)
 	} else {
 		rawOverall = resp.Data
 	}
-	if resp, err := h.stats.FetchPythonVersions(lower); err != nil {
+	if resp, err := h.stats.FetchPythonVersions(ctx, lower); err != nil {
 		log.Printf("stats: FetchPythonVersions(%q) error: %v", name, err)
 	} else {
 		rawPython = resp.Data
 	}
-	if resp, err := h.stats.FetchSystem(lower); err != nil {
+	if resp, err := h.stats.FetchSystem(ctx, lower); err != nil {
 		log.Printf("stats: FetchSystem(%q) error: %v", name, err)
 	} else {
 		rawSystem = resp.Data

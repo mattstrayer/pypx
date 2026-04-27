@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func TestFetchOverall(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(WithBaseURL(srv.URL))
-	resp, err := client.FetchOverall("requests")
+	resp, err := client.FetchOverall(context.Background(), "requests")
 	if err != nil {
 		t.Fatalf("FetchOverall returned error: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestFetchPythonVersionStats(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(WithBaseURL(srv.URL))
-	resp, err := client.FetchPythonVersions("requests")
+	resp, err := client.FetchPythonVersions(context.Background(), "requests")
 	if err != nil {
 		t.Fatalf("FetchPythonVersions returned error: %v", err)
 	}

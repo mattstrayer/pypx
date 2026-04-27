@@ -19,8 +19,8 @@ type FileSource struct {
 
 func (s *FileSource) Name() string { return "gitlab_changelog_file" }
 
-func (s *FileSource) Fetch(_ context.Context) ([]changelog.Entry, error) {
-	content, filename, err := s.Client.FetchRawFile(s.ProjectPath, candidateFilenames)
+func (s *FileSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
+	content, filename, err := s.Client.FetchRawFile(ctx, s.ProjectPath, candidateFilenames)
 	if err != nil || content == "" {
 		return nil, err
 	}
