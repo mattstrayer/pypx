@@ -29,12 +29,12 @@ type ExtrasHandler struct {
 	pypi   *pypi.Client
 	conda  *conda.Client
 	github *gh.Client
-	pkg    *PackageHandler
+	pkg    packageFetcher
 	cache  cache.Cacher
 }
 
 // NewExtrasHandler creates a new ExtrasHandler.
-func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClient *gh.Client, pkgHandler *PackageHandler, c cache.Cacher) *ExtrasHandler {
+func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClient *gh.Client, pkgHandler packageFetcher, c cache.Cacher) *ExtrasHandler {
 	return &ExtrasHandler{pypi: pypiClient, conda: condaClient, github: ghClient, pkg: pkgHandler, cache: c}
 }
 

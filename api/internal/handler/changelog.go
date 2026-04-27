@@ -32,11 +32,11 @@ type ChangelogHandler struct {
 	github *gh.Client
 	gitlab *gitlab.Client
 	cache  cache.Cacher
-	pkg    *PackageHandler
+	pkg    packageFetcher
 }
 
 // NewChangelogHandler creates a new ChangelogHandler.
-func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.Cacher, pkgHandler *PackageHandler) *ChangelogHandler {
+func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.Cacher, pkgHandler packageFetcher) *ChangelogHandler {
 	return &ChangelogHandler{
 		github: ghClient,
 		gitlab: glClient,
