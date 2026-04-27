@@ -161,7 +161,7 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 func renderHTML(entries []changelog.Entry) []changelog.Entry {
 	for i := range entries {
 		if entries[i].Body != "" {
-			html, err := markdown.Render(entries[i].Body)
+			html, err := markdown.RenderSafe(entries[i].Body)
 			if err == nil {
 				entries[i].BodyHTML = html
 			}
