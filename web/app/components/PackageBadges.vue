@@ -10,12 +10,6 @@ const props = defineProps<{
   maintenanceStatus?: MaintenanceStatus;
 }>();
 
-function formatSize(bytes: number): string {
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
-}
-
 const vulnCount = computed(() => props.security?.vulns?.length ?? 0);
 const typeStatus = computed(() => props.extras?.type_support?.status);
 const condaAvailable = computed(() => props.extras?.conda_forge?.available);

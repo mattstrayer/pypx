@@ -57,13 +57,6 @@ function toggleVersion(version: string) {
   expandedVersions.value = next;
 }
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
-}
-
 function formatDate(iso: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", {
