@@ -59,7 +59,9 @@ func New(dsn string) (*Cache, error) {
 	return &Cache{db: db}, nil
 }
 
-// Set stores value under key. Any existing entry for the same key is replaced.
+// Set stores value under key with the current timestamp. Any existing entry for the same key is replaced.
+// The ttl parameter is accepted for interface compatibility but ignored; TTL is enforced
+// only during Get calls.
 func (c *Cache) Set(key string, value []byte, _ time.Duration) error {
 	_, err := c.db.Exec(
 		`INSERT OR REPLACE INTO cache (key, value, created_at) VALUES (?, ?, ?)`,
@@ -91,6 +93,24 @@ func (c *Cache) Get(key string, ttl time.Duration) (data []byte, fresh bool, err
 
 	age := time.Since(time.Unix(createdAt, 0))
 	return value, age < ttl, nil
+}
+
+// storedAt returns the created_at timestamp for a given key from the SQLite cache.
+// If the key does not exist, it returns the zero time and nil error.
+func (c *Cache) storedAt(key string) (time.Time, error) {
+	var createdAt int64
+
+	row := c.db.QueryRow(
+		`SELECT created_at FROM cache WHERE key = ?`, key,
+	)
+	if err := row.Scan(&createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+
+	return time.Unix(createdAt, 0), nil
 }
 
 // Close releases the underlying database connection.
