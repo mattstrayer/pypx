@@ -65,7 +65,11 @@ func NewIndex(dsn string) (*Index, error) {
 		return nil, fmt.Errorf("search: begin fts rebuild tx: %w", err)
 	}
 
-	tx.Exec(`DROP TABLE IF EXISTS packages_fts`) //nolint:errcheck
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS packages_fts`); err != nil {
+		tx.Rollback() //nolint:errcheck
+		db.Close()
+		return nil, fmt.Errorf("search: drop fts table: %w", err)
+	}
 
 	if _, err := tx.Exec(`
 		CREATE VIRTUAL TABLE packages_fts USING fts5(
