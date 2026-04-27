@@ -10,8 +10,10 @@ const { data: pkg, status: pkgStatus } = await useAsyncData(`package-${name.valu
   api.fetchPackage(name.value),
 );
 
-const { data: docs, status: docsStatus } = await useAsyncData(`docs-data-${name.value}`, () =>
-  api.fetchDocs(name.value),
+const { data: docs, status: docsStatus } = useAsyncData(
+  `docs-data-${name.value}`,
+  () => api.fetchDocs(name.value),
+  { server: false, default: () => null },
 );
 
 function dedup(symbols: DocSymbol[]): DocSymbol[] {
