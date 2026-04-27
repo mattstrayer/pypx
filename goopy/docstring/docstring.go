@@ -3,6 +3,7 @@
 package docstring
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/pypx/goopy/model"
@@ -74,19 +75,15 @@ func containsNumpySections(raw string) bool {
 	return false
 }
 
-func containsGoogleSections(raw string) bool {
-	for _, s := range googleSectionHeaders {
-		if strings.Contains(raw, s) {
-			return true
-		}
-	}
-	return false
-}
+// googleSectionRe matches a Google-style section header at the start of a line
+// (with optional leading whitespace), followed only by optional trailing whitespace.
+// The (?m) flag makes ^ match the start of each line.
+var googleSectionRe = regexp.MustCompile(
+	`(?m)^\s*(Args|Arguments|Returns|Return|Raises|Yields|Yield|Examples|Example|Note|Notes|Attributes|Todo|References|Parameters|Params):\s*$`,
+)
 
-var googleSectionHeaders = []string{
-	"Args:", "Arguments:", "Returns:", "Return:", "Raises:",
-	"Yields:", "Yield:", "Examples:", "Example:", "Note:", "Notes:",
-	"Attributes:", "Todo:", "References:", "Parameters:", "Params:",
+func containsGoogleSections(raw string) bool {
+	return googleSectionRe.MatchString(raw)
 }
 
 func allDashes(s string) bool {

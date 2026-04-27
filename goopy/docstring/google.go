@@ -6,6 +6,13 @@ import (
 	"github.com/pypx/goopy/model"
 )
 
+// googleSectionHeaders is the canonical list of recognized Google-style section names.
+var googleSectionHeaders = []string{
+	"Args:", "Arguments:", "Returns:", "Return:", "Raises:",
+	"Yields:", "Yield:", "Examples:", "Example:", "Note:", "Notes:",
+	"Attributes:", "Todo:", "References:", "Parameters:", "Params:",
+}
+
 // googleHeaderSet is a pre-built set of recognized Google-style section headers,
 // initialized once at package load time to avoid repeated allocations.
 var googleHeaderSet = func() map[string]bool {
