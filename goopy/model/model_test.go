@@ -258,24 +258,21 @@ func TestModuleJSON(t *testing.T) {
 		Functions: []*Function{
 			{
 				Name: "foo",
-				Signature: &Function{
-					Name: "foo",
-					Parameters: []*Parameter{
-						{
-							Name: "x",
-							Kind: ParamPositionalOrKeyword,
-							Type: &TypeExpr{
-								Kind: TypeExprName,
-								Name: "int",
-								Raw:  "int",
-							},
+				Parameters: []*Parameter{
+					{
+						Name: "x",
+						Kind: ParamPositionalOrKeyword,
+						Type: &TypeExpr{
+							Kind: TypeExprName,
+							Name: "int",
+							Raw:  "int",
 						},
 					},
-					Returns: &TypeExpr{
-						Kind: TypeExprName,
-						Name: "int",
-						Raw:  "int",
-					},
+				},
+				Returns: &TypeExpr{
+					Kind: TypeExprName,
+					Name: "int",
+					Raw:  "int",
 				},
 				Docstring: &Docstring{
 					Text:  "Does something",
@@ -350,7 +347,6 @@ func TestTypeExprKindValues(t *testing.T) {
 		{TypeExprNone, "none"},
 		{TypeExprEllipsis, "ellipsis"},
 		{TypeExprUnpack, "unpack"},
-		{TypeExprParamSpec, "paramspec"},
 	}
 
 	for _, tt := range tests {

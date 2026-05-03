@@ -1,7 +1,9 @@
 package pypi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -10,6 +12,9 @@ import (
 
 	"github.com/pypx/api/internal/circuitbreaker"
 )
+
+// ErrNotFound is returned by FetchPackage when the package does not exist on PyPI.
+var ErrNotFound = errors.New("pypi: package not found")
 
 // validPackageName matches valid PyPI package names: alphanumeric, hyphens,
 // underscores, and dots, starting and ending with an alphanumeric character.
@@ -107,7 +112,7 @@ func NewClient(opts ...Option) *Client {
 }
 
 // FetchPackage retrieves the PyPI JSON API response for the named package.
-func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
+func (c *Client) FetchPackage(ctx context.Context, name string) (*PyPIResponse, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
@@ -118,7 +123,11 @@ func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
 
 	url := fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pypi: build request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: request failed: %w", err)
@@ -127,7 +136,7 @@ func (c *Client) FetchPackage(name string) (*PyPIResponse, error) {
 
 	if resp.StatusCode == http.StatusNotFound {
 		// 404 is a valid "not found" response — not a service failure.
-		return nil, fmt.Errorf("pypi: package %q not found", name)
+		return nil, fmt.Errorf("pypi: package %q: %w", name, ErrNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		c.breaker.RecordFailure()

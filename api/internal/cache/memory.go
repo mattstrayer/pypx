@@ -11,8 +11,8 @@ type memItem struct {
 	createdAt time.Time
 }
 
-// MemoryCache is a simple in-memory LRU cache with TTL.
-// It wraps a Cache (SQLite) and checks memory first.
+// MemoryCache is a simple in-memory LRU cache (evicts by creation time) with TTL.
+// It wraps a Cache (SQLite) and checks memory first, promoting hits from SQLite to memory.
 type MemoryCache struct {
 	sqlite  *Cache
 	items   map[string]*memItem
@@ -49,12 +49,21 @@ func (mc *MemoryCache) Get(key string, ttl time.Duration) (data []byte, fresh bo
 
 	// Promote to memory cache with double-check to avoid overwriting
 	// a fresher write that happened between RUnlock and Lock.
+	// Use the original created_at from SQLite to preserve TTL semantics.
+	var createdAt time.Time
+	if storedTime, err := mc.sqlite.storedAt(key); err == nil && !storedTime.IsZero() {
+		createdAt = storedTime
+	} else {
+		// Fallback to current time if we can't retrieve the original timestamp.
+		createdAt = time.Now()
+	}
+
 	mc.mu.Lock()
 	if _, exists := mc.items[key]; !exists {
 		if len(mc.items) >= mc.maxSize {
 			mc.evictOldest()
 		}
-		mc.items[key] = &memItem{data: data, createdAt: time.Now()}
+		mc.items[key] = &memItem{data: data, createdAt: createdAt}
 	}
 	mc.mu.Unlock()
 

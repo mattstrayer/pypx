@@ -3,7 +3,9 @@ package goopy
 
 import (
 	"context"
+	"log"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -12,6 +14,10 @@ import (
 	"github.com/pypx/goopy/parser"
 	"github.com/pypx/goopy/wheel"
 )
+
+// parallelThreshold is the minimum number of files needed to use goroutine
+// parallelism. Below this threshold, serial extraction avoids goroutine overhead.
+const parallelThreshold = 4
 
 // ExtractModule parses Python source code and returns structured documentation.
 // The returned Module may be partial if the source contains syntax errors.
@@ -51,7 +57,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 	}
 
 	// For small packages, skip goroutine overhead.
-	if len(items) <= 4 {
+	if len(items) <= parallelThreshold {
 		pkg := &model.Package{Name: name}
 		for _, item := range items {
 			if ctx.Err() != nil {
@@ -84,7 +90,11 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 	for range workers {
 		go func() {
 			defer wg.Done()
-			defer func() { recover() }() // don't let one bad module crash the pool
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("goopy: worker panic: %v\n%s", r, debug.Stack())
+				}
+			}()
 			for idx := range ch {
 				if ctx.Err() != nil {
 					return

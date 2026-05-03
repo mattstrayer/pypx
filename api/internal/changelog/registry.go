@@ -2,6 +2,7 @@ package changelog
 
 import (
 	"context"
+	"log"
 	"sort"
 	"sync"
 )
@@ -40,6 +41,9 @@ func (r *Registry) Fetch(ctx context.Context) Result {
 		go func(priority int, s Source) {
 			defer wg.Done()
 			entries, err := s.Fetch(ctx)
+			if err != nil {
+				log.Printf("changelog: source %T failed: %v", s, err)
+			}
 			ch <- outcome{priority: priority, result: Result{Source: s.Name(), Entries: entries}, err: err}
 		}(i, src)
 	}

@@ -116,6 +116,9 @@ watch(
       <!-- Modal -->
       <div
         data-testid="palette-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Documentation search"
         class="fixed left-1/2 top-[20vh] z-50 w-full max-w-lg -translate-x-1/2 rounded-xl border border-subtle bg-surface shadow-2xl overflow-hidden"
       >
         <!-- Search input -->

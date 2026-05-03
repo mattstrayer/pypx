@@ -10,8 +10,10 @@ const { data: versions, status } = useAsyncData(`versions-${props.name}`, () =>
   fetchVersions(props.name),
 );
 
-const { data: changelog } = useAsyncData(`changelog-${props.name}`, () =>
-  fetchChangelog(props.name),
+const { data: changelog } = useAsyncData(
+  `changelog-${props.name}`,
+  () => fetchChangelog(props.name),
+  { server: false, default: () => null },
 );
 
 const sortedVersions = computed(() => {
@@ -53,13 +55,6 @@ function toggleVersion(version: string) {
   if (next.has(version)) next.delete(version);
   else next.add(version);
   expandedVersions.value = next;
-}
-
-function formatSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
 }
 
 function formatDate(iso: string): string {

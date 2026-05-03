@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -31,11 +32,11 @@ type ChangelogHandler struct {
 	github *gh.Client
 	gitlab *gitlab.Client
 	cache  cache.Cacher
-	pkg    *PackageHandler
+	pkg    packageFetcher
 }
 
 // NewChangelogHandler creates a new ChangelogHandler.
-func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.Cacher, pkgHandler *PackageHandler) *ChangelogHandler {
+func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.Cacher, pkgHandler packageFetcher) *ChangelogHandler {
 	return &ChangelogHandler{
 		github: ghClient,
 		gitlab: glClient,
@@ -70,9 +71,9 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch PyPI package info to get project URLs.
-	pypiResp, err := h.pkg.FetchPackage(name)
+	pypiResp, err := h.pkg.FetchPackage(r.Context(), name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -160,7 +161,7 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 func renderHTML(entries []changelog.Entry) []changelog.Entry {
 	for i := range entries {
 		if entries[i].Body != "" {
-			html, err := markdown.Render(entries[i].Body)
+			html, err := markdown.RenderSafe(entries[i].Body)
 			if err == nil {
 				entries[i].BodyHTML = html
 			}

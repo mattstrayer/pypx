@@ -15,9 +15,12 @@ const projectLinks = computed(() => {
   return Object.entries(urls).map(([label, url]) => ({ label, url }));
 });
 
-const lastPushedAgo = computed(() =>
-  props.repoInfo?.last_pushed_at ? useTimeAgo(new Date(props.repoInfo.last_pushed_at)).value : null,
-);
+const lastPushedTime = computed(() => {
+  if (!props.repoInfo?.last_pushed_at) return null;
+  return new Date(props.repoInfo.last_pushed_at);
+});
+
+const lastPushedAgo = useTimeAgo(lastPushedTime);
 
 const allLinks = computed(() => {
   const links = projectLinks.value.slice();

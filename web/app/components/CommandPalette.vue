@@ -74,6 +74,9 @@ onUnmounted(() => {
     >
       <div
         v-if="isModalOpen"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         class="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 pt-[20vh]"
         @mousedown.self="closeModal"
       >

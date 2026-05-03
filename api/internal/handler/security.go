@@ -54,7 +54,7 @@ func (h *SecurityHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vulns, err := h.osv.FetchVulns(name, version)
+	vulns, err := h.osv.FetchVulns(r.Context(), name, version)
 	if err != nil {
 		// Serve stale cache on error rather than failing the request.
 		if data, _, cacheErr := h.cache.Get(cacheKey, 0); cacheErr == nil && data != nil {

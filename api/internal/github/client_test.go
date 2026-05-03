@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -130,7 +131,7 @@ func TestFetchReleases(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	releases, err := c.FetchReleases("psf", "requests")
+	releases, err := c.FetchReleases(context.Background(), "psf", "requests")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -178,7 +179,7 @@ func TestFetchReleasesWithToken(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL), WithToken("ghp_testtoken"))
-	_, err := c.FetchReleases("psf", "requests")
+	_, err := c.FetchReleases(context.Background(), "psf", "requests")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -195,7 +196,7 @@ func TestFetchReleasesNotFound(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	releases, err := c.FetchReleases("nobody", "nonexistent")
+	releases, err := c.FetchReleases(context.Background(), "nobody", "nonexistent")
 	if err != nil {
 		t.Fatalf("expected no error on 404, got: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestFetchReleasesForbidden(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	releases, err := c.FetchReleases("private", "repo")
+	releases, err := c.FetchReleases(context.Background(), "private", "repo")
 	if err != nil {
 		t.Fatalf("expected no error on 403, got: %v", err)
 	}
@@ -253,7 +254,7 @@ func TestFetchRepoInfo(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	info, err := c.FetchRepoInfo("psf", "requests")
+	info, err := c.FetchRepoInfo(context.Background(), "psf", "requests")
 	if err != nil {
 		t.Fatalf("FetchRepoInfo() error: %v", err)
 	}
@@ -281,7 +282,7 @@ func TestFetchRepoInfoNotFound(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	info, err := c.FetchRepoInfo("missing", "repo")
+	info, err := c.FetchRepoInfo(context.Background(), "missing", "repo")
 	if err != nil {
 		t.Fatalf("FetchRepoInfo() on 404 should not error: %v", err)
 	}
@@ -316,7 +317,7 @@ func TestFetchRepoInfoUserOwner(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	info, err := c.FetchRepoInfo("kennethreitz", "requests")
+	info, err := c.FetchRepoInfo(context.Background(), "kennethreitz", "requests")
 	if err != nil {
 		t.Fatalf("FetchRepoInfo() error: %v", err)
 	}
@@ -340,7 +341,7 @@ func TestFetchRawFile_ReturnsContent(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
+	content, filename, err := c.FetchRawFile(context.Background(), "owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -363,7 +364,7 @@ func TestFetchRawFile_TriesFallbackNames(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
+	content, filename, err := c.FetchRawFile(context.Background(), "owner", "repo", []string{"CHANGELOG.md", "CHANGES.md"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -380,7 +381,7 @@ func TestFetchRawFile_NoneFound_ReturnsEmpty(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	content, filename, err := c.FetchRawFile("owner", "repo", []string{"CHANGELOG.md"})
+	content, filename, err := c.FetchRawFile(context.Background(), "owner", "repo", []string{"CHANGELOG.md"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -405,7 +406,7 @@ func TestFetchTags_ReturnsSortedVersionTags(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	tags, err := c.FetchTags("owner", "repo")
+	tags, err := c.FetchTags(context.Background(), "owner", "repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -435,7 +436,7 @@ func TestFetchCompare_ReturnsCommitMessages(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(WithBaseURL(srv.URL))
-	messages, headDate, err := c.FetchCompare("owner", "repo", "v1.1.0", "v1.2.0")
+	messages, headDate, err := c.FetchCompare(context.Background(), "owner", "repo", "v1.1.0", "v1.2.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package gitlab_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -72,7 +73,7 @@ func TestGitLabClient_FetchReleases(t *testing.T) {
 	defer srv.Close()
 
 	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
-	releases, err := c.FetchReleases("user/repo")
+	releases, err := c.FetchReleases(context.Background(), "user/repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestGitLabClient_FetchRawFile(t *testing.T) {
 	defer srv.Close()
 
 	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
-	content, filename, err := c.FetchRawFile("user/repo", []string{"CHANGELOG.md", "CHANGES.md"})
+	content, filename, err := c.FetchRawFile(context.Background(), "user/repo", []string{"CHANGELOG.md", "CHANGES.md"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,7 +130,7 @@ func TestGitLabClient_FetchTags(t *testing.T) {
 	defer srv.Close()
 
 	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
-	tags, err := c.FetchTags("user/repo")
+	tags, err := c.FetchTags(context.Background(), "user/repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -160,7 +161,7 @@ func TestGitLabClient_FetchCompare(t *testing.T) {
 	defer srv.Close()
 
 	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
-	messages, headDate, err := c.FetchCompare("user/repo", "v1.0.0", "v1.1.0")
+	messages, headDate, err := c.FetchCompare(context.Background(), "user/repo", "v1.0.0", "v1.1.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

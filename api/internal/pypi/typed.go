@@ -2,6 +2,7 @@ package pypi
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,9 +59,13 @@ func ExtractWheelURL(files []ReleaseFile) string {
 // CheckPyTyped checks whether the given wheel URL contains a py.typed marker.
 // It uses an HTTP Range request to fetch only the last 64 KB (zip central directory).
 // Returns false on any error or if the wheel exceeds 50 MB.
-func CheckPyTyped(c *Client, wheelURL string) bool {
+func CheckPyTyped(ctx context.Context, c *Client, wheelURL string) bool {
 	// HEAD request to get file size.
-	head, err := c.httpClient.Head(wheelURL)
+	headReq, err := http.NewRequestWithContext(ctx, http.MethodHead, wheelURL, nil)
+	if err != nil {
+		return false
+	}
+	head, err := c.httpClient.Do(headReq)
 	if err != nil {
 		return false
 	}
@@ -79,7 +84,7 @@ func CheckPyTyped(c *Client, wheelURL string) bool {
 	if start < 0 {
 		start = 0
 	}
-	req, err := http.NewRequest(http.MethodGet, wheelURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wheelURL, nil)
 	if err != nil {
 		return false
 	}

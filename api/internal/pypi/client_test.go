@@ -1,6 +1,7 @@
 package pypi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +58,7 @@ func TestFetchPackage(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(WithBaseURL(server.URL))
-	got, err := client.FetchPackage("requests")
+	got, err := client.FetchPackage(context.Background(), "requests")
 	if err != nil {
 		t.Fatalf("FetchPackage returned unexpected error: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestValidateName(t *testing.T) {
 
 func TestFetchPackageInvalidName(t *testing.T) {
 	client := NewClient()
-	got, err := client.FetchPackage("../etc/passwd")
+	got, err := client.FetchPackage(context.Background(), "../etc/passwd")
 	if err == nil {
 		t.Fatal("expected error for invalid package name, got nil")
 	}
@@ -153,7 +154,7 @@ func TestFetchPackageNotFound(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(WithBaseURL(server.URL))
-	got, err := client.FetchPackage("nonexistent-package-xyz")
+	got, err := client.FetchPackage(context.Background(), "nonexistent-package-xyz")
 	if err == nil {
 		t.Fatal("expected error for 404 response, got nil")
 	}

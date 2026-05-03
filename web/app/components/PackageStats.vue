@@ -14,25 +14,14 @@ const periodOptions = [
 const period = ref("4w");
 
 const { fetchStats } = useApi();
-const {
-  data: stats,
-  status,
-  refresh,
-} = await useAsyncData(
+const { data: stats, pending } = useAsyncData(
   () => `stats-${props.name}-${period.value}`,
   () => fetchStats(props.name, period.value),
+  { server: false },
 );
 
-async function setPeriod(p: string) {
+function setPeriod(p: string) {
   period.value = p;
-  await refresh();
-}
-
-function formatDownloads(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
 }
 
 function maxDownloads(data: DataPoint[]): number {
@@ -150,7 +139,7 @@ const sparklineXLabels = computed(() => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="status === 'pending'" class="flex items-center justify-center py-24">
+    <div v-if="pending" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
     </div>
 

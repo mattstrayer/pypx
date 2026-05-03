@@ -19,7 +19,7 @@ type TagsSource struct {
 func (s *TagsSource) Name() string { return "github_tags" }
 
 func (s *TagsSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
-	tags, err := s.Client.FetchTags(s.Owner, s.Repo)
+	tags, err := s.Client.FetchTags(ctx, s.Owner, s.Repo)
 	if err != nil || len(tags) < 2 {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (s *TagsSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
 		newer := tags[i]
 		older := tags[i+1]
 
-		messages, headDate, err := s.Client.FetchCompare(s.Owner, s.Repo, older.Name, newer.Name)
+		messages, headDate, err := s.Client.FetchCompare(ctx, s.Owner, s.Repo, older.Name, newer.Name)
 		if err != nil {
 			// Skip this pair on error rather than failing the whole source.
 			continue

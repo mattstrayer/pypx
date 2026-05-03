@@ -5,11 +5,16 @@ const version = computed(() => route.params.version as string);
 
 const { fetchPackage, fetchVersions, fetchChangelog } = useApi();
 
-const [{ data: pkg }, { data: versions }, { data: changelog }] = await Promise.all([
+const [{ data: pkg }, { data: versions }] = await Promise.all([
   useAsyncData(`package-${name.value}`, () => fetchPackage(name.value)),
   useAsyncData(`versions-${name.value}`, () => fetchVersions(name.value)),
-  useAsyncData(`changelog-${name.value}`, () => fetchChangelog(name.value)),
 ]);
+
+const { data: changelog } = useAsyncData(
+  `changelog-${name.value}`,
+  () => fetchChangelog(name.value),
+  { server: false, default: () => null },
+);
 
 const matchedVersion = computed(
   () => versions.value?.find((v) => v.version === version.value) ?? null,
@@ -19,13 +24,6 @@ const changelogEntry = computed(() => {
   if (!changelog.value?.entries) return null;
   return changelog.value.entries.find((e) => e.version === version.value) || null;
 });
-
-function formatSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
-}
 
 function formatDate(iso: string): string {
   if (!iso) return "—";

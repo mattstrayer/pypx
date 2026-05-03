@@ -4,6 +4,9 @@
 package lexer
 
 import (
+	"unicode"
+	"unicode/utf8"
+
 	"github.com/pypx/goopy/token"
 )
 
@@ -139,8 +142,15 @@ func (l *Lexer) Next() token.Token {
 			return l.lexString()
 		}
 
-		// Identifiers and keywords.
-		if isIdentStart(ch) {
+		// Identifiers and keywords (including multi-byte UTF-8 starts).
+		if isIdentStart(ch) || ch >= 0x80 {
+			// For multi-byte starts, verify the decoded rune is actually a letter.
+			if ch >= 0x80 {
+				r, _ := utf8.DecodeRune(l.src[l.pos:])
+				if r == utf8.RuneError || !unicode.IsLetter(r) {
+					return l.lexOperator()
+				}
+			}
 			return l.lexIdent()
 		}
 
@@ -385,12 +395,28 @@ func (l *Lexer) lexString() token.Token {
 }
 
 // lexIdent lexes an identifier or keyword.
+// Handles both ASCII and multi-byte UTF-8 identifiers (e.g. Greek letters).
 func (l *Lexer) lexIdent() token.Token {
 	pos := l.currentPos()
 	start := l.pos
-	for l.pos < len(l.src) && isIdentContinue(l.src[l.pos]) {
-		l.pos++
-		l.col++
+	for l.pos < len(l.src) {
+		b := l.src[l.pos]
+		if b < 0x80 {
+			// ASCII fast path.
+			if !isIdentContinue(b) {
+				break
+			}
+			l.pos++
+			l.col++
+		} else {
+			// Multi-byte UTF-8: decode a full rune and check if it's a letter or digit.
+			r, size := utf8.DecodeRune(l.src[l.pos:])
+			if r == utf8.RuneError || (!unicode.IsLetter(r) && !unicode.IsDigit(r)) {
+				break
+			}
+			l.pos += size
+			l.col++
+		}
 	}
 	lit := string(l.src[start:l.pos])
 	typ, _ := token.LookupKeyword(lit)

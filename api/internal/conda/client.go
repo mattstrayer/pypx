@@ -1,6 +1,7 @@
 package conda
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -49,10 +50,14 @@ func NewClient(opts ...Option) *Client {
 // FetchCondaInfo checks whether name exists on conda-forge.
 // Returns a CondaForgeInfo with Available=false (not an error) if the package
 // is not found on conda-forge.
-func (c *Client) FetchCondaInfo(name string) (CondaForgeInfo, error) {
+func (c *Client) FetchCondaInfo(ctx context.Context, name string) (CondaForgeInfo, error) {
 	url := fmt.Sprintf("%s/package/conda-forge/%s", c.baseURL, name)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return CondaForgeInfo{}, fmt.Errorf("conda: build request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return CondaForgeInfo{}, fmt.Errorf("conda: request failed: %w", err)
 	}

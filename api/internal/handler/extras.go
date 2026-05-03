@@ -29,12 +29,12 @@ type ExtrasHandler struct {
 	pypi   *pypi.Client
 	conda  *conda.Client
 	github *gh.Client
-	pkg    *PackageHandler
+	pkg    packageFetcher
 	cache  cache.Cacher
 }
 
 // NewExtrasHandler creates a new ExtrasHandler.
-func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClient *gh.Client, pkgHandler *PackageHandler, c cache.Cacher) *ExtrasHandler {
+func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClient *gh.Client, pkgHandler packageFetcher, c cache.Cacher) *ExtrasHandler {
 	return &ExtrasHandler{pypi: pypiClient, conda: condaClient, github: ghClient, pkg: pkgHandler, cache: c}
 }
 
@@ -54,10 +54,12 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
 	// Fetch PyPI package info (cached, fast) to get project URLs for repo detection.
 	var pypiResp *pypi.PyPIResponse
 	if h.pkg != nil {
-		pypiResp, _ = h.pkg.FetchPackage(name)
+		pypiResp, _ = h.pkg.FetchPackage(ctx, name)
 	}
 
 	// Fetch type support, conda info, and GitHub repo info in parallel.
@@ -72,11 +74,11 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 	wg.Add(3)
 	go func() {
 		defer wg.Done()
-		typeSupport = pypi.CheckTypeSupport(h.pypi, name)
+		typeSupport = pypi.CheckTypeSupport(ctx, h.pypi, name)
 	}()
 	go func() {
 		defer wg.Done()
-		condaInfo, condaErr = h.conda.FetchCondaInfo(name)
+		condaInfo, condaErr = h.conda.FetchCondaInfo(ctx, name)
 	}()
 	go func() {
 		defer wg.Done()
@@ -87,7 +89,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		info, err := h.github.FetchRepoInfo(owner, repo)
+		info, err := h.github.FetchRepoInfo(ctx, owner, repo)
 		if err == nil {
 			repoInfo = info
 		}
@@ -103,7 +105,7 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			wheelURL := pypi.ExtractWheelURL(pypiResp.URLs)
-			if wheelURL != "" && pypi.CheckPyTyped(h.pypi, wheelURL) {
+			if wheelURL != "" && pypi.CheckPyTyped(ctx, h.pypi, wheelURL) {
 				typeSupport.Status = "typed"
 				h.cache.Set(typedKey, []byte("1"), 0) //nolint:errcheck
 			} else {

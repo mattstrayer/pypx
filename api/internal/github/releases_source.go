@@ -17,8 +17,8 @@ type ReleasesSource struct {
 
 func (s *ReleasesSource) Name() string { return "github_releases" }
 
-func (s *ReleasesSource) Fetch(_ context.Context) ([]changelog.Entry, error) {
-	releases, err := s.Client.FetchReleases(s.Owner, s.Repo)
+func (s *ReleasesSource) Fetch(ctx context.Context) ([]changelog.Entry, error) {
+	releases, err := s.Client.FetchReleases(ctx, s.Owner, s.Repo)
 	if err != nil {
 		return nil, err
 	}

@@ -55,3 +55,21 @@ func TestParseSummaryOnly(t *testing.T) {
 		t.Errorf("Params should be empty, got %d", len(doc.Params))
 	}
 }
+
+// TestContainsGoogleSectionsFalsePositive verifies that "Args:" appearing
+// mid-sentence does not trigger Google-style detection.
+func TestContainsGoogleSectionsFalsePositive(t *testing.T) {
+	raw := "Call f(Args=1) to configure the thing."
+	if containsGoogleSections(raw) {
+		t.Errorf("containsGoogleSections() = true for mid-sentence Args=1, want false")
+	}
+}
+
+// TestContainsGoogleSectionsProperHeader verifies that a proper Google-style
+// section header on its own line is correctly detected.
+func TestContainsGoogleSectionsProperHeader(t *testing.T) {
+	raw := "Short summary.\n\nArgs:\n    x: description"
+	if !containsGoogleSections(raw) {
+		t.Errorf("containsGoogleSections() = false for proper Google docstring, want true")
+	}
+}

@@ -13,7 +13,7 @@ const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
 const { data: security } = useAsyncData(
   `security-${name.value}`,
   () => api.fetchSecurity(name.value, pkg.value?.version),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [() => pkg.value?.version] },
 );
 
 const { data: extras } = useAsyncData(`extras-${name.value}`, () => api.fetchExtras(name.value), {

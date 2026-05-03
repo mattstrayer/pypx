@@ -1,6 +1,7 @@
 package pypi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 )
@@ -18,13 +19,13 @@ type TypeSupport struct {
 // CheckTypeSupport checks PyPI for stub packages for the given package name.
 // It checks for types-{name} first, then {name}-stubs.
 // Returns TypeSupport with Status "stubs" if found, "untyped" otherwise.
-func CheckTypeSupport(c *Client, name string) TypeSupport {
+func CheckTypeSupport(ctx context.Context, c *Client, name string) TypeSupport {
 	candidates := []string{
 		"types-" + name,
 		name + "-stubs",
 	}
 	for _, candidate := range candidates {
-		if packageExists(c, candidate) {
+		if packageExists(ctx, c, candidate) {
 			return TypeSupport{Status: "stubs", StubsPackage: candidate}
 		}
 	}
@@ -32,9 +33,9 @@ func CheckTypeSupport(c *Client, name string) TypeSupport {
 }
 
 // packageExists returns true if the named package exists on PyPI.
-func packageExists(c *Client, name string) bool {
+func packageExists(ctx context.Context, c *Client, name string) bool {
 	url := fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
-	req, err := http.NewRequest(http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return false
 	}

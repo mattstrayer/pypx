@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"sort"
@@ -78,7 +80,7 @@ type VersionInfo struct {
 
 // fetchPackage retrieves a PyPIResponse, using the raw cache to avoid redundant
 // upstream requests from both Get and GetVersions.
-func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
+func (h *PackageHandler) fetchPackage(ctx context.Context, name string) (*pypi.PyPIResponse, error) {
 	cacheKey := "raw:" + strings.ToLower(name)
 
 	if data, _, err := h.cache.Get(cacheKey, packageTTL); err == nil && data != nil {
@@ -88,7 +90,7 @@ func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
 		}
 	}
 
-	resp, err := h.pypiClient.FetchPackage(name)
+	resp, err := h.pypiClient.FetchPackage(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -101,14 +103,14 @@ func (h *PackageHandler) fetchPackage(name string) (*pypi.PyPIResponse, error) {
 }
 
 // FetchPackage is an exported wrapper around fetchPackage for use by other handlers.
-func (h *PackageHandler) FetchPackage(name string) (*pypi.PyPIResponse, error) {
-	return h.fetchPackage(name)
+func (h *PackageHandler) FetchPackage(ctx context.Context, name string) (*pypi.PyPIResponse, error) {
+	return h.fetchPackage(ctx, name)
 }
 
 // fetchPackageForce fetches from PyPI and updates the raw cache, bypassing any
 // cached value. Used for background revalidation.
-func (h *PackageHandler) fetchPackageForce(name string) (*pypi.PyPIResponse, error) {
-	resp, err := h.pypiClient.FetchPackage(name)
+func (h *PackageHandler) fetchPackageForce(ctx context.Context, name string) (*pypi.PyPIResponse, error) {
+	resp, err := h.pypiClient.FetchPackage(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +150,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		if !fresh {
 			// Serve stale data immediately and refresh in the background.
 			go func() {
-				resp, err := h.fetchPackageForce(name)
+				resp, err := h.fetchPackageForce(context.Background(), name)
 				if err != nil {
 					log.Printf("background refresh failed for package %q: %v", name, err)
 					return
@@ -170,7 +172,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// Cache miss — fetch, enrich, and cache. singleflight collapses concurrent
 	// misses for the same package into one upstream call.
 	v, err, _ := h.sf.Do(cacheKey, func() (any, error) {
-		resp, err := h.fetchPackage(name)
+		resp, err := h.fetchPackage(r.Context(), name)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +185,7 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return b, nil
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -209,9 +211,9 @@ func (h *PackageHandler) GetDependencies(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pkg, err := h.fetchPackage(name)
+	pkg, err := h.fetchPackage(r.Context(), name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -239,9 +241,9 @@ func (h *PackageHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.fetchPackage(name)
+	resp, err := h.fetchPackage(r.Context(), name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
 			return
 		}
@@ -357,14 +359,14 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 	var descHTML string
 	switch {
 	case strings.Contains(info.DescriptionType, "text/markdown"):
-		descHTML, _ = markdown.Render(info.Description)
+		descHTML, _ = markdown.RenderSafe(info.Description)
 	case strings.Contains(info.DescriptionType, "text/x-rst"),
 		strings.Contains(info.DescriptionType, "text/x-restructuredtext"):
 		descHTML, _ = rst.Render(info.Description)
 	case info.DescriptionType == "" && looksLikeRST(info.Description):
 		descHTML, _ = rst.Render(info.Description)
 	case info.DescriptionType == "":
-		descHTML, _ = markdown.Render(info.Description)
+		descHTML, _ = markdown.RenderSafe(info.Description)
 	}
 
 	return PackageResponse{
