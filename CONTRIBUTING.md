@@ -2,6 +2,10 @@
 
 Thanks for your interest in contributing! This document covers how to get started.
 
+By participating in this project you agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md). If you've found a security vulnerability, please follow the private disclosure process in [`SECURITY.md`](SECURITY.md) instead of opening an issue.
+
+For an architectural overview of how the system fits together — the API, two-tier cache, FTS5 search, changelog source registry, and goopy doc extractor — see [`docs/architecture/`](docs/architecture/).
+
 ## Prerequisites
 
 - Go 1.26+
@@ -62,6 +66,8 @@ Examples: `feat: add conda-forge badge`, `fix: handle missing classifier field`
 - Run `go test ./...` before pushing API changes
 - Describe the *why* in the PR body, not just the what
 
-## Questions
+## Filing issues
 
-Open a [GitHub Issue](https://github.com/mattstrayer/pypx/issues) — no question is too small.
+- **Bug reports** and **feature requests** use the templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/) — pick the one that fits.
+- For open-ended questions, prefer [GitHub Discussions](https://github.com/mattstrayer/pypx/discussions) over issues.
+- For security disclosures, see [`SECURITY.md`](SECURITY.md).

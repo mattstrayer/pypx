@@ -151,9 +151,16 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       <div class="mb-4 flex items-center gap-3">
         <span class="text-xs font-semibold uppercase tracking-[0.07em] text-muted">Trending</span>
         <div class="h-px flex-1 bg-subtle" />
-        <span class="font-mono text-[11.5px] text-muted opacity-70"
-          >top 24 by downloads · updated daily</span
-        >
+        <span class="font-mono text-[11.5px] text-muted opacity-70">
+          top 24 by downloads · data from
+          <a
+            href="https://github.com/hugovk/top-pypi-packages"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline decoration-dotted underline-offset-2 hover:text-primary"
+            >hugovk/top-pypi-packages</a
+          >
+        </span>
       </div>
 
       <!-- Skeleton loading state -->

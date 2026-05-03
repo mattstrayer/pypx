@@ -24,6 +24,17 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Validate prefix input
+        env:
+          PREFIX: ${{ inputs.prefix }}
+        run: |
+          # Allow only safe characters for SQL LIKE patterns: alnum, ':', '_', '-', '%'.
+          # Rejects shell metacharacters and quote injection before we hand the value to ssh/sqlite.
+          if ! printf '%s' "$PREFIX" | grep -Eq '^[A-Za-z0-9:_%-]{1,64}$'; then
+            echo "Invalid prefix: must match ^[A-Za-z0-9:_%-]{1,64}$" >&2
+            exit 1
+          fi
+
       - name: Purge cache entries
         env:
           HOST: ${{ secrets.DROPLET_HOST }}

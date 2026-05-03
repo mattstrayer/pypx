@@ -27,6 +27,10 @@ const allLinks = computed(() => {
   if (props.pkg.doc_url && !links.some((l) => l.url === props.pkg.doc_url)) {
     links.unshift({ label: "Documentation", url: props.pkg.doc_url });
   }
+  const pypiUrl = `https://pypi.org/project/${props.pkg.name}/`;
+  if (!links.some((l) => l.url === pypiUrl)) {
+    links.push({ label: "View on PyPI", url: pypiUrl });
+  }
   return links;
 });
 </script>

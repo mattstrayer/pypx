@@ -172,6 +172,7 @@ function formatDate(iso: string): string {
                 <a
                   :href="entry.url"
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="text-xs text-[var(--color-brand)] hover:text-[var(--color-brand-light)] transition-colors"
                   >View on GitHub →</a
                 >
