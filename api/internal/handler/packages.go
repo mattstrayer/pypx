@@ -359,14 +359,14 @@ func buildPackageResponse(r *pypi.PyPIResponse) PackageResponse {
 	var descHTML string
 	switch {
 	case strings.Contains(info.DescriptionType, "text/markdown"):
-		descHTML, _ = markdown.Render(info.Description)
+		descHTML, _ = markdown.RenderSafe(info.Description)
 	case strings.Contains(info.DescriptionType, "text/x-rst"),
 		strings.Contains(info.DescriptionType, "text/x-restructuredtext"):
 		descHTML, _ = rst.Render(info.Description)
 	case info.DescriptionType == "" && looksLikeRST(info.Description):
 		descHTML, _ = rst.Render(info.Description)
 	case info.DescriptionType == "":
-		descHTML, _ = markdown.Render(info.Description)
+		descHTML, _ = markdown.RenderSafe(info.Description)
 	}
 
 	return PackageResponse{
