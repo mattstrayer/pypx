@@ -29,6 +29,21 @@ __pycache__/
 
 # Environment
 .env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+coverage.out
+*.coverprofile
+
+# Keys / certs (defensive)
+*.pem
+*.key
+*.p12
 
 # Superpowers
 .superpowers/
