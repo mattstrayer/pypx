@@ -135,13 +135,33 @@ The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `doc
 
 ## Contributing
 
-- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
-- PR titles follow the same format
-- Run `go test ./...` before pushing API changes
-- One logical change per PR
+Pull requests, bug reports, and feature ideas are all welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and conventions, and please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+
+- File bugs or feature requests via [GitHub Issues](https://github.com/mattstrayer/pypx/issues)
+- Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
+- One logical change per PR; run `go test ./...` and `pnpm run test` before pushing
+
+To report a security vulnerability, follow the disclosure process in [`SECURITY.md`](SECURITY.md) — please do **not** open a public issue.
+
+---
+
+## Acknowledgements
+
+pypx stands on a lot of public infrastructure. Huge thanks to the maintainers of:
+
+- **[PyPI](https://pypi.org/)** and the [Python Packaging Authority](https://www.pypa.io/) — package metadata and the `simple` index
+- **[pypistats.org](https://pypistats.org/)** — aggregated download statistics
+- **[OSV.dev](https://osv.dev/)** — open-source vulnerability database
+- **[conda-forge](https://conda-forge.org/)** — community-maintained Conda channel
+- **[hugovk/top-pypi-packages](https://github.com/hugovk/top-pypi-packages)** — Hugo van Kemenade's top-PyPI-packages dataset
+- **[GitHub](https://github.com/)** and **[GitLab](https://gitlab.com/)** — release notes, READMEs, and repository metadata
+- **[Geist](https://vercel.com/font)** — typography
+- Inspiration from **[npmx.dev](https://npmx.dev)**
+
+pypx is not affiliated with the Python Software Foundation, the Python Packaging Authority, or any of the services it consumes.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE)
