@@ -19,10 +19,10 @@ jobs:
     name: API (Go)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: '1.26.x'
           cache-dependency-path: api/go.sum
@@ -37,10 +37,10 @@ jobs:
     name: goopy (Go)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: '1.26.x'
           cache-dependency-path: goopy/go.sum
@@ -56,15 +56,15 @@ jobs:
     name: Web (Nuxt)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install
