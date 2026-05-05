@@ -178,6 +178,74 @@ func (w *Worker) SyncDownloads(ctx context.Context) error {
 	return nil
 }
 
+// SyncTopSummaries fetches PyPI metadata for the top N packages by downloads
+// and backfills summary text into packages_meta. The simple-index sync only
+// captures package names, so without this step the popular endpoint returns
+// empty summaries.
+func (w *Worker) SyncTopSummaries(ctx context.Context, topN int) error {
+	if topN <= 0 {
+		topN = 50
+	}
+	log.Printf("worker: starting summary sync for top %d packages", topN)
+
+	top, err := w.index.TopByDownloads(topN)
+	if err != nil {
+		return fmt.Errorf("worker: read top packages: %w", err)
+	}
+	if len(top) == 0 {
+		log.Printf("worker: no top packages to sync summaries for (downloads not synced yet)")
+		return nil
+	}
+
+	const concurrency = 5
+	sem := make(chan struct{}, concurrency)
+	var mu sync.Mutex
+	updates := make([]search.PackageEntry, 0, len(top))
+	var wg sync.WaitGroup
+
+	for _, entry := range top {
+		entry := entry
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			fetchCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			defer cancel()
+
+			resp, err := w.pypi.FetchPackage(fetchCtx, entry.Name)
+			if err != nil {
+				log.Printf("worker: summary fetch %q: %v", entry.Name, err)
+				return
+			}
+			summary := resp.Info.Summary
+			if summary == "" {
+				return
+			}
+			mu.Lock()
+			updates = append(updates, search.PackageEntry{Name: entry.Name, Summary: summary})
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	if err := w.index.UpdateSummariesBatch(updates); err != nil {
+		return fmt.Errorf("worker: update summaries: %w", err)
+	}
+
+	// Invalidate cached popular responses so the next request re-renders with
+	// the freshly populated summaries instead of waiting out the 6h TTL.
+	for limit := 1; limit <= 50; limit++ {
+		if err := w.cache.Delete(fmt.Sprintf("popular:%d", limit)); err != nil {
+			log.Printf("worker: invalidate popular:%d: %v", limit, err)
+		}
+	}
+
+	log.Printf("worker: summary sync complete, updated %d packages", len(updates))
+	return nil
+}
+
 // Start launches an initial SyncIndex in a goroutine and then re-syncs on
 // every IndexSyncEvery tick. It returns immediately; use the context to stop.
 // Call Wait after cancelling the context to ensure all in-flight DB writes complete.
@@ -192,6 +260,10 @@ func (w *Worker) Start(ctx context.Context) {
 		// Run downloads sync after name sync so the meta rows exist.
 		if err := w.SyncDownloads(ctx); err != nil {
 			log.Printf("worker: initial downloads sync error: %v", err)
+		}
+		// Backfill summaries for top packages so the popular endpoint has them.
+		if err := w.SyncTopSummaries(ctx, 50); err != nil {
+			log.Printf("worker: initial summary sync error: %v", err)
 		}
 	}()
 
@@ -209,6 +281,9 @@ func (w *Worker) Start(ctx context.Context) {
 				}
 				if err := w.SyncDownloads(ctx); err != nil {
 					log.Printf("worker: periodic downloads sync error: %v", err)
+				}
+				if err := w.SyncTopSummaries(ctx, 50); err != nil {
+					log.Printf("worker: periodic summary sync error: %v", err)
 				}
 			}
 		}

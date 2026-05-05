@@ -11,6 +11,7 @@ import (
 type Cacher interface {
 	Get(key string, ttl time.Duration) (data []byte, fresh bool, err error)
 	Set(key string, value []byte, ttl time.Duration) error
+	Delete(key string) error
 	Close() error
 }
 
@@ -111,6 +112,12 @@ func (c *Cache) storedAt(key string) (time.Time, error) {
 	}
 
 	return time.Unix(createdAt, 0), nil
+}
+
+// Delete removes a single cache entry. Missing keys are not an error.
+func (c *Cache) Delete(key string) error {
+	_, err := c.db.Exec(`DELETE FROM cache WHERE key = ?`, key)
+	return err
 }
 
 // Close releases the underlying database connection.

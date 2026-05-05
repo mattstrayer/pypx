@@ -166,12 +166,12 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       <!-- Skeleton loading state -->
       <div
         v-if="status === 'pending'"
-        class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
+        class="overflow-hidden rounded-[14px] border border-subtle bg-surface"
       >
         <div
           v-for="i in POPULAR_LIMIT"
           :key="i"
-          class="h-[90px] animate-pulse rounded-[10px] border border-subtle bg-raised/50"
+          class="h-[52px] animate-pulse border-b border-subtle bg-raised/30 last:border-b-0"
         />
       </div>
 

@@ -8,36 +8,93 @@ const props = defineProps<{
 const maxDownloads = computed(() =>
   props.packages.reduce((max, p) => Math.max(max, p.downloads), 1),
 );
+const minDownloads = computed(() =>
+  props.packages.reduce((min, p) => Math.min(min, p.downloads), maxDownloads.value),
+);
+
+// Log scale so the long tail isn't a sliver next to #1.
+function logRatio(n: number): number {
+  const lo = Math.log(Math.max(1, minDownloads.value * 0.6));
+  const hi = Math.log(maxDownloads.value);
+  if (hi <= lo) return 1;
+  return Math.max(0.08, Math.min(1, (Math.log(n) - lo) / (hi - lo)));
+}
+
+const BAR_CELLS = 14;
+function barFill(n: number): number {
+  return Math.max(1, Math.round(logRatio(n) * BAR_CELLS));
+}
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-    <NuxtLink
-      v-for="pkg in packages"
-      :key="pkg.name"
-      :to="`/packages/${pkg.name}`"
-      class="group flex flex-col gap-1.5 rounded-[10px] border border-subtle bg-surface px-4 py-3.5 transition-colors hover:border-[rgba(74,222,128,0.3)] hover:bg-[rgba(74,222,128,0.03)]"
+  <div class="overflow-hidden rounded-[14px] border border-subtle bg-surface font-mono">
+    <!-- Column header strip -->
+    <div
+      class="grid grid-cols-[2.5rem_1fr_auto_auto] items-center gap-3 border-b border-subtle bg-raised/40 px-4 py-2 text-[10px] uppercase tracking-[0.1em] text-muted"
     >
-      <div class="flex items-center justify-between gap-2">
-        <h3
-          class="text-[13.5px] font-semibold leading-tight tracking-[-0.01em] text-primary transition-colors group-hover:text-[var(--color-brand)]"
+      <span>#</span>
+      <span>Package</span>
+      <span class="hidden text-right sm:block">Share</span>
+      <span class="text-right">Downloads</span>
+    </div>
+
+    <ul class="divide-y divide-subtle">
+      <li v-for="(pkg, i) in packages" :key="pkg.name">
+        <NuxtLink
+          :to="`/packages/${pkg.name}`"
+          class="group grid grid-cols-[2.5rem_1fr_auto_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--color-brand-muted)]"
         >
-          {{ pkg.name }}
-        </h3>
-        <span class="shrink-0 font-mono text-[10.5px] text-muted"
-          >{{ formatDownloads(pkg.downloads) }}/mo</span
-        >
-      </div>
-      <p class="min-h-[34px] text-[11.5px] leading-[1.5] text-muted line-clamp-2">
-        {{ pkg.summary }}
-      </p>
-      <!-- Proportional download bar -->
-      <div class="mt-0.5 h-0.5 overflow-hidden rounded-full bg-raised">
-        <div
-          class="h-full rounded-full bg-gradient-to-r from-[rgba(74,222,128,0.5)] to-[rgba(74,222,128,0.25)]"
-          :style="{ width: `${(pkg.downloads / maxDownloads) * 100}%` }"
-        />
-      </div>
-    </NuxtLink>
+          <!-- Rank -->
+          <span
+            class="self-start text-[11px] tabular-nums text-muted transition-colors group-hover:text-[var(--color-brand)]"
+          >
+            {{ String(i + 1).padStart(2, "0") }}.
+          </span>
+
+          <!-- Name (with trailing dotted leader) + summary on the next line -->
+          <span class="flex min-w-0 flex-col gap-0.5 overflow-hidden">
+            <span class="flex items-baseline gap-3 overflow-hidden">
+              <span
+                class="max-w-[16rem] shrink-0 truncate font-sans text-[13.5px] font-semibold tracking-[-0.01em] text-primary transition-colors group-hover:text-[var(--color-brand)]"
+              >
+                {{ pkg.name }}
+              </span>
+              <span
+                aria-hidden="true"
+                class="mb-[5px] hidden flex-1 self-end border-b border-dotted border-subtle opacity-70 sm:block"
+              />
+            </span>
+            <span class="truncate font-sans text-[11.5px] leading-snug text-muted">
+              {{ pkg.summary || "—" }}
+            </span>
+          </span>
+
+          <!-- ASCII bar -->
+          <span
+            aria-hidden="true"
+            class="hidden text-right text-[11px] leading-none tracking-tighter sm:block"
+          >
+            <span
+              v-for="n in barFill(pkg.downloads)"
+              :key="`f${n}`"
+              class="text-[var(--color-brand)] opacity-80 group-hover:opacity-100"
+              >▌</span
+            ><span
+              v-for="n in BAR_CELLS - barFill(pkg.downloads)"
+              :key="`e${n}`"
+              class="text-muted opacity-25"
+              >▌</span
+            >
+          </span>
+
+          <!-- Count -->
+          <span
+            class="text-right text-[11px] tabular-nums text-muted transition-colors group-hover:text-[var(--color-brand)]"
+          >
+            {{ formatDownloads(pkg.downloads) }}/mo
+          </span>
+        </NuxtLink>
+      </li>
+    </ul>
   </div>
 </template>
