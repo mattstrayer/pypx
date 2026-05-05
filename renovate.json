@@ -15,6 +15,12 @@
   },
   "packageRules": [
     {
+      "description": "Ignore local goopy module (replaced via go.mod replace directive)",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/pypx/goopy"],
+      "enabled": false
+    },
+    {
       "description": "Group Nuxt ecosystem updates",
       "matchManagers": ["npm"],
       "matchPackageNames": [
