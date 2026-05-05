@@ -37,13 +37,13 @@ jobs:
           publish_results: true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4 # Renovate will pin to SHA on first scan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7 # Renovate will pin to SHA on first scan
         with:
           name: scorecard-results
           path: results.sarif
           retention-days: 5
 
       - name: Upload SARIF results to code scanning
-        uses: github/codeql-action/upload-sarif@v3 # Renovate will pin to SHA on first scan
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4 # Renovate will pin to SHA on first scan
         with:
           sarif_file: results.sarif
