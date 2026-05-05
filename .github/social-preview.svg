@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="pypx — The Python Package Index, reimagined.">
+  <title>pypx — The Python Package Index, reimagined.</title>
+  <defs>
+    <style>
+      .mono { font-family: 'Geist Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace; }
+      .sans { font-family: 'Geist', 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'DejaVu Sans', sans-serif; }
+    </style>
+
+    <!-- 32×32 grid pattern, brand-green tinted (mirrors body::before on the site) -->
+    <pattern id="grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#4ade80" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+
+  </defs>
+
+  <!-- Layered background: solid base, grid lines, ambient glow -->
+  <rect width="1280" height="640" fill="#09090b"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <!-- Stacked translucent ellipses fake a Gaussian-blur glow without relying on filters.
+       Sizes follow a 0.83x geometric falloff; opacities ramp linearly from outer to inner. -->
+  <g>
+    <ellipse cx="1280" cy="0" rx="840" ry="605" fill="#4ade80" fill-opacity="0.0030"/>
+    <ellipse cx="1280" cy="0" rx="697" ry="502" fill="#4ade80" fill-opacity="0.0041"/>
+    <ellipse cx="1280" cy="0" rx="579" ry="417" fill="#4ade80" fill-opacity="0.0051"/>
+    <ellipse cx="1280" cy="0" rx="480" ry="346" fill="#4ade80" fill-opacity="0.0062"/>
+    <ellipse cx="1280" cy="0" rx="399" ry="287" fill="#4ade80" fill-opacity="0.0072"/>
+    <ellipse cx="1280" cy="0" rx="331" ry="238" fill="#4ade80" fill-opacity="0.0083"/>
+    <ellipse cx="1280" cy="0" rx="275" ry="198" fill="#4ade80" fill-opacity="0.0094"/>
+    <ellipse cx="1280" cy="0" rx="228" ry="164" fill="#4ade80" fill-opacity="0.0104"/>
+    <ellipse cx="1280" cy="0" rx="189" ry="136" fill="#4ade80" fill-opacity="0.0115"/>
+    <ellipse cx="1280" cy="0" rx="157" ry="113" fill="#4ade80" fill-opacity="0.0125"/>
+    <ellipse cx="1280" cy="0" rx="130" ry="94"  fill="#4ade80" fill-opacity="0.0136"/>
+    <ellipse cx="1280" cy="0" rx="108" ry="78"  fill="#4ade80" fill-opacity="0.0146"/>
+    <ellipse cx="1280" cy="0" rx="90"  ry="65"  fill="#4ade80" fill-opacity="0.0157"/>
+    <ellipse cx="1280" cy="0" rx="75"  ry="54"  fill="#4ade80" fill-opacity="0.0168"/>
+    <ellipse cx="1280" cy="0" rx="62"  ry="45"  fill="#4ade80" fill-opacity="0.0178"/>
+    <ellipse cx="1280" cy="0" rx="51"  ry="37"  fill="#4ade80" fill-opacity="0.0189"/>
+    <ellipse cx="1280" cy="0" rx="43"  ry="31"  fill="#4ade80" fill-opacity="0.0199"/>
+    <ellipse cx="1280" cy="0" rx="35"  ry="25"  fill="#4ade80" fill-opacity="0.0210"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="80" y="220" class="mono" font-size="148" font-weight="900" fill="#fafafa">pypx</text>
+
+  <!-- Tagline -->
+  <text x="80" y="296" class="sans" font-size="34" font-weight="400" fill="#a1a1aa">The Python Package Index, reimagined.</text>
+
+  <!-- Command palette mockup -->
+  <g transform="translate(80, 360)">
+    <rect width="1120" height="88" rx="12" fill="#18181b" stroke="#27272a" stroke-width="1.5"/>
+
+    <text x="32"  y="57" class="mono" font-size="30" font-weight="500" fill="#71717a">$</text>
+    <text x="62"  y="57" class="mono" font-size="30" font-weight="500" fill="#d4d4d8">uv add</text>
+    <text x="180" y="57" class="mono" font-size="30" font-weight="600" fill="#4ade80">httpx</text>
+
+    <g transform="translate(998, 28)">
+      <rect width="92" height="32" rx="6" fill="#27272a"/>
+      <text x="46" y="22" class="mono" font-size="16" font-weight="600" fill="#a1a1aa" text-anchor="middle">Cmd K</text>
+    </g>
+  </g>
+
+  <!-- Feature row -->
+  <text x="80" y="510" class="sans" font-size="22" fill="#71717a">search · dependencies · download trends · security · API docs</text>
+
+  <!-- URL -->
+  <text x="1200" y="560" class="mono" font-size="28" font-weight="600" fill="#a1a1aa" text-anchor="end">pypx.app</text>
+</svg>

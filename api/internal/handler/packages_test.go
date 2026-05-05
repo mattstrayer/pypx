@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -744,9 +745,14 @@ func TestPackageHandler_Get_CacheHitHeaders(t *testing.T) {
 func TestPackageHandler_Get_SingleFlightErrorDedup(t *testing.T) {
 	var upstream atomic.Int32
 
-	// Upstream always returns 404 (package not found).
+	// Upstream always returns 404 (package not found). The small delay widens
+	// the singleflight in-flight window so all concurrent callers below can
+	// enter sf.Do before the first call completes; without it, on fast/slow
+	// CI runners the 404 returns before later goroutines arrive and they each
+	// start a fresh upstream call.
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstream.Add(1)
+		time.Sleep(10 * time.Millisecond)
 		http.NotFound(w, r)
 	}))
 	defer mock.Close()
