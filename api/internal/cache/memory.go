@@ -99,6 +99,14 @@ func (mc *MemoryCache) evictOldest() {
 	}
 }
 
+// Delete removes a key from both the memory layer and the underlying SQLite cache.
+func (mc *MemoryCache) Delete(key string) error {
+	mc.mu.Lock()
+	delete(mc.items, key)
+	mc.mu.Unlock()
+	return mc.sqlite.Delete(key)
+}
+
 // Close closes the underlying SQLite cache.
 func (mc *MemoryCache) Close() error {
 	return mc.sqlite.Close()

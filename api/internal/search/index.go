@@ -300,6 +300,44 @@ func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
 	return tx.Commit()
 }
 
+// UpdateSummariesBatch updates the summary column for existing packages in
+// both the meta and FTS tables. Used by the worker to backfill summaries for
+// the top packages, since the simple-index sync only knows package names.
+func (idx *Index) UpdateSummariesBatch(entries []PackageEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	tx, err := idx.db.Begin()
+	if err != nil {
+		return fmt.Errorf("search: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	metaStmt, err := tx.Prepare(`UPDATE packages_meta SET summary = ? WHERE name = ?`)
+	if err != nil {
+		return fmt.Errorf("search: prepare update summary meta: %w", err)
+	}
+	defer metaStmt.Close()
+
+	ftsStmt, err := tx.Prepare(`UPDATE packages_fts SET summary = ? WHERE name = ?`)
+	if err != nil {
+		return fmt.Errorf("search: prepare update summary fts: %w", err)
+	}
+	defer ftsStmt.Close()
+
+	for _, e := range entries {
+		if _, err := metaStmt.Exec(e.Summary, e.Name); err != nil {
+			return fmt.Errorf("search: update summary meta %q: %w", e.Name, err)
+		}
+		if _, err := ftsStmt.Exec(e.Summary, e.Name); err != nil {
+			return fmt.Errorf("search: update summary fts %q: %w", e.Name, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 // Close releases the underlying database connection.
 func (idx *Index) Close() error {
 	return idx.db.Close()

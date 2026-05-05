@@ -37,6 +37,8 @@ func (m *mockCache) Set(key string, value []byte, ttl time.Duration) error {
 	return nil
 }
 
+func (m *mockCache) Delete(_ string) error { return nil }
+
 func (m *mockCache) Close() error { return nil }
 
 // pypiResponse builds a minimal PyPI JSON response with the given project URL.
