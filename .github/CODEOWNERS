@@ -1,0 +1,29 @@
+# CODEOWNERS for pypx
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Order matters: later patterns take precedence over earlier ones.
+# When future co-maintainers join, add their handles alongside @mattstrayer.
+
+# Default owner — applies to everything not matched below.
+*                       @mattstrayer
+
+# Subsystems.
+/api/                   @mattstrayer
+/web/                   @mattstrayer
+/goopy/                 @mattstrayer
+/docs/                  @mattstrayer
+
+# Critical infra & policy — keep eyes on every change.
+/.github/               @mattstrayer
+/.github/workflows/     @mattstrayer
+/deploy/                @mattstrayer
+/docker-compose*.yml    @mattstrayer
+/Caddyfile              @mattstrayer
+/cliff.toml             @mattstrayer
+/renovate.json          @mattstrayer
+/.pre-commit-config.yaml @mattstrayer
+
+# Security & licensing — never silently changed.
+/LICENSE                @mattstrayer
+/SECURITY.md            @mattstrayer
+/CODE_OF_CONDUCT.md     @mattstrayer

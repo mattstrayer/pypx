@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [master]
+    branches: [main]
   push:
-    branches: [master]
+    branches: [main]
 
 # Cancel in-progress runs for the same PR / branch — wastes CI budget on rapid pushes.
 concurrency:

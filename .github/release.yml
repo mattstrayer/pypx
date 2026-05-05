@@ -1,0 +1,46 @@
+# Configures the body GitHub generates when "Generate release notes" is clicked.
+# The deploy workflow uses git-cliff for the actual release notes — this config
+# applies whenever someone manually generates notes on a release draft.
+# Categories are matched against PR labels; the labeler workflow applies area
+# labels automatically based on changed paths.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - renovate
+      - renovate[bot]
+      - renovate-bot
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking-change
+    - title: New features
+      labels:
+        - enhancement
+        - feature
+    - title: Bug fixes
+      labels:
+        - bug
+    - title: API
+      labels:
+        - "area: api"
+    - title: Web frontend
+      labels:
+        - "area: web"
+    - title: goopy
+      labels:
+        - "area: goopy"
+    - title: Deployment & infra
+      labels:
+        - "area: deploy"
+        - "area: ci"
+    - title: Documentation
+      labels:
+        - "area: docs"
+        - documentation
+    - title: Other changes
+      labels:
+        - "*"

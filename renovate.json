@@ -7,6 +7,12 @@
   ],
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"],
+    "prHourlyLimit": 0,
+    "prConcurrentLimit": 0
+  },
   "packageRules": [
     {
       "description": "Group Nuxt ecosystem updates",

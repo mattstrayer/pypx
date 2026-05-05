@@ -1,0 +1,51 @@
+# Path-based PR labels for actions/labeler v6.
+# Format: https://github.com/actions/labeler#configuration
+
+"area: api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'api/**'
+
+"area: web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'web/**'
+
+"area: goopy":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'goopy/**'
+
+"area: deploy":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'deploy/**'
+          - 'docker-compose*'
+          - 'Caddyfile'
+          - 'api/Dockerfile'
+          - 'web/Dockerfile'
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/labeler.yml'
+          - '.github/release.yml'
+          - '.pre-commit-config.yaml'
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - '!CHANGELOG.md'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'api/go.mod'
+          - 'api/go.sum'
+          - 'goopy/go.mod'
+          - 'goopy/go.sum'
+          - 'web/package.json'
+          - 'web/pnpm-lock.yaml'

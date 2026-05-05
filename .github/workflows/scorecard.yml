@@ -1,0 +1,49 @@
+name: OpenSSF Scorecard
+
+on:
+  branch_protection_rule:
+  schedule:
+    # Weekly on Mondays at 06:30 UTC
+    - cron: '30 6 * * 1'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Needed to upload SARIF results to code scanning.
+      security-events: write
+      # Needed to publish results and get a badge (see publish_results below).
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard analysis
+        uses: ossf/scorecard-action@v2 # Renovate will pin to SHA on first scan
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publish results to OpenSSF API so the README badge works.
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4 # Renovate will pin to SHA on first scan
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload SARIF results to code scanning
+        uses: github/codeql-action/upload-sarif@v3 # Renovate will pin to SHA on first scan
+        with:
+          sarif_file: results.sarif

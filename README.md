@@ -4,10 +4,13 @@
 
 pypx is a fast, modern frontend for PyPI — built for developers who want more than a name and a description. Get instant search, dependency trees, download trends, vulnerability data, inline changelogs, and API docs in one place.
 
+[![CI](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mattstrayer/pypx/badge)](https://scorecard.dev/viewer/?uri=github.com/mattstrayer/pypx)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://golang.org)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt.js&logoColor=white)](https://nuxt.com)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![Discussions](https://img.shields.io/github/discussions/mattstrayer/pypx?logo=github)](https://github.com/mattstrayer/pypx/discussions)
 
 **[pypx.app](https://pypx.app)** — inspired by [npmx.dev](https://npmx.dev)
 

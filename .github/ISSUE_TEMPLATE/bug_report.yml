@@ -1,0 +1,96 @@
+name: Bug report
+description: Report something that isn't working correctly
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! The more detail you can give, the faster we can fix it.
+
+        Before filing, please check the [existing issues](https://github.com/mattstrayer/pypx/issues?q=is%3Aissue) to make sure it hasn't already been reported.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Where does the bug live?
+      options:
+        - Web frontend (Nuxt)
+        - API (Go)
+        - goopy (doc extractor)
+        - Docker / deployment
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: deployment
+    attributes:
+      label: Deployment
+      description: Live pypx.app, self-hosted Docker, or local dev?
+      placeholder: e.g. pypx.app, self-hosted v1.2.3, local dev
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what's going wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a clean state.
+      placeholder: |
+        1. Go to '...'
+        2. Search for '...'
+        3. Click '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages, status codes, or unexpected output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, Docker image tag, etc.
+      placeholder: |
+        - OS: macOS 14
+        - Browser: Chrome 124
+        - Docker image: ghcr.io/mattstrayer/pypx/api:v1.2.3
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Optional. Paste relevant logs or attach screenshots.
+      render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's [Code of Conduct](https://github.com/mattstrayer/pypx/blob/main/CODE_OF_CONDUCT.md).
+          required: true
