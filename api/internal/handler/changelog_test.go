@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -334,6 +335,63 @@ func TestChangelogGet_FallbackOnUpstreamFailure(t *testing.T) {
 	}
 	if rec.Body.String() != string(cachedPayload) {
 		t.Errorf("body = %q, want %q", rec.Body.String(), string(cachedPayload))
+	}
+}
+
+// TestChangelogHandlerGetText verifies GET /api/packages/{name}/changelog.txt
+// returns text/plain with a package: header and at least one ## heading.
+func TestChangelogHandlerGetText(t *testing.T) {
+	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/repo/releases":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[{"tag_name":"v1.0.0","name":"Release 1.0","body":"## Changes\n- Fix foo","published_at":"2024-01-01T00:00:00Z","html_url":"https://github.com/owner/repo/releases/tag/v1.0.0"}]`))
+		case "/repos/owner/repo":
+			w.Write([]byte(`{"stargazers_count":10,"forks_count":2,"open_issues_count":1,"pushed_at":"2024-01-01T00:00:00Z","owner":{"login":"owner","type":"User","avatar_url":""}}`))
+		case "/users/owner":
+			w.Write([]byte(`{"name":"Owner Name"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ghSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(pypiResponse("https://github.com/owner/repo")))
+	}))
+	defer pypiSrv.Close()
+
+	sqliteCache, _ := cache.New(":memory:")
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, c)
+	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
+	glClient := gitlab.NewClient()
+	changelogHandler := handler.NewChangelogHandler(ghClient, glClient, c, pkgHandler)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
+
+	req := httptest.NewRequest("GET", "/api/packages/testpkg/changelog.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain prefix", ct)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "package:") {
+		t.Errorf("body missing 'package:' line; got:\n%s", body)
+	}
+	if !strings.Contains(body, "## ") {
+		t.Errorf("body missing '## ' heading; got:\n%s", body)
 	}
 }
 

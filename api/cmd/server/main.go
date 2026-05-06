@@ -112,6 +112,7 @@ func main() {
 		r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 		r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
 		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+		r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
 		r.Get("/api/packages/{name}/extras", extrasHandler.Get)

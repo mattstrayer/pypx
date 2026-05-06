@@ -15,6 +15,7 @@ import (
 	"github.com/pypx/api/internal/gitlab"
 	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/textfmt"
 )
 
 const changelogTTL = 7 * 24 * time.Hour
@@ -104,6 +105,40 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=604800")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// GetText handles GET /api/packages/{name}/changelog.txt.
+func (h *ChangelogHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if err := pypi.ValidateName(name); err != nil {
+		http.Error(w, "invalid package name", http.StatusBadRequest)
+		return
+	}
+
+	pypiResp, err := h.pkg.FetchPackage(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, pypi.ErrNotFound) {
+			http.Error(w, "package not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to fetch package", http.StatusBadGateway)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	resp := h.buildResponse(ctx, pypiResp.Info.Name, pypiResp.Info.ProjectURLs)
+
+	body := textfmt.FormatChangelog(&textfmt.ChangelogInput{
+		Package: resp.Package,
+		Source:  resp.Source,
+		RepoURL: resp.RepoURL,
+		Entries: resp.Entries,
+	})
+
+	w.Header().Set("Cache-Control", "public, max-age=604800")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
 }
 
 // buildResponse constructs a ChangelogResponse using the parallel registry.
