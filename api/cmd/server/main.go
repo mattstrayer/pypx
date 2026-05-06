@@ -108,6 +108,7 @@ func main() {
 		r.Use(middleware.Timeout(30 * time.Second))
 		r.Get("/api/health", handler.Health)
 		r.Get("/api/packages/{name}", pkgHandler.Get)
+		r.Get("/api/packages/{name}.txt", pkgHandler.GetText)
 		r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 		r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
 		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)

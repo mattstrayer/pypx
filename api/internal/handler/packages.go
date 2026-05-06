@@ -16,6 +16,7 @@ import (
 	"github.com/pypx/api/internal/markdown"
 	"github.com/pypx/api/internal/rst"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/textfmt"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -406,4 +407,47 @@ func looksLikeRST(desc string) bool {
 		strings.Contains(desc, ".. code-block::") ||
 		strings.Contains(desc, ".. note::") ||
 		strings.Contains(desc, ".. warning::")
+}
+
+// GetText handles GET /api/packages/{name}.txt — same data as Get but rendered
+// as agent-friendly plain text via textfmt.
+func (h *PackageHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, err := h.fetchPackage(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, pypi.ErrNotFound) {
+			http.Error(w, "package not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to fetch package", http.StatusBadGateway)
+		return
+	}
+
+	pkg := buildPackageResponse(resp)
+	input := textfmt.PackageInput{
+		Name:             pkg.Name,
+		Version:          pkg.Version,
+		Summary:          pkg.Summary,
+		License:          pkg.License,
+		Author:           pkg.Author,
+		HomePage:         pkg.HomePage,
+		RequiresPython:   pkg.RequiresPython,
+		InstallSize:      pkg.InstallSize,
+		ModuleFormat:     pkg.ModuleFormat,
+		DocURL:           pkg.DocURL,
+		ProjectURLs:      pkg.ProjectURLs,
+		PythonVersions:   pkg.PythonVersions,
+		Dependencies:     pkg.Dependencies,
+		PlatformCoverage: pkg.PlatformCoverage,
+		ReleaseCadence:   pkg.ReleaseCadence,
+		Maintainers:      pkg.Maintainers,
+	}
+
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(textfmt.FormatPackage(&input))) //nolint:errcheck
 }
