@@ -1,0 +1,12 @@
+package: httpx
+source: github_releases
+repo_url: https://github.com/encode/httpx
+
+## 0.27.0 — 2024-04-15
+## Added
+- New `Auth` flow.
+## Fixed
+- Cookie persistence.
+
+## 0.26.0 — 2024-02-20
+First release of the year.
