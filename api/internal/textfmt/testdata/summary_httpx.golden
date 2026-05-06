@@ -1,0 +1,21 @@
+name: httpx
+version: 0.27.0
+summary: The next generation HTTP client.
+license: BSD-3-Clause
+requires_python: >=3.8
+install_size: 768.0 KB
+last_released_at: 2024-04-15T10:00:00Z
+releases_last_12mo: 6
+repo_url: https://github.com/encode/httpx
+doc_url: https://www.python-httpx.org/
+
+## top_dependencies
+anyio
+certifi
+httpcore ==1.*
+idna
+sniffio
+
+## security
+vuln_count: 2
+max_severity: HIGH
