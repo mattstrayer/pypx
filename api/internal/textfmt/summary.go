@@ -60,7 +60,9 @@ func FormatSummary(in *SummaryInput) string {
 		b.WriteString("\n## security\n")
 		fmt.Fprintf(&b, "vuln_count: %d\n", len(in.Security.Vulns))
 		if len(in.Security.Vulns) > 0 {
-			WriteKV(&b, "max_severity", maxSeverity(in.Security.Vulns))
+			if sev := maxSeverity(in.Security.Vulns); sev != "UNKNOWN" {
+				WriteKV(&b, "max_severity", sev)
+			}
 		}
 	}
 
@@ -70,12 +72,34 @@ func FormatSummary(in *SummaryInput) string {
 // maxSeverity returns the highest severity label among the provided vulns.
 // Ranking: CRITICAL > HIGH > MEDIUM > LOW > UNKNOWN. Empty/unrecognized
 // labels are treated as UNKNOWN.
+// If severity starts with "CVSS:", derives a label from impact metrics:
+//   - If C:H or I:H or A:H → "HIGH"
+//   - Else if C:L or I:L or A:L → "MEDIUM"
+//   - Else → "LOW"
 func maxSeverity(vulns []osv.VulnInfo) string {
 	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
 	best := 0
 	bestLabel := "UNKNOWN"
 	for _, v := range vulns {
-		label := strings.ToUpper(v.Severity)
+		var label string
+		if strings.HasPrefix(v.Severity, "CVSS:") {
+			// Derive label from CVSS vector impact metrics.
+			// Check for high impact (C:H, I:H, or A:H as separate metrics).
+			hasHighImpact := strings.Contains(v.Severity, "/C:H") || strings.Contains(v.Severity, "/I:H") || strings.Contains(v.Severity, "/A:H")
+			if hasHighImpact {
+				label = "HIGH"
+			} else {
+				// Check for low impact (C:L, I:L, or A:L as separate metrics).
+				hasLowImpact := strings.Contains(v.Severity, "/C:L") || strings.Contains(v.Severity, "/I:L") || strings.Contains(v.Severity, "/A:L")
+				if hasLowImpact {
+					label = "MEDIUM"
+				} else {
+					label = "LOW"
+				}
+			}
+		} else {
+			label = strings.ToUpper(v.Severity)
+		}
 		r, ok := rank[label]
 		if !ok {
 			continue

@@ -90,3 +90,39 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
+
+func TestMaxSeverityFromCVSS(t *testing.T) {
+	cases := []struct {
+		name    string
+		severity string
+		want    string
+	}{
+		{"plain HIGH", "HIGH", "HIGH"},
+		{"plain critical lower", "critical", "CRITICAL"},
+		{"cvss with C:H", "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", "HIGH"},
+		{"cvss with I:L only", "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N", "MEDIUM"},
+		{"cvss with all N", "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N", "LOW"},
+		{"unknown", "ZZZ", "UNKNOWN"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pkg := &textfmt.PackageInput{Name: "x", Version: "1"}
+			sec := &textfmt.SecurityInput{
+				Package:   "x",
+				CheckedAt: "2026-05-06T12:00:00Z",
+				Vulns:     []osv.VulnInfo{{ID: "x", Severity: tc.severity}},
+			}
+			got := textfmt.FormatSummary(&textfmt.SummaryInput{Package: pkg, Security: sec})
+			if tc.want == "UNKNOWN" {
+				if contains(got, "max_severity:") {
+					t.Errorf("expected no max_severity line for unknown severity, got:\n%s", got)
+				}
+			} else {
+				expectLine := "max_severity: " + tc.want
+				if !contains(got, expectLine) {
+					t.Errorf("expected %q in output, got:\n%s", expectLine, got)
+				}
+			}
+		})
+	}
+}
