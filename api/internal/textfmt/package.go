@@ -116,8 +116,12 @@ func FormatPackage(p *PackageInput) string {
 }
 
 func repoURL(urls map[string]string) string {
-	for _, key := range []string{"Source", "Source Code", "Repository", "Homepage", "GitHub"} {
-		if v, ok := urls[key]; ok && v != "" {
+	lower := make(map[string]string, len(urls))
+	for k, v := range urls {
+		lower[strings.ToLower(k)] = v
+	}
+	for _, key := range []string{"source", "source code", "repository", "homepage", "github"} {
+		if v, ok := lower[key]; ok && v != "" {
 			return v
 		}
 	}
@@ -134,6 +138,9 @@ func platformList(cov enrichment.PlatformCoverage) []string {
 	}
 	if cov.LinuxARM64 {
 		out = append(out, "linux_arm64")
+	}
+	if cov.Musl {
+		out = append(out, "linux_musl")
 	}
 	if cov.MacOSX86 {
 		out = append(out, "macos_x86_64")
