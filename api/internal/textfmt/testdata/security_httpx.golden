@@ -1,0 +1,16 @@
+package: httpx
+checked_at: 2026-05-06T12:00:00Z
+vuln_count: 2
+
+id: GHSA-aaaa-bbbb-cccc
+severity: HIGH
+affected: <0.27.0
+fixed_in: 0.27.0
+summary: Cookie leak via Location header
+url: https://github.com/advisories/GHSA-aaaa-bbbb-cccc
+
+id: PYSEC-2023-1234
+severity: MEDIUM
+affected: <0.26.0
+summary: ReDoS in URL parsing
+url: https://osv.dev/PYSEC-2023-1234
