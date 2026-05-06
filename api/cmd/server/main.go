@@ -69,6 +69,7 @@ func main() {
 
 	osvClient := osv.NewClient()
 	securityHandler := handler.NewSecurityHandler(osvClient, c)
+	summaryHandler := handler.NewSummaryHandler(pkgHandler, osvClient)
 
 	condaClient := conda.NewClient()
 	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, ghClient, pkgHandler, c)
@@ -116,6 +117,7 @@ func main() {
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
 		r.Get("/api/packages/{name}/security.txt", securityHandler.GetText)
+		r.Get("/api/packages/{name}/summary.txt", summaryHandler.Get)
 		r.Get("/api/packages/{name}/extras", extrasHandler.Get)
 		r.Get("/api/packages/{name}/extras.txt", extrasHandler.GetText)
 		r.Get("/api/search", searchHandler.Search)
