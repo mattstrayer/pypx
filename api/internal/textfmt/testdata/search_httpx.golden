@@ -1,0 +1,4 @@
+# name	downloads	summary
+httpx	50000000	The next generation HTTP client.
+httpcore	40000000	A minimal low-level HTTP client.
+httptools	30000000	A collection of framework independent HTTP protocol utils.
