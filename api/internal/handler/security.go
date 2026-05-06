@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/osv"
+	"github.com/pypx/api/internal/textfmt"
 )
 
 const securityTTL = 24 * time.Hour
@@ -87,4 +88,32 @@ func (h *SecurityHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// GetText handles GET /api/packages/{name}/security.txt.
+func (h *SecurityHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+	version := r.URL.Query().Get("version")
+
+	vulns, err := h.osv.FetchVulns(r.Context(), name, version)
+	if err != nil {
+		http.Error(w, "failed to fetch security data", http.StatusBadGateway)
+		return
+	}
+	if vulns == nil {
+		vulns = []osv.VulnInfo{}
+	}
+
+	body := textfmt.FormatSecurity(&textfmt.SecurityInput{
+		Package:   name,
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+		Vulns:     vulns,
+	})
+
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
 }

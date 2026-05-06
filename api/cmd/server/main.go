@@ -115,6 +115,7 @@ func main() {
 		r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
+		r.Get("/api/packages/{name}/security.txt", securityHandler.GetText)
 		r.Get("/api/packages/{name}/extras", extrasHandler.Get)
 		r.Get("/api/search", searchHandler.Search)
 		r.Get("/api/popular", popularHandler.Get)
