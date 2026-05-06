@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/pypx/api/internal/conda"
 	gh "github.com/pypx/api/internal/github"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/textfmt"
 )
 
 const extrasTTL = 24 * time.Hour
@@ -38,23 +40,17 @@ func NewExtrasHandler(pypiClient *pypi.Client, condaClient *conda.Client, ghClie
 	return &ExtrasHandler{pypi: pypiClient, conda: condaClient, github: ghClient, pkg: pkgHandler, cache: c}
 }
 
-// Get handles GET /api/packages/{name}/extras.
-func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	if !validateName(w, name) {
-		return
-	}
-
+// fetchExtras fetches extras data for a package, using the cache when available.
+// Returns the JSON-encoded response and the decoded ExtrasResponse.
+func (h *ExtrasHandler) fetchExtras(ctx context.Context, name string) (*ExtrasResponse, []byte, error) {
 	cacheKey := "extras:" + strings.ToLower(name)
 
 	if data, _, err := h.cache.Get(cacheKey, extrasTTL); err == nil && data != nil {
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data) //nolint:errcheck
-		return
+		var resp ExtrasResponse
+		if jsonErr := json.Unmarshal(data, &resp); jsonErr == nil {
+			return &resp, data, nil
+		}
 	}
-
-	ctx := r.Context()
 
 	// Fetch PyPI package info (cached, fast) to get project URLs for repo detection.
 	var pypiResp *pypi.PyPIResponse
@@ -126,13 +122,70 @@ func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	encoded, err := json.Marshal(resp)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	h.cache.Set("extras:"+strings.ToLower(name), encoded, extrasTTL) //nolint:errcheck
+
+	return &resp, encoded, nil
+}
+
+// Get handles GET /api/packages/{name}/extras.
+func (h *ExtrasHandler) Get(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	_, encoded, err := h.fetchExtras(r.Context(), name)
+	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 
-	h.cache.Set(cacheKey, encoded, extrasTTL) //nolint:errcheck
-
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// GetText handles GET /api/packages/{name}/extras.txt.
+func (h *ExtrasHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, _, err := h.fetchExtras(r.Context(), name)
+	if err != nil {
+		http.Error(w, "failed to fetch extras data", http.StatusInternalServerError)
+		return
+	}
+
+	body := textfmt.FormatExtras(extrasResponseToInput(resp))
+
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// extrasResponseToInput converts an ExtrasResponse to a textfmt.ExtrasInput.
+func extrasResponseToInput(resp *ExtrasResponse) *textfmt.ExtrasInput {
+	in := &textfmt.ExtrasInput{
+		Package:    resp.Package,
+		TypeStatus: resp.TypeSupport.Status,
+	}
+	if resp.TypeSupport.Status == "stubs" {
+		in.StubPackage = resp.TypeSupport.StubsPackage
+	}
+	if resp.CondaForge != nil && resp.CondaForge.Available {
+		in.CondaAvailable = true
+		in.CondaLatest = resp.CondaForge.Version
+	}
+	if resp.RepoInfo != nil {
+		in.HasRepo = true
+		in.RepoStars = resp.RepoInfo.Stars
+		in.RepoForks = resp.RepoInfo.Forks
+		in.RepoOpenIssues = resp.RepoInfo.OpenIssues
+	}
+	return in
 }
