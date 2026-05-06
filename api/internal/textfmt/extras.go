@@ -17,8 +17,6 @@ type ExtrasInput struct {
 	RepoStars      int
 	RepoForks      int
 	RepoOpenIssues int
-	RepoLicense    string
-	RepoHomepage   string
 }
 
 // FormatExtras renders extras data as agent-friendly plain text.
@@ -44,8 +42,6 @@ func FormatExtras(in *ExtrasInput) string {
 		fmt.Fprintf(&b, "stars: %d\n", in.RepoStars)
 		fmt.Fprintf(&b, "forks: %d\n", in.RepoForks)
 		fmt.Fprintf(&b, "open_issues: %d\n", in.RepoOpenIssues)
-		WriteKV(&b, "license", in.RepoLicense)
-		WriteKV(&b, "homepage", in.RepoHomepage)
 	}
 
 	return b.String()

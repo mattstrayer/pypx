@@ -18,8 +18,6 @@ func fixtureExtras() *textfmt.ExtrasInput {
 		RepoStars:      13500,
 		RepoForks:      850,
 		RepoOpenIssues: 65,
-		RepoLicense:    "BSD-3-Clause",
-		RepoHomepage:   "https://www.python-httpx.org/",
 	}
 }
 
