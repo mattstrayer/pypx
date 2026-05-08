@@ -236,3 +236,52 @@ func TestDocsHandlerGetSymbol(t *testing.T) {
 		t.Errorf("missing symbol status = %d, want 404", w2.Code)
 	}
 }
+
+func TestDocsHandlerGetSymbols(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"info":{"name":"httpx","version":"0.27.0"},"urls":[],"releases":{}}`)
+	}))
+	defer pypiSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+
+	docsJSON := []byte(`{"package":"httpx","version":"0.27.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"get","kind":"function","signature":"def get(url) -> Response"}],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"get","kind":"method","signature":"def get(self) -> Response"}]}],"exceptions":[]}]}`)
+	if err := memCache.Set("docs:httpx:0.27.0", docsJSON, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	h := handler.NewDocsHandler(pypiClient, memCache)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/symbols.txt", h.GetSymbols)
+
+	req := httptest.NewRequest("GET", "/api/packages/httpx/symbols.txt?q=client", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "# path\tkind\tsignature\n") {
+		t.Errorf("expected TSV header, got:\n%s", body)
+	}
+	if !strings.Contains(body, "httpx.Client\tclass") {
+		t.Errorf("expected Client class line, got:\n%s", body)
+	}
+	if !strings.Contains(body, "httpx.Client.get\tmethod") {
+		t.Errorf("expected Client.get method line, got:\n%s", body)
+	}
+	if strings.Contains(body, "httpx.get\t") {
+		t.Errorf("httpx.get should not match q=client, got:\n%s", body)
+	}
+}

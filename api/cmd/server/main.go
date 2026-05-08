@@ -133,6 +133,7 @@ func main() {
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs.txt", docsHandler.GetText)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs/{symbol}", docsHandler.GetSymbol)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/symbols.txt", docsHandler.GetSymbols)
 
 	srv := &http.Server{
 		Addr:           ":" + port,

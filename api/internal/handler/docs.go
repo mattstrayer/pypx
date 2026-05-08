@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -611,6 +612,46 @@ func (h *DocsHandler) GetSymbol(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) writeSymbolText(w http.ResponseWriter, body string) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// GetSymbols handles GET /api/packages/{name}/symbols.txt[?q=&kind=&limit=].
+func (h *DocsHandler) GetSymbols(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	q := r.URL.Query().Get("q")
+	kind := r.URL.Query().Get("kind")
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, perr := strconv.Atoi(raw); perr == nil {
+			limit = n
+		}
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+
+	body := textfmt.FormatSymbols(docsInputFrom(resp), q, kind, limit)
+
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(body)) //nolint:errcheck
