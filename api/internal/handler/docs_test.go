@@ -187,3 +187,52 @@ func TestDocsHandlerGetText(t *testing.T) {
 		t.Errorf("prefix output should not include httpx.get top-level function: %s", body2)
 	}
 }
+
+func TestDocsHandlerGetSymbol(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"info":{"name":"httpx","version":"0.27.0"},"urls":[],"releases":{}}`)
+	}))
+	defer pypiSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+
+	docsJSON := []byte(`{"package":"httpx","version":"0.27.0","available":true,"modules":[{"name":"httpx","functions":[],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"get","kind":"method","signature":"def get(self) -> Response","docstring":"Send GET."}]}],"exceptions":[]}]}`)
+	if err := memCache.Set("docs:httpx:0.27.0", docsJSON, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	h := handler.NewDocsHandler(pypiClient, memCache)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/docs/{symbol}", h.GetSymbol)
+
+	// Existing dotted symbol
+	req := httptest.NewRequest("GET", "/api/packages/httpx/docs/Client.get.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "### httpx.Client.get") {
+		t.Errorf("expected symbol heading, got:\n%s", body)
+	}
+	if !strings.Contains(body, "Send GET.") {
+		t.Errorf("expected docstring, got:\n%s", body)
+	}
+
+	// Missing symbol → 404
+	req2 := httptest.NewRequest("GET", "/api/packages/httpx/docs/does.not.exist.txt", nil)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	if w2.Code != 404 {
+		t.Errorf("missing symbol status = %d, want 404", w2.Code)
+	}
+}

@@ -558,3 +558,61 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 	return out
 }
 
+// GetSymbol handles GET /api/packages/{name}/docs/{symbol}.txt.
+//
+// The {symbol} param captures the dotted path including the .txt extension
+// (e.g. "Client.get.txt"). The handler strips the extension, then tries
+// each module name as a candidate prefix to form the full dotted path
+// understood by textfmt.FormatSymbol. If the symbol path is already module-
+// qualified (e.g. "httpx.Client"), that's tried as-is too.
+func (h *DocsHandler) GetSymbol(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+	symbolPath := chi.URLParam(r, "symbol")
+	if symbolPath == "" {
+		http.Error(w, "symbol required", http.StatusBadRequest)
+		return
+	}
+
+	// Strip .txt extension from the captured symbol.
+	symbolPath = strings.TrimSuffix(symbolPath, ".txt")
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	input := docsInputFrom(resp)
+
+	// Try each module name as a candidate prefix.
+	for _, mod := range input.Modules {
+		full := mod.Name + "." + symbolPath
+		if out, ok := textfmt.FormatSymbol(input, full); ok {
+			h.writeSymbolText(w, out)
+			return
+		}
+	}
+
+	// Fall back: maybe the path is already module-qualified.
+	if out, ok := textfmt.FormatSymbol(input, symbolPath); ok {
+		h.writeSymbolText(w, out)
+		return
+	}
+
+	http.Error(w, "symbol not found", http.StatusNotFound)
+}
+
+func (h *DocsHandler) writeSymbolText(w http.ResponseWriter, body string) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
