@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -86,66 +88,86 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve latest version.
-	pkg, err := h.pypi.FetchPackage(r.Context(), name)
+	_, encoded, err := h.fetchDocs(r.Context(), name)
 	if err != nil {
-		http.Error(w, "package not found", http.StatusNotFound)
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(encoded) //nolint:errcheck
+}
+
+// Sentinel errors for the docs path. Callers map these to HTTP statuses.
+var (
+	ErrDocsPackageNotFound  = errors.New("docs: package not found")
+	ErrDocsExtractionFailed = errors.New("docs: extraction failed")
+)
+
+// fetchDocs returns the cached or freshly-extracted DocsResponse for a package
+// alongside its JSON-encoded bytes. Both Get and the *.txt handlers call this
+// helper so they share the same indefinite cache. On cache hit the encoded
+// bytes are the original cached value (not re-marshalled).
+//
+// Returns:
+//   - resp: the parsed DocsResponse on success.
+//   - encoded: the JSON bytes (suitable for direct write by JSON callers).
+//   - err: ErrDocsPackageNotFound, ErrDocsExtractionFailed, or a marshal error.
+func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
+	pkg, err := h.pypi.FetchPackage(ctx, name)
+	if err != nil {
+		return DocsResponse{}, nil, ErrDocsPackageNotFound
 	}
 	version := pkg.Info.Version
 
 	cacheKey := "docs:" + strings.ToLower(name) + ":" + version
 	errKey := "docs-err:" + strings.ToLower(name) + ":" + version
 
-	// TTL=0 means indefinite (source is immutable per version).
-	if data, _, err := h.cache.Get(cacheKey, 0); err == nil && data != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data) //nolint:errcheck
-		return
+	// Cache hit (indefinite TTL).
+	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
+		var resp DocsResponse
+		if uerr := json.Unmarshal(data, &resp); uerr == nil {
+			return resp, data, nil
+		}
+		// Corrupt cache entry; fall through to live extraction.
 	}
 
-	// Short-circuit if extraction recently failed (5-min negative cache).
-	if data, fresh, err := h.cache.Get(errKey, 300); err == nil && data != nil && fresh {
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+	// Recent extraction failure — return sentinel.
+	if data, fresh, cerr := h.cache.Get(errKey, 300); cerr == nil && data != nil && fresh {
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	// Extract docs using goopy (in-process, no sidecar).
-	result, err := goopy.ExtractFromPyPI(r.Context(), name, version)
-	if err != nil {
-		h.cache.Set(errKey, []byte(err.Error()), 300) //nolint:errcheck
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+	// Live extraction.
+	result, gerr := goopy.ExtractFromPyPI(ctx, name, version)
+	if gerr != nil {
+		h.cache.Set(errKey, []byte(gerr.Error()), 300) //nolint:errcheck
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
-
-	// If the context was cancelled mid-extraction, goopy returns 0 modules
-	// without an error. Treat this as a transient failure so future requests retry.
-	if r.Context().Err() != nil {
+	if ctx.Err() != nil {
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), 300) //nolint:errcheck
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	stubs, stubPkgName := resolveStubs(r.Context(), h.pypi, strings.ToLower(name), version)
+	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
 	docsResp := convertToDocsResponse(name, version, result, stubs)
 	docsResp.StubPackage = stubPkgName
 
-	encoded, err := json.Marshal(docsResp)
-	if err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
+	encoded, merr := json.Marshal(docsResp)
+	if merr != nil {
+		return DocsResponse{}, nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
-	// Only cache indefinitely if we got actual content. An empty result may mean
-	// a genuine binary-only package (24h retry) vs. a successfully parsed package.
 	ttl := time.Duration(0)
 	if !docsResp.Available {
-		ttl = 24 * time.Hour // retry after 24h for packages with no extractable docs
+		ttl = 24 * time.Hour
 	}
 	h.cache.Set(cacheKey, encoded, ttl) //nolint:errcheck
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(encoded) //nolint:errcheck
+	return docsResp, encoded, nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.
