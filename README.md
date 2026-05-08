@@ -100,6 +100,18 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 | `GET /api/search?q=...&limit=20` | 5 minutes | FTS5 full-text package search |
 | `GET /api/popular` | 1 hour | Top packages by 30-day downloads |
 
+### Agentic plain-text endpoints
+
+| Endpoint | Cache TTL | Content-Type | Description |
+|---|---|---|---|
+| `GET /llms.txt` | 1 hour | `text/plain; charset=utf-8` | Discovery index of available `.txt` routes |
+| `GET /api/packages/{name}.txt` | 1 hour | `text/plain; charset=utf-8` | Package metadata (key:value pairs + dependencies) |
+| `GET /api/packages/{name}/changelog.txt` | 7 days | `text/plain; charset=utf-8` | Markdown changelog (one section per version) |
+| `GET /api/packages/{name}/security.txt` | 24 hours | `text/plain; charset=utf-8` | Vulnerability list (supports `?version=`) |
+| `GET /api/packages/{name}/extras.txt` | 24 hours | `text/plain; charset=utf-8` | Type support, conda-forge availability, repo info |
+| `GET /api/packages/{name}/summary.txt` | 1 hour | `text/plain; charset=utf-8` | Agent briefing (≤2KB) |
+| `GET /api/search.txt?q=...&limit=` | 5 minutes | `text/plain; charset=utf-8` | TSV search results (name, downloads, summary) |
+
 ---
 
 ## Development

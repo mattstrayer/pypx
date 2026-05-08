@@ -34,6 +34,7 @@ api/                    Go API service
     changelog/          Parallel source registry + parser + renderer
     search/             FTS5 index (index.go)
     worker/             Background sync worker (background.go)
+    textfmt/            Plain-text formatters for agent .txt endpoints (one file per resource)
 
 web/                    Nuxt 4 frontend
   app/
@@ -60,6 +61,8 @@ docker-compose.yml      Full stack definition
 | `api/internal/cache/memory.go` | LRU memory layer wrapping SQLite cache |
 | `api/internal/handler/packages.go` | Core package endpoint — enrichment orchestration |
 | `api/internal/handler/changelog.go` | Changelog endpoint — delegates to registry |
+| `api/internal/handler/llms.go` | Discovery endpoint for plain-text routes |
+| `api/internal/textfmt/` | Pure formatter functions emitting plain text for /api/.../*.txt routes |
 | `api/internal/changelog/registry.go` | Parallel source fetch with priority selection |
 | `api/internal/search/index.go` | FTS5 index: Search(), TopByDownloads(), UpsertBatch() |
 | `api/internal/worker/background.go` | Index sync: SyncIndex() + SyncDownloads(), runs every 6h |

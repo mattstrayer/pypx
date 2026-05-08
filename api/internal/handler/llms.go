@@ -19,7 +19,7 @@ const llmsBody = `# pypx — A modern PyPI frontend (agent-friendly endpoints)
 
 - /api/packages/{name}.txt — Package metadata (key:value plus dependency list).
 - /api/packages/{name}/changelog.txt — Markdown changelog (one ## heading per version).
-- /api/packages/{name}/security.txt — Vulnerabilities; vuln_count: 0 if clean.
+- /api/packages/{name}/security.txt — Vulnerabilities; supports ?version= ; vuln_count: 0 if clean.
 - /api/packages/{name}/extras.txt — Type support, conda-forge availability, repo info.
 - /api/packages/{name}/summary.txt — One-screen agent briefing (≤2KB).
 - /api/search.txt?q= — TSV search results: name<TAB>downloads<TAB>summary.

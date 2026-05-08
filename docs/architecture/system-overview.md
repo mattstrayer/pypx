@@ -36,6 +36,7 @@ The data layer. It:
 - Caches all results in a two-tier store (memory LRU + SQLite)
 - Maintains a full-text search index of 780K+ PyPI packages via a background worker
 - Serves JSON to both the Nuxt SSR server and the browser
+- Serves plain-text variants for agentic consumers (`/llms.txt`, `*.txt` routes)
 
 ### Nuxt SSR (`:3000`)
 The presentation layer. It:

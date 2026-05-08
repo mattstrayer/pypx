@@ -24,6 +24,14 @@ graph TD
     Router --> Docs["GET /api/packages/{name}/docs\n(60s timeout)"]
     Router --> Search["GET /api/search?q=...&limit=20"]
     Router --> Popular["GET /api/popular"]
+    
+    Router --> LLMS["GET /llms.txt"]
+    Router --> PkgTxt["GET /api/packages/{name}.txt"]
+    Router --> ChangelogTxt["GET /api/packages/{name}/changelog.txt"]
+    Router --> SecurityTxt["GET /api/packages/{name}/security.txt"]
+    Router --> ExtrasTxt["GET /api/packages/{name}/extras.txt"]
+    Router --> SummaryTxt["GET /api/packages/{name}/summary.txt"]
+    Router --> SearchTxt["GET /api/search.txt?q=...&limit="]
 ```
 
 ## Endpoints
@@ -41,6 +49,13 @@ graph TD
 | `GET /api/packages/{name}/docs` | `DocsHandler.Get` | Indefinite | goopy API docs per version |
 | `GET /api/search` | `SearchHandler.Search` | HTTP header 5m | FTS5 search results |
 | `GET /api/popular` | `PopularHandler.Get` | 1 hour | Top packages by downloads |
+| `GET /llms.txt` | `LLMSHandler.ServeHTTP` | 1 hour | Plain-text discovery index |
+| `GET /api/packages/{name}.txt` | `PackageHandler.GetText` | 1 hour | Plain-text package metadata |
+| `GET /api/packages/{name}/changelog.txt` | `ChangelogHandler.GetText` | 7 days | Plain-text markdown changelog |
+| `GET /api/packages/{name}/security.txt` | `SecurityHandler.GetText` | 24 hours | Plain-text vulnerability list |
+| `GET /api/packages/{name}/extras.txt` | `ExtrasHandler.GetText` | 24 hours | Plain-text extras (type, conda, repo) |
+| `GET /api/packages/{name}/summary.txt` | `PackageHandler.GetSummary` | 1 hour | Plain-text agent briefing |
+| `GET /api/search.txt` | `SearchHandler.SearchText` | HTTP header 5m | TSV search results |
 
 ## Enrichment Pipeline
 
