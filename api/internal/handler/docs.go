@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
 )
@@ -480,5 +481,80 @@ func isException(cls *model.Class) bool {
 		}
 	}
 	return false
+}
+
+// GetText handles GET /api/packages/{name}/docs.txt[?prefix=].
+func (h *DocsHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	prefix := r.URL.Query().Get("prefix")
+	body := textfmt.FormatDocs(docsInputFrom(resp), prefix)
+
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// docsInputFrom converts the JSON-shaped DocsResponse into the textfmt input
+// shape. Defined here so textfmt does not need to import the handler package.
+func docsInputFrom(d DocsResponse) *textfmt.DocsInput {
+	out := &textfmt.DocsInput{
+		Package:     d.Package,
+		Version:     d.Version,
+		Available:   d.Available,
+		StubPackage: d.StubPackage,
+	}
+	for _, m := range d.Modules {
+		mod := textfmt.DocModuleInput{Name: m.Name}
+		for _, fn := range m.Functions {
+			mod.Functions = append(mod.Functions, docSymbolFrom(fn))
+		}
+		for _, cls := range m.Classes {
+			mod.Classes = append(mod.Classes, docSymbolFrom(cls))
+		}
+		for _, exc := range m.Exceptions {
+			mod.Exceptions = append(mod.Exceptions, docSymbolFrom(exc))
+		}
+		out.Modules = append(out.Modules, mod)
+	}
+	return out
+}
+
+func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
+	out := textfmt.DocSymbolInput{
+		Name:      s.Name,
+		Kind:      s.Kind,
+		Signature: s.Signature,
+		Docstring: s.Docstring,
+	}
+	for _, p := range s.Parameters {
+		out.Parameters = append(out.Parameters, textfmt.DocParamInput{
+			Name: p.Name, Type: p.Type, Description: p.Description, Kind: p.Kind, Default: p.Default,
+		})
+	}
+	if s.Returns != nil {
+		out.Returns = &textfmt.DocReturnInput{Type: s.Returns.Type, Description: s.Returns.Description}
+	}
+	for _, r := range s.Raises {
+		out.Raises = append(out.Raises, textfmt.DocRaiseInput{Type: r.Type, Description: r.Description})
+	}
+	for _, m := range s.Methods {
+		out.Methods = append(out.Methods, docSymbolFrom(m))
+	}
+	return out
 }
 
