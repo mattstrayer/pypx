@@ -46,6 +46,51 @@ func NewChangelogHandler(ghClient *gh.Client, glClient *gitlab.Client, c cache.C
 	}
 }
 
+// fetchChangelog returns changelog data for a package, using the cache when available.
+// Returns the decoded ChangelogResponse, the raw JSON bytes, whether the data was
+// fresh (vs stale), and any error. On upstream failure, falls back to stale cache.
+func (h *ChangelogHandler) fetchChangelog(ctx context.Context, name string) (ChangelogResponse, []byte, bool, error) {
+	cacheKey := "changelog:" + strings.ToLower(name)
+
+	// Serve from cache if available (fresh or stale).
+	if data, fresh, err := h.cache.Get(cacheKey, changelogTTL); err == nil && data != nil {
+		var resp ChangelogResponse
+		if jsonErr := json.Unmarshal(data, &resp); jsonErr == nil {
+			return resp, data, fresh, nil
+		}
+	}
+
+	// Fetch PyPI package info to get project URLs.
+	pypiResp, err := h.pkg.FetchPackage(ctx, name)
+	if err != nil {
+		if errors.Is(err, pypi.ErrNotFound) {
+			return ChangelogResponse{}, nil, false, pypi.ErrNotFound
+		}
+		// Last resort: try serving any cached data regardless of TTL.
+		if data, _, cacheErr := h.cache.Get(cacheKey, 0); cacheErr == nil && data != nil {
+			var resp ChangelogResponse
+			if jsonErr := json.Unmarshal(data, &resp); jsonErr == nil {
+				return resp, data, false, nil
+			}
+		}
+		return ChangelogResponse{}, nil, false, err
+	}
+
+	fetchCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	resp := h.buildResponse(fetchCtx, pypiResp.Info.Name, pypiResp.Info.ProjectURLs)
+
+	encoded, err := json.Marshal(resp)
+	if err != nil {
+		return ChangelogResponse{}, nil, false, err
+	}
+
+	h.cache.Set(cacheKey, encoded, changelogTTL) //nolint:errcheck
+
+	return resp, encoded, true, nil
+}
+
 // Get handles GET /api/packages/{name}/changelog.
 func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
@@ -54,56 +99,22 @@ func (h *ChangelogHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cacheKey := "changelog:" + strings.ToLower(name)
-
-	// Serve from cache if fresh.
-	if data, fresh, err := h.cache.Get(cacheKey, changelogTTL); err == nil && data != nil {
-		if fresh {
-			w.Header().Set("Cache-Control", "public, max-age=604800")
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(data) //nolint:errcheck
-			return
-		}
-		// Stale data exists — serve it immediately with a short max-age.
-		w.Header().Set("Cache-Control", "public, max-age=60")
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data) //nolint:errcheck
-		return
-	}
-
-	// Fetch PyPI package info to get project URLs.
-	pypiResp, err := h.pkg.FetchPackage(r.Context(), name)
+	_, encoded, fresh, err := h.fetchChangelog(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
-			return
-		}
-		// Last resort: try serving any cached data regardless of TTL.
-		if data, _, cacheErr := h.cache.Get(cacheKey, 0); cacheErr == nil && data != nil {
-			w.Header().Set("Cache-Control", "public, max-age=60")
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(data) //nolint:errcheck
 			return
 		}
 		http.Error(w, "failed to fetch package", http.StatusBadGateway)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
-
-	resp := h.buildResponse(ctx, pypiResp.Info.Name, pypiResp.Info.ProjectURLs)
-
-	encoded, err := json.Marshal(resp)
-	if err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
-
-	h.cache.Set(cacheKey, encoded, changelogTTL) //nolint:errcheck
-
-	w.Header().Set("Cache-Control", "public, max-age=604800")
 	w.Header().Set("Content-Type", "application/json")
+	if fresh {
+		w.Header().Set("Cache-Control", "public, max-age=604800")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=60")
+	}
 	w.Write(encoded) //nolint:errcheck
 }
 
@@ -115,7 +126,7 @@ func (h *ChangelogHandler) GetText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pypiResp, err := h.pkg.FetchPackage(r.Context(), name)
+	resp, _, _, err := h.fetchChangelog(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, pypi.ErrNotFound) {
 			http.Error(w, "package not found", http.StatusNotFound)
@@ -124,10 +135,6 @@ func (h *ChangelogHandler) GetText(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to fetch package", http.StatusBadGateway)
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
-	resp := h.buildResponse(ctx, pypiResp.Info.Name, pypiResp.Info.ProjectURLs)
 
 	body := textfmt.FormatChangelog(&textfmt.ChangelogInput{
 		Package: resp.Package,
