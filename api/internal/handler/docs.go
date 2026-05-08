@@ -3,14 +3,18 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
 )
@@ -86,66 +90,86 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve latest version.
-	pkg, err := h.pypi.FetchPackage(r.Context(), name)
+	_, encoded, err := h.fetchDocs(r.Context(), name)
 	if err != nil {
-		http.Error(w, "package not found", http.StatusNotFound)
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(encoded) //nolint:errcheck
+}
+
+// Sentinel errors for the docs path. Callers map these to HTTP statuses.
+var (
+	ErrDocsPackageNotFound  = errors.New("docs: package not found")
+	ErrDocsExtractionFailed = errors.New("docs: extraction failed")
+)
+
+// fetchDocs returns the cached or freshly-extracted DocsResponse for a package
+// alongside its JSON-encoded bytes. Both Get and the *.txt handlers call this
+// helper so they share the same indefinite cache. On cache hit the encoded
+// bytes are the original cached value (not re-marshalled).
+//
+// Returns:
+//   - resp: the parsed DocsResponse on success.
+//   - encoded: the JSON bytes (suitable for direct write by JSON callers).
+//   - err: ErrDocsPackageNotFound, ErrDocsExtractionFailed, or a marshal error.
+func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
+	pkg, err := h.pypi.FetchPackage(ctx, name)
+	if err != nil {
+		return DocsResponse{}, nil, ErrDocsPackageNotFound
 	}
 	version := pkg.Info.Version
 
 	cacheKey := "docs:" + strings.ToLower(name) + ":" + version
 	errKey := "docs-err:" + strings.ToLower(name) + ":" + version
 
-	// TTL=0 means indefinite (source is immutable per version).
-	if data, _, err := h.cache.Get(cacheKey, 0); err == nil && data != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data) //nolint:errcheck
-		return
+	// Cache hit (indefinite TTL).
+	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
+		var resp DocsResponse
+		if uerr := json.Unmarshal(data, &resp); uerr == nil {
+			return resp, data, nil
+		}
+		// Corrupt cache entry; fall through to live extraction.
 	}
 
-	// Short-circuit if extraction recently failed (5-min negative cache).
-	if data, fresh, err := h.cache.Get(errKey, 300); err == nil && data != nil && fresh {
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+	// Recent extraction failure — return sentinel.
+	if data, fresh, cerr := h.cache.Get(errKey, 300); cerr == nil && data != nil && fresh {
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	// Extract docs using goopy (in-process, no sidecar).
-	result, err := goopy.ExtractFromPyPI(r.Context(), name, version)
-	if err != nil {
-		h.cache.Set(errKey, []byte(err.Error()), 300) //nolint:errcheck
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+	// Live extraction.
+	result, gerr := goopy.ExtractFromPyPI(ctx, name, version)
+	if gerr != nil {
+		h.cache.Set(errKey, []byte(gerr.Error()), 300) //nolint:errcheck
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
-
-	// If the context was cancelled mid-extraction, goopy returns 0 modules
-	// without an error. Treat this as a transient failure so future requests retry.
-	if r.Context().Err() != nil {
+	if ctx.Err() != nil {
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), 300) //nolint:errcheck
-		http.Error(w, "documentation extraction failed", http.StatusBadGateway)
-		return
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	stubs, stubPkgName := resolveStubs(r.Context(), h.pypi, strings.ToLower(name), version)
+	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
 	docsResp := convertToDocsResponse(name, version, result, stubs)
 	docsResp.StubPackage = stubPkgName
 
-	encoded, err := json.Marshal(docsResp)
-	if err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
+	encoded, merr := json.Marshal(docsResp)
+	if merr != nil {
+		return DocsResponse{}, nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
-	// Only cache indefinitely if we got actual content. An empty result may mean
-	// a genuine binary-only package (24h retry) vs. a successfully parsed package.
 	ttl := time.Duration(0)
 	if !docsResp.Available {
-		ttl = 24 * time.Hour // retry after 24h for packages with no extractable docs
+		ttl = 24 * time.Hour
 	}
 	h.cache.Set(cacheKey, encoded, ttl) //nolint:errcheck
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(encoded) //nolint:errcheck
+	return docsResp, encoded, nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.
@@ -458,5 +482,178 @@ func isException(cls *model.Class) bool {
 		}
 	}
 	return false
+}
+
+// GetText handles GET /api/packages/{name}/docs.txt[?prefix=].
+func (h *DocsHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	prefix := r.URL.Query().Get("prefix")
+	body := textfmt.FormatDocs(docsInputFrom(resp), prefix)
+
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// docsInputFrom converts the JSON-shaped DocsResponse into the textfmt input
+// shape. Defined here so textfmt does not need to import the handler package.
+func docsInputFrom(d DocsResponse) *textfmt.DocsInput {
+	out := &textfmt.DocsInput{
+		Package:     d.Package,
+		Version:     d.Version,
+		Available:   d.Available,
+		StubPackage: d.StubPackage,
+	}
+	for _, m := range d.Modules {
+		mod := textfmt.DocModuleInput{Name: m.Name}
+		for _, fn := range m.Functions {
+			mod.Functions = append(mod.Functions, docSymbolFrom(fn))
+		}
+		for _, cls := range m.Classes {
+			mod.Classes = append(mod.Classes, docSymbolFrom(cls))
+		}
+		for _, exc := range m.Exceptions {
+			mod.Exceptions = append(mod.Exceptions, docSymbolFrom(exc))
+		}
+		out.Modules = append(out.Modules, mod)
+	}
+	return out
+}
+
+func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
+	out := textfmt.DocSymbolInput{
+		Name:      s.Name,
+		Kind:      s.Kind,
+		Signature: s.Signature,
+		Docstring: s.Docstring,
+	}
+	for _, p := range s.Parameters {
+		out.Parameters = append(out.Parameters, textfmt.DocParamInput{
+			Name: p.Name, Type: p.Type, Description: p.Description, Kind: p.Kind, Default: p.Default,
+		})
+	}
+	if s.Returns != nil {
+		out.Returns = &textfmt.DocReturnInput{Type: s.Returns.Type, Description: s.Returns.Description}
+	}
+	for _, r := range s.Raises {
+		out.Raises = append(out.Raises, textfmt.DocRaiseInput{Type: r.Type, Description: r.Description})
+	}
+	for _, m := range s.Methods {
+		out.Methods = append(out.Methods, docSymbolFrom(m))
+	}
+	return out
+}
+
+// GetSymbol handles GET /api/packages/{name}/docs/{symbol}.txt.
+//
+// The {symbol} param captures the dotted path including the .txt extension
+// (e.g. "Client.get.txt"). The handler strips the extension, then tries
+// each module name as a candidate prefix to form the full dotted path
+// understood by textfmt.FormatSymbol. If the symbol path is already module-
+// qualified (e.g. "httpx.Client"), that's tried as-is too.
+func (h *DocsHandler) GetSymbol(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+	symbolPath := chi.URLParam(r, "symbol")
+	if symbolPath == "" {
+		http.Error(w, "symbol required", http.StatusBadRequest)
+		return
+	}
+
+	// Strip .txt extension from the captured symbol.
+	symbolPath = strings.TrimSuffix(symbolPath, ".txt")
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	input := docsInputFrom(resp)
+
+	// Try each module name as a candidate prefix.
+	for _, mod := range input.Modules {
+		full := mod.Name + "." + symbolPath
+		if out, ok := textfmt.FormatSymbol(input, full); ok {
+			h.writeSymbolText(w, out)
+			return
+		}
+	}
+
+	// Fall back: maybe the path is already module-qualified.
+	if out, ok := textfmt.FormatSymbol(input, symbolPath); ok {
+		h.writeSymbolText(w, out)
+		return
+	}
+
+	http.Error(w, "symbol not found", http.StatusNotFound)
+}
+
+func (h *DocsHandler) writeSymbolText(w http.ResponseWriter, body string) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// GetSymbols handles GET /api/packages/{name}/symbols.txt[?q=&kind=&limit=].
+func (h *DocsHandler) GetSymbols(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	resp, _, err := h.fetchDocs(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	q := r.URL.Query().Get("q")
+	kind := r.URL.Query().Get("kind")
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, perr := strconv.Atoi(raw); perr == nil {
+			limit = n
+		}
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+
+	body := textfmt.FormatSymbols(docsInputFrom(resp), q, kind, limit)
+
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
 }
 

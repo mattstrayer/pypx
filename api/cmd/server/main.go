@@ -131,6 +131,9 @@ func main() {
 
 	// Docs route needs extended timeout: goopy downloads + parses a wheel (typically <2s, but large packages can take longer).
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs", docsHandler.Get)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs.txt", docsHandler.GetText)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs/{symbol}", docsHandler.GetSymbol)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/symbols.txt", docsHandler.GetSymbols)
 
 	srv := &http.Server{
 		Addr:           ":" + port,

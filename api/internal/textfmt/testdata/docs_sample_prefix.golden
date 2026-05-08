@@ -1,0 +1,14 @@
+## httpx (module)
+
+### httpx.Client — class Client(BaseClient)
+An HTTP client.
+
+### httpx.Client.get — def get(self, url: str) -> Response
+Send a GET request from this client.
+
+Parameters:
+  self
+  url (str): Request URL.
+
+Returns: Response
+

@@ -31,6 +31,9 @@ func TestLLMSHandler(t *testing.T) {
 		"/api/packages/{name}/extras.txt",
 		"/api/packages/{name}/summary.txt",
 		"/api/search.txt",
+		"/api/packages/{name}/docs.txt",
+		"/api/packages/{name}/docs/{symbol}.txt",
+		"/api/packages/{name}/symbols.txt",
 	} {
 		if !strings.Contains(body, expect) {
 			t.Errorf("body missing %q", expect)

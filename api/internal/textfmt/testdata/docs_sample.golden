@@ -1,0 +1,29 @@
+## httpx (module)
+
+### httpx.get — def get(url: str, **kwargs) -> Response
+Send a GET request.
+
+Parameters:
+  url (str): Request URL.
+  kwargs (Any)
+
+Returns: Response — The response object.
+
+### httpx.Client — class Client(BaseClient)
+An HTTP client.
+
+### httpx.Client.get — def get(self, url: str) -> Response
+Send a GET request from this client.
+
+Parameters:
+  self
+  url (str): Request URL.
+
+Returns: Response
+
+
+## httpx._auth (module)
+
+### httpx._auth.build_auth_header — def build_auth_header(creds: tuple) -> str
+Build the Authorization header value.
+
