@@ -32,6 +32,9 @@ graph TD
     Router --> ExtrasTxt["GET /api/packages/{name}/extras.txt"]
     Router --> SummaryTxt["GET /api/packages/{name}/summary.txt"]
     Router --> SearchTxt["GET /api/search.txt?q=...&limit="]
+    Router --> DocsTxt["GET /api/packages/{name}/docs.txt?prefix="]
+    Router --> SymbolTxt["GET /api/packages/{name}/docs/{symbol}.txt"]
+    Router --> SymbolsSearchTxt["GET /api/packages/{name}/symbols.txt?q="]
 ```
 
 ## Endpoints
@@ -56,6 +59,9 @@ graph TD
 | `GET /api/packages/{name}/extras.txt` | `ExtrasHandler.GetText` | 24 hours | Plain-text extras (type, conda, repo) |
 | `GET /api/packages/{name}/summary.txt` | `PackageHandler.GetSummary` | 1 hour | Plain-text agent briefing |
 | `GET /api/search.txt` | `SearchHandler.SearchText` | HTTP header 5m | TSV search results |
+| `GET /api/packages/{name}/docs.txt` | `DocsHandler.GetText` | Indefinite | Plain-text API docs with optional prefix filter |
+| `GET /api/packages/{name}/docs/{symbol}.txt` | `DocsHandler.GetSymbolText` | Indefinite | Plain-text single symbol (dotted path) |
+| `GET /api/packages/{name}/symbols.txt` | `DocsHandler.SearchSymbols` | Indefinite | TSV symbol search with filters |
 
 ## Enrichment Pipeline
 

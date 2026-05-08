@@ -23,6 +23,9 @@ const llmsBody = `# pypx — A modern PyPI frontend (agent-friendly endpoints)
 - /api/packages/{name}/extras.txt — Type support, conda-forge availability, repo info.
 - /api/packages/{name}/summary.txt — One-screen agent briefing (≤2KB).
 - /api/search.txt?q= — TSV search results: name<TAB>downloads<TAB>summary.
+- /api/packages/{name}/docs.txt — API documentation; supports ?prefix= to filter by dotted path.
+- /api/packages/{name}/docs/{symbol}.txt — Single symbol (e.g. /docs/Client.get.txt).
+- /api/packages/{name}/symbols.txt?q= — TSV symbol search; supports ?kind= and ?limit=.
 
 ## Examples
 
@@ -30,6 +33,7 @@ const llmsBody = `# pypx — A modern PyPI frontend (agent-friendly endpoints)
 curl https://pypx.app/api/packages/httpx.txt
 curl https://pypx.app/api/packages/httpx/security.txt
 curl 'https://pypx.app/api/search.txt?q=http+client&limit=10'
+curl 'https://pypx.app/api/packages/httpx/symbols.txt?q=client'
 ` + "```" + `
 
 ## Conventions

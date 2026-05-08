@@ -111,6 +111,9 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 | `GET /api/packages/{name}/extras.txt` | 24 hours | `text/plain; charset=utf-8` | Type support, conda-forge availability, repo info |
 | `GET /api/packages/{name}/summary.txt` | 1 hour | `text/plain; charset=utf-8` | Agent briefing (≤2KB) |
 | `GET /api/search.txt?q=...&limit=` | 5 minutes | `text/plain; charset=utf-8` | TSV search results (name, downloads, summary) |
+| `GET /api/packages/{name}/docs.txt?prefix=` | Indefinite | `text/plain; charset=utf-8` | API documentation; supports `?prefix=` filter |
+| `GET /api/packages/{name}/docs/{symbol}.txt` | Indefinite | `text/plain; charset=utf-8` | Single symbol by dotted path |
+| `GET /api/packages/{name}/symbols.txt?q=&kind=&limit=` | Indefinite | `text/plain; charset=utf-8` | TSV symbol search with filters |
 
 ---
 
