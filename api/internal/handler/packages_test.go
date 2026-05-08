@@ -976,3 +976,58 @@ func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
 		t.Errorf("flask: expected ≤3 upstream calls, got %d", got)
 	}
 }
+
+func TestPackageHandlerGetText(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{
+			"info": {
+				"name": "httpx",
+				"version": "0.27.0",
+				"summary": "The next generation HTTP client.",
+				"license_expression": "BSD-3-Clause",
+				"requires_python": ">=3.8",
+				"requires_dist": ["anyio", "certifi"],
+				"project_urls": {"Source": "https://github.com/encode/httpx"}
+			},
+			"urls": [],
+			"releases": {}
+		}`)
+	}))
+	defer pypiSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("cache: %v", err)
+	}
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	h := handler.NewPackageHandler(pypiClient, memCache)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}.txt", h.GetText)
+
+	req := httptest.NewRequest("GET", "/api/packages/httpx.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain prefix", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "name: httpx") {
+		t.Errorf("body missing 'name: httpx': %s", body)
+	}
+	if !strings.Contains(body, "version: 0.27.0") {
+		t.Errorf("body missing 'version: 0.27.0': %s", body)
+	}
+	if !strings.Contains(body, "repo_url: https://github.com/encode/httpx") {
+		t.Errorf("body missing repo_url: %s", body)
+	}
+}

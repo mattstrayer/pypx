@@ -69,6 +69,7 @@ func main() {
 
 	osvClient := osv.NewClient()
 	securityHandler := handler.NewSecurityHandler(osvClient, c)
+	summaryHandler := handler.NewSummaryHandler(pkgHandler, osvClient)
 
 	condaClient := conda.NewClient()
 	extrasHandler := handler.NewExtrasHandler(pypiClient, condaClient, ghClient, pkgHandler, c)
@@ -83,6 +84,7 @@ func main() {
 	searchHandler := handler.NewSearchHandler(searchIdx)
 	popularHandler := handler.NewPopularHandler(searchIdx, c)
 	sitemapHandler := handler.NewSitemapHandler(searchIdx, sqliteCache)
+	llmsHandler := handler.NewLLMSHandler()
 
 	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
@@ -108,16 +110,23 @@ func main() {
 		r.Use(middleware.Timeout(30 * time.Second))
 		r.Get("/api/health", handler.Health)
 		r.Get("/api/packages/{name}", pkgHandler.Get)
+		r.Get("/api/packages/{name}.txt", pkgHandler.GetText)
 		r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
 		r.Get("/api/packages/{name}/dependencies", pkgHandler.GetDependencies)
 		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
+		r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
+		r.Get("/api/packages/{name}/security.txt", securityHandler.GetText)
+		r.Get("/api/packages/{name}/summary.txt", summaryHandler.Get)
 		r.Get("/api/packages/{name}/extras", extrasHandler.Get)
+		r.Get("/api/packages/{name}/extras.txt", extrasHandler.GetText)
 		r.Get("/api/search", searchHandler.Search)
+		r.Get("/api/search.txt", searchHandler.SearchText)
 		r.Get("/api/popular", popularHandler.Get)
 		r.Get("/api/sitemap/popular", sitemapHandler.Popular)
 		r.Get("/api/sitemap/cached", sitemapHandler.Cached)
+		r.Get("/llms.txt", llmsHandler.ServeHTTP)
 	})
 
 	// Docs route needs extended timeout: goopy downloads + parses a wheel (typically <2s, but large packages can take longer).

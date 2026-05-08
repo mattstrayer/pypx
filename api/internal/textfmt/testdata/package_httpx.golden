@@ -1,0 +1,32 @@
+name: httpx
+version: 0.27.0
+summary: The next generation HTTP client.
+license: BSD-3-Clause
+author: Tom Christie
+homepage: https://www.python-httpx.org/
+requires_python: >=3.8
+python_min: 3.8
+install_size: 768.0 KB
+module_format: wheel
+doc_url: https://www.python-httpx.org/
+repo_url: https://github.com/encode/httpx
+last_released_at: 2024-04-15T10:00:00Z
+releases_last_12mo: 6
+avg_days_between_releases: 60.5
+platforms: any
+
+## dependencies
+anyio
+certifi
+httpcore ==1.*
+idna
+sniffio
+
+## extras
+[http2]
+  h2 >=3,<5
+[socks]
+  socksio ==1.*
+
+## maintainers
+Tom Christie <tom@example.com>

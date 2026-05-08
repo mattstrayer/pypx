@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,66 @@ func TestExtrasHandlerGet(t *testing.T) {
 	}
 	if resp.CondaForge == nil || !resp.CondaForge.Available {
 		t.Error("CondaForge.Available should be true")
+	}
+}
+
+func TestExtrasHandlerGetText(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// types-requests exists — stubs
+		if r.URL.Path == "/pypi/types-requests/json" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer pypiSrv.Close()
+
+	condaSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/package/conda-forge/requests" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"name":"requests","latest_version":"2.32.3"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer condaSrv.Close()
+
+	sqliteCache, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
+	defer sqliteCache.Close()
+	memCache := cache.NewMemoryCache(sqliteCache, 100)
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	condaClient := conda.NewClient(conda.WithBaseURL(condaSrv.URL))
+	h := handler.NewExtrasHandler(pypiClient, condaClient, nil, nil, memCache)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/extras.txt", h.GetText)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/requests/extras.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/plain; charset=utf-8", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "package: requests") {
+		t.Errorf("body missing 'package: requests'; got:\n%s", body)
+	}
+	if !strings.Contains(body, "type_status: stubs") {
+		t.Errorf("body missing 'type_status: stubs'; got:\n%s", body)
+	}
+	if !strings.Contains(body, "stub_package: types-requests") {
+		t.Errorf("body missing 'stub_package: types-requests'; got:\n%s", body)
+	}
+	if !strings.Contains(body, "available: true") {
+		t.Errorf("body missing 'available: true'; got:\n%s", body)
 	}
 }
 
