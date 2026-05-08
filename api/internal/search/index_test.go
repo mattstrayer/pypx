@@ -494,3 +494,44 @@ func TestTopByDownloads_DefaultLimit(t *testing.T) {
 		}
 	}
 }
+
+// TestIndexLookup verifies that Lookup returns an exact-match package entry
+// with case-insensitive matching, and returns ok=false for missing packages.
+func TestIndexLookup(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	err := idx.UpsertBatch([]PackageEntry{
+		{Name: "httpx", Summary: "The next gen HTTP client", Downloads: 50000000},
+		{Name: "requests", Summary: "Python HTTP for Humans", Downloads: 60000000},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Found: exact match
+	entry, ok, err := idx.Lookup("httpx")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected found, got !ok")
+	}
+	if entry.Name != "httpx" || entry.Downloads != 50000000 {
+		t.Errorf("got %+v", entry)
+	}
+
+	// Case-insensitive (PEP 503: package names are case-insensitive)
+	entry, ok, _ = idx.Lookup("HTTPX")
+	if !ok || entry.Name != "httpx" {
+		t.Errorf("case-insensitive lookup failed, got %+v", entry)
+	}
+
+	// Not found
+	_, ok, err = idx.Lookup("does-not-exist")
+	if err != nil {
+		t.Fatalf("unexpected err on miss: %v", err)
+	}
+	if ok {
+		t.Error("expected !ok for missing entry")
+	}
+}
