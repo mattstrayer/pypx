@@ -85,6 +85,7 @@ func main() {
 	popularHandler := handler.NewPopularHandler(searchIdx, c)
 	sitemapHandler := handler.NewSitemapHandler(searchIdx, sqliteCache)
 	llmsHandler := handler.NewLLMSHandler()
+	compareHandler := handler.NewCompareHandler(pkgHandler, pypiClient, osvClient, searchIdx)
 
 	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
@@ -123,6 +124,7 @@ func main() {
 		r.Get("/api/packages/{name}/extras.txt", extrasHandler.GetText)
 		r.Get("/api/search", searchHandler.Search)
 		r.Get("/api/search.txt", searchHandler.SearchText)
+		r.Get("/api/compare.txt", compareHandler.Get)
 		r.Get("/api/popular", popularHandler.Get)
 		r.Get("/api/sitemap/popular", sitemapHandler.Popular)
 		r.Get("/api/sitemap/cached", sitemapHandler.Cached)
