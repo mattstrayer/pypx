@@ -197,3 +197,66 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 	}
 	b.WriteByte('\n')
 }
+
+// FormatSymbol returns the rendered block for a single symbol identified by
+// its dotted path. Returns ok=false if no matching symbol is found.
+//
+// Lookup rules:
+//   - Module-qualified function: "module.fn"
+//   - Class: "module.Class"
+//   - Method: "module.Class.method"
+//   - Exception: "module.ExceptionClass"
+//
+// A class lookup returns only the class block, not its methods. Methods are
+// addressed individually by their dotted path.
+func FormatSymbol(in *DocsInput, dotted string) (string, bool) {
+	for _, mod := range in.Modules {
+		if !strings.HasPrefix(dotted, mod.Name+".") && dotted != mod.Name {
+			continue
+		}
+		// Strip module prefix from the search target.
+		rest := strings.TrimPrefix(dotted, mod.Name+".")
+		if rest == "" {
+			continue // module-only path; not a symbol
+		}
+
+		// Function under this module?
+		for _, fn := range mod.Functions {
+			if rest == fn.Name {
+				var b strings.Builder
+				writeSymbolBlock(&b, dotted, fn)
+				return b.String(), true
+			}
+		}
+
+		// Class or class.method under this module?
+		for _, cls := range mod.Classes {
+			if rest == cls.Name {
+				var b strings.Builder
+				writeSymbolBlock(&b, dotted, cls)
+				return b.String(), true
+			}
+			methodPrefix := cls.Name + "."
+			if strings.HasPrefix(rest, methodPrefix) {
+				methodName := strings.TrimPrefix(rest, methodPrefix)
+				for _, m := range cls.Methods {
+					if methodName == m.Name {
+						var b strings.Builder
+						writeSymbolBlock(&b, dotted, m)
+						return b.String(), true
+					}
+				}
+			}
+		}
+
+		// Exception under this module?
+		for _, exc := range mod.Exceptions {
+			if rest == exc.Name {
+				var b strings.Builder
+				writeSymbolBlock(&b, dotted, exc)
+				return b.String(), true
+			}
+		}
+	}
+	return "", false
+}

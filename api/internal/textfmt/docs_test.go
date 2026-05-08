@@ -3,6 +3,7 @@ package textfmt_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pypx/api/internal/textfmt"
@@ -105,5 +106,46 @@ func TestFormatDocsPrefixNoMatch(t *testing.T) {
 	want := "# no symbols matching prefix=nonexistent.symbol\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFormatSymbol(t *testing.T) {
+	out, ok := textfmt.FormatSymbol(fixtureDocs(), "httpx.Client.get")
+	if !ok {
+		t.Fatal("expected symbol found, got false")
+	}
+	goldenPath := filepath.Join("testdata", "symbol_Client_get.golden")
+	if *update {
+		if err := os.WriteFile(goldenPath, []byte(out), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden: %v (run with -update)", err)
+	}
+	if out != string(want) {
+		t.Errorf("mismatch.\n--- got ---\n%s\n--- want ---\n%s", out, string(want))
+	}
+}
+
+func TestFormatSymbolNotFound(t *testing.T) {
+	_, ok := textfmt.FormatSymbol(fixtureDocs(), "httpx.does.not.exist")
+	if ok {
+		t.Error("expected ok=false for missing symbol")
+	}
+}
+
+func TestFormatSymbolClass(t *testing.T) {
+	out, ok := textfmt.FormatSymbol(fixtureDocs(), "httpx.Client")
+	if !ok {
+		t.Fatal("expected class to be found")
+	}
+	if !strings.Contains(out, "### httpx.Client") {
+		t.Errorf("expected class header, got: %s", out)
+	}
+	// Class lookup returns just the class block, not its methods.
+	if strings.Contains(out, "httpx.Client.get") {
+		t.Errorf("class lookup should not include methods, got: %s", out)
 	}
 }
