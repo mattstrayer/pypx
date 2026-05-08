@@ -1,0 +1,5 @@
+# path	kind	signature
+httpx.Client	class	class Client(BaseClient)
+httpx.Client.get	method	def get(self, url: str) -> Response
+httpx._auth.build_auth_header	function	def build_auth_header(creds: tuple) -> str
+httpx.get	function	def get(url: str, **kwargs) -> Response
