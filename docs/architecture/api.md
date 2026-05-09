@@ -35,6 +35,7 @@ graph TD
     Router --> DocsTxt["GET /api/packages/{name}/docs.txt?prefix="]
     Router --> SymbolTxt["GET /api/packages/{name}/docs/{symbol}.txt"]
     Router --> SymbolsSearchTxt["GET /api/packages/{name}/symbols.txt?q="]
+    Router --> CompareTxt["GET /api/compare.txt?pkgs="]
 ```
 
 ## Endpoints
@@ -62,6 +63,7 @@ graph TD
 | `GET /api/packages/{name}/docs.txt` | `DocsHandler.GetText` | Indefinite | Plain-text API docs with optional prefix filter |
 | `GET /api/packages/{name}/docs/{symbol}.txt` | `DocsHandler.GetSymbolText` | Indefinite | Plain-text single symbol (dotted path) |
 | `GET /api/packages/{name}/symbols.txt` | `DocsHandler.SearchSymbols` | Indefinite | TSV symbol search with filters |
+| `GET /api/compare.txt` | `CompareHandler.Get` | 1 hour | Side-by-side comparison of up to 5 packages |
 
 ## Enrichment Pipeline
 

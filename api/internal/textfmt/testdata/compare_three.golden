@@ -1,0 +1,16 @@
+| metric             | httpx | requests | aiohttp |
+|--------------------|------------------------------|------------------------------|------------------------------|
+| version            | 0.28.1 | 2.32.3 | 3.10.5 |
+| summary            | The next generation HTTP cl… | Python HTTP for Humans. | Async HTTP client/server fr… |
+| license            | BSD-3-Clause | Apache-2.0 | Apache-2.0 |
+| python_min         | 3.8 | 3.8 | 3.8 |
+| install_size       | 768.0 KB | 184.0 KB | 1.2 MB |
+| module_format      | wheel | wheel | wheel |
+| last_released_at   | 2025-09-15 | 2024-05-29 | 2024-08-19 |
+| releases_last_12mo | 3 | 2 | 5 |
+| dep_count          | 4 | 4 | 5 |
+| downloads_30d      | 653M | 712M | 142M |
+| vuln_count         | 2 | 0 | 0 |
+| typed              | yes | stubs | yes |
+| repo_url           | https://github.com/encode/h… | https://github.com/psf/requ… | https://github.com/aio-libs… |
+| doc_url            | https://www.python-httpx.or… | https://requests.readthedoc… | https://docs.aiohttp.org/ |

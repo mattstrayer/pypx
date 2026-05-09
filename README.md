@@ -114,6 +114,7 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 | `GET /api/packages/{name}/docs.txt?prefix=` | Indefinite | `text/plain; charset=utf-8` | API documentation; supports `?prefix=` filter |
 | `GET /api/packages/{name}/docs/{symbol}.txt` | Indefinite | `text/plain; charset=utf-8` | Single symbol by dotted path |
 | `GET /api/packages/{name}/symbols.txt?q=&kind=&limit=` | Indefinite | `text/plain; charset=utf-8` | TSV symbol search with filters |
+| `GET /api/compare.txt?pkgs=` | 1 hour | `text/plain; charset=utf-8` | Side-by-side compare of up to 5 packages |
 
 ---
 

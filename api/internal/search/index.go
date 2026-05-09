@@ -2,6 +2,7 @@ package search
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -336,6 +337,28 @@ func (idx *Index) UpdateSummariesBatch(entries []PackageEntry) error {
 	}
 
 	return tx.Commit()
+}
+
+// Lookup returns the indexed entry for an exact package-name match. Match is
+// case-insensitive (PEP 503 normalization is the caller's responsibility for
+// non-ASCII normalization, but lowercase comparison handles ASCII).
+// Returns ok=false when the package is not in the index (no error).
+func (idx *Index) Lookup(name string) (PackageEntry, bool, error) {
+	row := idx.db.QueryRow(`
+		SELECT name, summary, downloads
+		FROM packages_meta
+		WHERE lower(name) = lower(?)
+		LIMIT 1
+	`, name)
+	var entry PackageEntry
+	err := row.Scan(&entry.Name, &entry.Summary, &entry.Downloads)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return PackageEntry{}, false, nil
+		}
+		return PackageEntry{}, false, fmt.Errorf("search: lookup: %w", err)
+	}
+	return entry, true, nil
 }
 
 // Close releases the underlying database connection.
