@@ -152,3 +152,50 @@ func (c *Client) FetchPackage(ctx context.Context, name string) (*PyPIResponse, 
 	c.breaker.RecordSuccess()
 	return &result, nil
 }
+
+// FetchPackageAtVersion retrieves the PyPI JSON for a specific version. The
+// response shape is identical to FetchPackage, but Info.RequiresDist and other
+// metadata are pinned to that version (rather than the latest). Used by the
+// diff endpoint to compare requires_dist between releases.
+func (c *Client) FetchPackageAtVersion(ctx context.Context, name, version string) (*PyPIResponse, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	if version == "" {
+		return nil, fmt.Errorf("pypi: empty version")
+	}
+
+	if err := c.breaker.Allow(); err != nil {
+		return nil, fmt.Errorf("pypi: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/pypi/%s/%s/json", c.baseURL, name, version)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pypi: build request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.breaker.RecordFailure()
+		return nil, fmt.Errorf("pypi: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("pypi: %q@%s: %w", name, version, ErrNotFound)
+	}
+	if resp.StatusCode != http.StatusOK {
+		c.breaker.RecordFailure()
+		return nil, fmt.Errorf("pypi: unexpected status %d for %q@%s", resp.StatusCode, name, version)
+	}
+
+	var result PyPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.breaker.RecordFailure()
+		return nil, fmt.Errorf("pypi: failed to decode response: %w", err)
+	}
+
+	c.breaker.RecordSuccess()
+	return &result, nil
+}

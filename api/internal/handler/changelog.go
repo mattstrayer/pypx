@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -197,6 +198,55 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 		Source:  "none",
 		Entries: []changelog.Entry{},
 	}
+}
+
+// fetchChangelogSlice returns changelog entries for the package whose version
+// falls in (from, to]. Versions are compared with compareVersions (defined in
+// stubs.go). Returns (entries, "") on success or (nil, reason) on failure.
+//
+// Reasons:
+//   - "no changelog source"   — no GitHub/GitLab repo or registry returned no entries
+//   - "no entries in range"   — entries exist but none fall within (from, to]
+//   - "fetch error"           — package metadata fetch or registry fetch errored
+func (h *ChangelogHandler) fetchChangelogSlice(ctx context.Context, name, from, to string) ([]changelog.Entry, string) {
+	resp, _, _, err := h.fetchChangelog(ctx, name)
+	if err != nil {
+		return nil, "fetch error"
+	}
+	if len(resp.Entries) == 0 || resp.Source == "none" {
+		return nil, "no changelog source"
+	}
+
+	out := make([]changelog.Entry, 0, len(resp.Entries))
+	for _, e := range resp.Entries {
+		if e.Version == "" {
+			continue
+		}
+		// Include if from < e.Version <= to.
+		if compareVersions(e.Version, from) <= 0 {
+			continue
+		}
+		if compareVersions(e.Version, to) > 0 {
+			continue
+		}
+		out = append(out, e)
+	}
+	if len(out) == 0 {
+		return nil, "no entries in range"
+	}
+	// Sort newest first by version. The upstream registry result is already
+	// newest-first by published date in the typical case; this re-sort makes
+	// the ordering explicit and resilient to source-specific quirks.
+	sort.Slice(out, func(i, j int) bool {
+		return compareVersions(out[i].Version, out[j].Version) > 0
+	})
+	return out, ""
+}
+
+// FetchChangelogSliceForTest is a test-only shim for fetchChangelogSlice.
+// Production callers should use the unexported version.
+func (h *ChangelogHandler) FetchChangelogSliceForTest(ctx context.Context, name, from, to string) ([]changelog.Entry, string) {
+	return h.fetchChangelogSlice(ctx, name, from, to)
 }
 
 // renderHTML renders Body markdown to BodyHTML for each entry in-place.
