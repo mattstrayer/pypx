@@ -566,10 +566,24 @@ func TestPackageGet_RendersMarkdownDescription(t *testing.T) {
 }
 
 func TestPackageHandler_Get_CacheMissSingleFlight(t *testing.T) {
+	const concurrency = 20
+
 	var upstream atomic.Int32
+	var arrivals atomic.Int32
+	release := make(chan struct{})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstream.Add(1)
+		// First request blocks until all concurrent goroutines have entered
+		// singleflight (so the followers can deduplicate). Subsequent requests
+		// — there shouldn't be any if dedup works — pass through immediately.
+		if arrivals.Add(1) == 1 {
+			select {
+			case <-release:
+			case <-time.After(2 * time.Second):
+				// Safety net so the test fails loudly rather than hanging.
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, mockRequestsResponse)
 	}))
@@ -585,7 +599,6 @@ func TestPackageHandler_Get_CacheMissSingleFlight(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/packages/{name}", h.Get)
 
-	const concurrency = 20
 	var wg sync.WaitGroup
 	wg.Add(concurrency)
 	ready := make(chan struct{})
@@ -604,13 +617,22 @@ func TestPackageHandler_Get_CacheMissSingleFlight(t *testing.T) {
 	}
 
 	close(ready)
+
+	// Wait for all goroutines to enter singleflight (the leader is blocked in
+	// the mock; followers are blocked inside singleflight.Do waiting on the
+	// leader's result). 100ms is plenty for 20 goroutines to enter their
+	// blocking call once spawned.
+	time.Sleep(100 * time.Millisecond)
+
+	// Release the leader so it returns and singleflight unblocks the followers.
+	close(release)
+
 	wg.Wait()
 
-	// singleflight collapses concurrent in-flight calls. Under the race detector a
-	// small number of goroutines may start a new call before the first one
-	// completes, but the count must be far below the full concurrency of 20.
-	if got := upstream.Load(); got > 5 {
-		t.Errorf("expected at most 5 upstream PyPI calls (singleflight dedup), got %d", got)
+	// With the barrier in place, singleflight should collapse all 20 concurrent
+	// requests into exactly one upstream call.
+	if got := upstream.Load(); got != 1 {
+		t.Errorf("expected exactly 1 upstream PyPI call (singleflight dedup), got %d", got)
 	}
 }
 
