@@ -6,7 +6,7 @@ settings:
 
 importers:
 
-  .:
+  web:
     dependencies:
       '@nuxtjs/color-mode':
         specifier: 4.0.0

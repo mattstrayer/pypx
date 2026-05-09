@@ -1,1 +1,1 @@
-allow-scripts=@parcel/watcher,esbuild
+strict-peer-dependencies=false
