@@ -26,6 +26,7 @@ const llmsBody = `# pypx — A modern PyPI frontend (agent-friendly endpoints)
 - /api/packages/{name}/docs.txt — API documentation; supports ?prefix= to filter by dotted path.
 - /api/packages/{name}/docs/{symbol}.txt — Single symbol (e.g. /docs/Client.get.txt).
 - /api/packages/{name}/symbols.txt?q= — TSV symbol search; supports ?kind= and ?limit=.
+- /api/packages/{name}/diff.txt?from=X&to=Y — Markdown diff between two versions: changelog slice, dependency changes, API changes (added/removed/signature-changed).
 - /api/compare.txt?pkgs=a,b,c — Side-by-side comparison of up to 5 packages. Missing packages emit a leading ` + "`# skipped:`" + ` line.
 
 ## Examples
@@ -35,6 +36,7 @@ curl https://pypx.app/api/packages/httpx.txt
 curl https://pypx.app/api/packages/httpx/security.txt
 curl 'https://pypx.app/api/search.txt?q=http+client&limit=10'
 curl 'https://pypx.app/api/packages/httpx/symbols.txt?q=client'
+curl 'https://pypx.app/api/packages/httpx/diff.txt?from=0.26.0&to=0.28.1'
 curl 'https://pypx.app/api/compare.txt?pkgs=httpx,requests,aiohttp'
 ` + "```" + `
 

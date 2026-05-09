@@ -34,6 +34,7 @@ func TestLLMSHandler(t *testing.T) {
 		"/api/packages/{name}/docs.txt",
 		"/api/packages/{name}/docs/{symbol}.txt",
 		"/api/packages/{name}/symbols.txt",
+		"/api/packages/{name}/diff.txt",
 		"/api/compare.txt",
 	} {
 		if !strings.Contains(body, expect) {
