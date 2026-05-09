@@ -50,12 +50,6 @@
     "vitest": "4.1.4"
   },
   "pnpm": {
-    "allowScripts": {
-      "allow": [
-        "@parcel/watcher",
-        "esbuild"
-      ]
-    },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "esbuild"
