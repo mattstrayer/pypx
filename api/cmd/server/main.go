@@ -86,6 +86,7 @@ func main() {
 	sitemapHandler := handler.NewSitemapHandler(searchIdx, sqliteCache)
 	llmsHandler := handler.NewLLMSHandler()
 	compareHandler := handler.NewCompareHandler(pkgHandler, pypiClient, osvClient, searchIdx)
+	diffHandler := handler.NewDiffHandler(pypiClient, c, docsHandler, changelogHandler, pkgHandler)
 
 	bgWorker := worker.New(pypiClient, c, searchIdx, worker.Config{})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
@@ -136,6 +137,7 @@ func main() {
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs.txt", docsHandler.GetText)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs/{symbol}", docsHandler.GetSymbol)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/symbols.txt", docsHandler.GetSymbols)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/diff.txt", diffHandler.Get)
 
 	srv := &http.Server{
 		Addr:           ":" + port,
