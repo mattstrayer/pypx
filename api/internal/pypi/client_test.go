@@ -3,6 +3,8 @@ package pypi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -160,5 +162,43 @@ func TestFetchPackageNotFound(t *testing.T) {
 	}
 	if got != nil {
 		t.Errorf("expected nil response on error, got %+v", got)
+	}
+}
+
+func TestFetchPackageAtVersion(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/pypi/httpx/0.27.0/json" {
+			http.Error(w, "wrong path: "+r.URL.Path, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"info":{"name":"httpx","version":"0.27.0","requires_dist":["anyio","certifi"]},"urls":[],"releases":{}}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+
+	resp, err := c.FetchPackageAtVersion(context.Background(), "httpx", "0.27.0")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if resp.Info.Version != "0.27.0" {
+		t.Errorf("got version %q, want 0.27.0", resp.Info.Version)
+	}
+	if len(resp.Info.RequiresDist) != 2 {
+		t.Errorf("expected 2 requires_dist, got %d", len(resp.Info.RequiresDist))
+	}
+}
+
+func TestFetchPackageAtVersion_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	_, err := c.FetchPackageAtVersion(context.Background(), "httpx", "9.9.9")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
