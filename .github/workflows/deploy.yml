@@ -69,7 +69,8 @@ jobs:
       - name: Build and push Web image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
-          context: ./web
+          context: .
+          file: web/Dockerfile
           push: true
           tags: |
             ghcr.io/mattstrayer/pypx/web:latest
