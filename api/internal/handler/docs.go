@@ -111,26 +111,25 @@ var (
 	ErrDocsExtractionFailed = errors.New("docs: extraction failed")
 )
 
-// fetchDocs returns the cached or freshly-extracted DocsResponse for a package
-// alongside its JSON-encoded bytes. Both Get and the *.txt handlers call this
-// helper so they share the same indefinite cache. On cache hit the encoded
-// bytes are the original cached value (not re-marshalled).
-//
-// Returns:
-//   - resp: the parsed DocsResponse on success.
-//   - encoded: the JSON bytes (suitable for direct write by JSON callers).
-//   - err: ErrDocsPackageNotFound, ErrDocsExtractionFailed, or a marshal error.
+// fetchDocs returns the cached or freshly-extracted DocsResponse for a package's
+// LATEST version. Wraps fetchDocsAtVersion after resolving via PyPI.
 func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
 	pkg, err := h.pypi.FetchPackage(ctx, name)
 	if err != nil {
 		return DocsResponse{}, nil, ErrDocsPackageNotFound
 	}
-	version := pkg.Info.Version
+	return h.fetchDocsAtVersion(ctx, name, pkg.Info.Version)
+}
 
+// fetchDocsAtVersion returns the cached or freshly-extracted DocsResponse for
+// a specific (name, version) pair. Cache key is "docs:{name}:{version}",
+// indefinite TTL. Used by both fetchDocs (latest) and the diff handler
+// (arbitrary historical versions). On cache hit returns the original cached
+// bytes (no re-marshal).
+func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version string) (DocsResponse, []byte, error) {
 	cacheKey := "docs:" + strings.ToLower(name) + ":" + version
 	errKey := "docs-err:" + strings.ToLower(name) + ":" + version
 
-	// Cache hit (indefinite TTL).
 	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
 		var resp DocsResponse
 		if uerr := json.Unmarshal(data, &resp); uerr == nil {
@@ -139,12 +138,10 @@ func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse,
 		// Corrupt cache entry; fall through to live extraction.
 	}
 
-	// Recent extraction failure — return sentinel.
 	if data, fresh, cerr := h.cache.Get(errKey, 300); cerr == nil && data != nil && fresh {
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	// Live extraction.
 	result, gerr := goopy.ExtractFromPyPI(ctx, name, version)
 	if gerr != nil {
 		h.cache.Set(errKey, []byte(gerr.Error()), 300) //nolint:errcheck
