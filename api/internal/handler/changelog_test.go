@@ -1,8 +1,10 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -427,5 +429,48 @@ func TestChangelogGet_Returns502WhenNoCacheAndUpstreamFails(t *testing.T) {
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestChangelogHandler_fetchChangelogSlice(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"info":{"name":"httpx","version":"0.28.1","project_urls":{"Source":"https://github.com/encode/httpx"}},"urls":[],"releases":{}}`)
+	}))
+	defer pypiSrv.Close()
+
+	ghSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[
+			{"tag_name":"0.28.1","published_at":"2024-12-06T00:00:00Z","body":"latest"},
+			{"tag_name":"0.27.0","published_at":"2024-04-15T00:00:00Z","body":"middle"},
+			{"tag_name":"0.26.0","published_at":"2024-02-20T00:00:00Z","body":"oldest"}
+		]`)
+	}))
+	defer ghSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, memCache)
+	ghClient := gh.NewClient(gh.WithBaseURL(ghSrv.URL))
+	glClient := gitlab.NewClient()
+	h := handler.NewChangelogHandler(ghClient, glClient, memCache, pkgHandler)
+
+	// (from=0.26.0, to=0.28.1] — should include 0.28.1 and 0.27.0 (exclusive of 0.26.0).
+	entries, unavailable := h.FetchChangelogSliceForTest(context.Background(), "httpx", "0.26.0", "0.28.1")
+	if unavailable != "" {
+		t.Fatalf("unexpected unavailable: %s", unavailable)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d: %+v", len(entries), entries)
+	}
+	if entries[0].Version != "0.28.1" || entries[1].Version != "0.27.0" {
+		t.Errorf("expected newest-first 0.28.1, 0.27.0; got %v, %v", entries[0].Version, entries[1].Version)
 	}
 }
