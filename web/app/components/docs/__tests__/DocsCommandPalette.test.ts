@@ -11,7 +11,6 @@ function makeSymbol(name: string, kind: DocSymbol["kind"] = "function"): DocSymb
     signature: `def ${name}()`,
     docstring: "",
     parameters: [],
-    returns: null,
     raises: [],
   };
 }
@@ -85,8 +84,8 @@ describe("DocsCommandPalette", () => {
     firstResult.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await nextTick();
     expect(wrapper.emitted("jump")).toBeTruthy();
-    expect(wrapper.emitted("jump")![0]).toHaveLength(1);
-    expect(wrapper.emitted("jump")![0][0]).toBe("fit");
+    expect(wrapper.emitted("jump")![0]!).toHaveLength(1);
+    expect(wrapper.emitted("jump")![0]![0]).toBe("fit");
   });
 
   it("emits close when Escape is pressed", async () => {
@@ -136,6 +135,6 @@ describe("DocsCommandPalette", () => {
     sectionEl?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await nextTick();
     expect(wrapper.emitted("jump")).toBeTruthy();
-    expect(wrapper.emitted("jump")![0][0]).toBe("fit");
+    expect(wrapper.emitted("jump")![0]![0]).toBe("fit");
   });
 });

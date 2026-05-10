@@ -86,7 +86,7 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault();
     selectedIndex.value = Math.max(selectedIndex.value - 1, 0);
   } else if (e.key === "Enter" && results.value[selectedIndex.value]) {
-    select(results.value[selectedIndex.value]);
+    select(results.value[selectedIndex.value]!);
   }
 }
 

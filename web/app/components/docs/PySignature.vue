@@ -44,6 +44,7 @@ function buildFunctionTokens(symbol: DocSymbol): Token[] {
 
   for (let i = 0; i < params.length; i++) {
     const param = params[i];
+    if (!param) continue;
 
     // After all positional_only params, insert `/`
     if (hasPositionalOnly && !insertedSlash && param.kind !== "positional_only") {
@@ -110,9 +111,9 @@ function buildClassTokens(symbol: DocSymbol): Token[] {
 
   // Extract base classes from signature string
   const match = symbol.signature.match(/\(([^)]*)\)/);
-  if (match && match[1].trim()) {
+  if (match && match[1]?.trim()) {
     tokens.push(punct("("));
-    const bases = match[1]
+    const bases = (match[1] ?? "")
       .split(",")
       .map((b) => b.trim())
       .filter(Boolean);

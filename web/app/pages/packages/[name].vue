@@ -35,8 +35,9 @@ const { data: docsData } = useAsyncData(
 );
 
 const repoInfo = computed(() => extras.value?.repo_info ?? null);
+const pkgOrNull = computed(() => pkg.value ?? null);
 
-const maintenanceStatus = useMaintenanceStatus(pkg, repoInfo);
+const maintenanceStatus = useMaintenanceStatus(pkgOrNull, repoInfo);
 
 const inPageTabs = [
   { key: "overview", label: "Overview", shortcut: "1" },

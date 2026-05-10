@@ -20,7 +20,8 @@ const lastPushedTime = computed(() => {
   return new Date(props.repoInfo.last_pushed_at);
 });
 
-const lastPushedAgo = useTimeAgo(lastPushedTime);
+const lastPushedDate = computed<Date>(() => lastPushedTime.value ?? new Date(0));
+const lastPushedAgo = useTimeAgo(lastPushedDate);
 
 const allLinks = computed(() => {
   const links = projectLinks.value.slice();
@@ -155,7 +156,7 @@ const allLinks = computed(() => {
             <span class="text-xs text-muted">open issues</span>
           </div>
         </div>
-        <div v-if="lastPushedAgo" class="mt-2 text-xs text-muted">
+        <div v-if="lastPushedTime" class="mt-2 text-xs text-muted">
           last commit {{ lastPushedAgo }}
         </div>
       </div>

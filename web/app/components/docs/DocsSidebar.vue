@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
+import { DynamicScroller as RawDynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import type { DocSymbol } from "~/types/api";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DynamicScroller = RawDynamicScroller as unknown as new (...args: any) => any;
 
 const props = defineProps<{
   functions: DocSymbol[];
