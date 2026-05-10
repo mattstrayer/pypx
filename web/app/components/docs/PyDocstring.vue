@@ -16,7 +16,7 @@ const formattedHtml = computedAsync(async () => {
     const codeBlockRegex = /<pre><code class="language-python">([\s\S]*?)<\/code><\/pre>/g;
     const matches = [...html.matchAll(codeBlockRegex)];
     for (const match of matches) {
-      const code = match[1]
+      const code = (match[1] ?? "")
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")

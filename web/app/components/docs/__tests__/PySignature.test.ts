@@ -20,7 +20,7 @@ describe("PySignature", () => {
     const wrapper = await mountSuspended(PySignature, { props: { symbol: makeSymbol() } });
     const keywords = wrapper.findAll(".py-keyword");
     expect(keywords.length).toBeGreaterThan(0);
-    expect(keywords[0].text()).toBe("def");
+    expect(keywords[0]!.text()).toBe("def");
   });
 
   it("renders function name", async () => {
@@ -56,7 +56,7 @@ describe("PySignature", () => {
         },
       },
     });
-    expect(wrapper.findAll(".py-keyword")[0].text()).toBe("class");
+    expect(wrapper.findAll(".py-keyword")[0]!.text()).toBe("class");
     expect(wrapper.find(".py-name").text()).toBe("MyError");
     expect(wrapper.find(".py-type").text()).toBe("ValueError");
   });

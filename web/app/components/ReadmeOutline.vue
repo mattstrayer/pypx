@@ -29,7 +29,7 @@ function buildOutline() {
     outline.push({
       id: el.id,
       text: el.textContent?.trim() || "",
-      level: parseInt(el.tagName[1]),
+      level: parseInt(el.tagName[1] ?? "2"),
     });
   });
 
@@ -53,7 +53,7 @@ function onScroll() {
     .filter((h) => h.top <= 120);
 
   if (headings.length > 0) {
-    activeId.value = headings[headings.length - 1].id;
+    activeId.value = headings[headings.length - 1]!.id;
   }
 }
 

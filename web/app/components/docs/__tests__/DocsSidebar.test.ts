@@ -11,9 +11,8 @@ vi.mock("vue-virtual-scroller", () => ({
       return () =>
         h(
           "div",
-          props.items.map(
-            (item: unknown, index: number) =>
-              slots.default?.({ item, index, active: true }) ?? null,
+          props.items.flatMap(
+            (item: unknown, index: number) => slots.default?.({ item, index, active: true }) ?? [],
           ),
         );
     },
@@ -21,13 +20,13 @@ vi.mock("vue-virtual-scroller", () => ({
   DynamicScrollerItem: defineComponent({
     props: ["item", "active"],
     setup(_props, { slots }) {
-      return () => h("div", slots.default?.() ?? null);
+      return () => h("div", slots.default?.() ?? []);
     },
   }),
 }));
 
 function makeSymbol(name: string, kind: DocSymbol["kind"] = "function"): DocSymbol {
-  return { name, kind, signature: "", docstring: "", parameters: [], returns: null, raises: [] };
+  return { name, kind, signature: "", docstring: "", parameters: [], raises: [] };
 }
 
 const functions = [makeSymbol("fit"), makeSymbol("predict"), makeSymbol("transform")];
@@ -63,7 +62,7 @@ describe("DocsSidebar", () => {
     });
     await wrapper.find("[data-testid='symbol-row']").trigger("click");
     expect(wrapper.emitted("select")).toBeTruthy();
-    expect(typeof wrapper.emitted("select")![0][0]).toBe("string");
+    expect(typeof wrapper.emitted("select")![0]![0]).toBe("string");
   });
 
   it("collapses functions section when header is clicked", async () => {

@@ -30,7 +30,7 @@ function dedent(lines: string[]): string[] {
   const minIndent = Math.min(
     ...nonEmpty.map((l) => {
       const match = l.match(/^(\s*)/);
-      return match ? match[1].length : 0;
+      return match ? (match[1]?.length ?? 0) : 0;
     }),
   );
 
@@ -58,7 +58,7 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
     // Preceding block ended with "::" → this is a code block
     const prev = prevBlockLines[i];
     if (prev && prev.length > 0) {
-      const lastPrevLine = prev[prev.length - 1];
+      const lastPrevLine = prev[prev.length - 1] ?? "";
       if (lastPrevLine.trimEnd().endsWith("::")) {
         return { type: "code", lines };
       }
@@ -108,7 +108,7 @@ function renderBlock(block: Block): string {
         ? Math.min(
             ...nonEmpty.map((l) => {
               const match = l.match(/^(\s*)/);
-              return match ? match[1].length : 0;
+              return match ? (match[1]?.length ?? 0) : 0;
             }),
           )
         : 0;
@@ -123,8 +123,8 @@ function renderBlock(block: Block): string {
     const firstLine = block.lines[0] ?? "";
     const directiveMatch = firstLine.match(/^\s*\.\.\s+(\w+)::\s*(.*)/);
     if (directiveMatch) {
-      const directiveType = escapeHtml(directiveMatch[1]);
-      const rest = [directiveMatch[2], ...block.lines.slice(1).map((l) => l.trim())]
+      const directiveType = escapeHtml(directiveMatch[1] ?? "");
+      const rest = [directiveMatch[2] ?? "", ...block.lines.slice(1).map((l) => l.trim())]
         .filter(Boolean)
         .join(" ");
       const content = escapeHtml(rest);
@@ -173,7 +173,9 @@ export function formatDocstring(raw: string): string {
   if (rawBlocks.length === 0) return "";
 
   // Build prev-block lookup for "::" detection
-  const prevBlockLines: string[][] = rawBlocks.map((_, i) => (i === 0 ? [] : rawBlocks[i - 1]));
+  const prevBlockLines: string[][] = rawBlocks.map((_, i) =>
+    i === 0 ? [] : (rawBlocks[i - 1] ?? []),
+  );
 
   const blocks = classifyBlocks(rawBlocks, prevBlockLines);
 
@@ -186,13 +188,13 @@ export function formatDocstring(raw: string): string {
     if (block.type === "paragraph") {
       const nextBlock = blocks[i + 1];
       if (nextBlock?.type === "code") {
-        const lastLine = block.lines[block.lines.length - 1];
+        const lastLine = block.lines[block.lines.length - 1] ?? "";
         if (lastLine.trimEnd().endsWith("::")) {
           // Strip trailing "::" (and potentially whitespace before it)
           const stripped = { ...block, lines: [...block.lines] };
           stripped.lines[stripped.lines.length - 1] = lastLine.trimEnd().replace(/\s*::$/, "");
           // If the line becomes empty after stripping, remove it
-          if (stripped.lines[stripped.lines.length - 1].trim() === "") {
+          if ((stripped.lines[stripped.lines.length - 1] ?? "").trim() === "") {
             stripped.lines.pop();
           }
           if (stripped.lines.length === 0) return null;

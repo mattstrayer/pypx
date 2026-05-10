@@ -71,10 +71,11 @@ interface SplinePoint {
 
 function buildSplinePath(pts: SplinePoint[]): string {
   if (pts.length < 2) return "";
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  const start = pts[0]!;
+  let d = `M ${start.x.toFixed(1)} ${start.y.toFixed(1)}`;
   for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i];
-    const p1 = pts[i + 1];
+    const p0 = pts[i]!;
+    const p1 = pts[i + 1]!;
     const cp1x = (p0.x + (p1.x - p0.x) / 3).toFixed(1);
     const cp2x = (p0.x + (2 * (p1.x - p0.x)) / 3).toFixed(1);
     d += ` C ${cp1x} ${p0.y.toFixed(1)} ${cp2x} ${p1.y.toFixed(1)} ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
@@ -99,8 +100,8 @@ const sparklineAreaPath = computed(() => {
   const pts = sparklinePoints.value;
   if (pts.length < 2) return "";
   const line = sparklinePath.value;
-  const last = pts[pts.length - 1];
-  const first = pts[0];
+  const last = pts[pts.length - 1]!;
+  const first = pts[0]!;
   return `${line} L ${last.x.toFixed(1)} 120 L ${first.x.toFixed(1)} 120 Z`;
 });
 
