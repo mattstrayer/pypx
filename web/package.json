@@ -16,14 +16,15 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "lint": "oxlint --config oxlintrc.json app/",
     "fmt": "oxfmt app/",
     "fmt:check": "oxfmt --check app/",
+    "generate": "nuxt generate",
+    "lint": "oxlint --config oxlintrc.json app/",
+    "postinstall": "nuxt prepare",
+    "preview": "nuxt preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "nuxi typecheck"
   },
   "dependencies": {
     "@nuxtjs/color-mode": "4.0.0",
