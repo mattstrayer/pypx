@@ -69,9 +69,13 @@ Rules:
     - `Security / govulncheck (goopy)`
     - `Security / osv-scanner`
     - `Security / dependency-review`
-    - `CodeQL / Analyze (javascript-typescript)`
-    - `CodeQL / Analyze (go)`
+    - `Analyze (actions)`
+    - `Analyze (go)`
+    - `Analyze (javascript-typescript)`
+    - `Analyze (python)`
     - `PR Lint / conventional-title`
+
+> **CodeQL note:** This repo uses GitHub's CodeQL **default setup** (Settings → Code security → Code scanning), which auto-runs Analyze for `actions`, `go`, `javascript-typescript`, and `python`. There is no `.github/workflows/codeql.yml`; default setup is sufficient and gets strictly more coverage. If you ever need custom queries or build modes, switch to advanced setup.
 
 > **Note:** Status check names appear in the picker only after the workflow
 > has run at least once. Open a throwaway PR to populate them, then add each

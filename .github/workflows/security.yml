@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - uses: google/osv-scanner-action@06d7aa00edb853f0dfb3c43fd5d4bc87b2557fac # v1
+      - uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
         with:
           scan-args: |-
             --recursive
