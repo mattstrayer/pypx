@@ -4,3 +4,6 @@ packages:
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
+
+overrides:
+  nuxt-site-config: '3.2.21'
