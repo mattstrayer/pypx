@@ -61,6 +61,7 @@ Rules:
     - `CI / goopy (Go)`
     - `CI / Web (Nuxt)`
     - `CI / Web build`
+    - `CI / Web typecheck`
     - `Docker / build (api)`
     - `Docker / build (web)`
     - `Docker / compose-smoke`
@@ -80,10 +81,6 @@ Rules:
 > **Note:** Status check names appear in the picker only after the workflow
 > has run at least once. Open a throwaway PR to populate them, then add each
 > by name.
-
-> **Deferred:** `CI / Web typecheck` is tracked in issue #52 — it will be
-> added to this list once pre-existing TypeScript errors in the web codebase
-> are resolved.
 
 ### GHCR package visibility
 
