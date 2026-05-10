@@ -1,4 +1,4 @@
-import { defineSitemapEventHandler } from "#imports";
+import { defineSitemapEventHandler } from "#sitemap/server/composables/defineSitemapEventHandler";
 import type { SitemapUrlInput } from "#sitemap/types";
 
 export default defineSitemapEventHandler(async () => {
