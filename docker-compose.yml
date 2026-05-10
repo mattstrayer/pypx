@@ -57,7 +57,8 @@ services:
 
   web:
     build:
-      context: ./web
+      context: .
+      dockerfile: web/Dockerfile
     environment:
       - NUXT_API_BASE=http://api:8080
       - NUXT_PUBLIC_API_BASE=/api
