@@ -941,18 +941,31 @@ func TestPackageHandler_Get_502OnUpstreamError(t *testing.T) {
 // TestPackageHandler_Get_DifferentPackagesIndependent verifies that concurrent
 // requests for two different packages each go upstream exactly once (their
 // singleflight keys are independent).
+//
+// The upstream mock pins every request open on the `release` channel. As long
+// as `release` is held closed-shut, no upstream call can complete — so any
+// goroutine arriving at singleflight while another is still in flight will
+// join the existing call. We poll until the upstream counters settle at the
+// expected state (1 each), then unblock and assert exactly that. This makes
+// the test independent of Go scheduler timing.
 func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
 	var requestsCount, flaskCount atomic.Int32
+	release := make(chan struct{})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if strings.Contains(r.URL.Path, "flask") {
+		isFlask := strings.Contains(r.URL.Path, "flask")
+		if isFlask {
 			flaskCount.Add(1)
+		} else {
+			requestsCount.Add(1)
+		}
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		if isFlask {
 			// Return a minimal valid flask response by reusing the requests fixture
 			// (name field is the only thing that differs for our test purposes).
 			fmt.Fprint(w, mockLicenseExpressionResponse)
 		} else {
-			requestsCount.Add(1)
 			fmt.Fprint(w, mockRequestsResponse)
 		}
 	}))
@@ -986,19 +999,27 @@ func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
 			router.ServeHTTP(rec, req)
 		}(pkg)
 	}
-
 	close(ready)
+
+	// Wait until both packages have admitted exactly one upstream call.
+	// While `release` is held, any extra calls past 1 per package would be
+	// a singleflight regression and would show up here long before the
+	// deadline.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if requestsCount.Load() == 1 && flaskCount.Load() == 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(release)
 	wg.Wait()
 
-	// Each package has 5 concurrent goroutines; perfect singleflight = 1
-	// upstream call, no dedup = 5. Threshold tolerates partial dedup under
-	// slow CI runners (Go scheduler timing varies) but still catches the
-	// no-dedup regression.
-	if got := requestsCount.Load(); got > 4 {
-		t.Errorf("requests: expected ≤4 upstream calls, got %d", got)
+	if got := requestsCount.Load(); got != 1 {
+		t.Errorf("requests: expected exactly 1 upstream call, got %d", got)
 	}
-	if got := flaskCount.Load(); got > 4 {
-		t.Errorf("flask: expected ≤4 upstream calls, got %d", got)
+	if got := flaskCount.Load(); got != 1 {
+		t.Errorf("flask: expected exactly 1 upstream call, got %d", got)
 	}
 }
 
