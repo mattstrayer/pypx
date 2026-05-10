@@ -61,10 +61,14 @@ Examples: `feat: add conda-forge badge`, `fix: handle missing classifier field`
 
 ## Pull requests
 
-- One logical change per PR — keep scope tight
-- PR title must follow the same Conventional Commits format as commit messages
-- Run `go test ./...` before pushing API changes
-- Describe the *why* in the PR body, not just the what
+- All changes go through pull requests. Direct pushes to `main` are blocked.
+- One logical change per PR — keep scope tight.
+- PR title must follow the same Conventional Commits format as commit messages. The `PR Lint` check enforces this.
+- Squash merge is the only merge strategy. The PR title becomes the commit message on `main`, so make it descriptive.
+- All required checks must pass before merge. See `.github/workflows/` for the full list.
+- Run `go test ./...` before pushing API changes.
+- Describe the *why* in the PR body, not just the what.
+- Maintainer setup is documented in [`docs/CONTRIBUTING-MAINTAINERS.md`](docs/CONTRIBUTING-MAINTAINERS.md).
 
 ## Filing issues
 
