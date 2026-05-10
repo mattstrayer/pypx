@@ -19,7 +19,7 @@ export default defineNuxtConfig({
 
   colorMode: {
     classSuffix: '',
-    defaultValue: 'system',
+    preference: 'system',
     storageKey: 'pypx-color-mode',
   },
 
