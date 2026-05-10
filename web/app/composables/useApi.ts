@@ -63,9 +63,10 @@ export function useApi() {
   async function fetchPopular(
     limit = 24,
   ): Promise<Array<{ name: string; summary: string; downloads: number }>> {
-    return $fetch(`${baseURL}/popular`, {
-      params: { limit },
-    });
+    return $fetch<Array<{ name: string; summary: string; downloads: number }>>(
+      `${baseURL}/popular`,
+      { params: { limit } },
+    );
   }
 
   return {
