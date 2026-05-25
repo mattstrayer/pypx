@@ -79,4 +79,9 @@ jobs:
           allow-licenses: >-
             MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
             Unlicense, 0BSD, CC0-1.0, Python-2.0
+          # golang.org/x/* modules are BSD-3-Clause + Go's PATENTS file, which is
+          # reported as the compound expression
+          # "BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang".
+          # The patent grant is permissive — allow these Go modules explicitly.
+          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys'
           comment-summary-in-pr: on-failure
