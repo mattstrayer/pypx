@@ -81,10 +81,5 @@ jobs:
             Unlicense, 0BSD, CC0-1.0, Python-2.0
           # These packages are MIT per their package.json but GitHub's dependency graph
           # cannot resolve an SPDX expression for them — allow them explicitly.
-          allow-dependencies-licenses: >-
-            pkg:npm/assertion-error,
-            pkg:npm/error-stack-parser-es,
-            pkg:npm/es-errors,
-            pkg:npm/http-errors,
-            pkg:npm/redis-errors
+          allow-dependencies-licenses: 'pkg:npm/assertion-error@2.0.1, pkg:npm/error-stack-parser-es@1.0.5, pkg:npm/es-errors@1.3.0, pkg:npm/http-errors@2.0.1, pkg:npm/redis-errors@1.2.0'
           comment-summary-in-pr: on-failure
