@@ -7,12 +7,9 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
+	golang.org/x/sync v0.20.0
+	golang.org/x/time v0.15.0
 	modernc.org/sqlite v1.48.2
-)
-
-require (
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
 )
 
 require (
@@ -24,7 +21,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pypx/goopy v0.0.0
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
