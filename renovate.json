@@ -3,10 +3,14 @@
   "extends": [
     "config:best-practices",
     "docker:enableMajor",
-    ":separateMajorReleases"
+    ":separateMajorReleases",
+    "schedule:weekly"
   ],
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
+  "dependencyDashboardApproval": false,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
   "vulnerabilityAlerts": {
     "enabled": true,
     "labels": ["dependencies", "security"],
