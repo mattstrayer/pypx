@@ -73,8 +73,8 @@ importers:
         specifier: 1.66.0
         version: 1.66.0
       oxlint-plugin-complexity:
-        specifier: 2.1.2
-        version: 2.1.2(@oxlint/plugins@1.63.0)(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.131.0)
+        specifier: 2.1.3
+        version: 2.1.3(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.131.0)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1581,8 +1581,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oxlint/plugins@1.63.0':
-    resolution: {integrity: sha512-vZAzaUQkwgdN62RHgPFzfCsiBI6SDJMUdUlBGpJK0V++UHCMUk7UeJseygOhE/wOUSgV3ccE4ORkgab3C3MC6g==}
+  '@oxlint/plugins@1.67.0':
+    resolution: {integrity: sha512-L5oSCA3Ehr2BvRCHy9e64InPnkfjeopwsP4VsxfZwcvZA9c7wRp48RXVt2q3OA8Z/uM6RFbE/VIB2ZYTA31guA==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@parcel/watcher-android-arm64@2.5.6':
@@ -3889,11 +3889,10 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  oxlint-plugin-complexity@2.1.2:
-    resolution: {integrity: sha512-Ja/oM31gffK3TEy/WnInq2kQyCkKY0ke1tUeQ6GRv8MsDGKQRj+C+ptBL5takwIOx3msEnoukq9dtpcYy6q0LQ==}
+  oxlint-plugin-complexity@2.1.3:
+    resolution: {integrity: sha512-oZBW7weeJqt4kqRQiHJEkqsA1nHfyijiUET38N3uPh+GGVmtqYgDkQEAD0FtJbEWIjgyvJ8jSCR9IA/gzI1EdA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@oxlint/plugins': '>=1.43.0'
       diff: '>=5.0.0'
       estree-walker: '>=3.0.0'
       oxc-parser: '>=0.60.0'
@@ -6424,7 +6423,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.66.0':
     optional: true
 
-  '@oxlint/plugins@1.63.0': {}
+  '@oxlint/plugins@1.67.0': {}
 
   '@parcel/watcher-android-arm64@2.5.6':
     optional: true
@@ -8985,9 +8984,9 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.44.0
       '@oxfmt/binding-win32-x64-msvc': 0.44.0
 
-  oxlint-plugin-complexity@2.1.2(@oxlint/plugins@1.63.0)(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.131.0):
+  oxlint-plugin-complexity@2.1.3(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.131.0):
     dependencies:
-      '@oxlint/plugins': 1.63.0
+      '@oxlint/plugins': 1.67.0
     optionalDependencies:
       diff: 8.0.4
       estree-walker: 3.0.3
