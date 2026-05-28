@@ -7,6 +7,6 @@ allowBuilds:
 
 overrides:
   nuxt-site-config: '3.2.21'
-  devalue: '>=5.8.1'
-  js-cookie: '>=3.0.7'
-  ws: '>=8.20.1'
+  devalue: '5.8.1'
+  js-cookie: '3.0.7'
+  ws: '8.21.0'
