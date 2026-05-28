@@ -44,6 +44,6 @@ jobs:
           retention-days: 5
 
       - name: Upload SARIF results to code scanning
-        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4 # Renovate will pin to SHA on first scan
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4 # Renovate will pin to SHA on first scan
         with:
           sarif_file: results.sarif
