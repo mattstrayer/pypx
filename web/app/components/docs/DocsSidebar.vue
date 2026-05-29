@@ -3,8 +3,15 @@ import { DynamicScroller as RawDynamicScroller, DynamicScrollerItem } from "vue-
 import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import type { DocSymbol } from "~/types/api";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const DynamicScroller = RawDynamicScroller as unknown as new (...args: any) => any;
+// vue-virtual-scroller ships no usable slot types; declare the default scoped
+// slot explicitly so vue-tsc can resolve `#default` (it resolves `$slots` on an
+// `any` instance to `{}`, which breaks destructuring).
+const DynamicScroller = RawDynamicScroller as unknown as new (...args: unknown[]) => {
+  $slots: {
+    default?: (scope: { item: SidebarItem; index: number; active: boolean }) => unknown;
+  };
+  scrollToItem?: (index: number) => void;
+};
 
 const props = defineProps<{
   functions: DocSymbol[];
