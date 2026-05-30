@@ -17,3 +17,6 @@ overrides:
   devalue: '5.8.1'
   js-cookie: '3.0.7'
   ws: '8.21.0'
+
+patchedDependencies:
+  nuxt-og-image@6.5.0: patches/nuxt-og-image@6.5.0.patch
