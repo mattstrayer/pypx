@@ -119,7 +119,7 @@ jobs:
           DEPLOY
 
       - name: Install git-cliff
-        uses: kenji-miyake/setup-git-cliff@v2
+        uses: kenji-miyake/setup-git-cliff@2778609c643a39a2576c4bae2e493b855eb4aee8 # v2
 
       - name: Tag and release
         env:
