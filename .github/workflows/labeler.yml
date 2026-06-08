@@ -16,7 +16,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/labeler@f27b608878404679385c85cfa523b85ccb86e213 # v6 # Renovate will pin to SHA on first scan
+      - uses: actions/labeler@f27b608878404679385c85cfa523b85ccb86e213 # v6.1.0 # Renovate will pin to SHA on first scan
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: .github/labeler.yml
