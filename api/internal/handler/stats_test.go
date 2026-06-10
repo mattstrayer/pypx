@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -463,4 +464,123 @@ func TestStatsDateRangeInResponse(t *testing.T) {
 		t.Errorf("3m date range should span ~90 days, got %.0f (%s to %s)",
 			days, body.DateRange.From, body.DateRange.To)
 	}
+}
+
+// TestStatsSWRStaleHitRefreshes verifies that when the stats cache entry is
+// stale, it is served immediately (stale-while-revalidate) and the background
+// goroutine refreshes the cache with fresh upstream data.
+func TestStatsSWRStaleHitRefreshes(t *testing.T) {
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	today := now.Format("2006-01-02")
+
+	// v1 mock: returns Linux downloads=100 per day.
+	v1Response := fmt.Sprintf(`{"package":"django","type":"system","data":[
+		{"category":"Linux","date":%q,"downloads":100}
+	]}`, today)
+	// v2 mock: returns Linux downloads=999999.
+	v2Response := fmt.Sprintf(`{"package":"django","type":"system","data":[
+		{"category":"Linux","date":%q,"downloads":999999}
+	]}`, today)
+
+	var serveV2 atomic.Bool
+	refreshReached := make(chan struct{}, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.Contains(r.URL.Path, "/packages/django/") {
+			http.NotFound(w, r)
+			return
+		}
+		resp := v1Response
+		if serveV2.Load() {
+			resp = v2Response
+			select {
+			case refreshReached <- struct{}{}:
+			default:
+			}
+		}
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/overall"):
+			fmt.Fprintf(w, `{"package":"django","type":"overall","data":[]}`)
+		case strings.HasSuffix(r.URL.Path, "/python_minor"):
+			fmt.Fprintf(w, `{"package":"django","type":"python_minor","data":[]}`)
+		case strings.HasSuffix(r.URL.Path, "/system"):
+			w.Write([]byte(resp)) //nolint:errcheck
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	sqliteCache, dbPath := mustTempCache(t)
+
+	statsClient := stats.NewClient(stats.WithBaseURL(srv.URL))
+	h := handler.NewStatsHandler(statsClient, sqliteCache)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/stats", h.Get)
+
+	// Prime the cache with v1.
+	prime := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats?period=4w", nil)
+	primeRec := httptest.NewRecorder()
+	r.ServeHTTP(primeRec, prime)
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime: expected 200, got %d: %s", primeRec.Code, primeRec.Body.String())
+	}
+
+	// Force the cache entry stale.
+	cacheKey := "stats:django:4w"
+	backdateCache(t, dbPath, cacheKey)
+
+	// Switch upstream to v2.
+	serveV2.Store(true)
+
+	// Act: request must return stale v1 (Linux downloads=100).
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats?period=4w", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("stale hit: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var staleBody handler.CombinedStats
+	if err := json.NewDecoder(rec.Body).Decode(&staleBody); err != nil {
+		t.Fatalf("decode stale response: %v", err)
+	}
+	// Stale response should have the v1 system data (Linux=100 total).
+	if len(staleBody.Systems) == 0 {
+		t.Fatal("expected non-empty Systems in stale response")
+	}
+	if staleBody.Systems[0].Downloads != 100 {
+		t.Errorf("expected stale Linux downloads=100, got %d", staleBody.Systems[0].Downloads)
+	}
+
+	// Wait for background refresh to reach upstream.
+	select {
+	case <-refreshReached:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background refresh did not reach upstream within 2s")
+	}
+
+	// Poll until the cache reflects v2 (Linux downloads=999999).
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		req2 := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats?period=4w", nil)
+		rec2 := httptest.NewRecorder()
+		r.ServeHTTP(rec2, req2)
+		if rec2.Code != http.StatusOK {
+			t.Fatalf("poll: expected 200, got %d", rec2.Code)
+		}
+		var body2 handler.CombinedStats
+		if err := json.NewDecoder(rec2.Body).Decode(&body2); err != nil {
+			t.Fatalf("decode poll: %v", err)
+		}
+		if len(body2.Systems) > 0 && body2.Systems[0].Downloads == 999999 {
+			// Cache refreshed to v2.
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("stats cache was not refreshed to v2 data within 2s")
 }
