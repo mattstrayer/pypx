@@ -71,6 +71,28 @@ func (c *Cache) Set(key string, value []byte, _ time.Duration) error {
 	return err
 }
 
+// getWithTime retrieves the value stored under key along with its original
+// created_at timestamp in a single atomic row scan. A zero createdAt means
+// the key was not found.
+func (c *Cache) getWithTime(key string, ttl time.Duration) (data []byte, fresh bool, createdAt time.Time, err error) {
+	var value []byte
+	var tsUnix int64
+
+	row := c.db.QueryRow(
+		`SELECT value, created_at FROM cache WHERE key = ?`, key,
+	)
+	if err = row.Scan(&value, &tsUnix); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, false, time.Time{}, nil
+		}
+		return nil, false, time.Time{}, err
+	}
+
+	t := time.Unix(tsUnix, 0)
+	age := time.Since(t)
+	return value, age < ttl, t, nil
+}
+
 // Get retrieves the value stored under key.
 //
 // If the key does not exist, data is nil and err is nil.
@@ -79,39 +101,8 @@ func (c *Cache) Set(key string, value []byte, _ time.Duration) error {
 // the background).
 // If the key exists and is within ttl, fresh=true.
 func (c *Cache) Get(key string, ttl time.Duration) (data []byte, fresh bool, err error) {
-	var value []byte
-	var createdAt int64
-
-	row := c.db.QueryRow(
-		`SELECT value, created_at FROM cache WHERE key = ?`, key,
-	)
-	if err = row.Scan(&value, &createdAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, false, nil
-		}
-		return nil, false, err
-	}
-
-	age := time.Since(time.Unix(createdAt, 0))
-	return value, age < ttl, nil
-}
-
-// storedAt returns the created_at timestamp for a given key from the SQLite cache.
-// If the key does not exist, it returns the zero time and nil error.
-func (c *Cache) storedAt(key string) (time.Time, error) {
-	var createdAt int64
-
-	row := c.db.QueryRow(
-		`SELECT created_at FROM cache WHERE key = ?`, key,
-	)
-	if err := row.Scan(&createdAt); err != nil {
-		if err == sql.ErrNoRows {
-			return time.Time{}, nil
-		}
-		return time.Time{}, err
-	}
-
-	return time.Unix(createdAt, 0), nil
+	data, fresh, _, err = c.getWithTime(key, ttl)
+	return
 }
 
 // Delete removes a single cache entry. Missing keys are not an error.
