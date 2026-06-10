@@ -56,6 +56,16 @@ func NewIndex(dsn string) (*Index, error) {
 		return nil, fmt.Errorf("search: create meta table: %w", err)
 	}
 
+	// Partial index: TopByDownloads filters downloads > 0 and orders DESC.
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_meta_downloads
+		ON packages_meta(downloads DESC)
+		WHERE downloads > 0
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("search: create downloads index: %w", err)
+	}
+
 	// Rebuild the FTS5 table from meta on every startup to clear any dupes
 	// (FTS5 has no unique constraint) and ensure a clean 1:1 mapping.
 	// Wrap in a transaction so concurrent readers either see the old table
