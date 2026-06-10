@@ -125,6 +125,7 @@ func main() {
 		r.Get("/api/packages/{name}/extras.txt", extrasHandler.GetText)
 		r.Get("/api/search", searchHandler.Search)
 		r.Get("/api/search.txt", searchHandler.SearchText)
+		r.Get("/api/compare", compareHandler.GetJSON)
 		r.Get("/api/compare.txt", compareHandler.Get)
 		r.Get("/api/popular", popularHandler.Get)
 		r.Get("/api/sitemap/popular", sitemapHandler.Popular)
@@ -137,6 +138,7 @@ func main() {
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs.txt", docsHandler.GetText)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/docs/{symbol}", docsHandler.GetSymbol)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/symbols.txt", docsHandler.GetSymbols)
+	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/diff", diffHandler.GetJSON)
 	r.With(middleware.Timeout(60 * time.Second)).Get("/api/packages/{name}/diff.txt", diffHandler.Get)
 
 	srv := &http.Server{

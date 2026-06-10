@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -168,6 +169,118 @@ func TestCompareHandler_Get_BadInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCompareHandler_GetJSON_HappyPath(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/httpx/"):
+			fmt.Fprint(w, `{"info":{"name":"httpx","version":"0.28.1","summary":"Next gen HTTP","license_expression":"BSD-3-Clause","requires_python":">=3.8","requires_dist":[]},"urls":[],"releases":{}}`)
+		case strings.Contains(path, "/requests/"):
+			fmt.Fprint(w, `{"info":{"name":"requests","version":"2.32.3","summary":"HTTP for Humans","license_expression":"Apache-2.0","requires_python":">=3.8","requires_dist":[]},"urls":[],"releases":{}}`)
+		default:
+			http.Error(w, "not found", http.StatusNotFound)
+		}
+	}))
+	defer pypiSrv.Close()
+
+	osvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"vulns":[]}`)
+	}))
+	defer osvSrv.Close()
+
+	c, _ := cache.New(":memory:")
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+	idx, _ := search.NewIndex(":memory:")
+	defer idx.Close()
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	osvClient := osv.NewClient(osv.WithBaseURL(osvSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, memCache)
+	h := handler.NewCompareHandler(pkgHandler, pypiClient, osvClient, idx)
+
+	r := chi.NewRouter()
+	r.Get("/api/compare", h.GetJSON)
+
+	req := httptest.NewRequest("GET", "/api/compare?pkgs=httpx,requests", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+
+	var body struct {
+		Packages []struct {
+			Name string `json:"Name"`
+		} `json:"Packages"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if len(body.Packages) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(body.Packages))
+	}
+	names := []string{body.Packages[0].Name, body.Packages[1].Name}
+	if !containsAll(names, []string{"httpx", "requests"}) {
+		t.Errorf("expected httpx and requests, got %v", names)
+	}
+}
+
+func TestCompareHandler_GetJSON_BadInputs(t *testing.T) {
+	c, _ := cache.New(":memory:")
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+	idx, _ := search.NewIndex(":memory:")
+	defer idx.Close()
+
+	pypiClient := pypi.NewClient()
+	osvClient := osv.NewClient()
+	pkgHandler := handler.NewPackageHandler(pypiClient, memCache)
+	h := handler.NewCompareHandler(pkgHandler, pypiClient, osvClient, idx)
+
+	r := chi.NewRouter()
+	r.Get("/api/compare", h.GetJSON)
+
+	cases := []struct {
+		name     string
+		query    string
+		wantCode int
+	}{
+		{"empty pkgs", "?pkgs=", 400},
+		{"missing pkgs", "", 400},
+		{"too many", "?pkgs=a,b,c,d,e,f", 400},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/compare"+tc.query, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tc.wantCode {
+				t.Errorf("status = %d, want %d", w.Code, tc.wantCode)
+			}
+		})
+	}
+}
+
+func containsAll(haystack, needles []string) bool {
+	set := make(map[string]bool, len(haystack))
+	for _, s := range haystack {
+		set[s] = true
+	}
+	for _, n := range needles {
+		if !set[n] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestCompareHandler_Get_DedupesAndPreservesOrder(t *testing.T) {
