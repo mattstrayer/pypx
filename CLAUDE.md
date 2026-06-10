@@ -70,7 +70,9 @@ docker-compose.yml      Full stack definition
 | `api/internal/enrichment/wheels.go` | Install size + platform coverage from distribution files |
 | `web/app/composables/useApi.ts` | API wrapper — handles server vs. client base URL |
 | `web/app/pages/packages/[name].vue` | Main package page — SSR + client-side parallel loads |
-| `web/app/types/api.ts` | TypeScript schemas (keep in sync with Go handler responses) |
+| `web/app/types/api.ts` | TypeScript type shim — re-exports from `api.gen.ts`; run `cd api && go run ./cmd/gentypes -out ../web/app/types/api.gen.ts` after changing a response struct |
+| `web/app/types/api.gen.ts` | Generated TypeScript interfaces (DO NOT EDIT — commit after regenerating) |
+| `api/cmd/gentypes/main.go` | Generator — reflects on Go response structs to emit `api.gen.ts` |
 | `web/nuxt.config.ts` | Runtime config: `apiBase` (server), `public.apiBase` (client) |
 
 ## Development Commands
