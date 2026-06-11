@@ -155,9 +155,9 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 	if owner, repo, ok := gh.ExtractGitHubRepo(projectURLs); ok {
 		repoURL := "https://github.com/" + owner + "/" + repo
 		sources := []changelog.Source{
-			&gh.ReleasesSource{Client: h.github, Owner: owner, Repo: repo},
-			&gh.FileSource{Client: h.github, Owner: owner, Repo: repo},
-			&gh.TagsSource{Client: h.github, Owner: owner, Repo: repo},
+			gh.NewReleasesSource(h.github, owner, repo),
+			gh.NewFileSource(h.github, owner, repo),
+			gh.NewTagsSource(h.github, owner, repo),
 		}
 		reg := changelog.NewRegistry(sources...)
 		result := reg.Fetch(ctx)
@@ -176,9 +176,9 @@ func (h *ChangelogHandler) buildResponse(ctx context.Context, pkgName string, pr
 	// Detect GitLab.
 	if projectPath, repoURL, ok := gitlab.ExtractGitLabRepo(projectURLs); ok {
 		sources := []changelog.Source{
-			&gitlab.ReleasesSource{Client: h.gitlab, ProjectPath: projectPath},
-			&gitlab.FileSource{Client: h.gitlab, ProjectPath: projectPath},
-			&gitlab.TagsSource{Client: h.gitlab, ProjectPath: projectPath},
+			gitlab.NewReleasesSource(h.gitlab, projectPath),
+			gitlab.NewFileSource(h.gitlab, projectPath),
+			gitlab.NewTagsSource(h.gitlab, projectPath),
 		}
 		reg := changelog.NewRegistry(sources...)
 		result := reg.Fetch(ctx)
