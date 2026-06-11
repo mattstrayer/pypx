@@ -29,6 +29,11 @@ jobs:
       - name: go vet
         working-directory: api
         run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
+        with:
+          version: v2.12.2
+          working-directory: api
       - name: go test
         working-directory: api
         run: go test ./...
@@ -52,6 +57,11 @@ jobs:
       - name: go vet
         working-directory: goopy
         run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
+        with:
+          version: v2.12.2
+          working-directory: goopy
       - name: go test
         working-directory: goopy
         # Skip tests tagged for the long-running ecosystem suite — that one is run on a schedule.
