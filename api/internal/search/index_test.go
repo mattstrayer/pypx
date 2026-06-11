@@ -1,6 +1,8 @@
 package search
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -492,6 +494,64 @@ func TestTopByDownloads_DefaultLimit(t *testing.T) {
 			t.Errorf("results not in descending order: results[%d]=%d > results[%d]=%d",
 				i, results[i].Downloads, i-1, results[i-1].Downloads)
 		}
+	}
+}
+
+// TestTopByDownloadsUsesIndex verifies that the query planner uses
+// idx_meta_downloads and does not fall back to a temporary B-tree sort.
+func TestTopByDownloadsUsesIndex(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	// Seed a few rows so the planner has something to reason about.
+	if err := idx.UpsertBatch([]PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+		{Name: "zero-pkg", Summary: "Not in top list", Downloads: 0},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+
+	rows, err := idx.db.Query(`EXPLAIN QUERY PLAN
+		SELECT name, summary, downloads FROM packages_meta
+		WHERE downloads > 0 ORDER BY downloads DESC LIMIT 10`)
+	if err != nil {
+		t.Fatalf("EXPLAIN QUERY PLAN: %v", err)
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("columns: %v", err)
+	}
+
+	var planLines []string
+	for rows.Next() {
+		vals := make([]interface{}, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		// detail is the last column in EXPLAIN QUERY PLAN (id, parent, notused, detail).
+		detail := fmt.Sprintf("%v", vals[len(vals)-1])
+		planLines = append(planLines, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+
+	// Combine all detail lines for assertion.
+	plan := strings.Join(planLines, "\n")
+	t.Logf("EXPLAIN QUERY PLAN output:\n%s", plan)
+
+	if !strings.Contains(plan, "idx_meta_downloads") {
+		t.Errorf("expected query plan to use idx_meta_downloads; got:\n%s", plan)
+	}
+	if strings.Contains(plan, "USE TEMP B-TREE FOR ORDER BY") {
+		t.Errorf("expected no temp B-tree sort; got:\n%s", plan)
 	}
 }
 
