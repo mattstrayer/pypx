@@ -22,7 +22,7 @@ onUnmounted(() => {
   document.removeEventListener("mousedown", onClickOutside);
 });
 
-const POPULAR_LIMIT = 24;
+const POPULAR_LIMIT = 15;
 
 const api = useApi();
 const { data: trendingPackages, status } = await useAsyncData("trending", () =>
@@ -152,7 +152,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         <span class="text-xs font-semibold uppercase tracking-[0.07em] text-muted">Trending</span>
         <div class="h-px flex-1 bg-subtle" />
         <span class="font-mono text-[11.5px] text-muted opacity-70">
-          top 24 by downloads · data from
+          top 15 by downloads · data from
           <a
             href="https://github.com/hugovk/top-pypi-packages"
             target="_blank"
