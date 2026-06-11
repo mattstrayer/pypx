@@ -45,19 +45,6 @@ func parsePlain(raw string) *model.Docstring {
 	}
 }
 
-// splitSummary extracts the first paragraph (summary) from a docstring.
-// Returns summary and remaining text.
-func splitSummary(raw string) (string, string) {
-	raw = strings.TrimSpace(raw)
-	parts := strings.SplitN(raw, "\n\n", 2)
-	summary := strings.TrimSpace(parts[0])
-	rest := ""
-	if len(parts) > 1 {
-		rest = strings.TrimSpace(parts[1])
-	}
-	return summary, rest
-}
-
 func containsSphinxFields(raw string) bool {
 	return strings.Contains(raw, ":param ") || strings.Contains(raw, ":type ") ||
 		strings.Contains(raw, ":returns:") || strings.Contains(raw, ":rtype:")
