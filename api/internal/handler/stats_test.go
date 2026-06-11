@@ -559,12 +559,12 @@ func TestStatsSWRStaleHitRefreshes(t *testing.T) {
 	// Wait for background refresh to reach upstream.
 	select {
 	case <-refreshReached:
-	case <-time.After(2 * time.Second):
-		t.Fatal("background refresh did not reach upstream within 2s")
+	case <-time.After(10 * time.Second):
+		t.Fatal("background refresh did not reach upstream within 10s")
 	}
 
 	// Poll until the cache reflects v2 (Linux downloads=999999).
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		req2 := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats?period=4w", nil)
 		rec2 := httptest.NewRecorder()
@@ -582,5 +582,5 @@ func TestStatsSWRStaleHitRefreshes(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("stats cache was not refreshed to v2 data within 2s")
+	t.Error("stats cache was not refreshed to v2 data within 10s")
 }

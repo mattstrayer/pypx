@@ -257,7 +257,7 @@ func TestPopularSWRStaleHitRefreshes(t *testing.T) {
 	}
 
 	// Poll until the cache is refreshed to v2 (background goroutine updates the cache).
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		req2 := httptest.NewRequest(http.MethodGet, "/api/popular?limit=1", nil)
 		rec2 := httptest.NewRecorder()
@@ -275,5 +275,5 @@ func TestPopularSWRStaleHitRefreshes(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("popular cache was not refreshed to v2 data within 2s")
+	t.Error("popular cache was not refreshed to v2 data within 10s")
 }
