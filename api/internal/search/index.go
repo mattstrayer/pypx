@@ -62,7 +62,7 @@ func NewIndex(dsn string) (*Index, error) {
 		ON packages_meta(downloads DESC)
 		WHERE downloads > 0
 	`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: create downloads index: %w", err)
 	}
 
