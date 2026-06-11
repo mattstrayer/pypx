@@ -68,7 +68,7 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("worker: fetch simple index: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("worker: simple index returned status %d", resp.StatusCode)
@@ -132,7 +132,7 @@ func (w *Worker) SyncDownloads(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("worker: fetch top packages: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("worker: top packages returned status %d", resp.StatusCode)

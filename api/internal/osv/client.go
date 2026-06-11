@@ -101,7 +101,7 @@ func (c *Client) FetchVulns(ctx context.Context, name, version string) ([]VulnIn
 	if err != nil {
 		return nil, fmt.Errorf("osv: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("osv: unexpected status %d", resp.StatusCode)

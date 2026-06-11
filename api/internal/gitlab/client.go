@@ -124,7 +124,7 @@ func (c *Client) FetchReleases(ctx context.Context, projectPath string) ([]Relea
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		return nil, nil
 	}
@@ -168,15 +168,15 @@ func (c *Client) FetchRawFile(ctx context.Context, projectPath string, candidate
 			continue
 		}
 		if resp.StatusCode == http.StatusNotFound {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			continue
 		}
@@ -191,7 +191,7 @@ func (c *Client) FetchTags(ctx context.Context, projectPath string) ([]Tag, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil
 	}
@@ -226,7 +226,7 @@ func (c *Client) FetchCompare(ctx context.Context, projectPath, base, head strin
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, "", nil
 	}
