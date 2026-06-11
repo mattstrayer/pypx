@@ -32,6 +32,11 @@ jobs:
       - name: go test
         working-directory: api
         run: go test ./...
+      - name: TS contract drift gate
+        working-directory: api
+        run: |
+          go run ./cmd/gentypes -out ../web/app/types/api.gen.ts
+          git diff --exit-code ../web/app/types/api.gen.ts
 
   goopy:
     name: goopy (Go)
