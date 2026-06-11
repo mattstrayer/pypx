@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -13,6 +14,11 @@ import (
 	"github.com/pypx/api/internal/search"
 	"github.com/pypx/api/internal/textfmt"
 )
+
+// jsonEncode writes v as JSON to w, returning any encoding error.
+func jsonEncode(w http.ResponseWriter, v any) error {
+	return json.NewEncoder(w).Encode(v)
+}
 
 const compareMaxPackages = 5
 
@@ -30,14 +36,12 @@ func NewCompareHandler(pkg *PackageHandler, pypiClient *pypi.Client, osvClient *
 	return &CompareHandler{pkg: pkg, pypi: pypiClient, osv: osvClient, search: idx}
 }
 
-// Get handles GET /api/compare.txt?pkgs=a,b,c.
-func (h *CompareHandler) Get(w http.ResponseWriter, r *http.Request) {
-	raw := strings.TrimSpace(r.URL.Query().Get("pkgs"))
+// parseNames validates and deduplicates a comma-separated pkgs query parameter.
+// Returns (names, errMsg) where errMsg is non-empty on validation failure.
+func parseNames(raw string) ([]string, string) {
 	if raw == "" {
-		http.Error(w, "query parameter 'pkgs' is required", http.StatusBadRequest)
-		return
+		return nil, "query parameter 'pkgs' is required"
 	}
-
 	parts := strings.Split(raw, ",")
 	names := make([]string, 0, len(parts))
 	seen := make(map[string]bool, len(parts))
@@ -47,23 +51,23 @@ func (h *CompareHandler) Get(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err := pypi.ValidateName(n); err != nil {
-			http.Error(w, "invalid package name: "+n, http.StatusBadRequest)
-			return
+			return nil, "invalid package name: " + n
 		}
 		seen[n] = true
 		names = append(names, n)
 	}
-
 	if len(names) == 0 {
-		http.Error(w, "no valid package names provided", http.StatusBadRequest)
-		return
+		return nil, "no valid package names provided"
 	}
 	if len(names) > compareMaxPackages {
-		http.Error(w, "too many packages, max 5", http.StatusBadRequest)
-		return
+		return nil, "too many packages, max 5"
 	}
+	return names, ""
+}
 
-	// Fan out per-package fetches in parallel; preserve input order.
+// build assembles a CompareInput for the given package names. It fans out
+// per-package fetches in parallel and preserves input order.
+func (h *CompareHandler) build(ctx context.Context, names []string) *textfmt.CompareInput {
 	type slot struct {
 		input   *textfmt.ComparePackageInput
 		skipped *textfmt.SkippedPackage
@@ -75,7 +79,7 @@ func (h *CompareHandler) Get(w http.ResponseWriter, r *http.Request) {
 		i, name := i, name
 		go func() {
 			defer wg.Done()
-			results[i] = h.fetchOne(r.Context(), name)
+			results[i] = h.fetchOne(ctx, name)
 		}()
 	}
 	wg.Wait()
@@ -89,10 +93,41 @@ func (h *CompareHandler) Get(w http.ResponseWriter, r *http.Request) {
 			in.Packages = append(in.Packages, *res.input)
 		}
 	}
+	return in
+}
+
+// Get handles GET /api/compare.txt?pkgs=a,b,c.
+func (h *CompareHandler) Get(w http.ResponseWriter, r *http.Request) {
+	names, errMsg := parseNames(strings.TrimSpace(r.URL.Query().Get("pkgs")))
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
+		return
+	}
+
+	in := h.build(r.Context(), names)
 
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(textfmt.FormatCompare(in))) //nolint:errcheck
+}
+
+// GetJSON handles GET /api/compare?pkgs=a,b,c — same assembly as Get but
+// returns the CompareInput struct as JSON.
+func (h *CompareHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
+	names, errMsg := parseNames(strings.TrimSpace(r.URL.Query().Get("pkgs")))
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
+		return
+	}
+
+	in := h.build(r.Context(), names)
+
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Content-Type", "application/json")
+	if err := jsonEncode(w, in); err != nil {
+		// Header already sent; nothing useful to do here.
+		_ = err
+	}
 }
 
 // fetchOne assembles one package's compare row. Returns either an input

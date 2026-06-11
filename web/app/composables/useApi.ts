@@ -8,6 +8,8 @@ import type {
   SecurityData,
   ExtrasData,
   DocsData,
+  CompareData,
+  DiffData,
 } from "~/types/api";
 
 export function useApi() {
@@ -69,6 +71,18 @@ export function useApi() {
     );
   }
 
+  async function fetchCompare(pkgs: string[]): Promise<CompareData> {
+    return $fetch<CompareData>(`${baseURL}/compare`, {
+      params: { pkgs: pkgs.join(",") },
+    });
+  }
+
+  async function fetchDiff(name: string, from: string, to: string): Promise<DiffData> {
+    return $fetch<DiffData>(`${baseURL}/packages/${name}/diff`, {
+      params: { from, to },
+    });
+  }
+
   return {
     fetchPackage,
     fetchVersions,
@@ -80,5 +94,7 @@ export function useApi() {
     fetchExtras,
     fetchDocs,
     fetchPopular,
+    fetchCompare,
+    fetchDiff,
   };
 }
