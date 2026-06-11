@@ -167,7 +167,7 @@ func parseJSONTag(f reflect.StructField) (name string, omitempty bool, skip bool
 // goTypeToTS converts a Go reflect.Type into the corresponding TypeScript type string.
 func goTypeToTS(t reflect.Type, registered map[string]bool) string {
 	// Unwrap pointer: *T → T | null
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		inner := goTypeToTS(t.Elem(), registered)
 		return inner + " | null"
 	}

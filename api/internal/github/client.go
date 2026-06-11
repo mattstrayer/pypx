@@ -204,7 +204,7 @@ func (c *Client) FetchReleases(ctx context.Context, owner, repo string) ([]Relea
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		// Not a service failure — repo simply doesn't exist or isn't accessible.
@@ -259,7 +259,7 @@ func (c *Client) FetchRepoInfo(ctx context.Context, owner, repo string) (*RepoIn
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("github: repo request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		// Not a service failure — repo simply doesn't exist or isn't accessible.
@@ -315,16 +315,16 @@ func (c *Client) FetchRawFile(ctx context.Context, owner, repo string, candidate
 			continue
 		}
 		if resp.StatusCode == http.StatusNotFound {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 		var buf strings.Builder
 		_, err = io.Copy(&buf, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			continue
 		}
@@ -347,7 +347,7 @@ func (c *Client) FetchTags(ctx context.Context, owner, repo string) ([]Tag, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil
 	}
@@ -386,7 +386,7 @@ func (c *Client) FetchCompare(ctx context.Context, owner, repo, base, head strin
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, "", nil
 	}
@@ -448,7 +448,7 @@ func (c *Client) fetchOwnerName(ctx context.Context, login string, isOrg bool) s
 	if err != nil {
 		return login
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return login
 	}

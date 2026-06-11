@@ -69,7 +69,7 @@ func CheckPyTyped(ctx context.Context, c *Client, wheelURL string) bool {
 	if err != nil {
 		return false
 	}
-	head.Body.Close()
+	_ = head.Body.Close()
 
 	contentLength, err := strconv.ParseInt(head.Header.Get("Content-Length"), 10, 64)
 	if err != nil || contentLength <= 0 {
@@ -94,7 +94,7 @@ func CheckPyTyped(ctx context.Context, c *Client, wheelURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
 		return false
 	}

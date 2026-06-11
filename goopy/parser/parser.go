@@ -169,13 +169,6 @@ func (p *Parser) syncStmt() {
 	}
 }
 
-// syncExpr skips tokens until we reach an expression boundary.
-func (p *Parser) syncExpr() {
-	for !p.at(token.COMMA, token.RPAREN, token.RBRACK, token.COLON, token.NEWLINE, token.EOF) {
-		p.next()
-	}
-}
-
 // skipUntil skips tokens until the given closing delimiter is reached at depth 0.
 // It tracks bracket nesting so it won't stop at a delimiter inside a nested group.
 func (p *Parser) skipUntil(close token.Type) {

@@ -201,7 +201,7 @@ func checkSidecar(url string) bool {
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp.StatusCode == 200
 }
 
@@ -213,7 +213,7 @@ func callSidecar(t *testing.T, client *http.Client, url, name, version string) *
 		t.Logf("sidecar request failed for %s: %v", name, err)
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

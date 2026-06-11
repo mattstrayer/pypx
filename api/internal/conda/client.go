@@ -61,7 +61,7 @@ func (c *Client) FetchCondaInfo(ctx context.Context, name string) (CondaForgeInf
 	if err != nil {
 		return CondaForgeInfo{}, fmt.Errorf("conda: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return CondaForgeInfo{Available: false}, nil

@@ -132,7 +132,7 @@ func (c *Client) FetchPackage(ctx context.Context, name string) (*PyPIResponse, 
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		// 404 is a valid "not found" response — not a service failure.
@@ -180,7 +180,7 @@ func (c *Client) FetchPackageAtVersion(ctx context.Context, name, version string
 		c.breaker.RecordFailure()
 		return nil, fmt.Errorf("pypi: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("pypi: %q@%s: %w", name, version, ErrNotFound)

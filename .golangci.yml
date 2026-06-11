@@ -1,0 +1,40 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - nolintlint
+  settings:
+    staticcheck:
+      # golangci-lint's default check set (keeps the SA* bug checks, drops the
+      # noisy ST* style rules) PLUS dropping two QF* quickfixes. QF1003
+      # (if-chain -> tagged switch) is actively wrong for our loop bodies that
+      # `break` out of the enclosing loop (it changes break to target the
+      # switch — see countLeadingSpaces / measureIndent).
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1003
+        - -QF1006
+  exclusions:
+    rules:
+      # Test files exercise mock HTTP servers and throwaway fixtures where the
+      # unchecked write/close errors are noise, not real error-handling sites.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - nolintlint
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

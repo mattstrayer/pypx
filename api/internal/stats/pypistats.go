@@ -62,7 +62,7 @@ func (c *Client) fetch(ctx context.Context, url string) (*StatsResponse, error) 
 	if err != nil {
 		return nil, fmt.Errorf("pypistats: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("pypistats: resource not found: %s", url)

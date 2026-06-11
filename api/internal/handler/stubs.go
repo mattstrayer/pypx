@@ -151,7 +151,7 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetchStubPackage: HTTP %d fetching %s", resp.StatusCode, wheelURL)
@@ -183,7 +183,7 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 			continue
 		}
 		src, err := io.ReadAll(rc)
-		rc.Close()
+		_ = rc.Close()
 		if err != nil {
 			continue
 		}

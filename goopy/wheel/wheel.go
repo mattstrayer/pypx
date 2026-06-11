@@ -93,7 +93,7 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("PyPI returned %d", resp.StatusCode)
@@ -142,7 +142,7 @@ func (s *Source) headSize(ctx context.Context, url string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp.ContentLength, nil
 }
 
@@ -155,7 +155,7 @@ func (s *Source) download(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return io.ReadAll(io.LimitReader(resp.Body, s.MaxSize))
 }
 
@@ -178,7 +178,7 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 			rc, err := f.Open()
 			if err == nil {
 				data, _ := io.ReadAll(rc)
-				rc.Close()
+				_ = rc.Close()
 				contents.TopLevelPkgs = parseTopLevelTxt(string(data))
 			}
 			continue
@@ -190,7 +190,7 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 				continue
 			}
 			src, err := io.ReadAll(rc)
-			rc.Close()
+			_ = rc.Close()
 			if err != nil {
 				continue
 			}

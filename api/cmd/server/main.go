@@ -43,7 +43,7 @@ func main() {
 		log.Fatalf("failed to open cache: %v", err)
 	}
 	c := cache.NewMemoryCache(sqliteCache, 1000)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	pypiClient := pypi.NewClient()
 	pkgHandler := handler.NewPackageHandler(pypiClient, c)
@@ -80,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create search index: %v", err)
 	}
-	defer searchIdx.Close()
+	defer func() { _ = searchIdx.Close() }()
 	searchHandler := handler.NewSearchHandler(searchIdx)
 	popularHandler := handler.NewPopularHandler(searchIdx, c)
 	sitemapHandler := handler.NewSitemapHandler(searchIdx, sqliteCache)

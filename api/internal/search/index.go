@@ -32,11 +32,11 @@ func NewIndex(dsn string) (*Index, error) {
 
 	// Enable WAL for better concurrent read performance (no-op for :memory:).
 	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: set WAL: %w", err)
 	}
 	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: set busy_timeout: %w", err)
 	}
 
@@ -52,7 +52,7 @@ func NewIndex(dsn string) (*Index, error) {
 			downloads INTEGER
 		)
 	`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: create meta table: %w", err)
 	}
 
@@ -62,13 +62,13 @@ func NewIndex(dsn string) (*Index, error) {
 	// or the new one — never "no such table".
 	tx, err := db.Begin()
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: begin fts rebuild tx: %w", err)
 	}
 
 	if _, err := tx.Exec(`DROP TABLE IF EXISTS packages_fts`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: drop fts table: %w", err)
 	}
 
@@ -81,7 +81,7 @@ func NewIndex(dsn string) (*Index, error) {
 		)
 	`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: create fts table: %w", err)
 	}
 
@@ -91,12 +91,12 @@ func NewIndex(dsn string) (*Index, error) {
 		SELECT name, summary, downloads FROM packages_meta
 	`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: populate fts from meta: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("search: commit fts rebuild: %w", err)
 	}
 
@@ -127,13 +127,13 @@ func (idx *Index) UpsertBatch(entries []PackageEntry) error {
 	if err != nil {
 		return fmt.Errorf("search: prepare meta: %w", err)
 	}
-	defer metaStmt.Close()
+	defer func() { _ = metaStmt.Close() }()
 
 	ftsStmt, err := tx.Prepare(`INSERT INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("search: prepare fts: %w", err)
 	}
-	defer ftsStmt.Close()
+	defer func() { _ = ftsStmt.Close() }()
 
 	for _, e := range entries {
 		res, err := metaStmt.Exec(e.Name, e.Summary, e.Downloads)
@@ -205,7 +205,7 @@ func (idx *Index) Search(query string, limit int) ([]PackageEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search: query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []PackageEntry
 	for rows.Next() {
@@ -240,7 +240,7 @@ func (idx *Index) TopByDownloads(limit int) ([]PackageEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search: top by downloads: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []PackageEntry
 	for rows.Next() {
@@ -277,13 +277,13 @@ func (idx *Index) UpdateDownloadsBatch(entries []PackageEntry) error {
 	if err != nil {
 		return fmt.Errorf("search: prepare update downloads: %w", err)
 	}
-	defer exactStmt.Close()
+	defer func() { _ = exactStmt.Close() }()
 
 	ciStmt, err := tx.Prepare(`UPDATE packages_meta SET downloads = ? WHERE name = ? COLLATE NOCASE`)
 	if err != nil {
 		return fmt.Errorf("search: prepare update downloads ci: %w", err)
 	}
-	defer ciStmt.Close()
+	defer func() { _ = ciStmt.Close() }()
 
 	for _, e := range entries {
 		res, err := exactStmt.Exec(e.Downloads, e.Name)
@@ -319,13 +319,13 @@ func (idx *Index) UpdateSummariesBatch(entries []PackageEntry) error {
 	if err != nil {
 		return fmt.Errorf("search: prepare update summary meta: %w", err)
 	}
-	defer metaStmt.Close()
+	defer func() { _ = metaStmt.Close() }()
 
 	ftsStmt, err := tx.Prepare(`UPDATE packages_fts SET summary = ? WHERE name = ?`)
 	if err != nil {
 		return fmt.Errorf("search: prepare update summary fts: %w", err)
 	}
-	defer ftsStmt.Close()
+	defer func() { _ = ftsStmt.Close() }()
 
 	for _, e := range entries {
 		if _, err := metaStmt.Exec(e.Summary, e.Name); err != nil {

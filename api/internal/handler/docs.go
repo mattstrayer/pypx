@@ -333,38 +333,6 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 	return sym
 }
 
-func buildFuncSignature(fn *model.Function) string {
-	var b strings.Builder
-	if fn.IsAsync {
-		b.WriteString("async ")
-	}
-	b.WriteString("def ")
-	b.WriteString(fn.Name)
-	b.WriteByte('(')
-
-	for i, p := range fn.Parameters {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(p.Name)
-		if p.Type != nil && p.Type.Raw != "" {
-			b.WriteString(": ")
-			b.WriteString(p.Type.Raw)
-		}
-		if p.Default != "" {
-			b.WriteString(" = ")
-			b.WriteString(p.Default)
-		}
-	}
-
-	b.WriteByte(')')
-	if fn.Returns != nil && fn.Returns.Raw != "" {
-		b.WriteString(" -> ")
-		b.WriteString(fn.Returns.Raw)
-	}
-	return b.String()
-}
-
 // buildMergedSignature builds a function signature using the already-merged DocParam
 // slice (which may include stub-backfilled types) rather than the raw model parameters.
 func buildMergedSignature(fn *model.Function, params []DocParam, returns *DocReturn) string {
