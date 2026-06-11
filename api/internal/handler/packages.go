@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -150,22 +149,15 @@ func (h *PackageHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 		if !fresh {
 			// Serve stale data immediately and refresh in the background.
-			go func() {
+			// cache.RefreshInBackground deduplicates concurrent refreshes for
+			// the same key via singleflight.
+			cache.RefreshInBackground(h.cache, cacheKey, packageTTL, func() ([]byte, error) {
 				resp, err := h.fetchPackageForce(context.Background(), name)
 				if err != nil {
-					log.Printf("background refresh failed for package %q: %v", name, err)
-					return
+					return nil, err
 				}
-				pkg := buildPackageResponse(resp)
-				encoded, err := json.Marshal(pkg)
-				if err != nil {
-					log.Printf("background refresh encode failed for package %q: %v", name, err)
-					return
-				}
-				if err := h.cache.Set(cacheKey, encoded, packageTTL); err != nil {
-					log.Printf("background refresh cache set failed for package %q: %v", name, err)
-				}
-			}()
+				return json.Marshal(buildPackageResponse(resp))
+			})
 		}
 		return
 	}
