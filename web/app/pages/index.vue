@@ -161,6 +161,11 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
             >hugovk/top-pypi-packages</a
           >
         </span>
+        <NuxtLink
+          to="/popular"
+          class="font-mono text-[11.5px] text-muted underline decoration-dotted underline-offset-2 opacity-70 hover:text-primary hover:opacity-100"
+          >View all →</NuxtLink
+        >
       </div>
 
       <!-- Skeleton loading state -->
