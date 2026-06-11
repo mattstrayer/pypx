@@ -20,9 +20,10 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          echo "${{ secrets.DROPLET_SSH_KEY }}" >> ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts
 
       - name: Validate prefix input
         env:
@@ -40,7 +41,7 @@ jobs:
           HOST: ${{ secrets.DROPLET_HOST }}
           PREFIX: ${{ inputs.prefix }}
         run: |
-          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@$HOST"
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new root@$HOST"
 
           # Write a self-contained purge script to avoid quoting hell across
           # GitHub Actions → SSH → docker → sh layers.
@@ -55,5 +56,5 @@ jobs:
           chmod +x /tmp/purge.sh
 
           # Copy script to droplet and run inside a temporary container
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/purge.sh root@$HOST:/tmp/purge.sh
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new /tmp/purge.sh root@$HOST:/tmp/purge.sh
           $SSH "docker run --rm -v pypx_api_data:/data -v /tmp/purge.sh:/purge.sh alpine:3.20 sh /purge.sh '$PREFIX'"

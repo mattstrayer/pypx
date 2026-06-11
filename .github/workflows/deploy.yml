@@ -79,16 +79,17 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          echo "${{ secrets.DROPLET_SSH_KEY }}" >> ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts
 
       - name: Deploy to droplet
         env:
           HOST: ${{ secrets.DROPLET_HOST }}
         run: |
-          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@$HOST"
-          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new root@$HOST"
+          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
 
           # Sync production configs
           $SCP deploy/docker-compose.prod.yml root@$HOST:/opt/pypx/docker-compose.yml
