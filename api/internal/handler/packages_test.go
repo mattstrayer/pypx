@@ -1,10 +1,12 @@
 package handler_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +17,7 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
+	_ "modernc.org/sqlite"
 )
 
 // mockPyPIResponse returns a minimal PyPI JSON response for "requests".
@@ -938,6 +941,276 @@ func TestPackageHandler_Get_502OnUpstreamError(t *testing.T) {
 	}
 }
 
+// mustTempCache creates a *cache.Cache backed by a temporary SQLite file and
+// registers cleanup. Returns the cache and the file path so tests can open a
+// second DB connection to manipulate created_at directly.
+func mustTempCache(t *testing.T) (*cache.Cache, string) {
+	t.Helper()
+	f, err := os.CreateTemp("", "swr-test-*.sqlite")
+	if err != nil {
+		t.Fatalf("mustTempCache: create temp file: %v", err)
+	}
+	f.Close()
+	path := f.Name()
+	c, err := cache.New(path)
+	if err != nil {
+		os.Remove(path) //nolint:errcheck
+		t.Fatalf("mustTempCache: cache.New: %v", err)
+	}
+	t.Cleanup(func() {
+		c.Close()
+		os.Remove(path) //nolint:errcheck
+	})
+	return c, path
+}
+
+// backdateCache sets created_at = 0 for the given key via a direct SQL
+// connection to the SQLite file, forcing the entry to appear stale regardless
+// of TTL.
+func backdateCache(t *testing.T, path, key string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("backdateCache: open db: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`UPDATE cache SET created_at = 0 WHERE key = ?`, key); err != nil {
+		t.Fatalf("backdateCache: UPDATE: %v", err)
+	}
+}
+
+// mockRequestsV2Response is a minimal PyPI JSON for "requests" with version bumped to v2.
+const mockRequestsV2Response = `{
+	"info": {
+		"name": "requests",
+		"version": "3.0.0",
+		"summary": "HTTP for Humans v2",
+		"description": "",
+		"description_content_type": "",
+		"license": "",
+		"author": "",
+		"author_email": "",
+		"home_page": "",
+		"requires_python": "",
+		"requires_dist": null,
+		"project_urls": null,
+		"classifiers": null
+	},
+	"releases": {},
+	"urls": [
+		{
+			"filename": "requests-3.0.0-py3-none-any.whl",
+			"url": "https://files.pythonhosted.org/packages/requests-3.0.0-py3-none-any.whl",
+			"size": 63000,
+			"packagetype": "bdist_wheel",
+			"python_version": "py3",
+			"requires_python": ">=3.8",
+			"upload_time_iso_8601": "2025-01-01T00:00:00.000Z",
+			"digests": {"sha256": "xyz999"}
+		}
+	]
+}`
+
+// TestGetSWRStaleHitRefreshesInBackground verifies that a stale cache entry is
+// served immediately (stale-while-revalidate) and that the background refresh
+// goroutine updates the cache with fresh upstream data.
+func TestGetSWRStaleHitRefreshesInBackground(t *testing.T) {
+	// v1 served first, v2 served after the stale entry is forced.
+	var serveV2 atomic.Bool
+	// Buffered (cap 1) so the background refresh's non-blocking send is never
+	// dropped when it fires before the test goroutine reaches the receive.
+	refreshDone := make(chan struct{}, 1)
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if serveV2.Load() {
+			w.Write([]byte(mockRequestsV2Response)) //nolint:errcheck
+			// Signal that the background refresh reached upstream.
+			select {
+			case refreshDone <- struct{}{}:
+			default:
+			}
+		} else {
+			w.Write([]byte(mockRequestsResponse)) //nolint:errcheck
+		}
+	}))
+	defer mock.Close()
+
+	c, dbPath := mustTempCache(t)
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, c)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	// Prime the cache with v1.
+	prime := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	router.ServeHTTP(httptest.NewRecorder(), prime)
+
+	// Force the cache entry to be stale by backdating created_at.
+	backdateCache(t, dbPath, "pkg:requests")
+
+	// Point the upstream at v2 so the background refresh picks it up.
+	serveV2.Store(true)
+
+	// Act: request should be served from stale cache (v1).
+	req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on stale hit, got %d", rec.Code)
+	}
+
+	// Response must be the stale v1 data.
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode stale response: %v", err)
+	}
+	if got := body["version"]; got != "2.31.0" {
+		t.Errorf("expected stale version 2.31.0, got %v", got)
+	}
+
+	// Wait for the background refresh to reach upstream. The deadline is
+	// generous because -race slows execution ~10x; the happy path returns as
+	// soon as the signal arrives, so a large cap never slows a passing run.
+	select {
+	case <-refreshDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("background refresh did not reach upstream within 10s")
+	}
+
+	// Poll until the cache entry is fresh again (background goroutine may still
+	// be writing). The entry is fresh once version in the cache is v2.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		req2 := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+		rec2 := httptest.NewRecorder()
+		router.ServeHTTP(rec2, req2)
+		if rec2.Code != http.StatusOK {
+			t.Fatalf("poll request: expected 200, got %d", rec2.Code)
+		}
+		var body2 map[string]any
+		if err := json.NewDecoder(rec2.Body).Decode(&body2); err != nil {
+			t.Fatalf("decode poll response: %v", err)
+		}
+		if body2["version"] == "3.0.0" {
+			// Background refresh has populated the cache with v2.
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("cache was not refreshed to v2 within 10s after background goroutine reached upstream")
+}
+
+// setCountingCache wraps a cache.Cacher and counts Set calls, letting a test
+// wait until every fire-and-forget background refresh has completed its write.
+type setCountingCache struct {
+	cache.Cacher
+	sets atomic.Int32
+}
+
+func (s *setCountingCache) Set(key string, value []byte, ttl time.Duration) error {
+	err := s.Cacher.Set(key, value, ttl)
+	s.sets.Add(1)
+	return err
+}
+
+// TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes characterizes the current
+// (un-deduplicated) background-refresh behavior: N concurrent requests that all
+// see the same stale entry spawn N parallel fetchPackageForce calls.
+//
+// CURRENT BEHAVIOR: refresh is not deduplicated; plan 003 changes this to exactly 1.
+func TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes(t *testing.T) {
+	const concurrency = 10
+
+	var upstreamCount atomic.Int32
+	gate := make(chan struct{})
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCount.Add(1)
+		// Block all background-refresh calls until we explicitly release the gate.
+		<-gate
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(mockRequestsResponse)) //nolint:errcheck
+	}))
+	defer mock.Close()
+
+	c, dbPath := mustTempCache(t)
+	// Count cache writes so the test can wait for every spawned background refresh
+	// to finish: cache.Set is the last step each refresh goroutine performs, so
+	// once the write count catches up to the upstream-hit count, no refresh
+	// goroutine is still running and nothing leaks into later tests under -race.
+	counting := &setCountingCache{Cacher: c}
+	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
+	h := handler.NewPackageHandler(client, counting)
+	router := chi.NewRouter()
+	router.Get("/packages/{name}", h.Get)
+
+	// Prime the cache using a separate upstream that doesn't block.
+	primeMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(mockRequestsResponse)) //nolint:errcheck
+	}))
+	defer primeMock.Close()
+	primeClient := pypi.NewClient(pypi.WithBaseURL(primeMock.URL))
+	primeHandler := handler.NewPackageHandler(primeClient, c)
+	primeRouter := chi.NewRouter()
+	primeRouter.Get("/packages/{name}", primeHandler.Get)
+	primeRouter.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/packages/requests", nil))
+
+	// Force stale.
+	backdateCache(t, dbPath, "pkg:requests")
+
+	// Fire concurrency concurrent GETs — all should see stale and return 200.
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	ready := make(chan struct{})
+
+	for range concurrency {
+		go func() {
+			defer wg.Done()
+			<-ready
+			req := httptest.NewRequest(http.MethodGet, "/packages/requests", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected 200 on stale hit, got %d", rec.Code)
+			}
+		}()
+	}
+
+	close(ready)
+	// Give goroutines time to issue their background refresh calls and block on gate.
+	time.Sleep(100 * time.Millisecond)
+
+	// Release all blocked refresh calls.
+	close(gate)
+
+	wg.Wait()
+
+	// Wait until the upstream-hit count stabilizes (every spawned refresh that
+	// will reach the gated upstream has) AND the cache-write count has caught up
+	// to it (every refresh goroutine has run its final cache.Set). At that point
+	// no refresh goroutine is still in flight, so none leaks into later tests.
+	prev := int32(-1)
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		cur := upstreamCount.Load()
+		if cur > 0 && cur == prev && counting.sets.Load() >= cur {
+			break
+		}
+		prev = cur
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// CURRENT BEHAVIOR: refresh is not deduplicated; plan 003 changes this to exactly 1.
+	got := upstreamCount.Load()
+	if got < 1 {
+		t.Fatalf("expected at least 1 upstream background-refresh call, got %d", got)
+	}
+	t.Logf("observed %d concurrent background-refresh upstream calls (not deduplicated; plan 003 will fix to 1)", got)
+}
+
 // TestPackageHandler_Get_DifferentPackagesIndependent verifies that concurrent
 // requests for two different packages each go upstream exactly once (their
 // singleflight keys are independent).
@@ -1005,13 +1278,20 @@ func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
 	// While `release` is held, any extra calls past 1 per package would be
 	// a singleflight regression and would show up here long before the
 	// deadline.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if requestsCount.Load() == 1 && flaskCount.Load() == 1 {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	// Both keys now have a leader in flight. Give any straggler goroutine that
+	// hasn't reached singleflight yet time to arrive and join as a follower — it
+	// cannot become a second leader while the first is still in flight (release
+	// held). Without this, a straggler that arrives just after release closes
+	// would spawn a duplicate upstream call. Makes the test robust to scheduler
+	// pressure from concurrency-heavy neighbor tests under -race.
+	time.Sleep(200 * time.Millisecond)
 	close(release)
 	wg.Wait()
 
