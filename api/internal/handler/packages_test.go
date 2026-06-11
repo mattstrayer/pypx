@@ -1102,6 +1102,9 @@ func TestGetSWRStaleHitRefreshesInBackground(t *testing.T) {
 	t.Error("cache was not refreshed to v2 within 10s after background goroutine reached upstream")
 }
 
+// TestGetSWRConcurrentStaleHitsRefreshExactlyOnce verifies that N concurrent
+// requests that all see the same stale entry trigger exactly one upstream
+// background refresh (deduplicated via singleflight in RefreshInBackground).
 // setCountingCache wraps a cache.Cacher and counts Set calls, letting a test
 // wait until every fire-and-forget background refresh has completed its write.
 type setCountingCache struct {
@@ -1115,12 +1118,7 @@ func (s *setCountingCache) Set(key string, value []byte, ttl time.Duration) erro
 	return err
 }
 
-// TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes characterizes the current
-// (un-deduplicated) background-refresh behavior: N concurrent requests that all
-// see the same stale entry spawn N parallel fetchPackageForce calls.
-//
-// CURRENT BEHAVIOR: refresh is not deduplicated; plan 003 changes this to exactly 1.
-func TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes(t *testing.T) {
+func TestGetSWRConcurrentStaleHitsRefreshExactlyOnce(t *testing.T) {
 	const concurrency = 10
 
 	var upstreamCount atomic.Int32
@@ -1136,10 +1134,8 @@ func TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes(t *testing.T) {
 	defer mock.Close()
 
 	c, dbPath := mustTempCache(t)
-	// Count cache writes so the test can wait for every spawned background refresh
-	// to finish: cache.Set is the last step each refresh goroutine performs, so
-	// once the write count catches up to the upstream-hit count, no refresh
-	// goroutine is still running and nothing leaks into later tests under -race.
+	// Count cache writes so the test can wait for the background refresh to finish
+	// its final cache.Set before returning, so it never leaks into a later test.
 	counting := &setCountingCache{Cacher: c}
 	client := pypi.NewClient(pypi.WithBaseURL(mock.URL))
 	h := handler.NewPackageHandler(client, counting)
@@ -1188,27 +1184,23 @@ func TestGetSWRConcurrentStaleHitsSpawnMultipleRefreshes(t *testing.T) {
 
 	wg.Wait()
 
-	// Wait until the upstream-hit count stabilizes (every spawned refresh that
-	// will reach the gated upstream has) AND the cache-write count has caught up
-	// to it (every refresh goroutine has run its final cache.Set). At that point
-	// no refresh goroutine is still in flight, so none leaks into later tests.
-	prev := int32(-1)
-	deadline := time.Now().Add(15 * time.Second)
+	// The dedup'd background refresh from RefreshInBackground runs independently
+	// of the HTTP handler goroutines, so wg.Wait() does not cover it. Wait until
+	// exactly one upstream call has been observed AND its cache.Set has landed
+	// (cache.Set is the refresh goroutine's last step), so it never leaks past
+	// this test. This also drains the process-global refreshGroup key before the
+	// next iteration reuses it.
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		cur := upstreamCount.Load()
-		if cur > 0 && cur == prev && counting.sets.Load() >= cur {
+		if upstreamCount.Load() >= 1 && counting.sets.Load() >= 1 {
 			break
 		}
-		prev = cur
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 	}
 
-	// CURRENT BEHAVIOR: refresh is not deduplicated; plan 003 changes this to exactly 1.
-	got := upstreamCount.Load()
-	if got < 1 {
-		t.Fatalf("expected at least 1 upstream background-refresh call, got %d", got)
+	if got := upstreamCount.Load(); got != 1 {
+		t.Errorf("expected exactly 1 upstream background-refresh call (singleflight dedup), got %d", got)
 	}
-	t.Logf("observed %d concurrent background-refresh upstream calls (not deduplicated; plan 003 will fix to 1)", got)
 }
 
 // TestPackageHandler_Get_DifferentPackagesIndependent verifies that concurrent
@@ -1289,8 +1281,8 @@ func TestPackageHandler_Get_DifferentPackagesIndependent(t *testing.T) {
 	// hasn't reached singleflight yet time to arrive and join as a follower — it
 	// cannot become a second leader while the first is still in flight (release
 	// held). Without this, a straggler that arrives just after release closes
-	// would spawn a duplicate upstream call. Makes the test robust to scheduler
-	// pressure from concurrency-heavy neighbor tests under -race.
+	// would spawn a duplicate upstream call under scheduler pressure from the
+	// concurrency-heavy neighbor test under -race.
 	time.Sleep(200 * time.Millisecond)
 	close(release)
 	wg.Wait()

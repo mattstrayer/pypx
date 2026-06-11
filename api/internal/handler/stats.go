@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -77,9 +78,17 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 		if !fresh {
 			// Background revalidation: re-fetch and update cache silently.
-			go func() {
-				h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
-			}()
+			// cache.RefreshInBackground deduplicates concurrent refreshes for
+			// the same key via singleflight. fetchAndCache already calls
+			// h.cache.Set internally; returning the encoded bytes here causes
+			// an idempotent second write with the same value, which is harmless.
+			cache.RefreshInBackground(h.cache, cacheKey, statsTTL, func() ([]byte, error) {
+				encoded := h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
+				if encoded == nil {
+					return nil, fmt.Errorf("background stats refresh failed for %q/%s", name, period)
+				}
+				return encoded, nil
+			})
 		}
 		return
 	}

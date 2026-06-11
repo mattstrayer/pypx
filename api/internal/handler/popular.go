@@ -50,15 +50,18 @@ func (h *PopularHandler) Get(w http.ResponseWriter, r *http.Request) {
 		w.Write(data) //nolint:errcheck
 		if !fresh {
 			// Stale-while-revalidate: refresh in the background.
-			go func() {
+			// cache.RefreshInBackground deduplicates concurrent refreshes for
+			// the same key via singleflight.
+			cache.RefreshInBackground(h.cache, cacheKey, popularTTL, func() ([]byte, error) {
 				results, err := h.index.TopByDownloads(limit)
-				if err != nil || len(results) == 0 {
-					return
+				if err != nil {
+					return nil, err
 				}
-				if encoded, err := json.Marshal(results); err == nil {
-					h.cache.Set(cacheKey, encoded, popularTTL) //nolint:errcheck
+				if len(results) == 0 {
+					return nil, fmt.Errorf("empty result, skipping cache")
 				}
-			}()
+				return json.Marshal(results)
+			})
 		}
 		return
 	}
