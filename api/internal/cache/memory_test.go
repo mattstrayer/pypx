@@ -153,6 +153,58 @@ func TestMemoryCachePromoteRace(t *testing.T) {
 	}
 }
 
+// TestGetPromotionPreservesCreatedAt verifies that promoting a SQLite entry to
+// the memory tier preserves the original created_at timestamp. Before this fix,
+// a lost timestamp produced fresh=true from the memory tier even for stale data.
+func TestGetPromotionPreservesCreatedAt(t *testing.T) {
+	sqlite, err := New(":memory:")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	mc := NewMemoryCache(sqlite, 10)
+	t.Cleanup(func() { mc.Close() })
+
+	key := "pkg:stale-promotion"
+	value := []byte(`{"name":"stale-promotion"}`)
+	ttl := 5 * time.Minute
+
+	// Write to SQLite directly.
+	if err := sqlite.Set(key, value, ttl); err != nil {
+		t.Fatalf("sqlite.Set: %v", err)
+	}
+
+	// Backdate the created_at to make it stale.
+	oldTime := time.Now().Add(-10 * time.Minute).Unix()
+	if _, err := sqlite.db.Exec(`UPDATE cache SET created_at = ? WHERE key = ?`, oldTime, key); err != nil {
+		t.Fatalf("backdating created_at: %v", err)
+	}
+
+	// First Get: falls through to SQLite, promotes to memory. Must be stale.
+	_, fresh1, err := mc.Get(key, ttl)
+	if err != nil {
+		t.Fatalf("Get (first): %v", err)
+	}
+	if fresh1 {
+		t.Error("first Get: expected fresh=false for backdated entry")
+	}
+
+	// Second Get: served from memory tier. Must still be stale — not re-fresh.
+	mc.mu.RLock()
+	_, inMemory := mc.items[key]
+	mc.mu.RUnlock()
+	if !inMemory {
+		t.Fatal("expected key to be promoted to memory after first Get")
+	}
+
+	_, fresh2, err := mc.Get(key, ttl)
+	if err != nil {
+		t.Fatalf("Get (second): %v", err)
+	}
+	if fresh2 {
+		t.Error("second Get (from memory): expected fresh=false — promotion must preserve original createdAt")
+	}
+}
+
 func TestMemoryCacheEviction(t *testing.T) {
 	const maxSize = 5
 	mc := newTestMemoryCache(t, maxSize)

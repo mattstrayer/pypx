@@ -11,7 +11,7 @@ type memItem struct {
 	createdAt time.Time
 }
 
-// MemoryCache is a simple in-memory LRU cache (evicts by creation time) with TTL.
+// MemoryCache is a simple in-memory cache with FIFO eviction (evicts oldest createdAt) with TTL.
 // It wraps a Cache (SQLite) and checks memory first, promoting hits from SQLite to memory.
 type MemoryCache struct {
 	sqlite  *Cache
@@ -41,31 +41,26 @@ func (mc *MemoryCache) Get(key string, ttl time.Duration) (data []byte, fresh bo
 		return item.data, age < ttl, nil
 	}
 
-	// Fall through to SQLite.
-	data, fresh, err = mc.sqlite.Get(key, ttl)
+	// Fall through to SQLite — reads value and created_at atomically.
+	var createdAt time.Time
+	data, fresh, createdAt, err = mc.sqlite.getWithTime(key, ttl)
 	if err != nil || data == nil {
 		return data, fresh, err
 	}
 
 	// Promote to memory cache with double-check to avoid overwriting
 	// a fresher write that happened between RUnlock and Lock.
-	// Use the original created_at from SQLite to preserve TTL semantics.
-	var createdAt time.Time
-	if storedTime, err := mc.sqlite.storedAt(key); err == nil && !storedTime.IsZero() {
-		createdAt = storedTime
-	} else {
-		// Fallback to current time if we can't retrieve the original timestamp.
-		createdAt = time.Now()
-	}
-
-	mc.mu.Lock()
-	if _, exists := mc.items[key]; !exists {
-		if len(mc.items) >= mc.maxSize {
-			mc.evictOldest()
+	// Only promote if we have a valid timestamp — never fabricate freshness.
+	if !createdAt.IsZero() {
+		mc.mu.Lock()
+		if _, exists := mc.items[key]; !exists {
+			if len(mc.items) >= mc.maxSize {
+				mc.evictOldest()
+			}
+			mc.items[key] = &memItem{data: data, createdAt: createdAt}
 		}
-		mc.items[key] = &memItem{data: data, createdAt: createdAt}
+		mc.mu.Unlock()
 	}
-	mc.mu.Unlock()
 
 	return data, fresh, nil
 }
