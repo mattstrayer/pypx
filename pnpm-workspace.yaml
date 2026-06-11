@@ -17,6 +17,9 @@ overrides:
   devalue: '5.8.1'
   js-cookie: '3.0.7'
   ws: '8.21.0'
+  # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
+  # launch-editor (dev-only). Force the patched version.
+  shell-quote: '>=1.8.4'
 
 patchedDependencies:
   nuxt-og-image@6.5.0: patches/nuxt-og-image@6.5.0.patch
