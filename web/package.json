@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@nuxt/test-utils": "4.0.3",
-    "@takumi-rs/core": "1.6.0",
+    "@takumi-rs/core": "1.7.0",
     "@vue/test-utils": "2.4.11",
     "@vueuse/core": "14.3.0",
     "happy-dom": "20.10.2",
