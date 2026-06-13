@@ -9,7 +9,7 @@ overrides:
   devalue: 5.8.1
   js-cookie: 3.0.7
   ws: 8.21.0
-  shell-quote: '>=1.8.4'
+  shell-quote: 1.8.4
 
 patchedDependencies:
   nuxt-og-image@6.5.0: 32115586027c5f5631a44813e93179c78748ffbcbfd806e475feaf41df78ef98
