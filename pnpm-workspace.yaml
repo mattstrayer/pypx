@@ -23,6 +23,3 @@ overrides:
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
   esbuild: '>=0.28.1'
-
-patchedDependencies:
-  nuxt-og-image@6.5.0: patches/nuxt-og-image@6.5.0.patch
