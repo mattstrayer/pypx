@@ -83,5 +83,7 @@ jobs:
           # reported as the compound expression
           # "BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang".
           # The patent grant is permissive — allow these Go modules explicitly.
-          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys'
+          # tar ships under BlueOak-1.0.0 (a permissive model license, MIT-like).
+          # It is already a transitive dependency on main; allow it explicitly.
+          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys, pkg:npm/tar'
           comment-summary-in-pr: on-failure
