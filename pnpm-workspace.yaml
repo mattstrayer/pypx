@@ -23,3 +23,21 @@ overrides:
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
   esbuild: '>=0.28.1'
+  # GHSA-fx2h-pf6j-xcff (CVSS 8.2): vite <7.3.5, pulled transitively via
+  # @nuxt/vite-builder (which requests ^7.3.3). Scoped so @nuxt/devtools'
+  # separate vite 8.x stays untouched. Force the patched version.
+  '@nuxt/vite-builder>vite': '7.3.5'
+  # GHSA-vmf3-w455-68vh (CVSS 6.9): tar <7.5.16, pulled transitively. Force the
+  # patched version.
+  tar: '7.5.16'
+  # GHSA-v6wh-96g9-6wx3 (CVSS 5.5): launch-editor <2.14.1 (dev-only). Force the
+  # patched version.
+  launch-editor: '2.14.1'
+  # GHSA-4x5r-pxfx-6jf8 (CVSS 3.2): @babel/core <7.29.6, pulled transitively.
+  # Force the patched version.
+  '@babel/core': '7.29.7'
+  # vite-plugin-checker 0.14.3 (pulled transitively via @nuxt/vite-builder,
+  # which requests ^0.14.1) was published <24h ago and trips pnpm's
+  # minimumReleaseAge supply-chain gate. Pin to the newest in-range version
+  # that clears the age window.
+  vite-plugin-checker: '0.14.1'
