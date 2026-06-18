@@ -80,8 +80,8 @@ importers:
         specifier: 1.70.0
         version: 1.70.0
       oxlint-plugin-complexity:
-        specifier: 2.1.3
-        version: 2.1.3(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.133.0)
+        specifier: 2.1.4
+        version: 2.1.4(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.133.0)
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -1734,8 +1734,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oxlint/plugins@1.67.0':
-    resolution: {integrity: sha512-L5oSCA3Ehr2BvRCHy9e64InPnkfjeopwsP4VsxfZwcvZA9c7wRp48RXVt2q3OA8Z/uM6RFbE/VIB2ZYTA31guA==}
+  '@oxlint/plugins@1.70.0':
+    resolution: {integrity: sha512-Ut6i0mPdferb+8YJFPaVAg95Fcqduk6fL3PlA4CX58OaPJOi8vvTAcm6iO40Krd5FFMWP+hAhIxlYEhvgvYA6w==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@parcel/watcher-android-arm64@2.5.6':
@@ -4568,8 +4568,8 @@ packages:
       vite-plus:
         optional: true
 
-  oxlint-plugin-complexity@2.1.3:
-    resolution: {integrity: sha512-oZBW7weeJqt4kqRQiHJEkqsA1nHfyijiUET38N3uPh+GGVmtqYgDkQEAD0FtJbEWIjgyvJ8jSCR9IA/gzI1EdA==}
+  oxlint-plugin-complexity@2.1.4:
+    resolution: {integrity: sha512-QQeGHUs2aOs0hx0cM9IudAbPye/xo0/p63ce82TnF4wsJ7z7m4qqoWNfeXcJKFliQ+4F1jCMf3RivadZatVdcg==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       diff: '>=5.0.0'
@@ -7954,7 +7954,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.70.0':
     optional: true
 
-  '@oxlint/plugins@1.67.0': {}
+  '@oxlint/plugins@1.70.0': {}
 
   '@parcel/watcher-android-arm64@2.5.6':
     optional: true
@@ -11613,9 +11613,9 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.54.0
       '@oxfmt/binding-win32-x64-msvc': 0.54.0
 
-  oxlint-plugin-complexity@2.1.3(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.133.0):
+  oxlint-plugin-complexity@2.1.4(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.133.0):
     dependencies:
-      '@oxlint/plugins': 1.67.0
+      '@oxlint/plugins': 1.70.0
     optionalDependencies:
       diff: 9.0.0
       estree-walker: 3.0.3
