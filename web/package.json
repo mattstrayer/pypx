@@ -45,7 +45,7 @@
     "@takumi-rs/core": "1.7.0",
     "@vue/test-utils": "2.4.11",
     "@vueuse/core": "14.3.0",
-    "happy-dom": "20.10.3",
+    "happy-dom": "20.10.4",
     "oxfmt": "0.55.0",
     "oxlint": "1.70.0",
     "oxlint-plugin-complexity": "2.1.3",
