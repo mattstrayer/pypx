@@ -35,7 +35,7 @@ overrides:
   launch-editor: '2.14.1'
   # GHSA-4x5r-pxfx-6jf8 (CVSS 3.2): @babel/core <7.29.6, pulled transitively.
   # Force the patched version.
-  '@babel/core': '7.29.7'
+  '@babel/core': '8.0.1'
   # vite-plugin-checker 0.14.3 (pulled transitively via @nuxt/vite-builder,
   # which requests ^0.14.1) was published <24h ago and trips pnpm's
   # minimumReleaseAge supply-chain gate. Pin to the newest in-range version
