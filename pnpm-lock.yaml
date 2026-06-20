@@ -10,7 +10,7 @@ overrides:
   js-cookie: 3.0.7
   ws: 8.21.0
   shell-quote: 1.8.4
-  esbuild: '>=0.28.1'
+  esbuild: 0.28.1
   '@nuxt/vite-builder>vite': 8.0.16
   tar: 7.5.16
   launch-editor: 2.14.1
@@ -2690,7 +2690,7 @@ packages:
     resolution: {integrity: sha512-frpo3wuXtR/eeI9PmyjNGb+AMFxY36v7vcHTt3yKoLDJVxnsfeYgRjk+F2AOIVLctr4uL5Uqrf21cLEWHkZkkg==}
     peerDependencies:
       '@unhead/cli': ^3.1.4
-      esbuild: '>=0.28.1'
+      esbuild: 0.28.1
       lightningcss: '>=1.20.0'
       rolldown: '>=1.0.0-beta.0'
       unhead: ^3.1.4
@@ -4455,7 +4455,7 @@ packages:
     hasBin: true
     peerDependencies:
       '@unhead/vue': ^2.0.7 || ^3.0.0
-      esbuild: '>=0.28.1'
+      esbuild: 0.28.1
       lightningcss: '>=1.20.0'
       nuxt: ^3.0.0 || ^4.0.0
       rolldown: '>=1.0.0-beta.0'
@@ -5666,7 +5666,7 @@ packages:
     peerDependencies:
       '@types/node': ^20.19.0 || >=22.12.0
       '@vitejs/devtools': ^0.1.18
-      esbuild: '>=0.28.1'
+      esbuild: 0.28.1
       jiti: '>=1.21.0'
       less: ^4.0.0
       sass: ^1.70.0

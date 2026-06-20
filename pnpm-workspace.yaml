@@ -22,7 +22,7 @@ overrides:
   shell-quote: '1.8.4'
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
-  esbuild: '>=0.28.1'
+  esbuild: '0.28.1'
   # GHSA-fx2h-pf6j-xcff (CVSS 8.2): vite <7.3.5, pulled transitively via
   # @nuxt/vite-builder (which requests ^7.3.3). Scoped so @nuxt/devtools'
   # separate vite 8.x stays untouched. Force the patched version.
