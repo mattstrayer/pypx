@@ -40,4 +40,4 @@ overrides:
   # which requests ^0.14.1) was published <24h ago and trips pnpm's
   # minimumReleaseAge supply-chain gate. Pin to the newest in-range version
   # that clears the age window.
-  vite-plugin-checker: '0.14.1'
+  vite-plugin-checker: '0.14.4'
