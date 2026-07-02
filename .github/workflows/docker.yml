@@ -54,7 +54,7 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ${{ matrix.service }}/Dockerfile
@@ -121,7 +121,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: aquasecurity/trivy-action@cf5c088a69634cd13ccddc735d7926162c31f9a6 # master
+      - uses: aquasecurity/trivy-action@df678dbccf677bc6937338d569ba0da18964a8cc # master
         with:
           image-ref: ghcr.io/mattstrayer/pypx/${{ matrix.service }}:main
           format: sarif
