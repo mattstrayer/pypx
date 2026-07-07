@@ -12,9 +12,9 @@ const api = useApi();
 
 // Fetch versions for the pickers
 const { data: versionList } = useAsyncData<VersionInfo[]>(
-  `versions-${name.value}`,
+  () => `versions-${name.value}`,
   () => api.fetchVersions(name.value),
-  { default: () => [] },
+  { default: () => [], watch: [name] },
 );
 
 const sortedVersions = computed<string[]>(() => versionList.value?.map((v) => v.version) ?? []);

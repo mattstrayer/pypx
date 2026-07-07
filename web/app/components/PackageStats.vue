@@ -17,7 +17,7 @@ const { fetchStats } = useApi();
 const { data: stats, pending } = useAsyncData(
   () => `stats-${props.name}-${period.value}`,
   () => fetchStats(props.name, period.value),
-  { server: false },
+  { server: false, watch: [period, () => props.name] },
 );
 
 function setPeriod(p: string) {

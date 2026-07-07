@@ -6,14 +6,16 @@ const name = computed(() => route.params.name as string);
 
 const api = useApi();
 
-const { data: pkg, status: pkgStatus } = await useAsyncData(`package-${name.value}`, () =>
-  api.fetchPackage(name.value),
+const { data: pkg, status: pkgStatus } = await useAsyncData(
+  () => `package-${name.value}`,
+  () => api.fetchPackage(name.value),
+  { watch: [name] },
 );
 
 const { data: docs, status: docsStatus } = useAsyncData(
-  `docs-data-${name.value}`,
+  () => `docs-data-${name.value}`,
   () => api.fetchDocs(name.value).catch(() => null),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [name] },
 );
 
 function dedup(symbols: DocSymbol[]): DocSymbol[] {
