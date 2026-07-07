@@ -221,3 +221,70 @@ export interface DocsResponse {
   stub_package?: string;
   modules: DocModule[];
 }
+
+export interface CompareInput {
+  Skipped: SkippedPackage[];
+  Packages: ComparePackageInput[];
+}
+
+export interface SkippedPackage {
+  Name: string;
+  Reason: string;
+}
+
+export interface ComparePackageInput {
+  Name: string;
+  Version: string;
+  Summary: string;
+  License: string;
+  PythonMin: string;
+  InstallSize: number;
+  ModuleFormat: string;
+  LastReleasedDate: string;
+  ReleasesLast12Mo: number;
+  DepCount: number;
+  Downloads30d: number;
+  VulnCount: number;
+  Typed: string;
+  RepoURL: string;
+  DocURL: string;
+}
+
+export interface DiffInput {
+  Package: string;
+  From: string;
+  To: string;
+  Changelog: Entry[];
+  ChangelogUnavailable: string;
+  DepChanges: DepDiff;
+  DepChangesUnavailable: string;
+  APIChanges: APIDiff;
+  APIChangesUnavailable: string;
+}
+
+export interface DepDiff {
+  Added: string[];
+  Removed: string[];
+  Bumped: DepBump[];
+}
+
+export interface DepBump {
+  Name: string;
+  FromConstraint: string;
+  ToConstraint: string;
+}
+
+export interface APIDiff {
+  Added: string[];
+  Removed: string[];
+  Changed: APIChange[];
+  AddedTruncated: number;
+  RemovedTruncated: number;
+  ChangedTruncated: number;
+}
+
+export interface APIChange {
+  Path: string;
+  FromSig: string;
+  ToSig: string;
+}
