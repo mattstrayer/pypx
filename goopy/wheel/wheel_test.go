@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -71,6 +72,58 @@ func TestSelectWheelFallback(t *testing.T) {
 	got := selectWheel(wheels)
 	if got != "https://example.com/linux.whl" {
 		t.Errorf("selectWheel() = %q, want fallback URL", got)
+	}
+}
+
+func TestSelectWheel_Deterministic(t *testing.T) {
+	tests := []struct {
+		name   string
+		wheels []WheelFile
+		want   string
+	}{
+		{
+			name: "pure none-any beats platform wheels",
+			wheels: []WheelFile{
+				{Filename: "pkg-1.0-cp39-linux.whl", URL: "linux", Size: 10},
+				{Filename: "pkg-1.0-py3-none-any.whl", URL: "any", Size: 999},
+				{Filename: "pkg-1.0-cp310-macos.whl", URL: "macos", Size: 5},
+			},
+			want: "any",
+		},
+		{
+			name: "platform-only, smallest size wins",
+			wheels: []WheelFile{
+				{Filename: "pkg-1.0-cp39-linux.whl", URL: "linux", Size: 300},
+				{Filename: "pkg-1.0-cp310-macos.whl", URL: "macos", Size: 100},
+				{Filename: "pkg-1.0-cp311-win.whl", URL: "win", Size: 200},
+			},
+			want: "macos",
+		},
+		{
+			name: "platform-only equal sizes, lexicographically smallest filename wins",
+			wheels: []WheelFile{
+				{Filename: "pkg-1.0-cp39-linux.whl", URL: "linux", Size: 100},
+				{Filename: "pkg-1.0-cp310-macos.whl", URL: "macos", Size: 100},
+				{Filename: "pkg-1.0-cp311-win.whl", URL: "win", Size: 100},
+			},
+			want: "macos", // "pkg-1.0-cp310-..." < "pkg-1.0-cp311-..." < "pkg-1.0-cp39-..."
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Forward order.
+			if got := selectWheel(tt.wheels); got != tt.want {
+				t.Errorf("selectWheel(forward) = %q, want %q", got, tt.want)
+			}
+			// Reversed order must produce the same result.
+			rev := make([]WheelFile, len(tt.wheels))
+			for i, w := range tt.wheels {
+				rev[len(tt.wheels)-1-i] = w
+			}
+			if got := selectWheel(rev); got != tt.want {
+				t.Errorf("selectWheel(reversed) = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -219,6 +272,28 @@ func TestFetch_NoWheels(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for package with no wheels")
 	}
+	if !errors.Is(err, ErrNoArtifact) {
+		t.Errorf("expected ErrNoArtifact, got: %v", err)
+	}
+}
+
+func TestFetch_SdistOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"urls":[{"filename":"pkg-1.0.tar.gz","url":"https://example.com/tar.gz","size":100,"packagetype":"sdist"}]}`))
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	_, err := src.Fetch(context.Background(), "sdistonly", "1.0")
+	if !errors.Is(err, ErrNoArtifact) {
+		t.Errorf("expected ErrNoArtifact for sdist-only release, got: %v", err)
+	}
 }
 
 func TestFetch_PyPIError(t *testing.T) {
@@ -236,6 +311,39 @@ func TestFetch_PyPIError(t *testing.T) {
 	_, err := src.Fetch(context.Background(), "nonexistent", "1.0")
 	if err == nil {
 		t.Error("expected error for 404 response")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+func TestFetch_TooLarge(t *testing.T) {
+	// Mock wheel server whose HEAD advertises a size beyond MaxSize.
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", "999")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Write([]byte("ignored"))
+	}))
+	defer wheelSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pypi/big/1.0/json" {
+			resp := fmt.Sprintf(`{"urls":[{"filename":"big-1.0-py3-none-any.whl","url":"%s/big.whl","size":999,"packagetype":"bdist_wheel"}]}`, wheelSrv.URL)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(resp))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer pypiSrv.Close()
+
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: 10, BaseURL: pypiSrv.URL}
+	_, err := src.Fetch(context.Background(), "big", "1.0")
+	if !errors.Is(err, ErrTooLarge) {
+		t.Errorf("expected ErrTooLarge, got: %v", err)
 	}
 }
 
