@@ -15,33 +15,33 @@ For an architectural overview of how the system fits together — the API, two-t
 ## Running locally
 
 ```bash
-# Go API — runs on :8080
-cd api
-go run ./cmd/server
+# API on :8080 + Nuxt on :3000 together
+make dev
 
-# Nuxt frontend — runs on :3000, proxies /api/* to :8080
-cd web
-pnpm install
-pnpm run dev
+# ...or separate terminals
+make dev-api    # Go API — runs on :8080
+make dev-web    # Nuxt frontend — runs on :3000, proxies /api/* to :8080
 
 # Full stack via Docker (production-like)
 cp .env.example .env   # add GITHUB_TOKEN for higher rate limits (optional)
 docker compose up --build
 ```
 
+All targets are defined in the root Makefile — run `make help` for the full list.
+
 > On first boot the background worker syncs the full PyPI index (~780K packages). Search populates within a few minutes.
 
 ## Running tests
 
 ```bash
-# Go tests
-cd api && go test ./...
+# All test suites (api, goopy, web)
+make test
 
-# Frontend tests
-cd web && pnpm run test
-
-# goopy (Python doc extractor)
-cd goopy && go test ./...
+# Individually
+make test-api     # Go API tests
+make test-web     # Frontend tests (vitest)
+make test-goopy   # goopy (Python doc extractor); uses `-short` to skip the
+                   # long-running ecosystem suite, which requires Python + griffe
 ```
 
 ## Commit messages

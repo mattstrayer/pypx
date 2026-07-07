@@ -124,16 +124,13 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 **Prerequisites:** Go 1.26+, Node.js 20+ with pnpm, Docker + Compose
 
 ```bash
-# Go API
-cd api && go run ./cmd/server
-
-# Nuxt frontend (separate terminal)
-cd web && pnpm install && pnpm run dev
-
-# Run tests
-cd api && go test ./...
-cd web && pnpm run test
+make install      # web dependencies (pnpm via mise)
+make dev          # API on :8080 + Nuxt on :3000
+make test         # all test suites (api, goopy, web)
+make lint         # go vet + oxlint
 ```
+
+All targets are defined in the root Makefile — run make help for the full list.
 
 The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `docker-compose.override.yml` which configures local development proxying).
 

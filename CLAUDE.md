@@ -77,15 +77,18 @@ docker-compose.yml      Full stack definition
 
 ## Development Commands
 
-```bash
-# API (from api/)
-go run ./cmd/server          # Run API on :8080
-go test ./...                 # Run all Go tests
+The root `Makefile` is the source of truth for dev/test/lint/gentypes commands — run `make help` for the full list.
 
-# Frontend (from web/)
-pnpm run dev                  # Dev server on :3000 (proxies /api/* to :8080)
-pnpm run build && pnpm run preview
-pnpm run test
+```bash
+make dev-api      # Run Go API on :8080
+make dev-web      # Run Nuxt dev server on :3000 (proxies /api/* to :8080)
+make test         # Run all test suites (api, goopy, web)
+make test-api     # Go API tests
+make test-web     # Web tests (vitest)
+make test-goopy   # goopy tests (-short skips the scheduled ecosystem suite)
+make lint         # go vet (api, goopy) + oxlint (web)
+make typecheck    # Web typecheck (nuxi typecheck)
+make gentypes     # Regenerate web/app/types/api.gen.ts from Go response structs
 
 # Full stack
 docker compose up --build     # Production-like stack
