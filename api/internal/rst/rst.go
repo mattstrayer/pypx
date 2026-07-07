@@ -58,10 +58,23 @@ func isUnderline(underline, above string) bool {
 	return true
 }
 
-// safeURL returns true when the URL scheme is not a script protocol.
+// safeURL returns true when the URL is relative (no scheme) or uses an
+// allowlisted scheme (http, https, mailto). Everything else — javascript:,
+// data:, vbscript:, file:, etc. — is rejected. Output flows into v-html on
+// the frontend, so this must be a positive allowlist.
 func safeURL(u string) bool {
 	lower := strings.ToLower(strings.TrimSpace(u))
-	return !strings.HasPrefix(lower, "javascript:") && !strings.HasPrefix(lower, "vbscript:")
+	colon := strings.Index(lower, ":")
+	if colon == -1 {
+		return true // relative path, fragment, or protocol-relative URL
+	}
+	// A '/', '?' or '#' before the ':' means the colon is not a scheme
+	// separator (e.g. "docs/a:b.html", "#sec:1").
+	if sep := strings.IndexAny(lower, "/?#"); sep != -1 && sep < colon {
+		return true
+	}
+	scheme := lower[:colon]
+	return scheme == "http" || scheme == "https" || scheme == "mailto"
 }
 
 // applyInline processes inline RST markup and returns escaped HTML.
