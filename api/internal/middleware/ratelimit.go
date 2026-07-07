@@ -68,13 +68,25 @@ func (rl *RateLimiter) allow(ip string) bool {
 	return lim.Allow()
 }
 
-// extractIP returns the real client IP from X-Forwarded-For (first entry)
-// or falls back to RemoteAddr (stripping the port).
+// extractIP returns the client IP for rate-limit bucketing.
+//
+// Precedence (matches the Cloudflare → Caddy → API deploy topology):
+//  1. CF-Connecting-IP — set authoritatively by Cloudflare; a client cannot
+//     spoof it through Cloudflare because Cloudflare overwrites it.
+//  2. Rightmost X-Forwarded-For entry — appended by Caddy (the nearest
+//     trusted proxy), so it is the immediate TCP peer, not client-supplied.
+//     The LEFTMOST entry is fully client-controlled and must never be used:
+//     Caddy trusts Cloudflare (Caddyfile trusted_proxies) and both append
+//     to, rather than replace, a client-supplied XFF chain.
+//  3. RemoteAddr (port stripped) — direct connections in local dev.
 func extractIP(r *http.Request) string {
+	if cf := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cf != "" {
+		return cf
+	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For: client, proxy1, proxy2 — take leftmost
-		if idx := strings.IndexByte(xff, ','); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
+		// Rightmost entry — appended by the nearest trusted proxy.
+		if idx := strings.LastIndexByte(xff, ','); idx != -1 {
+			return strings.TrimSpace(xff[idx+1:])
 		}
 		return strings.TrimSpace(xff)
 	}

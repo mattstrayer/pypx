@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -102,10 +103,10 @@ func buildTestWheel(files map[string]string) []byte {
 
 func TestExtractPyFiles_Basic(t *testing.T) {
 	data := buildTestWheel(map[string]string{
-		"mypkg/__init__.py":                     `"""My package."""`,
-		"mypkg/core.py":                         `def hello(): pass`,
-		"mypkg-1.0.dist-info/top_level.txt":     "mypkg\n",
-		"mypkg-1.0.dist-info/METADATA":          "Name: mypkg\nVersion: 1.0",
+		"mypkg/__init__.py":                      `"""My package."""`,
+		"mypkg/core.py":                          `def hello(): pass`,
+		"mypkg-1.0.dist-info/top_level.txt":      "mypkg\n",
+		"mypkg-1.0.dist-info/METADATA":           "Name: mypkg\nVersion: 1.0",
 		"mypkg/__pycache__/core.cpython-311.pyc": "binary",
 	})
 
@@ -158,8 +159,8 @@ func TestExtractPyFiles_InvalidZip(t *testing.T) {
 
 func TestFetch_Success(t *testing.T) {
 	wheelData := buildTestWheel(map[string]string{
-		"testpkg/__init__.py":                  "def hello(): pass\n",
-		"testpkg/core.py":                      "class Foo: pass\n",
+		"testpkg/__init__.py":                 "def hello(): pass\n",
+		"testpkg/core.py":                     "class Foo: pass\n",
 		"testpkg-1.0.dist-info/top_level.txt": "testpkg\n",
 	})
 
@@ -290,5 +291,58 @@ func TestFetchWheelURLs_EscapesPath(t *testing.T) {
 	want := "/pypi/testpkg/1.0%2Fx/json"
 	if gotPath != want {
 		t.Errorf("escaped path = %q, want %q", gotPath, want)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Decompression-budget and truncation-detection tests
+// ---------------------------------------------------------------------------
+
+func TestExtractPyFiles_DecompressionBudget(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, _ := w.Create("bomb/huge.py")
+	big := bytes.Repeat([]byte("A"), maxDecompressedFile+1024)
+	_, _ = f.Write(big)
+	_ = w.Close()
+
+	_, err := extractPyFiles(buf.Bytes(), "bomb")
+	if err == nil {
+		t.Fatal("expected an error when a .py entry exceeds the decompression budget")
+	}
+}
+
+func TestFetch_TruncatedDownloadRejected(t *testing.T) {
+	const maxSize = 1024
+	body := bytes.Repeat([]byte("x"), maxSize*2)
+
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			// No Content-Length -> resp.ContentLength == -1, headSize pre-check skipped.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Write(body) // body is >= maxSize, so io.LimitReader truncates to exactly maxSize
+	}))
+	defer wheelSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pypi/big/1.0/json" {
+			resp := fmt.Sprintf(`{"urls":[{"filename":"big-1.0-py3-none-any.whl","url":"%s/big.whl","size":0,"packagetype":"bdist_wheel"}]}`, wheelSrv.URL)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(resp))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer pypiSrv.Close()
+
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: maxSize, BaseURL: pypiSrv.URL}
+	_, err := src.Fetch(context.Background(), "big", "1.0")
+	if err == nil {
+		t.Fatal("expected an error for a download truncated at MaxSize")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("expected the post-download truncation error, got: %v", err)
 	}
 }

@@ -95,11 +95,16 @@ func TestRateLimiter_TokenRefillOverTime(t *testing.T) {
 }
 
 func TestRateLimiter_XForwardedForExtraction(t *testing.T) {
-	// burst=1, rate=0.001 — one request allowed then blocked per IP
+	// burst=1, rate=0.001 — one request allowed then blocked per IP.
+	// Extraction now uses the RIGHTMOST XFF entry (set by the nearest
+	// trusted proxy), so two requests with the SAME rightmost entry but
+	// DIFFERENT (attacker-controlled) leftmost entries must still land in
+	// the same bucket.
 	limiter := middleware.NewRateLimiter(0.001, 1)
 	handler := limiter.Limit(okHandler)
 
-	// First request from real client via X-Forwarded-For
+	// First request — leftmost entry is attacker-controlled, rightmost is
+	// the trusted proxy's appended peer IP.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.5, 10.0.0.1")
 	req.RemoteAddr = "10.0.0.1:1234" // proxy IP
@@ -109,14 +114,93 @@ func TestRateLimiter_XForwardedForExtraction(t *testing.T) {
 		t.Fatalf("first XFF request should succeed, got %d", rr.Code)
 	}
 
-	// Second request from same real client — should be limited
+	// Second request — leftmost entry rotated (simulating a spoofing
+	// attacker), but rightmost entry is unchanged — should still be limited.
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "203.0.113.5, 10.0.0.1")
+	req.Header.Set("X-Forwarded-For", "198.51.100.9, 10.0.0.1")
 	req.RemoteAddr = "10.0.0.1:1235"
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {
-		t.Errorf("second XFF request should be limited, got %d", rr.Code)
+		t.Errorf("second XFF request (rotated leftmost) should be limited, got %d", rr.Code)
+	}
+}
+
+func TestRateLimiter_SpoofedXFFDoesNotBypassLimit(t *testing.T) {
+	// burst=1, rate=0.001. A client behind Cloudflare cannot spoof
+	// CF-Connecting-IP, so bucketing on it must not be bypassable by
+	// rotating the client-controlled leftmost XFF entry (or RemoteAddr port).
+	limiter := middleware.NewRateLimiter(0.001, 1)
+	handler := limiter.Limit(okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("CF-Connecting-IP", "203.0.113.7")
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	req.RemoteAddr = "10.0.0.1:1234"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("first request should succeed, got %d", rr.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("CF-Connecting-IP", "203.0.113.7")
+	req.Header.Set("X-Forwarded-For", "9.9.9.9") // rotated, attacker-controlled
+	req.RemoteAddr = "10.0.0.1:9999"             // rotated port too
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf("second request with rotated XFF/port should still be limited, got %d", rr.Code)
+	}
+}
+
+func TestRateLimiter_CFConnectingIPPreferred(t *testing.T) {
+	// burst=1, rate=0.001. Different CF-Connecting-IP values must get
+	// independent buckets even when X-Forwarded-For is identical.
+	limiter := middleware.NewRateLimiter(0.001, 1)
+	handler := limiter.Limit(okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("CF-Connecting-IP", "203.0.113.7")
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	req.RemoteAddr = "10.0.0.1:1111"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("request from CF-Connecting-IP 203.0.113.7 should succeed, got %d", rr.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("CF-Connecting-IP", "203.0.113.8")
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	req.RemoteAddr = "10.0.0.1:2222"
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("request from different CF-Connecting-IP 203.0.113.8 should succeed, got %d", rr.Code)
+	}
+}
+
+func TestRateLimiter_RemoteAddrFallbackWhenNoHeaders(t *testing.T) {
+	// burst=1, rate=0.001. With no proxy headers at all, fall back to
+	// RemoteAddr (port stripped) — same host, different port, same bucket.
+	limiter := middleware.NewRateLimiter(0.001, 1)
+	handler := limiter.Limit(okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "9.9.9.9:1000"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("first request should succeed, got %d", rr.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "9.9.9.9:2000"
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf("second request from same host different port should be limited, got %d", rr.Code)
 	}
 }
 
