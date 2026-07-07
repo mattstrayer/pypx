@@ -61,10 +61,10 @@ Visit [http://localhost](http://localhost).
 | `GITLAB_TOKEN` | _(empty)_ | GitLab PAT for GitLab-hosted packages |
 | `API_PORT` | `8080` | Go API listen port |
 | `SQLITE_PATH` | `pypx.db` | SQLite database path (cache + search index live alongside it) |
-| `NUXT_API_BASE` | `http://localhost:8080` | Server-side API URL used by Nuxt SSR |
+| `NUXT_API_BASE` | `http://localhost:8080/api` | Server-side API URL used by Nuxt SSR |
 | `NUXT_PUBLIC_API_BASE` | `/api` | Client-side API base (proxied through Caddy in production) |
 
-In Docker Compose, `NUXT_API_BASE` is automatically set to the internal `http://api:8080` address. You only need to provide `DOMAIN`, `GITHUB_TOKEN`, and optionally `GITLAB_TOKEN` in your `.env`.
+In Docker Compose, `NUXT_API_BASE` is automatically set to the internal `http://api:8080/api` address. You only need to provide `DOMAIN`, `GITHUB_TOKEN`, and optionally `GITLAB_TOKEN` in your `.env`.
 
 ---
 
