@@ -103,10 +103,10 @@ func buildTestWheel(files map[string]string) []byte {
 
 func TestExtractPyFiles_Basic(t *testing.T) {
 	data := buildTestWheel(map[string]string{
-		"mypkg/__init__.py":                     `"""My package."""`,
-		"mypkg/core.py":                         `def hello(): pass`,
-		"mypkg-1.0.dist-info/top_level.txt":     "mypkg\n",
-		"mypkg-1.0.dist-info/METADATA":          "Name: mypkg\nVersion: 1.0",
+		"mypkg/__init__.py":                      `"""My package."""`,
+		"mypkg/core.py":                          `def hello(): pass`,
+		"mypkg-1.0.dist-info/top_level.txt":      "mypkg\n",
+		"mypkg-1.0.dist-info/METADATA":           "Name: mypkg\nVersion: 1.0",
 		"mypkg/__pycache__/core.cpython-311.pyc": "binary",
 	})
 
@@ -159,8 +159,8 @@ func TestExtractPyFiles_InvalidZip(t *testing.T) {
 
 func TestFetch_Success(t *testing.T) {
 	wheelData := buildTestWheel(map[string]string{
-		"testpkg/__init__.py":                  "def hello(): pass\n",
-		"testpkg/core.py":                      "class Foo: pass\n",
+		"testpkg/__init__.py":                 "def hello(): pass\n",
+		"testpkg/core.py":                     "class Foo: pass\n",
 		"testpkg-1.0.dist-info/top_level.txt": "testpkg\n",
 	})
 
@@ -267,6 +267,30 @@ func TestFetchWheelURLs(t *testing.T) {
 	}
 	if wheels[0].Filename != "pkg-1.0-py3-none-any.whl" {
 		t.Errorf("wheels[0].Filename = %q", wheels[0].Filename)
+	}
+}
+
+func TestFetchWheelURLs_EscapesPath(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	// The error is expected (mock 404s any path); only the observed escaped
+	// path matters here.
+	_, _ = src.fetchWheelURLs(context.Background(), "testpkg", "1.0/x")
+
+	want := "/pypi/testpkg/1.0%2Fx/json"
+	if gotPath != want {
+		t.Errorf("escaped path = %q, want %q", gotPath, want)
 	}
 }
 

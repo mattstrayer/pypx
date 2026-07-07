@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -200,5 +201,58 @@ func TestFetchPackageAtVersion_NotFound(t *testing.T) {
 	_, err := c.FetchPackageAtVersion(context.Background(), "httpx", "9.9.9")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestValidateVersion(t *testing.T) {
+	valid := []string{
+		"1.2.3",
+		"0.28.1",
+		"2.0.0rc1",
+		"1.0.0.post1",
+		"1!1.0",
+		"1.0+local",
+		"1.0.dev456",
+		"2021.4",
+		"1.0b2",
+	}
+	for _, version := range valid {
+		if err := ValidateVersion(version); err != nil {
+			t.Errorf("ValidateVersion(%q): expected nil error, got %v", version, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"../x",
+		"a/b",
+		"a b",
+		"a?b",
+		"a#b",
+		"a%2fb",
+		".1",
+		"+1",
+		strings.Repeat("1", 200),
+	}
+	for _, version := range invalid {
+		if err := ValidateVersion(version); err == nil {
+			t.Errorf("ValidateVersion(%q): expected error, got nil", version)
+		}
+	}
+}
+
+func TestFetchPackageAtVersion_InvalidVersion(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("upstream must not be called")
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	got, err := c.FetchPackageAtVersion(context.Background(), "httpx", "../json")
+	if err == nil {
+		t.Fatal("expected error for invalid version, got nil")
+	}
+	if got != nil {
+		t.Errorf("expected nil response on error, got %+v", got)
 	}
 }

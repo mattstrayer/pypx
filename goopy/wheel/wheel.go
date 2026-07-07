@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"time"
 )
@@ -99,7 +100,7 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 	if base == "" {
 		base = pypiBaseURL
 	}
-	url := fmt.Sprintf("%s/pypi/%s/%s/json", base, name, version)
+	url := fmt.Sprintf("%s/pypi/%s/%s/json", base, neturl.PathEscape(name), neturl.PathEscape(version))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
