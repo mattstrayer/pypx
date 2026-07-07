@@ -27,12 +27,19 @@ func (e Error) Error() string {
 	return fmt.Sprintf("%d:%d: %s", e.Pos.Line, e.Pos.Col, e.Msg)
 }
 
+// maxExprDepth bounds expression-parser recursion to prevent a crafted
+// deeply-nested input from overflowing the goroutine stack (a fatal,
+// non-recoverable Go runtime error). 1000 is far below the crash threshold
+// (~hundreds of thousands of frames) yet far above any real Python source.
+const maxExprDepth = 1000
+
 // Parser holds the state for parsing a Python source file.
 type Parser struct {
 	lex    *lexer.Lexer
 	tok    token.Token // current (lookahead) token
 	errors []Error
 	src    []byte
+	depth  int // current expression-recursion depth (guards against stack overflow)
 }
 
 // New creates a parser for the given Python source bytes.

@@ -63,10 +63,17 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 			if ctx.Err() != nil {
 				break
 			}
-			mod, _ := ExtractModule(item.modName, item.src)
-			if hasContent(mod) {
-				pkg.Modules = append(pkg.Modules, mod)
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("goopy: serial extract panic on %s: %v\n%s", item.modName, r, debug.Stack())
+					}
+				}()
+				mod, _ := ExtractModule(item.modName, item.src)
+				if hasContent(mod) {
+					pkg.Modules = append(pkg.Modules, mod)
+				}
+			}()
 		}
 		return pkg
 	}
