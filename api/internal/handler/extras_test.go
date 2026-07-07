@@ -211,3 +211,86 @@ func TestExtrasHandlerGetPyTyped(t *testing.T) {
 		t.Errorf("TypeSupport.Status = %q, want typed", resp.TypeSupport.Status)
 	}
 }
+
+// TestExtrasHandlerGetTypedAndStubs locks the precedence when a package both
+// ships a py.typed marker AND has a known stubs package: Status resolves to
+// "typed" but StubsPackage is retained (extras.go:95-112).
+func TestExtrasHandlerGetTypedAndStubs(t *testing.T) {
+	// Build a minimal wheel zip with py.typed.
+	var wheelBuf bytes.Buffer
+	zw := zip.NewWriter(&wheelBuf)
+	zw.Create("typed_pkg-1.0.0.dist-info/METADATA") //nolint:errcheck
+	zw.Create("typed_pkg/py.typed")                  //nolint:errcheck
+	zw.Create("typed_pkg/__init__.py")               //nolint:errcheck
+	zw.Close()
+	wheelBytes := wheelBuf.Bytes()
+
+	var srvURL string
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		// Stubs package check — types-typed-pkg exists this time.
+		case "/pypi/types-typed-pkg/json":
+			w.WriteHeader(http.StatusOK)
+		case "/pypi/typed-pkg-stubs/json":
+			w.WriteHeader(http.StatusNotFound)
+		// Package metadata — return version + wheel URL pointing to this server.
+		case "/pypi/typed-pkg/json":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{
+				"info": {"name":"typed-pkg","version":"1.0.0"},
+				"urls": [{"packagetype":"bdist_wheel","url":"%s/wheel.whl","filename":"typed_pkg-1.0.0-py3-none-any.whl","size":%d}],
+				"releases": {}
+			}`, srvURL, len(wheelBytes))
+		// Wheel file.
+		case "/wheel.whl":
+			if r.Method == http.MethodHead {
+				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(wheelBytes)))
+				w.Header().Set("Accept-Ranges", "bytes")
+				return
+			}
+			http.ServeContent(w, r, "wheel.whl", time.Time{}, bytes.NewReader(wheelBytes))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer pypiSrv.Close()
+	srvURL = pypiSrv.URL
+
+	condaSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer condaSrv.Close()
+
+	sqliteCache, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
+	defer sqliteCache.Close()
+	memCache := cache.NewMemoryCache(sqliteCache, 100)
+
+	pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+	condaClient := conda.NewClient(conda.WithBaseURL(condaSrv.URL))
+	pkgHandler := handler.NewPackageHandler(pypiClient, memCache)
+	h := handler.NewExtrasHandler(pypiClient, condaClient, nil, pkgHandler, memCache)
+
+	router := chi.NewRouter()
+	router.Get("/api/packages/{name}/extras", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/typed-pkg/extras", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	var resp handler.ExtrasResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.TypeSupport.Status != "typed" {
+		t.Errorf("TypeSupport.Status = %q, want typed", resp.TypeSupport.Status)
+	}
+	if resp.TypeSupport.StubsPackage != "types-typed-pkg" {
+		t.Errorf("StubsPackage = %q, want types-typed-pkg", resp.TypeSupport.StubsPackage)
+	}
+}
