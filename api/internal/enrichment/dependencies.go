@@ -56,19 +56,29 @@ var inlineConstraintRe = regexp.MustCompile(`[><=!~]`)
 // like "charset-normalizer (<4,>=2)" or "click (>=7.0)" or "requests" or
 // the inline PEP 508 form "botocore<1.43.0,>=1.42.88".
 func parseDep(s string) Dependency {
+	// Handle the PEP 508 direct-reference form "name @ url" first. A normalized
+	// package name can never contain '@', and the env-marker ';' part was
+	// already split off by the caller.
+	if atIdx := strings.Index(s, "@"); atIdx > 0 {
+		return Dependency{
+			Name:       stripExtras(strings.TrimSpace(s[:atIdx])),
+			Constraint: strings.TrimSpace(s[atIdx+1:]),
+		}
+	}
+
 	openIdx := strings.Index(s, "(")
 	if openIdx == -1 {
 		// Try inline constraint form: split on the first version operator character.
 		if loc := inlineConstraintRe.FindStringIndex(s); loc != nil {
 			return Dependency{
-				Name:       strings.TrimSpace(s[:loc[0]]),
+				Name:       stripExtras(strings.TrimSpace(s[:loc[0]])),
 				Constraint: strings.TrimSpace(s[loc[0]:]),
 			}
 		}
-		return Dependency{Name: strings.TrimSpace(s), Constraint: ""}
+		return Dependency{Name: stripExtras(strings.TrimSpace(s)), Constraint: ""}
 	}
 
-	name := strings.TrimSpace(s[:openIdx])
+	name := stripExtras(strings.TrimSpace(s[:openIdx]))
 	closeIdx := strings.LastIndex(s, ")")
 	constraint := ""
 	if closeIdx > openIdx {
@@ -76,4 +86,13 @@ func parseDep(s string) Dependency {
 	}
 
 	return Dependency{Name: name, Constraint: constraint}
+}
+
+// stripExtras removes a trailing [extras] group from a dependency name:
+// "celery[redis]" -> "celery".
+func stripExtras(name string) string {
+	if i := strings.Index(name, "["); i >= 0 && strings.HasSuffix(name, "]") {
+		return strings.TrimSpace(name[:i])
+	}
+	return name
 }
