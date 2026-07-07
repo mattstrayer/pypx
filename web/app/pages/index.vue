@@ -75,6 +75,13 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
               type="text"
               aria-label="Search Python packages"
               placeholder="Search packages..."
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="hero-search-listbox"
+              :aria-expanded="isOpen"
+              :aria-activedescendant="
+                selectedIndex >= 0 ? `hero-search-listbox-opt-${selectedIndex}` : undefined
+              "
               class="w-full rounded-xl border border-subtle bg-surface px-4 py-3.5 pr-16 text-primary placeholder-muted outline-none transition-[border-color,box-shadow] focus:border-[var(--color-brand-border)] focus:ring-2 focus:ring-[var(--color-brand-border)] focus:ring-offset-0 shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"
@@ -94,6 +101,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
             :selected-index="selectedIndex"
             :loading="isLoading"
             :has-query="!!query.trim()"
+            listbox-id="hero-search-listbox"
             @select="navigateToResult"
             @hover="(i) => (selectedIndex = i)"
           />
