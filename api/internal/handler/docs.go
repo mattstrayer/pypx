@@ -109,6 +109,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 var (
 	ErrDocsPackageNotFound  = errors.New("docs: package not found")
 	ErrDocsExtractionFailed = errors.New("docs: extraction failed")
+	ErrDocsUpstreamFailed   = errors.New("docs: upstream metadata fetch failed")
 )
 
 // fetchDocs returns the cached or freshly-extracted DocsResponse for a package's
@@ -116,7 +117,10 @@ var (
 func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
 	pkg, err := h.pypi.FetchPackage(ctx, name)
 	if err != nil {
-		return DocsResponse{}, nil, ErrDocsPackageNotFound
+		if errors.Is(err, pypi.ErrNotFound) {
+			return DocsResponse{}, nil, ErrDocsPackageNotFound
+		}
+		return DocsResponse{}, nil, fmt.Errorf("%w: %v", ErrDocsUpstreamFailed, err)
 	}
 	return h.fetchDocsAtVersion(ctx, name, pkg.Info.Version)
 }
