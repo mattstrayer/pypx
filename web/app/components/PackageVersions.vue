@@ -6,14 +6,16 @@ const props = defineProps<{
 }>();
 
 const { fetchVersions, fetchChangelog } = useApi();
-const { data: versions, status } = useAsyncData(`versions-${props.name}`, () =>
-  fetchVersions(props.name),
+const { data: versions, status } = useAsyncData(
+  () => `versions-${props.name}`,
+  () => fetchVersions(props.name),
+  { watch: [() => props.name] },
 );
 
 const { data: changelog } = useAsyncData(
-  `changelog-${props.name}`,
+  () => `changelog-${props.name}`,
   () => fetchChangelog(props.name),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [() => props.name] },
 );
 
 const sortedVersions = computed(() => {

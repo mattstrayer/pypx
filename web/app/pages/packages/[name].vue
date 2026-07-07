@@ -5,33 +5,36 @@ const activeTab = ref("overview");
 const isChildRoute = computed(() => route.path !== `/packages/${name.value}`);
 
 const api = useApi();
-const { data: pkg, status } = await useAsyncData(`package-${name.value}`, () =>
-  api.fetchPackage(name.value),
+const { data: pkg, status } = await useAsyncData(
+  () => `package-${name.value}`,
+  () => api.fetchPackage(name.value),
+  { watch: [name] },
 );
 
 // Non-blocking parallel fetches (client-side, don't block SSR)
 const { data: security } = useAsyncData(
-  `security-${name.value}`,
+  () => `security-${name.value}`,
   () => api.fetchSecurity(name.value, pkg.value?.version),
-  { server: false, default: () => null, watch: [() => pkg.value?.version] },
+  { server: false, default: () => null, watch: [name, () => pkg.value?.version] },
 );
 
-const { data: extras } = useAsyncData(`extras-${name.value}`, () => api.fetchExtras(name.value), {
-  server: false,
-  default: () => null,
-});
+const { data: extras } = useAsyncData(
+  () => `extras-${name.value}`,
+  () => api.fetchExtras(name.value),
+  { server: false, default: () => null, watch: [name] },
+);
 
 const { data: changelog } = useAsyncData(
-  `changelog-${name.value}`,
+  () => `changelog-${name.value}`,
   () => api.fetchChangelog(name.value).catch(() => null),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [name] },
 );
 
 // Docs: non-blocking fetch to determine if the Docs tab should be shown.
 const { data: docsData } = useAsyncData(
-  `docs-${name.value}`,
+  () => `docs-${name.value}`,
   () => api.fetchDocs(name.value).catch(() => null),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [name] },
 );
 
 const repoInfo = computed(() => extras.value?.repo_info ?? null);
