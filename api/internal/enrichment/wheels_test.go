@@ -76,4 +76,26 @@ func TestExtractPythonVersions(t *testing.T) {
 			t.Errorf("MinVersion = %q, want %q", info.MinVersion, "3.9")
 		}
 	})
+
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{">=3.8", "3.8"},
+		{">=3.9,<4.0", "3.9"},
+		{"~=3.9", "3.9"},
+		{"==3.11.*", "3.11"},
+		{"==3.11", "3.11"},
+		{">3.8", "3.8"},
+		{"!=3.7,>=3.8", "3.8"},
+		{"<4.0", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			info := ExtractPythonVersions(tc.input)
+			if info.MinVersion != tc.want {
+				t.Errorf("MinVersion = %q, want %q", info.MinVersion, tc.want)
+			}
+		})
+	}
 }

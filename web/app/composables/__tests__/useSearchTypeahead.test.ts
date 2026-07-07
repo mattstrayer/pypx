@@ -108,6 +108,43 @@ describe("useSearchTypeahead", () => {
     expect(c.isLoading.value).toBe(false);
   });
 
+  it("out-of-order responses do not clobber newer results", async () => {
+    // Capture the resolve fn for each searchPackages call so we can settle them
+    // out of order.
+    const resolvers: Array<(v: SearchResult[]) => void> = [];
+    mockSearchPackages.mockImplementation(
+      () =>
+        new Promise<SearchResult[]>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+
+    const c = await mountTypeahead();
+
+    // First query issued (pending).
+    c.query.value = "rea";
+    await flushPromises();
+    vi.advanceTimersByTime(150);
+    await flushPromises();
+
+    // Second query issued (pending).
+    c.query.value = "react";
+    await flushPromises();
+    vi.advanceTimersByTime(150);
+    await flushPromises();
+
+    expect(resolvers).toHaveLength(2);
+
+    // Resolve the SECOND (newer) call first, then the FIRST (older, stale).
+    resolvers[1]!([makeResult("react")]);
+    await flushPromises();
+    resolvers[0]!([makeResult("rea-stale")]);
+    await flushPromises();
+
+    expect(c.results.value).toEqual([makeResult("react")]);
+    expect(c.isLoading.value).toBe(false);
+  });
+
   describe("keyboard navigation", () => {
     async function setupWithResults(count: number) {
       const stubResults = Array.from({ length: count }, (_, i) => makeResult(`pkg${i}`));

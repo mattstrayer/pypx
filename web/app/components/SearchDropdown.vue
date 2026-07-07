@@ -6,6 +6,7 @@ defineProps<{
   selectedIndex: number;
   loading: boolean;
   hasQuery: boolean;
+  listboxId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 <template>
   <div
     v-if="hasQuery"
+    :id="listboxId"
     role="listbox"
     aria-label="Search results"
     class="overflow-hidden rounded-lg border border-subtle bg-surface/95 shadow-xl backdrop-blur"
@@ -30,6 +32,7 @@ const emit = defineEmits<{
     <template v-else-if="results.length > 0">
       <button
         v-for="(result, index) in results"
+        :id="listboxId ? `${listboxId}-opt-${index}` : undefined"
         :key="result.name"
         role="option"
         :aria-selected="index === selectedIndex"

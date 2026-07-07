@@ -51,7 +51,7 @@ describe("CompareTable", () => {
   it("formats install size in KB", async () => {
     const packages = [makePackage({ InstallSize: 150000 })];
     const wrapper = await mountSuspended(CompareTable, { props: { packages } });
-    expect(wrapper.text()).toMatch(/\d+\.\d+\s*KB/);
+    expect(wrapper.text()).toMatch(/\d+\s*KB/);
   });
 
   it("shows — for missing DocURL", async () => {

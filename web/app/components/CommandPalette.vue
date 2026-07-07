@@ -2,11 +2,14 @@
 const { query, results, selectedIndex, isOpen, isLoading, onKeydown, navigateToResult, reset } =
   useSearchTypeahead();
 const inputRef = ref<HTMLInputElement | null>(null);
+const modalRef = ref<HTMLElement | null>(null);
+const previouslyFocused = ref<HTMLElement | null>(null);
 const isModalOpen = ref(false);
 const colorMode = useColorMode();
 const { withTransition } = useThemeTransition();
 
 function openModal() {
+  previouslyFocused.value = document.activeElement as HTMLElement | null;
   isModalOpen.value = true;
   reset();
   nextTick(() => inputRef.value?.focus());
@@ -15,6 +18,25 @@ function openModal() {
 function closeModal() {
   isModalOpen.value = false;
   reset();
+  previouslyFocused.value?.focus();
+  previouslyFocused.value = null;
+}
+
+function trapFocus(e: KeyboardEvent) {
+  if (e.key !== "Tab" || !modalRef.value) return;
+  const focusables = modalRef.value.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0]!;
+  const last = focusables[focusables.length - 1]!;
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 function setTheme(mode: string) {
@@ -74,11 +96,13 @@ onUnmounted(() => {
     >
       <div
         v-if="isModalOpen"
+        ref="modalRef"
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
         class="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 pt-[20vh]"
         @mousedown.self="closeModal"
+        @keydown="trapFocus"
       >
         <div
           class="w-full max-w-lg overflow-hidden rounded-xl border border-[var(--color-brand-border)] bg-surface shadow-2xl"
@@ -106,6 +130,13 @@ onUnmounted(() => {
               type="text"
               placeholder="Search packages..."
               aria-label="Search Python packages"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="palette-search-listbox"
+              :aria-expanded="isOpen"
+              :aria-activedescendant="
+                selectedIndex >= 0 ? `palette-search-listbox-opt-${selectedIndex}` : undefined
+              "
               class="min-w-0 flex-1 bg-transparent text-sm text-primary placeholder-muted outline-none"
               @keydown="onModalKeydown"
             />
@@ -122,6 +153,7 @@ onUnmounted(() => {
             :selected-index="selectedIndex"
             :loading="isLoading"
             :has-query="!!query.trim()"
+            listbox-id="palette-search-listbox"
             class="border-0 rounded-none shadow-none"
             @select="
               (r) => {

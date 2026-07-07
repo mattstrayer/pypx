@@ -117,14 +117,25 @@ func TestParseDepsInlineConstraint(t *testing.T) {
 			wantConstr: ">=2.0",
 		},
 		{
-			// SUSPECT: `[` is not in the operator regex so the bracket group is kept
-			// in the name. Current behavior: Name="requests[socks]", Constraint=">=1.5".
-			// This differs from PEP 508 where "requests[socks]" is valid name+extras
-			// notation — a correct parser would separate the extras bracket. Pinned as-is.
+			// Extras bracket is stripped from the name per PEP 508.
 			input:      "requests[socks]>=1.5",
-			wantName:   "requests[socks]",
+			wantName:   "requests",
 			wantConstr: ">=1.5",
-			suspect:    "bracket extras kept in name — parseDep does not strip [extras] from inline form",
+		},
+		{
+			input:      "celery[redis]>=5.0",
+			wantName:   "celery",
+			wantConstr: ">=5.0",
+		},
+		{
+			input:      "celery[redis,auth] (>=5.0)",
+			wantName:   "celery",
+			wantConstr: ">=5.0",
+		},
+		{
+			input:      "pkg @ https://example.com/pkg-1.0.tar.gz",
+			wantName:   "pkg",
+			wantConstr: "https://example.com/pkg-1.0.tar.gz",
 		},
 	}
 

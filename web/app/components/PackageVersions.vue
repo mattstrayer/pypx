@@ -58,15 +58,6 @@ function toggleVersion(version: string) {
   else next.add(version);
   expandedVersions.value = next;
 }
-
-function formatDate(iso: string): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 </script>
 
 <template>

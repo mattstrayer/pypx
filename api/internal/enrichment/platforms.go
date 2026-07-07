@@ -43,13 +43,17 @@ func ExtractPlatformCoverage(files []pypi.ReleaseFile) PlatformCoverage {
 			cov.LinuxARM64 = true
 		case strings.Contains(p, "musllinux"):
 			cov.Musl = true
-		case strings.Contains(p, "macosx") && strings.Contains(p, "universal2"):
-			cov.MacOSX86 = true
-			cov.MacOSARM64 = true
-		case strings.Contains(p, "macosx") && strings.Contains(p, "arm64"):
-			cov.MacOSARM64 = true
-		case strings.Contains(p, "macosx") && strings.Contains(p, "x86_64"):
-			cov.MacOSX86 = true
+		case strings.Contains(p, "macosx"):
+			if strings.Contains(p, "universal2") {
+				cov.MacOSX86 = true
+				cov.MacOSARM64 = true
+			}
+			if strings.Contains(p, "arm64") {
+				cov.MacOSARM64 = true
+			}
+			if strings.Contains(p, "x86_64") {
+				cov.MacOSX86 = true
+			}
 		case strings.Contains(p, "win_amd64") || strings.Contains(p, "win32"):
 			cov.Windows = true
 		}

@@ -75,21 +75,6 @@ const {
 const packages = computed(() => compareData.value?.Packages ?? []);
 const skipped = computed(() => compareData.value?.Skipped ?? []);
 
-function formatInstallSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDownloads(n: number): string {
-  if (!n) return "—";
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;
-  if (n < 1_000_000_000) return `${Math.floor(n / 1_000_000)}M`;
-  return `${(n / 1_000_000_000).toFixed(1)}B`;
-}
-
 const pkgTitle = computed(() => {
   const names = packages.value.map((p) => p.Name);
   if (!names.length) return "Compare packages — pypx";
