@@ -86,6 +86,16 @@ func TestInferTopLevel(t *testing.T) {
 	}
 }
 
+func TestInferTopLevel_SingleFileModule(t *testing.T) {
+	files := map[string][]byte{
+		"six.py": {},
+	}
+	got := inferTopLevel(files, "six")
+	if len(got) != 1 || got[0] != "six" {
+		t.Errorf("inferTopLevel() = %v, want [six]", got)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // extractPyFiles tests using crafted zip archives
 // ---------------------------------------------------------------------------

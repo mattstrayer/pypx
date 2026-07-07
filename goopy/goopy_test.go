@@ -83,6 +83,44 @@ func TestExtractPackage(t *testing.T) {
 	}
 }
 
+func TestExtractPackage_SingleFileModule(t *testing.T) {
+	files := map[string][]byte{
+		"six.py": []byte("def add_metaclass(cls): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "six", files, []string{"six"})
+	if len(pkg.Modules) != 1 {
+		t.Fatalf("Modules len = %d, want 1", len(pkg.Modules))
+	}
+	if pkg.Modules[0].Name != "six" {
+		t.Errorf("Modules[0].Name = %q, want %q", pkg.Modules[0].Name, "six")
+	}
+	if len(pkg.Modules[0].Functions) != 1 {
+		t.Fatalf("Functions len = %d, want 1", len(pkg.Modules[0].Functions))
+	}
+	if pkg.Modules[0].Functions[0].Name != "add_metaclass" {
+		t.Errorf("Functions[0].Name = %q, want %q", pkg.Modules[0].Functions[0].Name, "add_metaclass")
+	}
+}
+
+func TestExtractPackage_SingleFileModule_DoubleCountGuard(t *testing.T) {
+	// When both a directory package and a bare top-level file of the same
+	// name exist, only the directory package should be extracted.
+	files := map[string][]byte{
+		"six/__init__.py": []byte("def add_metaclass(cls): pass\n"),
+		"six.py":          []byte("def other_func(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "six", files, []string{"six"})
+	if len(pkg.Modules) != 1 {
+		t.Fatalf("Modules len = %d, want 1", len(pkg.Modules))
+	}
+	if pkg.Modules[0].Name != "six" {
+		t.Errorf("Modules[0].Name = %q, want %q", pkg.Modules[0].Name, "six")
+	}
+	if len(pkg.Modules[0].Functions) != 1 || pkg.Modules[0].Functions[0].Name != "add_metaclass" {
+		t.Errorf("expected the directory package's add_metaclass, got %+v", pkg.Modules[0].Functions)
+	}
+}
+
 func TestExtractPackage_DocstringOnlyModule(t *testing.T) {
 	// A module with only a docstring (e.g., __init__.py) should not be filtered out.
 	files := map[string][]byte{
