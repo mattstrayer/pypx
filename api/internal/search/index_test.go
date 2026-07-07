@@ -2,6 +2,8 @@ package search
 
 import (
 	"fmt"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -308,6 +310,183 @@ func TestNewIndex_RebuildsFTSFromMeta(t *testing.T) {
 	results, _ = idx2.Search("django", 10)
 	if len(results) != 1 {
 		t.Errorf("expected 1 result for django after rebuild, got %d", len(results))
+	}
+}
+
+// rebuildCount reads the persisted rebuild counter from index_state. It is a
+// direct DB read (tests live in package search) so tests can observe whether a
+// rebuild actually ran on the last NewIndex open.
+func rebuildCount(t *testing.T, idx *Index) int {
+	t.Helper()
+	var v string
+	if err := idx.db.QueryRow(`SELECT value FROM index_state WHERE key = 'rebuild_count'`).Scan(&v); err != nil {
+		t.Fatalf("read rebuild_count: %v", err)
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		t.Fatalf("parse rebuild_count %q: %v", v, err)
+	}
+	return n
+}
+
+// TestNewIndexSkipsRebuildWhenClean verifies that reopening a clean on-disk
+// index does NOT rebuild the FTS table (rebuild_count stays 1) while search
+// still works.
+func TestNewIndexSkipsRebuildWhenClean(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "search.db")
+
+	idx1, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+		{Name: "django", Summary: "The web framework", Downloads: 25_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if got := rebuildCount(t, idx1); got != 1 {
+		t.Fatalf("after first open: rebuild_count = %d, want 1", got)
+	}
+	idx1.Close()
+
+	idx2, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	if got := rebuildCount(t, idx2); got != 1 {
+		t.Errorf("after clean reopen: rebuild_count = %d, want 1 (skip path)", got)
+	}
+	results, err := idx2.Search("requests", 10)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) == 0 || results[0].Name != "requests" {
+		t.Errorf("expected first result 'requests', got %+v", results)
+	}
+}
+
+// TestNewIndexRebuildsOnDupe verifies that a duplicate FTS row (which makes the
+// FTS count disagree with meta) is detected on reopen and cleaned by a rebuild.
+func TestNewIndexRebuildsOnDupe(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "search.db")
+
+	idx1, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	// Inject a dupe directly into FTS (bypassing UpsertBatch's guard).
+	if _, err := idx1.db.Exec(
+		`INSERT INTO packages_fts (name, summary, downloads) VALUES (?, ?, ?)`,
+		"flask", "A micro web framework", 30_000_000,
+	); err != nil {
+		t.Fatalf("inject dupe: %v", err)
+	}
+	idx1.Close()
+
+	idx2, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	if got := rebuildCount(t, idx2); got != 2 {
+		t.Errorf("after dupe reopen: rebuild_count = %d, want 2 (mismatch detected)", got)
+	}
+	var n int
+	if err := idx2.db.QueryRow(`SELECT count(*) FROM packages_fts WHERE name = ?`, "flask").Scan(&n); err != nil {
+		t.Fatalf("count fts flask: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("expected 1 FTS row for 'flask' after rebuild, got %d", n)
+	}
+}
+
+// TestNewIndexRebuildsOnSchemaVersionMismatch verifies that a stale stored
+// schema_version forces a rebuild on reopen.
+func TestNewIndexRebuildsOnSchemaVersionMismatch(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "search.db")
+
+	idx1, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if _, err := idx1.db.Exec(`UPDATE index_state SET value = '0' WHERE key = 'schema_version'`); err != nil {
+		t.Fatalf("stale schema_version: %v", err)
+	}
+	idx1.Close()
+
+	idx2, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	if got := rebuildCount(t, idx2); got != 2 {
+		t.Errorf("after schema mismatch reopen: rebuild_count = %d, want 2", got)
+	}
+	results, err := idx2.Search("requests", 10)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) == 0 || results[0].Name != "requests" {
+		t.Errorf("expected first result 'requests', got %+v", results)
+	}
+}
+
+// TestNewIndexUpsertAfterSkip verifies that upserting a new entry after a
+// skip-path reopen keeps both old and new entries searchable.
+func TestNewIndexUpsertAfterSkip(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "search.db")
+
+	idx1, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(1): %v", err)
+	}
+	if err := idx1.UpsertBatch([]PackageEntry{
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	idx1.Close()
+
+	idx2, err := NewIndex(dsn)
+	if err != nil {
+		t.Fatalf("NewIndex(2): %v", err)
+	}
+	defer idx2.Close()
+
+	if got := rebuildCount(t, idx2); got != 1 {
+		t.Fatalf("expected skip path (rebuild_count 1), got %d", got)
+	}
+	if err := idx2.UpsertBatch([]PackageEntry{
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}); err != nil {
+		t.Fatalf("UpsertBatch after skip: %v", err)
+	}
+
+	for _, name := range []string{"requests", "flask"} {
+		results, err := idx2.Search(name, 1)
+		if err != nil {
+			t.Fatalf("Search(%q): %v", name, err)
+		}
+		if len(results) == 0 || results[0].Name != name {
+			t.Errorf("Search(%q): expected %q, got %+v", name, name, results)
+		}
 	}
 }
 
