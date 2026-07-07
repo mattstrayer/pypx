@@ -2,6 +2,7 @@ package parser
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -29,6 +30,7 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("a, b = 1, 2\nc = d = e = 3\n"))
 	f.Add([]byte("async def fetch(url: str) -> bytes: pass\n"))
 	f.Add([]byte(""))
+	f.Add([]byte("x = " + strings.Repeat("[", 2000)))
 
 	f.Fuzz(func(t *testing.T, src []byte) {
 		p := New(src)

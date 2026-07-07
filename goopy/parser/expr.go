@@ -17,6 +17,20 @@ import (
 
 // parseExpr is the entry point for expression parsing.
 func (p *Parser) parseExpr() ast.Expr {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxExprDepth {
+		p.errorf("expression nesting too deep (max %d)", maxExprDepth)
+		p.syncStmt()
+		pos := p.tok.Pos
+		return &ast.Constant{
+			Position: pos,
+			EndPos:   pos,
+			Value:    "?",
+			Kind:     "error",
+			Lit:      "?",
+		}
+	}
 	expr := p.parseOrExpr()
 	if expr == nil {
 		return nil

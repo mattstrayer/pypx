@@ -1,11 +1,22 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pypx/goopy/ast"
 	"github.com/pypx/goopy/token"
 )
+
+func TestParseDeeplyNestedDoesNotOverflow(t *testing.T) {
+	for _, open := range []string{"[", "(", "{"} {
+		src := "x = " + strings.Repeat(open, 5000)
+		_, errs := parseWithErrors(t, src)
+		if len(errs) == 0 {
+			t.Errorf("open=%q: expected a parse error from the depth cap, got none", open)
+		}
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
