@@ -37,12 +37,6 @@ const { data: extras } = useAsyncData(
   { server: false, default: () => null, watch: [name] },
 );
 
-const { data: changelog } = useAsyncData(
-  () => `changelog-${name.value}`,
-  () => api.fetchChangelog(name.value).catch(() => null),
-  { server: false, default: () => null, watch: [name] },
-);
-
 // Docs: non-blocking fetch to determine if the Docs tab should be shown.
 const { data: docsData } = useAsyncData(
   () => `docs-${name.value}`,
