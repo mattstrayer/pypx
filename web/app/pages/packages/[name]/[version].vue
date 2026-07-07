@@ -50,15 +50,6 @@ const changelogEntry = computed(() => {
   return changelog.value.entries.find((e) => e.version === version.value) || null;
 });
 
-function formatDate(iso: string): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 useSeoMeta({
   title: () => `${name.value} ${version.value}`,
   description: () => `Version ${version.value} of ${name.value} on pypx.`,

@@ -5,21 +5,6 @@ const props = defineProps<{
   packages: ComparePackageData[];
 }>();
 
-function formatInstallSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDownloads(n: number): string {
-  if (!n) return "—";
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;
-  if (n < 1_000_000_000) return `${Math.floor(n / 1_000_000)}M`;
-  return `${(n / 1_000_000_000).toFixed(1)}B`;
-}
-
 interface Row {
   label: string;
   values: string[];
@@ -32,7 +17,7 @@ const rows = computed<Row[]>(() => [
   { label: "Python min", values: props.packages.map((p) => p.PythonMin || "—") },
   {
     label: "Install size",
-    values: props.packages.map((p) => formatInstallSize(p.InstallSize)),
+    values: props.packages.map((p) => formatSize(p.InstallSize)),
   },
   { label: "Module format", values: props.packages.map((p) => p.ModuleFormat || "—") },
   {
@@ -49,7 +34,7 @@ const rows = computed<Row[]>(() => [
   },
   {
     label: "Downloads/30d",
-    values: props.packages.map((p) => formatDownloads(p.Downloads30d)),
+    values: props.packages.map((p) => (p.Downloads30d ? formatDownloads(p.Downloads30d) : "—")),
   },
   {
     label: "Vulns",
