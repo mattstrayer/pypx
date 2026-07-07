@@ -93,7 +93,9 @@ func isPlatformSpecific(platform string) bool {
 
 // ExtractPythonVersions parses a requires_python specifier string
 // (e.g. ">=3.8" or ">=3.9,<4.0") and returns the constraint as-is along
-// with the minimum version extracted from the >= clause.
+// with the minimum version. The minimum is derived from the first matching
+// clause using the prefix priority ">=", "~=", "==="/"==" (with a trailing
+// ".*" trimmed), or ">". "!=", "<", and "<=" never yield a minimum.
 func ExtractPythonVersions(requiresPython string) PythonVersionInfo {
 	info := PythonVersionInfo{
 		Constraint: requiresPython,
@@ -101,10 +103,20 @@ func ExtractPythonVersions(requiresPython string) PythonVersionInfo {
 
 	// Split on comma to handle compound specifiers like ">=3.9,<4.0".
 	clauses := strings.Split(requiresPython, ",")
-	for _, clause := range clauses {
-		clause = strings.TrimSpace(clause)
-		if strings.HasPrefix(clause, ">=") {
-			info.MinVersion = strings.TrimSpace(strings.TrimPrefix(clause, ">="))
+	minFrom := func(prefix string) string {
+		for _, clause := range clauses {
+			clause = strings.TrimSpace(clause)
+			if strings.HasPrefix(clause, prefix) {
+				v := strings.TrimSpace(strings.TrimPrefix(clause, prefix))
+				return strings.TrimSuffix(v, ".*")
+			}
+		}
+		return ""
+	}
+	// Order matters: ">=" before ">", "===" before "==". "!=", "<", "<=" never match.
+	for _, prefix := range []string{">=", "~=", "===", "==", ">"} {
+		if v := minFrom(prefix); v != "" {
+			info.MinVersion = v
 			break
 		}
 	}
