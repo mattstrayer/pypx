@@ -432,39 +432,48 @@ func extractDocstring(stmt ast.Stmt) string {
 	return c.Value
 }
 
-// extractAllExports finds __all__ = [...] in module body and returns a set of names.
-// Returns nil if __all__ is not defined.
+// extractAllExports finds __all__ = [...] in module body and returns a set of
+// names. It unions names across every __all__ assignment in the module body
+// (never shrinks), so a module that builds __all__ incrementally
+// (`__all__ = [...]` followed by `__all__ += [...]`) still exposes every
+// name. NOTE: the parser has no AugAssign node — it parses `__all__ +=
+// [...]` as a plain *ast.Assign with the same target/value shape as `=`, so
+// the union logic below naturally covers both forms; there is no separate
+// AugAssign case to add here.
+// Returns nil if __all__ is not defined anywhere in the body.
 func extractAllExports(body []ast.Stmt) map[string]struct{} {
+	var exports map[string]struct{}
+	add := func(value ast.Expr) {
+		var elts []ast.Expr
+		switch v := value.(type) {
+		case *ast.List:
+			elts = v.Elts
+		case *ast.Tuple:
+			elts = v.Elts
+		default:
+			return
+		}
+		if exports == nil {
+			exports = make(map[string]struct{})
+		}
+		for _, elt := range elts {
+			if c, ok := elt.(*ast.Constant); ok && c.Kind == "str" {
+				exports[c.Value] = struct{}{}
+			}
+		}
+	}
 	for _, stmt := range body {
 		assign, ok := stmt.(*ast.Assign)
 		if !ok {
 			continue
 		}
 		for _, target := range assign.Targets {
-			n, ok := target.(*ast.Name)
-			if !ok || n.Name != "__all__" {
-				continue
+			if n, ok := target.(*ast.Name); ok && n.Name == "__all__" {
+				add(assign.Value)
 			}
-			var elts []ast.Expr
-			switch v := assign.Value.(type) {
-			case *ast.List:
-				elts = v.Elts
-			case *ast.Tuple:
-				elts = v.Elts
-			default:
-				continue
-			}
-			exports := make(map[string]struct{}, len(elts))
-			for _, elt := range elts {
-				c, ok := elt.(*ast.Constant)
-				if ok && c.Kind == "str" {
-					exports[c.Value] = struct{}{}
-				}
-			}
-			return exports
 		}
 	}
-	return nil
+	return exports
 }
 
 // isPublic determines if a name should be included in the output.
