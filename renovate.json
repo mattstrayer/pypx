@@ -56,6 +56,15 @@
       "groupName": "test tooling"
     },
     {
+      "description": "Group oxlint with its plugins — plugin API must stay compatible with the oxlint version (if oxlint-plugin-complexity breaks, pin oxlint to the last working version)",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "oxlint",
+        "oxlint-plugin-**"
+      ],
+      "groupName": "oxlint"
+    },
+    {
       "description": "Group Go dependencies",
       "matchManagers": ["gomod"],
       "groupName": "go dependencies",
