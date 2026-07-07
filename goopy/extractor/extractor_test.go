@@ -677,6 +677,98 @@ func TestExtractAllTuple(t *testing.T) {
 	}
 }
 
+func TestExtractAllExportsIncremental(t *testing.T) {
+	m := extract(`
+__all__ = ["a"]
+__all__ += ["b"]
+
+def a():
+    pass
+
+def b():
+    pass
+
+def c():
+    pass
+`)
+
+	fnNames := make(map[string]bool)
+	for _, fn := range m.Functions {
+		fnNames[fn.Name] = true
+	}
+
+	if !fnNames["a"] {
+		t.Error("expected a (in first __all__ assignment)")
+	}
+	if !fnNames["b"] {
+		t.Error("expected b (added via __all__ +=)")
+	}
+	if fnNames["c"] {
+		t.Error("c should be hidden (never added to __all__)")
+	}
+}
+
+func TestExtractMangledPrivateMethodInClass(t *testing.T) {
+	m := extract(`
+class C:
+    def __secret(self):
+        pass
+
+    def __len__(self):
+        return 0
+`)
+
+	if len(m.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(m.Classes))
+	}
+	names := make(map[string]bool)
+	for _, fn := range m.Classes[0].Methods {
+		names[fn.Name] = true
+	}
+	if names["__secret"] {
+		t.Error("__secret (mangled private) should be hidden from class methods")
+	}
+	if !names["__len__"] {
+		t.Error("__len__ (dunder) should remain public on class methods")
+	}
+}
+
+func TestExtractMangledPrivateFunctionAtModuleLevel(t *testing.T) {
+	m := extract(`
+def __secret():
+    pass
+`)
+
+	for _, fn := range m.Functions {
+		if fn.Name == "__secret" {
+			t.Error("__secret (mangled private) should be hidden at module level")
+		}
+	}
+}
+
+func TestExtractInitAttributesMangledPrivate(t *testing.T) {
+	m := extract(`
+class C:
+    def __init__(self):
+        self.__secret = 1
+        self.value = 2
+`)
+
+	if len(m.Classes) != 1 {
+		t.Fatalf("expected 1 class, got %d", len(m.Classes))
+	}
+	names := make(map[string]bool)
+	for _, attr := range m.Classes[0].Attributes {
+		names[attr.Name] = true
+	}
+	if !names["value"] {
+		t.Error("expected value attribute")
+	}
+	if names["__secret"] {
+		t.Error("__secret (mangled private) should be hidden from init attributes")
+	}
+}
+
 func TestTypingModulePrefix(t *testing.T) {
 	m := extract(`
 def f(x: typing.Optional[str]) -> typing.List[int]:

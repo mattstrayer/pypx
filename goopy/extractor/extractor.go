@@ -206,7 +206,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
 				continue
 			}
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
+			if isPrivateName(s.Name) {
 				continue
 			}
 			// Also skip private dunder methods that aren't public API,
@@ -224,7 +224,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		case *ast.Assign:
 			for _, target := range s.Targets {
 				if n, ok := target.(*ast.Name); ok {
-					if strings.HasPrefix(n.Name, "_") && !strings.HasPrefix(n.Name, "__") {
+					if isPrivateName(n.Name) {
 						continue
 					}
 					attr := &model.Attribute{
@@ -238,7 +238,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		case *ast.ClassDef:
 			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
 			// Same privacy rule as methods: skip _Name but keep dunder-style names.
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
+			if isPrivateName(s.Name) {
 				continue
 			}
 			cls.Classes = append(cls.Classes, e.extractClass(s, moduleExports))
@@ -274,7 +274,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 			for _, target := range s.Targets {
 				if a, ok := target.(*ast.Attribute); ok {
 					if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-						if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+						if isPrivateName(a.Attr) {
 							continue
 						}
 						attrs = append(attrs, &model.Attribute{
@@ -287,7 +287,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 		case *ast.AnnAssign:
 			if a, ok := s.Target.(*ast.Attribute); ok {
 				if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-					if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+					if isPrivateName(a.Attr) {
 						continue
 					}
 					attr := &model.Attribute{
@@ -432,39 +432,48 @@ func extractDocstring(stmt ast.Stmt) string {
 	return c.Value
 }
 
-// extractAllExports finds __all__ = [...] in module body and returns a set of names.
-// Returns nil if __all__ is not defined.
+// extractAllExports finds __all__ = [...] in module body and returns a set of
+// names. It unions names across every __all__ assignment in the module body
+// (never shrinks), so a module that builds __all__ incrementally
+// (`__all__ = [...]` followed by `__all__ += [...]`) still exposes every
+// name. NOTE: the parser has no AugAssign node — it parses `__all__ +=
+// [...]` as a plain *ast.Assign with the same target/value shape as `=`, so
+// the union logic below naturally covers both forms; there is no separate
+// AugAssign case to add here.
+// Returns nil if __all__ is not defined anywhere in the body.
 func extractAllExports(body []ast.Stmt) map[string]struct{} {
+	var exports map[string]struct{}
+	add := func(value ast.Expr) {
+		var elts []ast.Expr
+		switch v := value.(type) {
+		case *ast.List:
+			elts = v.Elts
+		case *ast.Tuple:
+			elts = v.Elts
+		default:
+			return
+		}
+		if exports == nil {
+			exports = make(map[string]struct{})
+		}
+		for _, elt := range elts {
+			if c, ok := elt.(*ast.Constant); ok && c.Kind == "str" {
+				exports[c.Value] = struct{}{}
+			}
+		}
+	}
 	for _, stmt := range body {
 		assign, ok := stmt.(*ast.Assign)
 		if !ok {
 			continue
 		}
 		for _, target := range assign.Targets {
-			n, ok := target.(*ast.Name)
-			if !ok || n.Name != "__all__" {
-				continue
+			if n, ok := target.(*ast.Name); ok && n.Name == "__all__" {
+				add(assign.Value)
 			}
-			var elts []ast.Expr
-			switch v := assign.Value.(type) {
-			case *ast.List:
-				elts = v.Elts
-			case *ast.Tuple:
-				elts = v.Elts
-			default:
-				continue
-			}
-			exports := make(map[string]struct{}, len(elts))
-			for _, elt := range elts {
-				c, ok := elt.(*ast.Constant)
-				if ok && c.Kind == "str" {
-					exports[c.Value] = struct{}{}
-				}
-			}
-			return exports
 		}
 	}
-	return nil
+	return exports
 }
 
 // isPublic determines if a name should be included in the output.
@@ -475,7 +484,20 @@ func isPublic(name string, exports map[string]struct{}) bool {
 		_, ok := exports[name]
 		return ok
 	}
-	return !strings.HasPrefix(name, "_")
+	return !isPrivateName(name)
+}
+
+// isDunder reports whether name is a Python dunder (e.g. __init__, __len__):
+// leading AND trailing double underscore.
+func isDunder(name string) bool {
+	return strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__")
+}
+
+// isPrivateName reports whether a bare identifier is private by Python
+// convention: any leading underscore that is not a dunder. This covers both
+// single-underscore (_x) and name-mangled (__x) members.
+func isPrivateName(name string) bool {
+	return strings.HasPrefix(name, "_") && !isDunder(name)
 }
 
 // hasDecorator checks if a function has a specific decorator name.
