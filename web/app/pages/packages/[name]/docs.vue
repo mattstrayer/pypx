@@ -6,11 +6,24 @@ const name = computed(() => route.params.name as string);
 
 const api = useApi();
 
-const { data: pkg, status: pkgStatus } = await useAsyncData(
+const {
+  data: pkg,
+  status: pkgStatus,
+  error: pkgError,
+} = await useAsyncData(
   () => `package-${name.value}`,
   () => api.fetchPackage(name.value),
   { watch: [name] },
 );
+
+if (pkgError.value) {
+  const upstream = (pkgError.value as { statusCode?: number }).statusCode;
+  throw createError(
+    upstream === 404
+      ? { statusCode: 404, statusMessage: "Package not found", fatal: true }
+      : { statusCode: 502, statusMessage: "Failed to load package", fatal: true },
+  );
+}
 
 const { data: docs, status: docsStatus } = useAsyncData(
   () => `docs-data-${name.value}`,
@@ -212,11 +225,6 @@ defineOgImage(
     <!-- Package loading -->
     <div v-if="pkgStatus === 'pending'" class="flex items-center justify-center py-24">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-subtle border-t-primary" />
-    </div>
-
-    <!-- Package error -->
-    <div v-else-if="pkgStatus === 'error'" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
     </div>
 
     <div v-else-if="pkg">

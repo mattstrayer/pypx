@@ -5,20 +5,31 @@ const version = computed(() => route.params.version as string);
 
 const { fetchPackage, fetchVersions, fetchChangelog } = useApi();
 
-const [{ data: pkg }, { data: versions }] = await Promise.all([
-  useAsyncData(
-    () => `package-${name.value}`,
-    () => fetchPackage(name.value),
-    { watch: [name] },
-  ),
-  useAsyncData(
-    () => `versions-${name.value}`,
-    () => fetchVersions(name.value),
-    {
-      watch: [name],
-    },
-  ),
-]);
+const [{ data: pkg, error: pkgError }, { data: versions, error: versionsError }] =
+  await Promise.all([
+    useAsyncData(
+      () => `package-${name.value}`,
+      () => fetchPackage(name.value),
+      { watch: [name] },
+    ),
+    useAsyncData(
+      () => `versions-${name.value}`,
+      () => fetchVersions(name.value),
+      {
+        watch: [name],
+      },
+    ),
+  ]);
+
+const fetchErr = pkgError.value ?? versionsError.value;
+if (fetchErr) {
+  const upstream = (fetchErr as { statusCode?: number }).statusCode;
+  throw createError(
+    upstream === 404
+      ? { statusCode: 404, statusMessage: "Package not found", fatal: true }
+      : { statusCode: 502, statusMessage: "Failed to load package", fatal: true },
+  );
+}
 
 const { data: changelog } = useAsyncData(
   () => `changelog-${name.value}`,
@@ -29,6 +40,10 @@ const { data: changelog } = useAsyncData(
 const matchedVersion = computed(
   () => versions.value?.find((v) => v.version === version.value) ?? null,
 );
+
+if (versions.value && !matchedVersion.value) {
+  throw createError({ statusCode: 404, statusMessage: "Version not found", fatal: true });
+}
 
 const changelogEntry = computed(() => {
   if (!changelog.value?.entries) return null;
@@ -73,14 +88,8 @@ defineOgImage(
       </NuxtLink>
     </div>
 
-    <!-- Version not found -->
-    <div v-if="versions && !matchedVersion" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Version not found</p>
-      <p class="mt-1 text-sm text-muted">No version "{{ version }}" found for "{{ name }}".</p>
-    </div>
-
     <!-- Loaded state -->
-    <div v-else-if="matchedVersion">
+    <div v-if="matchedVersion">
       <!-- Header -->
       <div class="mb-6">
         <div class="flex items-baseline gap-3">

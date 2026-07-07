@@ -5,11 +5,24 @@ const activeTab = ref("overview");
 const isChildRoute = computed(() => route.path !== `/packages/${name.value}`);
 
 const api = useApi();
-const { data: pkg, status } = await useAsyncData(
+const {
+  data: pkg,
+  status,
+  error,
+} = await useAsyncData(
   () => `package-${name.value}`,
   () => api.fetchPackage(name.value),
   { watch: [name] },
 );
+
+if (error.value) {
+  const upstream = (error.value as { statusCode?: number }).statusCode;
+  throw createError(
+    upstream === 404
+      ? { statusCode: 404, statusMessage: "Package not found", fatal: true }
+      : { statusCode: 502, statusMessage: "Failed to load package", fatal: true },
+  );
+}
 
 // Non-blocking parallel fetches (client-side, don't block SSR)
 const { data: security } = useAsyncData(
@@ -138,12 +151,6 @@ useSchemaOrg(
           <div class="h-24 w-full animate-pulse rounded-lg bg-raised" />
         </div>
       </div>
-    </div>
-
-    <!-- Error state -->
-    <div v-else-if="status === 'error'" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
-      <p class="mt-1 text-sm text-muted">No package named "{{ name }}" could be found.</p>
     </div>
 
     <!-- Loaded state -->
