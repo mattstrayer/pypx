@@ -69,12 +69,12 @@ const { data: changelog } = await useAsyncData('changelog',
 
 **`composables/useApi.ts`**  
 Central API wrapper. Handles the server vs. client URL difference:
-- Server-side: uses `NUXT_API_BASE` (e.g., `http://api:8080`) — direct internal network call
+- Server-side: uses `NUXT_API_BASE` (e.g., `http://api:8080/api`) — direct internal network call
 - Client-side: uses `NUXT_PUBLIC_API_BASE` (e.g., `/api`) — browser proxied through Caddy
 
 ```ts
 const config = useRuntimeConfig()
-// On server: config.apiBase = 'http://api:8080'
+// On server: config.apiBase = 'http://api:8080/api'
 // On client: config.public.apiBase = '/api'
 ```
 
@@ -119,7 +119,7 @@ Tailwind is loaded via the Vite plugin (`@tailwindcss/vite`) rather than PostCSS
   compatibilityDate: '2026-04-09',
   modules: ['@vueuse/nuxt', '@nuxtjs/seo'],
   runtimeConfig: {
-    apiBase: 'http://localhost:8080',        // server-side (overridden by NUXT_API_BASE)
+    apiBase: 'http://localhost:8080/api',        // server-side (overridden by NUXT_API_BASE)
     public: {
       apiBase: '/api',                        // client-side (overridden by NUXT_PUBLIC_API_BASE)
     }
