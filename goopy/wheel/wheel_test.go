@@ -268,3 +268,27 @@ func TestFetchWheelURLs(t *testing.T) {
 		t.Errorf("wheels[0].Filename = %q", wheels[0].Filename)
 	}
 }
+
+func TestFetchWheelURLs_EscapesPath(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	src := &Source{
+		HTTPClient: srv.Client(),
+		MaxSize:    DefaultMaxSize,
+		BaseURL:    srv.URL,
+	}
+
+	// The error is expected (mock 404s any path); only the observed escaped
+	// path matters here.
+	_, _ = src.fetchWheelURLs(context.Background(), "testpkg", "1.0/x")
+
+	want := "/pypi/testpkg/1.0%2Fx/json"
+	if gotPath != want {
+		t.Errorf("escaped path = %q, want %q", gotPath, want)
+	}
+}

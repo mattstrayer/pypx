@@ -27,6 +27,12 @@ func validateDiffParams(from, to string) string {
 	if from == "" || to == "" {
 		return "both from and to are required"
 	}
+	if err := pypi.ValidateVersion(from); err != nil {
+		return "invalid from version"
+	}
+	if err := pypi.ValidateVersion(to); err != nil {
+		return "invalid to version"
+	}
 	if compareVersions(from, to) >= 0 {
 		return "from must be older than to"
 	}

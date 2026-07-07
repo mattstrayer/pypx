@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -33,6 +34,29 @@ func ValidateName(name string) error {
 	}
 	if !validPackageName.MatchString(name) {
 		return fmt.Errorf("pypi: invalid package name %q", name)
+	}
+	return nil
+}
+
+// validVersion is a permissive allowlist approximating PEP 440 (plus legacy
+// versions PyPI still hosts): alphanumerics, dots, underscores, hyphens,
+// plus (local versions), bang (epochs), and tilde. It intentionally excludes
+// '/', '?', '#', '%', whitespace, and other URL-significant characters so a
+// version can never alter the upstream request path or pollute cache keys.
+var validVersion = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+!~-]*$`)
+
+// ValidateVersion returns an error if version is not a plausible package
+// version string. This is format validation only — it does not check that
+// the version exists.
+func ValidateVersion(version string) error {
+	if version == "" {
+		return fmt.Errorf("pypi: version must not be empty")
+	}
+	if len(version) > 128 {
+		return fmt.Errorf("pypi: version too long")
+	}
+	if !validVersion.MatchString(version) {
+		return fmt.Errorf("pypi: invalid version %q", version)
 	}
 	return nil
 }
@@ -161,15 +185,15 @@ func (c *Client) FetchPackageAtVersion(ctx context.Context, name, version string
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
-	if version == "" {
-		return nil, fmt.Errorf("pypi: empty version")
+	if err := ValidateVersion(version); err != nil {
+		return nil, err
 	}
 
 	if err := c.breaker.Allow(); err != nil {
 		return nil, fmt.Errorf("pypi: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/pypi/%s/%s/json", c.baseURL, name, version)
+	url := fmt.Sprintf("%s/pypi/%s/%s/json", c.baseURL, name, neturl.PathEscape(version))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

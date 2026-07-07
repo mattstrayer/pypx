@@ -125,6 +125,10 @@ func TestDiffHandler_Get_BadInputs(t *testing.T) {
 		{"equal versions", "?from=0.28.1&to=0.28.1", 400},
 		{"unknown from", "?from=99.0.0&to=0.28.1", 400},
 		{"unknown to", "?from=0.26.0&to=99.0.0", 400},
+		{"slash in from", "?from=a/b&to=0.28.1", 400},
+		{"traversal in from", "?from=..%2Fx&to=0.28.1", 400},
+		{"space in to", "?from=0.26.0&to=0.28%201", 400},
+		{"hash in to", "?from=0.26.0&to=0.28%231", 400},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -204,6 +208,7 @@ func TestDiffHandler_GetJSON_BadInputs(t *testing.T) {
 		{"missing from", "?to=0.28.1", 400},
 		{"missing to", "?from=0.26.0", 400},
 		{"downgrade", "?from=0.28.1&to=0.26.0", 400},
+		{"slash in from", "?from=a/b&to=0.28.1", 400},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
