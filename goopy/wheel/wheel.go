@@ -13,8 +13,20 @@ import (
 )
 
 const (
-	DefaultMaxSize = 50 * 1024 * 1024 // 50 MB
-	pypiBaseURL    = "https://pypi.org"
+	DefaultMaxSize = 50 * 1024 * 1024 // 50 MB compressed download cap
+
+	pypiBaseURL = "https://pypi.org"
+
+	// maxDecompressedTotal caps the cumulative inflated size of all extracted
+	// .py sources, guarding against zip bombs. Generous vs. real packages,
+	// well under the 512 MB container.
+	maxDecompressedTotal = 200 * 1024 * 1024 // 200 MB
+
+	// maxDecompressedFile caps a single inflated .py entry.
+	maxDecompressedFile = 32 * 1024 * 1024 // 32 MB
+
+	// maxFileCount caps the number of extracted entries.
+	maxFileCount = 50_000
 )
 
 // WheelFile represents a wheel distribution file from PyPI.
@@ -74,6 +86,9 @@ func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContent
 	data, err := s.download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("downloading wheel: %w", err)
+	}
+	if int64(len(data)) == s.MaxSize {
+		return nil, fmt.Errorf("wheel too large: exceeds %d bytes (max %d)", s.MaxSize, s.MaxSize)
 	}
 
 	return extractPyFiles(data, name)
@@ -169,15 +184,20 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 		Files: make(map[string][]byte),
 	}
 
+	var totalDecompressed int64
 	for _, f := range r.File {
 		if strings.Contains(f.Name, "__pycache__") {
 			continue
 		}
 
+		if len(contents.Files) >= maxFileCount {
+			return nil, fmt.Errorf("wheel has too many files (max %d)", maxFileCount)
+		}
+
 		if strings.HasSuffix(f.Name, ".dist-info/top_level.txt") {
 			rc, err := f.Open()
 			if err == nil {
-				data, _ := io.ReadAll(rc)
+				data, _ := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
 				_ = rc.Close()
 				contents.TopLevelPkgs = parseTopLevelTxt(string(data))
 			}
@@ -189,10 +209,18 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 			if err != nil {
 				continue
 			}
-			src, err := io.ReadAll(rc)
+			// Read one byte past the per-file cap to detect an over-limit entry.
+			src, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile+1))
 			_ = rc.Close()
 			if err != nil {
 				continue
+			}
+			if int64(len(src)) > maxDecompressedFile {
+				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, maxDecompressedFile)
+			}
+			totalDecompressed += int64(len(src))
+			if totalDecompressed > maxDecompressedTotal {
+				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes)", maxDecompressedTotal)
 			}
 			contents.Files[f.Name] = src
 		}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -266,5 +267,58 @@ func TestFetchWheelURLs(t *testing.T) {
 	}
 	if wheels[0].Filename != "pkg-1.0-py3-none-any.whl" {
 		t.Errorf("wheels[0].Filename = %q", wheels[0].Filename)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Decompression-budget and truncation-detection tests
+// ---------------------------------------------------------------------------
+
+func TestExtractPyFiles_DecompressionBudget(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, _ := w.Create("bomb/huge.py")
+	big := bytes.Repeat([]byte("A"), maxDecompressedFile+1024)
+	_, _ = f.Write(big)
+	_ = w.Close()
+
+	_, err := extractPyFiles(buf.Bytes(), "bomb")
+	if err == nil {
+		t.Fatal("expected an error when a .py entry exceeds the decompression budget")
+	}
+}
+
+func TestFetch_TruncatedDownloadRejected(t *testing.T) {
+	const maxSize = 1024
+	body := bytes.Repeat([]byte("x"), maxSize*2)
+
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			// No Content-Length -> resp.ContentLength == -1, headSize pre-check skipped.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Write(body) // body is >= maxSize, so io.LimitReader truncates to exactly maxSize
+	}))
+	defer wheelSrv.Close()
+
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pypi/big/1.0/json" {
+			resp := fmt.Sprintf(`{"urls":[{"filename":"big-1.0-py3-none-any.whl","url":"%s/big.whl","size":0,"packagetype":"bdist_wheel"}]}`, wheelSrv.URL)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(resp))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer pypiSrv.Close()
+
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: maxSize, BaseURL: pypiSrv.URL}
+	_, err := src.Fetch(context.Background(), "big", "1.0")
+	if err == nil {
+		t.Fatal("expected an error for a download truncated at MaxSize")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("expected the post-download truncation error, got: %v", err)
 	}
 }
