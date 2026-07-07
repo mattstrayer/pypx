@@ -250,6 +250,10 @@ func inferTopLevel(files map[string][]byte, pkgName string) []string {
 	for path := range files {
 		parts := strings.SplitN(path, "/", 2)
 		dir := parts[0]
+		if len(parts) == 1 {
+			// Bare top-level file like "six.py" — the module name is the stem.
+			dir = strings.TrimSuffix(dir, ".py")
+		}
 		if strings.HasSuffix(dir, ".dist-info") || strings.HasSuffix(dir, ".data") {
 			continue
 		}
