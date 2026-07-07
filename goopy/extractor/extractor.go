@@ -206,7 +206,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
 				continue
 			}
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
+			if isPrivateName(s.Name) {
 				continue
 			}
 			// Also skip private dunder methods that aren't public API,
@@ -224,7 +224,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		case *ast.Assign:
 			for _, target := range s.Targets {
 				if n, ok := target.(*ast.Name); ok {
-					if strings.HasPrefix(n.Name, "_") && !strings.HasPrefix(n.Name, "__") {
+					if isPrivateName(n.Name) {
 						continue
 					}
 					attr := &model.Attribute{
@@ -238,7 +238,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		case *ast.ClassDef:
 			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
 			// Same privacy rule as methods: skip _Name but keep dunder-style names.
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
+			if isPrivateName(s.Name) {
 				continue
 			}
 			cls.Classes = append(cls.Classes, e.extractClass(s, moduleExports))
@@ -274,7 +274,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 			for _, target := range s.Targets {
 				if a, ok := target.(*ast.Attribute); ok {
 					if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-						if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+						if isPrivateName(a.Attr) {
 							continue
 						}
 						attrs = append(attrs, &model.Attribute{
@@ -287,7 +287,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 		case *ast.AnnAssign:
 			if a, ok := s.Target.(*ast.Attribute); ok {
 				if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-					if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+					if isPrivateName(a.Attr) {
 						continue
 					}
 					attr := &model.Attribute{
@@ -475,7 +475,20 @@ func isPublic(name string, exports map[string]struct{}) bool {
 		_, ok := exports[name]
 		return ok
 	}
-	return !strings.HasPrefix(name, "_")
+	return !isPrivateName(name)
+}
+
+// isDunder reports whether name is a Python dunder (e.g. __init__, __len__):
+// leading AND trailing double underscore.
+func isDunder(name string) bool {
+	return strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__")
+}
+
+// isPrivateName reports whether a bare identifier is private by Python
+// convention: any leading underscore that is not a dunder. This covers both
+// single-underscore (_x) and name-mangled (__x) members.
+func isPrivateName(name string) bool {
+	return strings.HasPrefix(name, "_") && !isDunder(name)
 }
 
 // hasDecorator checks if a function has a specific decorator name.
