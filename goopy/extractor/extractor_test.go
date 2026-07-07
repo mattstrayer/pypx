@@ -133,6 +133,76 @@ class Foo:
 	}
 }
 
+func TestExtractNestedClass(t *testing.T) {
+	m := extract(`
+class Outer:
+    """Outer class."""
+
+    class Inner:
+        """Inner class."""
+
+        def m(self) -> int:
+            return 1
+
+    class _Hidden:
+        pass
+
+    def method(self):
+        pass
+`)
+
+	if len(m.Classes) != 1 {
+		t.Fatalf("expected 1 module-level class, got %d", len(m.Classes))
+	}
+	outer := m.Classes[0]
+	if outer.Name != "Outer" {
+		t.Errorf("expected 'Outer', got %q", outer.Name)
+	}
+
+	if len(outer.Classes) != 1 {
+		t.Fatalf("expected 1 nested class (Inner, _Hidden skipped), got %d", len(outer.Classes))
+	}
+	inner := outer.Classes[0]
+	if inner.Name != "Inner" {
+		t.Errorf("expected nested class 'Inner', got %q", inner.Name)
+	}
+	if inner.Docstring == nil || inner.Docstring.Text == "" {
+		t.Error("expected docstring on Inner")
+	}
+	if len(inner.Methods) != 1 || inner.Methods[0].Name != "m" {
+		t.Errorf("expected Inner to have method 'm', got %+v", inner.Methods)
+	}
+
+	methodNames := make(map[string]bool)
+	for _, method := range outer.Methods {
+		methodNames[method.Name] = true
+	}
+	if !methodNames["method"] {
+		t.Error("expected Outer to still have 'method'")
+	}
+}
+
+func TestExtractDoublyNestedClass(t *testing.T) {
+	m := extract(`
+class A:
+    class B:
+        class C:
+            pass
+`)
+
+	if len(m.Classes) != 1 || m.Classes[0].Name != "A" {
+		t.Fatalf("expected module-level class A, got %+v", m.Classes)
+	}
+	a := m.Classes[0]
+	if len(a.Classes) != 1 || a.Classes[0].Name != "B" {
+		t.Fatalf("expected A to contain nested class B, got %+v", a.Classes)
+	}
+	b := a.Classes[0]
+	if len(b.Classes) != 1 || b.Classes[0].Name != "C" {
+		t.Fatalf("expected B to contain nested class C, got %+v", b.Classes)
+	}
+}
+
 func TestExtractException(t *testing.T) {
 	m := extract(`
 class MyError(ValueError):
