@@ -234,6 +234,14 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 					cls.Attributes = append(cls.Attributes, attr)
 				}
 			}
+
+		case *ast.ClassDef:
+			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
+			// Same privacy rule as methods: skip _Name but keep dunder-style names.
+			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
+				continue
+			}
+			cls.Classes = append(cls.Classes, e.extractClass(s, moduleExports))
 		}
 	}
 
