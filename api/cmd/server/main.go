@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to open cache: %v", err)
 	}
-	c := cache.NewMemoryCache(sqliteCache, 1000)
+	c := cache.NewMemoryCache(sqliteCache, 1000, cache.WithMaxBytes(128<<20))
 	defer func() { _ = c.Close() }()
 
 	pypiClient := pypi.NewClient()
