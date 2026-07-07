@@ -2,11 +2,14 @@ package gitlab_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
+	"github.com/pypx/api/internal/circuitbreaker"
 	"github.com/pypx/api/internal/gitlab"
 )
 
@@ -173,5 +176,61 @@ func TestGitLabClient_FetchCompare(t *testing.T) {
 	}
 	if headDate != "2024-01-13T00:00:00Z" {
 		t.Errorf("headDate = %q, want \"2024-01-13T00:00:00Z\"", headDate)
+	}
+}
+
+// TestGitLabClient_BreakerOpensOn5xx verifies that after 5 consecutive 5xx
+// responses the breaker trips open and subsequent calls fail fast without
+// reaching the server.
+func TestGitLabClient_BreakerOpensOn5xx(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
+
+	for i := 0; i < 5; i++ {
+		if _, err := c.FetchTags(context.Background(), "user/repo"); err != nil {
+			t.Fatalf("call %d: unexpected error: %v", i, err)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 5 {
+		t.Fatalf("expected 5 server hits after 5 failing calls, got %d", got)
+	}
+
+	// 6th call should fail fast without hitting the server — breaker is open.
+	if _, err := c.FetchTags(context.Background(), "user/repo"); err == nil {
+		t.Fatal("expected error once breaker is open, got nil")
+	} else if !errors.Is(err, circuitbreaker.ErrOpen) {
+		t.Errorf("expected circuitbreaker.ErrOpen, got %v", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 5 {
+		t.Errorf("expected server hits to stay at 5 once breaker is open, got %d", got)
+	}
+}
+
+// TestGitLabClient_BreakerNotTrippedBy404 verifies that repeated 404
+// responses (repo doesn't exist) do NOT trip the breaker — only transport
+// errors and 5xx responses should count as failures.
+func TestGitLabClient_BreakerNotTrippedBy404(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	c := gitlab.NewClient(gitlab.WithBaseURL(srv.URL))
+
+	for i := 0; i < 10; i++ {
+		if _, err := c.FetchTags(context.Background(), "user/repo"); err != nil {
+			t.Fatalf("call %d: unexpected error: %v", i, err)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 10 {
+		t.Errorf("expected all 10 calls to reach the server (breaker should not open on 404s), got %d hits", got)
 	}
 }
