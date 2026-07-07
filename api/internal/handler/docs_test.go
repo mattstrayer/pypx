@@ -123,6 +123,89 @@ func TestDocsHandlerPackageNotFound(t *testing.T) {
 	}
 }
 
+func TestDocsHandlerUpstreamFailure(t *testing.T) {
+	newHandlerAndRouter := func(t *testing.T, pypiSrv *httptest.Server) (*handler.DocsHandler, *chi.Mux) {
+		t.Helper()
+		sqliteCache, err := cache.New(":memory:")
+		if err != nil {
+			t.Fatalf("cache.New: %v", err)
+		}
+		t.Cleanup(func() { sqliteCache.Close() })
+		memCache := cache.NewMemoryCache(sqliteCache, 100)
+
+		pypiClient := pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL))
+		h := handler.NewDocsHandler(pypiClient, memCache)
+
+		r := chi.NewRouter()
+		r.Get("/api/packages/{name}/docs", h.Get)
+		r.Get("/api/packages/{name}/docs.txt", h.GetText)
+		return h, r
+	}
+
+	t.Run("pypi 500 returns 502 not 404", func(t *testing.T) {
+		pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		defer pypiSrv.Close()
+
+		_, r := newHandlerAndRouter(t, pypiSrv)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/packages/somepkg/docs", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502; body: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("pypi unreachable returns 502 not 404", func(t *testing.T) {
+		pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		baseURL := pypiSrv.URL
+		pypiSrv.Close() // connection refused for every subsequent request
+
+		sqliteCache, err := cache.New(":memory:")
+		if err != nil {
+			t.Fatalf("cache.New: %v", err)
+		}
+		defer sqliteCache.Close()
+		memCache := cache.NewMemoryCache(sqliteCache, 100)
+
+		pypiClient := pypi.NewClient(pypi.WithBaseURL(baseURL))
+		h := handler.NewDocsHandler(pypiClient, memCache)
+
+		r := chi.NewRouter()
+		r.Get("/api/packages/{name}/docs", h.Get)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/packages/somepkg/docs", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502; body: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("docs.txt parity: pypi 500 returns 502", func(t *testing.T) {
+		pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		defer pypiSrv.Close()
+
+		_, r := newHandlerAndRouter(t, pypiSrv)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/packages/somepkg/docs.txt", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502; body: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
 func TestDocsHandlerGetText(t *testing.T) {
 	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
