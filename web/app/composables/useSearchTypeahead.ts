@@ -10,19 +10,25 @@ export function useSearchTypeahead() {
   const router = useRouter();
   const { searchPackages } = useApi();
 
+  let requestSeq = 0;
+
   const performSearch = useDebounceFn(async (q: string) => {
+    const seq = ++requestSeq;
     if (!q.trim()) {
       results.value = [];
       isLoading.value = false;
       return;
     }
     try {
-      results.value = await searchPackages(q, 5);
+      const res = await searchPackages(q, 5);
+      if (seq !== requestSeq) return; // stale — a newer request superseded us
+      results.value = res;
       selectedIndex.value = -1;
     } catch {
+      if (seq !== requestSeq) return;
       results.value = [];
     } finally {
-      isLoading.value = false;
+      if (seq === requestSeq) isLoading.value = false;
     }
   }, 150);
 
@@ -79,6 +85,7 @@ export function useSearchTypeahead() {
   }
 
   function reset() {
+    requestSeq++;
     query.value = "";
     results.value = [];
     selectedIndex.value = -1;
