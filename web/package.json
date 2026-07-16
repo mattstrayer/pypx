@@ -31,7 +31,7 @@
     "@nuxtjs/seo": "5.3.1",
     "@tailwindcss/vite": "4.3.1",
     "@vueuse/nuxt": "14.3.0",
-    "fuse.js": "7.3.0",
+    "fuse.js": "7.5.0",
     "nuxt": "4.4.8",
     "shiki": "4.2.0",
     "tailwindcss": "4.3.1",
