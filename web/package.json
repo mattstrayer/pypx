@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@nuxtjs/color-mode": "4.0.1",
-    "@nuxtjs/seo": "5.3.1",
+    "@nuxtjs/seo": "5.3.2",
     "@tailwindcss/vite": "4.3.1",
     "@vueuse/nuxt": "14.3.0",
     "fuse.js": "7.3.0",
