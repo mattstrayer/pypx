@@ -19,7 +19,7 @@ overrides:
   ws: '8.21.0'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
   # launch-editor (dev-only). Force the patched version.
-  shell-quote: '1.8.4'
+  shell-quote: '1.10.0'
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
   esbuild: '0.28.1'
