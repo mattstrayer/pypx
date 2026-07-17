@@ -16,7 +16,7 @@ overrides:
   nuxt-site-config: '4.1.1'
   devalue: '5.8.1'
   js-cookie: '3.0.7'
-  ws: '8.21.0'
+  ws: '8.21.1'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
   # launch-editor (dev-only). Force the patched version.
   shell-quote: '1.8.4'
