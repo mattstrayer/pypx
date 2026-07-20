@@ -5,11 +5,11 @@ go 1.26.5
 require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
-	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark v1.8.4
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
-	modernc.org/sqlite v1.53.0
+	modernc.org/sqlite v1.54.0
 )
 
 require (
@@ -21,8 +21,8 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pypx/goopy v0.0.0
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.44.0 // indirect
-	modernc.org/libc v1.73.4 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
