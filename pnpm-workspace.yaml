@@ -15,11 +15,11 @@ ignoredOptionalDependencies:
 overrides:
   nuxt-site-config: '4.1.1'
   devalue: '5.8.1'
-  js-cookie: '3.0.7'
-  ws: '8.21.0'
+  js-cookie: '3.0.8'
+  ws: '8.21.1'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
   # launch-editor (dev-only). Force the patched version.
-  shell-quote: '1.8.4'
+  shell-quote: '1.10.0'
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
   esbuild: '0.28.1'
@@ -29,7 +29,7 @@ overrides:
   '@nuxt/vite-builder>vite': '8.1.3'
   # GHSA-vmf3-w455-68vh (CVSS 6.9): tar <7.5.16, pulled transitively. Force the
   # patched version.
-  tar: '7.5.16'
+  tar: '7.5.20'
   # GHSA-v6wh-96g9-6wx3 (CVSS 5.5): launch-editor <2.14.1 (dev-only). Force the
   # patched version.
   launch-editor: '2.14.1'
