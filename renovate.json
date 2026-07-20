@@ -8,11 +8,18 @@
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
   "dependencyDashboardApproval": false,
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on monday"],
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
   "vulnerabilityAlerts": {
     "enabled": true,
     "labels": ["dependencies", "security"],
+    "schedule": ["at any time"],
     "prHourlyLimit": 0,
     "prConcurrentLimit": 0
   },
@@ -24,17 +31,28 @@
       "enabled": false
     },
     {
-      "description": "Group Nuxt ecosystem updates",
+      "description": "Catch-all: batch all remaining npm minor/patch into one rolling PR, automerged when CI is green. Specific ecosystem rules below override groupName and automerge. Majors stay individual.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "web: misc (non-major)",
+      "automerge": true
+    },
+    {
+      "description": "Nuxt + Vite move together — nuxt releases track vite compatibility",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "nuxt",
         "@nuxt/**",
-        "@nuxtjs/**"
+        "@nuxtjs/**",
+        "vite",
+        "@vitejs/**",
+        "nitropack"
       ],
-      "groupName": "nuxt ecosystem"
+      "groupName": "web: nuxt + vite",
+      "automerge": false
     },
     {
-      "description": "Group Vue ecosystem updates",
+      "description": "Vue ecosystem",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "vue",
@@ -42,49 +60,81 @@
         "@vue/**",
         "@vueuse/**"
       ],
-      "groupName": "vue ecosystem"
+      "groupName": "web: vue",
+      "automerge": false
     },
     {
-      "description": "Group test tooling updates",
+      "description": "Tailwind — @tailwindcss/vite is versioned in lockstep with tailwindcss",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "tailwindcss",
+        "@tailwindcss/**"
+      ],
+      "groupName": "web: tailwind",
+      "automerge": false
+    },
+    {
+      "description": "TypeScript + vue-tsc — vue-tsc tracks TS compiler compatibility",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "typescript",
+        "vue-tsc"
+      ],
+      "groupName": "web: typescript",
+      "automerge": false
+    },
+    {
+      "description": "oxc tooling — plugin API must stay compatible with the oxlint version (if oxlint-plugin-complexity breaks, pin oxlint to the last working version)",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "oxlint",
+        "oxlint-plugin-**",
+        "oxfmt"
+      ],
+      "groupName": "web: oxc",
+      "automerge": false
+    },
+    {
+      "description": "Test tooling (must come after vue/nuxt rules so @vue/test-utils and @nuxt/test-utils land here)",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "vitest",
+        "@vitest/**",
         "happy-dom",
         "@vue/test-utils",
         "@nuxt/test-utils"
       ],
-      "groupName": "test tooling"
+      "groupName": "web: testing",
+      "automerge": false
     },
     {
-      "description": "Group oxlint with its plugins — plugin API must stay compatible with the oxlint version (if oxlint-plugin-complexity breaks, pin oxlint to the last working version)",
-      "matchManagers": ["npm"],
-      "matchPackageNames": [
-        "oxlint",
-        "oxlint-plugin-**"
-      ],
-      "groupName": "oxlint"
-    },
-    {
-      "description": "Group Go dependencies",
+      "description": "Go dependencies (both api and goopy modules)",
       "matchManagers": ["gomod"],
-      "groupName": "go dependencies",
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "api: go dependencies"
     },
     {
-      "description": "Group Docker-related updates",
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "groupName": "docker"
-    },
-    {
-      "description": "Group GitHub Actions updates",
+      "description": "GitHub Actions",
       "matchManagers": ["github-actions"],
-      "groupName": "github actions"
+      "groupName": "ci: github actions"
     },
     {
-      "description": "Automerge non-major updates for test tooling",
+      "description": "Docker images (compose + Dockerfiles)",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "infra: docker"
+    },
+    {
+      "description": "Go toolchain moves atomically: go directive in go.mod files + golang base image (must come after the docker rule to pull golang out of the docker group)",
+      "matchDepNames": ["go", "golang"],
+      "matchManagers": ["gomod", "dockerfile"],
+      "groupName": "go toolchain"
+    },
+    {
+      "description": "Automerge non-major test tooling updates",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "vitest",
+        "@vitest/**",
         "happy-dom",
         "@vue/test-utils",
         "@nuxt/test-utils"
