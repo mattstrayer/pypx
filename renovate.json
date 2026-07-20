@@ -31,6 +31,12 @@
       "enabled": false
     },
     {
+      "description": "Ignore our own CI-built deploy images — private GHCR packages consumed as :latest; Renovate can't auth to them (causes 'No docker auth found' warning) and must not digest-pin them",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/mattstrayer/pypx/**"],
+      "enabled": false
+    },
+    {
       "description": "Catch-all: batch all remaining npm minor/patch into one rolling PR, automerged when CI is green. Specific ecosystem rules below override groupName and automerge. Majors stay individual.",
       "matchManagers": ["npm"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
