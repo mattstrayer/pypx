@@ -4,11 +4,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+// ftsSchemaVersion identifies the FTS5 table definition. Bump it whenever the
+// CREATE VIRTUAL TABLE statement (columns/tokenizer) changes to force a
+// rebuild on next startup.
+const ftsSchemaVersion = 1
 
 // PackageEntry represents a package in the search index.
 type PackageEntry struct {
@@ -66,20 +72,89 @@ func NewIndex(dsn string) (*Index, error) {
 		return nil, fmt.Errorf("search: create downloads index: %w", err)
 	}
 
-	// Rebuild the FTS5 table from meta on every startup to clear any dupes
-	// (FTS5 has no unique constraint) and ensure a clean 1:1 mapping.
-	// Wrap in a transaction so concurrent readers either see the old table
-	// or the new one — never "no such table".
-	tx, err := db.Begin()
+	// index_state records a schema version and rebuild counter so we can decide
+	// whether the FTS5 table needs rebuilding, rather than dropping and
+	// re-tokenising ~780K rows on every process start.
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS index_state (
+			key   TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)
+	`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("search: create index_state table: %w", err)
+	}
+
+	// The FTS5 table is authoritative once built from packages_meta. Only
+	// rebuild it when it's genuinely stale: the table is missing, the schema
+	// version changed, or its row count disagrees with packages_meta (which
+	// catches historical dupes — dupes inflate the FTS count — or missing rows).
+	// UpsertBatch keeps meta and FTS in lock-step, so a normal restart skips
+	// this entirely and cold start becomes O(1).
+	needsRebuild, err := ftsNeedsRebuild(db)
 	if err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("search: begin fts rebuild tx: %w", err)
+		return nil, err
+	}
+
+	if needsRebuild {
+		if err := rebuildFTS(db); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
+
+	return &Index{db: db}, nil
+}
+
+// ftsNeedsRebuild reports whether the FTS5 table must be dropped and rebuilt
+// from packages_meta. It checks table existence first (querying a missing
+// packages_fts would error), then the stored schema version, then the row
+// counts.
+func ftsNeedsRebuild(db *sql.DB) (bool, error) {
+	var ftsExists int
+	if err := db.QueryRow(`
+		SELECT count(*) FROM sqlite_master
+		WHERE type = 'table' AND name = 'packages_fts'
+	`).Scan(&ftsExists); err != nil {
+		return false, fmt.Errorf("search: check fts existence: %w", err)
+	}
+	if ftsExists == 0 {
+		return true, nil
+	}
+
+	var storedVersion string
+	err := db.QueryRow(`SELECT value FROM index_state WHERE key = 'schema_version'`).Scan(&storedVersion)
+	if errors.Is(err, sql.ErrNoRows) || storedVersion != strconv.Itoa(ftsSchemaVersion) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("search: read schema_version: %w", err)
+	}
+
+	var ftsCount, metaCount int64
+	if err := db.QueryRow(`SELECT count(*) FROM packages_fts`).Scan(&ftsCount); err != nil {
+		return false, fmt.Errorf("search: count fts rows: %w", err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM packages_meta`).Scan(&metaCount); err != nil {
+		return false, fmt.Errorf("search: count meta rows: %w", err)
+	}
+	return ftsCount != metaCount, nil
+}
+
+// rebuildFTS drops and recreates the FTS5 table from packages_meta and persists
+// the schema-version marker plus an incremented rebuild counter, all inside a
+// single transaction so concurrent readers either see the old table or the new
+// one — never "no such table".
+func rebuildFTS(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("search: begin fts rebuild tx: %w", err)
 	}
 
 	if _, err := tx.Exec(`DROP TABLE IF EXISTS packages_fts`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		_ = db.Close()
-		return nil, fmt.Errorf("search: drop fts table: %w", err)
+		return fmt.Errorf("search: drop fts table: %w", err)
 	}
 
 	if _, err := tx.Exec(`
@@ -91,8 +166,7 @@ func NewIndex(dsn string) (*Index, error) {
 		)
 	`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		_ = db.Close()
-		return nil, fmt.Errorf("search: create fts table: %w", err)
+		return fmt.Errorf("search: create fts table: %w", err)
 	}
 
 	// Populate FTS from existing meta data (fast local copy, no network).
@@ -101,16 +175,30 @@ func NewIndex(dsn string) (*Index, error) {
 		SELECT name, summary, downloads FROM packages_meta
 	`); err != nil {
 		tx.Rollback() //nolint:errcheck
-		_ = db.Close()
-		return nil, fmt.Errorf("search: populate fts from meta: %w", err)
+		return fmt.Errorf("search: populate fts from meta: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO index_state (key, value) VALUES ('schema_version', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`, strconv.Itoa(ftsSchemaVersion)); err != nil {
+		tx.Rollback() //nolint:errcheck
+		return fmt.Errorf("search: persist schema_version: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO index_state (key, value) VALUES ('rebuild_count', '1')
+		ON CONFLICT(key) DO UPDATE SET value =
+			CAST(CAST(COALESCE(index_state.value, '0') AS INTEGER) + 1 AS TEXT)
+	`); err != nil {
+		tx.Rollback() //nolint:errcheck
+		return fmt.Errorf("search: increment rebuild_count: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("search: commit fts rebuild: %w", err)
+		return fmt.Errorf("search: commit fts rebuild: %w", err)
 	}
-
-	return &Index{db: db}, nil
+	return nil
 }
 
 // Upsert inserts or replaces a package in both the meta and FTS tables.

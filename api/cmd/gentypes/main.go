@@ -19,6 +19,7 @@ import (
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/api/internal/search"
 	"github.com/pypx/api/internal/stats"
+	"github.com/pypx/api/internal/textfmt"
 )
 
 // contract is the ordered list of types to emit. Order matches api.ts.
@@ -53,6 +54,16 @@ var contract = []any{
 	handler.DocSymbol{},
 	handler.DocModule{},
 	handler.DocsResponse{},
+	// Compare/diff JSON routes marshal the textfmt input structs directly
+	// (handler.CompareHandler.GetJSON, handler.DiffHandler.GetJSON).
+	textfmt.CompareInput{},
+	textfmt.SkippedPackage{},
+	textfmt.ComparePackageInput{},
+	textfmt.DiffInput{},
+	textfmt.DepDiff{},
+	textfmt.DepBump{},
+	textfmt.APIDiff{},
+	textfmt.APIChange{},
 }
 
 // fieldTypeOverrides allows specific struct fields to use a hand-crafted TS

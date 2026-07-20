@@ -6,14 +6,24 @@ const version = computed(() => route.params.version as string);
 const { fetchPackage, fetchVersions, fetchChangelog } = useApi();
 
 const [{ data: pkg }, { data: versions }] = await Promise.all([
-  useAsyncData(`package-${name.value}`, () => fetchPackage(name.value)),
-  useAsyncData(`versions-${name.value}`, () => fetchVersions(name.value)),
+  useAsyncData(
+    () => `package-${name.value}`,
+    () => fetchPackage(name.value),
+    { watch: [name] },
+  ),
+  useAsyncData(
+    () => `versions-${name.value}`,
+    () => fetchVersions(name.value),
+    {
+      watch: [name],
+    },
+  ),
 ]);
 
 const { data: changelog } = useAsyncData(
-  `changelog-${name.value}`,
+  () => `changelog-${name.value}`,
   () => fetchChangelog(name.value),
-  { server: false, default: () => null },
+  { server: false, default: () => null, watch: [name] },
 );
 
 const matchedVersion = computed(

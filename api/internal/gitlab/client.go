@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pypx/api/internal/circuitbreaker"
 )
 
 var gitlabURLPattern = regexp.MustCompile(
@@ -78,6 +80,7 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
+	breaker    *circuitbreaker.Breaker
 }
 
 type Option func(*Client)
@@ -94,6 +97,7 @@ func NewClient(opts ...Option) *Client {
 	c := &Client{
 		baseURL:    "https://gitlab.com",
 		httpClient: &http.Client{Timeout: 15 * time.Second},
+		breaker:    circuitbreaker.New(5, 30*time.Second),
 	}
 	for _, o := range opts {
 		o(c)
@@ -106,6 +110,9 @@ func (c *Client) encodedPath(projectPath string) string {
 }
 
 func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
+	if err := c.breaker.Allow(); err != nil {
+		return nil, fmt.Errorf("gitlab: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return nil, err
@@ -113,7 +120,17 @@ func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 	if c.token != "" {
 		req.Header.Set("PRIVATE-TOKEN", c.token)
 	}
-	return c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.breaker.RecordFailure()
+		return nil, err
+	}
+	if resp.StatusCode >= 500 {
+		c.breaker.RecordFailure()
+		return resp, nil
+	}
+	c.breaker.RecordSuccess()
+	return resp, nil
 }
 
 var tagVersionRE = regexp.MustCompile(`^v?\d+\.\d[\d.a-zA-Z\-]*$`)

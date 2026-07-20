@@ -61,10 +61,10 @@ Visit [http://localhost](http://localhost).
 | `GITLAB_TOKEN` | _(empty)_ | GitLab PAT for GitLab-hosted packages |
 | `API_PORT` | `8080` | Go API listen port |
 | `SQLITE_PATH` | `pypx.db` | SQLite database path (cache + search index live alongside it) |
-| `NUXT_API_BASE` | `http://localhost:8080` | Server-side API URL used by Nuxt SSR |
+| `NUXT_API_BASE` | `http://localhost:8080/api` | Server-side API URL used by Nuxt SSR |
 | `NUXT_PUBLIC_API_BASE` | `/api` | Client-side API base (proxied through Caddy in production) |
 
-In Docker Compose, `NUXT_API_BASE` is automatically set to the internal `http://api:8080` address. You only need to provide `DOMAIN`, `GITHUB_TOKEN`, and optionally `GITLAB_TOKEN` in your `.env`.
+In Docker Compose, `NUXT_API_BASE` is automatically set to the internal `http://api:8080/api` address. You only need to provide `DOMAIN`, `GITHUB_TOKEN`, and optionally `GITLAB_TOKEN` in your `.env`.
 
 ---
 
@@ -124,16 +124,13 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 **Prerequisites:** Go 1.26+, Node.js 20+ with pnpm, Docker + Compose
 
 ```bash
-# Go API
-cd api && go run ./cmd/server
-
-# Nuxt frontend (separate terminal)
-cd web && pnpm install && pnpm run dev
-
-# Run tests
-cd api && go test ./...
-cd web && pnpm run test
+make install      # web dependencies (pnpm via mise)
+make dev          # API on :8080 + Nuxt on :3000
+make test         # all test suites (api, goopy, web)
+make lint         # go vet + oxlint
 ```
+
+All targets are defined in the root Makefile — run make help for the full list.
 
 The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `docker-compose.override.yml` which configures local development proxying).
 

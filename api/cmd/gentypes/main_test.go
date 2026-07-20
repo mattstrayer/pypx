@@ -56,6 +56,18 @@ func TestGenerateGolden(t *testing.T) {
 
 	// CombinedStats.date_range is *DateRange — should be optional + nullable.
 	assertContains(t, out, "  date_range?: DateRange | null;")
+
+	// Compare/diff contract — textfmt structs have no json tags, so fields
+	// must render with Go's PascalCase names (matching encoding/json output).
+	assertContains(t, out, "export interface CompareInput {")
+	assertContains(t, out, "  Skipped: SkippedPackage[];")
+	assertContains(t, out, "  Packages: ComparePackageInput[];")
+	assertContains(t, out, "  InstallSize: number;")
+	assertContains(t, out, "export interface DiffInput {")
+	assertContains(t, out, "  Changelog: Entry[];")
+	assertContains(t, out, "  DepChanges: DepDiff;")
+	assertContains(t, out, "  Changed: APIChange[];")
+	assertNotContains(t, out, "  name: string; Reason")
 }
 
 func assertContains(t *testing.T, s, substr string) {

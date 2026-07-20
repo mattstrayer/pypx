@@ -46,12 +46,23 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 	}
 	var items []work
 	for _, pkgName := range topLevelPkgs {
+		dirPrefix := pkgName + "/"
+		hasDir := false
+		for path := range files {
+			if strings.HasPrefix(path, dirPrefix) {
+				hasDir = true
+				break
+			}
+		}
 		for path, src := range files {
-			if belongsToPackage(path, pkgName) && !isPrivateModule(path) {
-				items = append(items, work{
-					modName: pathToModuleName(path),
-					src:     src,
-				})
+			switch {
+			case strings.HasPrefix(path, dirPrefix):
+				if !isPrivateModule(path) {
+					items = append(items, work{modName: pathToModuleName(path), src: src})
+				}
+			case !hasDir && path == pkgName+".py":
+				// Single-file module distribution (e.g. six.py).
+				items = append(items, work{modName: pathToModuleName(path), src: src})
 			}
 		}
 	}
@@ -120,10 +131,6 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		}
 	}
 	return pkg
-}
-
-func belongsToPackage(path, pkgName string) bool {
-	return strings.HasPrefix(path, pkgName+"/")
 }
 
 func pathToModuleName(path string) string {

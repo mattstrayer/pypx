@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,17 @@ const (
 
 	// maxFileCount caps the number of extracted entries.
 	maxFileCount = 50_000
+)
+
+// Sentinel errors. Callers use errors.Is to distinguish failure classes.
+var (
+	// ErrNotFound means PyPI has no such package/version (HTTP 404).
+	ErrNotFound = errors.New("wheel: package version not found")
+	// ErrNoArtifact means the release exists but has no extractable artifact
+	// (e.g. sdist-only release, or no files at all).
+	ErrNoArtifact = errors.New("wheel: no extractable artifact")
+	// ErrTooLarge means the selected artifact exceeds MaxSize.
+	ErrTooLarge = errors.New("wheel: artifact exceeds size limit")
 )
 
 // WheelFile represents a wheel distribution file from PyPI.
@@ -74,14 +86,14 @@ func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContent
 		return nil, fmt.Errorf("fetching wheel URLs: %w", err)
 	}
 	if len(wheels) == 0 {
-		return nil, fmt.Errorf("no wheel files found for %s==%s", name, version)
+		return nil, fmt.Errorf("%s==%s (sdist-only or no files): %w", name, version, ErrNoArtifact)
 	}
 
 	url := selectWheel(wheels)
 
 	size, err := s.headSize(ctx, url)
 	if err == nil && size > s.MaxSize {
-		return nil, fmt.Errorf("wheel too large: %d bytes (max %d)", size, s.MaxSize)
+		return nil, fmt.Errorf("%d bytes (max %d): %w", size, s.MaxSize, ErrTooLarge)
 	}
 
 	data, err := s.download(ctx, url)
@@ -111,6 +123,9 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%s==%s: %w", name, version, ErrNotFound)
+	}
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("PyPI returned %d", resp.StatusCode)
 	}
@@ -140,13 +155,28 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 	return wheels, nil
 }
 
+// selectWheel picks one wheel deterministically: pure (none-any) wheels first,
+// then smallest size, then lexicographically smallest filename. The result is
+// independent of the order PyPI returns files in.
 func selectWheel(wheels []WheelFile) string {
-	for _, w := range wheels {
-		if strings.Contains(w.Filename, "none-any") {
-			return w.URL
+	best := wheels[0]
+	for _, w := range wheels[1:] {
+		if wheelLess(w, best) {
+			best = w
 		}
 	}
-	return wheels[0].URL
+	return best.URL
+}
+
+func wheelLess(a, b WheelFile) bool {
+	ap, bp := strings.Contains(a.Filename, "none-any"), strings.Contains(b.Filename, "none-any")
+	if ap != bp {
+		return ap
+	}
+	if a.Size != b.Size {
+		return a.Size < b.Size
+	}
+	return a.Filename < b.Filename
 }
 
 func (s *Source) headSize(ctx context.Context, url string) (int64, error) {
@@ -250,6 +280,10 @@ func inferTopLevel(files map[string][]byte, pkgName string) []string {
 	for path := range files {
 		parts := strings.SplitN(path, "/", 2)
 		dir := parts[0]
+		if len(parts) == 1 {
+			// Bare top-level file like "six.py" — the module name is the stem.
+			dir = strings.TrimSuffix(dir, ".py")
+		}
 		if strings.HasSuffix(dir, ".dist-info") || strings.HasSuffix(dir, ".data") {
 			continue
 		}

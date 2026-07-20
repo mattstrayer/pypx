@@ -15,87 +15,12 @@ export type { SecurityResponse as SecurityData } from "./api.gen";
 export type { ExtrasResponse as ExtrasData } from "./api.gen";
 export type { DocsResponse as DocsData } from "./api.gen";
 
-// --- Compare / diff types ---
-// Frontend-only: these mirror textfmt.CompareInput / textfmt.DiffInput, which
-// are not part of the generated contract (the compare/diff JSON routes expose
-// the textfmt input structs directly). If those structs change, update these by
-// hand — they are not covered by the gentypes drift gate.
-
-// CompareData mirrors textfmt.CompareInput (JSON response from GET /api/compare).
-export interface ComparePackageData {
-  Name: string;
-  Version: string;
-  Summary: string;
-  License: string;
-  PythonMin: string;
-  InstallSize: number;
-  ModuleFormat: string;
-  LastReleasedDate: string;
-  ReleasesLast12Mo: number;
-  DepCount: number;
-  Downloads30d: number;
-  VulnCount: number;
-  Typed: string;
-  RepoURL: string;
-  DocURL: string;
-}
-
-export interface SkippedPackage {
-  Name: string;
-  Reason: string;
-}
-
-export interface CompareData {
-  Skipped: SkippedPackage[] | null;
-  Packages: ComparePackageData[] | null;
-}
-
-// DiffData mirrors textfmt.DiffInput (JSON response from GET /api/packages/{name}/diff).
-export interface DepBump {
-  Name: string;
-  FromConstraint: string;
-  ToConstraint: string;
-}
-
-export interface DepDiff {
-  Added: string[] | null;
-  Removed: string[] | null;
-  Bumped: DepBump[] | null;
-}
-
-export interface APIDiffChange {
-  Path: string;
-  FromSig: string;
-  ToSig: string;
-}
-
-export interface APIDiff {
-  Added: string[] | null;
-  Removed: string[] | null;
-  Changed: APIDiffChange[] | null;
-  AddedTruncated: number;
-  RemovedTruncated: number;
-  ChangedTruncated: number;
-}
-
-export interface DiffChangelogEntry {
-  version: string;
-  tag_name: string;
-  title: string;
-  body: string;
-  body_html: string;
-  published_at: string;
-  url: string;
-}
-
-export interface DiffData {
-  Package: string;
-  From: string;
-  To: string;
-  Changelog: DiffChangelogEntry[] | null;
-  ChangelogUnavailable: string;
-  DepChanges: DepDiff;
-  DepChangesUnavailable: string;
-  APIChanges: APIDiff;
-  APIChangesUnavailable: string;
-}
+// Compare / diff: the JSON routes (GET /api/compare, GET /api/packages/{name}/diff)
+// marshal the Go textfmt input structs directly; their generated interfaces are
+// re-exported here under the frontend's historical names. Covered by the
+// gentypes drift gate.
+export type { CompareInput as CompareData } from "./api.gen";
+export type { ComparePackageInput as ComparePackageData } from "./api.gen";
+export type { DiffInput as DiffData } from "./api.gen";
+export type { APIChange as APIDiffChange } from "./api.gen";
+export type { Entry as DiffChangelogEntry } from "./api.gen";
