@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ref } from "vue";
+import { ref, createSSRApp, h } from "vue";
+import { renderToString } from "vue/server-renderer";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import type { PackageData } from "~/types/api";
 import PackageOverview from "../PackageOverview.vue";
@@ -76,5 +77,14 @@ describe("PackageOverview ad slot", () => {
   it("passes keywords derived from classifiers", async () => {
     const wrapper = await mountSuspended(PackageOverview, { props: { pkg } });
     expect(wrapper.find("[data-ea-publisher]").attributes("data-ea-keywords")).toBe("www/http");
+  });
+
+  it("renders no placement in server-rendered HTML (avoids a hydration mismatch)", async () => {
+    // useMediaQuery resolves to false during real SSR (no window), so the
+    // pre-mount server output must contain neither ad slot regardless of
+    // which viewport branch isDesktop would eventually pick on the client.
+    const app = createSSRApp({ render: () => h(PackageOverview, { pkg }) });
+    const html = await renderToString(app);
+    expect(html).not.toContain("data-ea-publisher");
   });
 });

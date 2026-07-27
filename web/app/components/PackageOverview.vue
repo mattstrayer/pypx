@@ -37,6 +37,17 @@ const allLinks = computed(() => {
 
 const isDesktop = useMediaQuery("(min-width: 1024px)");
 const adKeywords = computed(() => deriveAdKeywords(props.pkg.classifiers));
+
+// Ads are client-only: useMediaQuery resolves to `false` during SSR (no
+// window), so the server would otherwise render the mobile slot into the
+// initial HTML while the client's first render (already knowing the real
+// viewport) picks a different branch — a structural hydration mismatch.
+// Gating both slots on `mounted` keeps the server output ad-free and lets
+// the client mount exactly one slot after hydration completes.
+const mounted = ref(false);
+onMounted(() => {
+  mounted.value = true;
+});
 </script>
 
 <template>
@@ -45,7 +56,11 @@ const adKeywords = computed(() => deriveAdKeywords(props.pkg.classifiers));
     <div class="min-w-0 space-y-6">
       <!-- Install command -->
       <InstallCommand :package-name="pkg.name" />
-      <AdSlot v-if="!isDesktop" :keywords="adKeywords" placement-id="package-overview-mobile" />
+      <AdSlot
+        v-if="mounted && !isDesktop"
+        :keywords="adKeywords"
+        placement-id="package-overview-mobile"
+      />
 
       <!-- Description -->
       <div
@@ -206,7 +221,7 @@ const adKeywords = computed(() => deriveAdKeywords(props.pkg.classifiers));
       </div>
 
       <AdSlot
-        v-if="isDesktop"
+        v-if="mounted && isDesktop"
         sticky
         :keywords="adKeywords"
         placement-id="package-overview-sidebar"
