@@ -247,6 +247,30 @@ pre,
   opacity: 0.5;
 }
 
+/* EthicalAds — remap the vendor client's own custom properties onto pypx
+   tokens so the placement inherits site typography and colour. The card
+   wrapper in AdSlot.vue supplies the surface, so the client's own background
+   is cleared to avoid a box inside a box. */
+.pypx-ad {
+  --ea-font-family: var(--font-sans);
+  --ea-font-size: 12px;
+  --ea-bgcolor: transparent;
+  --ea-bgcolor-dark: transparent;
+  --ea-color-link: var(--color-primary);
+  --ea-color-link-active: var(--color-primary);
+  --ea-color-link-dark: var(--color-primary);
+  --ea-color-link-dark-active: var(--color-primary);
+  --ea-color-link-bold: var(--color-brand);
+  --ea-color-link-bold-dark: var(--color-brand);
+  --ea-color-domain: var(--color-brand);
+  --ea-color-domain-dark: var(--color-brand);
+  --ea-color-link-callout: var(--color-muted);
+  --ea-color-link-callout-active: var(--color-primary);
+  --ea-color-link-callout-dark: var(--color-muted);
+  --ea-color-link-callout-dark-active: var(--color-primary);
+  --ea-image-placement-width: 100%;
+}
+
 /* Global grid background */
 body::before {
   content: "";
