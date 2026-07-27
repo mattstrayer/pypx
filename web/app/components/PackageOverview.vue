@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTimeAgo } from "@vueuse/core";
+import { useTimeAgo, useMediaQuery } from "@vueuse/core";
 import type { PackageData, RepoInfo } from "~/types/api";
 
 const props = defineProps<{
@@ -34,6 +34,9 @@ const allLinks = computed(() => {
   }
   return links;
 });
+
+const isDesktop = useMediaQuery("(min-width: 1024px)");
+const adKeywords = computed(() => deriveAdKeywords(props.pkg.classifiers));
 </script>
 
 <template>
@@ -42,6 +45,7 @@ const allLinks = computed(() => {
     <div class="min-w-0 space-y-6">
       <!-- Install command -->
       <InstallCommand :package-name="pkg.name" />
+      <AdSlot v-if="!isDesktop" :keywords="adKeywords" placement-id="package-overview-mobile" />
 
       <!-- Description -->
       <div
@@ -200,6 +204,13 @@ const allLinks = computed(() => {
       <div class="rounded-lg border border-subtle bg-surface p-4">
         <PackageMaintainers :maintainers="pkg.maintainers" :repo-info="repoInfo" />
       </div>
+
+      <AdSlot
+        v-if="isDesktop"
+        sticky
+        :keywords="adKeywords"
+        placement-id="package-overview-sidebar"
+      />
     </div>
   </div>
 </template>
