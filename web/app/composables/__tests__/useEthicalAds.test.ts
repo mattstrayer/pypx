@@ -21,16 +21,24 @@ describe("useEthicalAds", () => {
     delete (window as unknown as Record<string, unknown>).ethicalads;
   });
 
-  it("is disabled and injects no script when no publisher is configured", () => {
+  it("is disabled when no publisher is configured", () => {
     const ads = useEthicalAds();
     expect(ads.enabled).toBe(false);
-    expect(headEntries).toHaveLength(0);
   });
 
-  it("injects the client script when a publisher is configured", () => {
+  it("is enabled when a publisher is configured", () => {
+    mockConfig.public.ads.publisher = "pypx";
+    expect(useEthicalAds().enabled).toBe(true);
+  });
+
+  // Script injection belongs to plugins/ethicalads.client.ts. A component-scoped
+  // head entry is disposed when the component unmounts and re-injected on the
+  // next mount, double-loading the vendor client.
+  it("never injects the client script itself, publisher or not", () => {
+    useEthicalAds();
     mockConfig.public.ads.publisher = "pypx";
     useEthicalAds();
-    expect(headEntries).toHaveLength(1);
+    expect(headEntries).toHaveLength(0);
   });
 
   it("exposes the configured publisher and type", () => {

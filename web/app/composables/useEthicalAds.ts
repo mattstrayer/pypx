@@ -1,4 +1,4 @@
-const CLIENT_SRC = "https://media.ethicalads.io/media/client/ethicalads.min.js";
+export const ETHICALADS_CLIENT_SRC = "https://media.ethicalads.io/media/client/ethicalads.min.js";
 
 export type AdType = "image" | "text";
 
@@ -18,12 +18,13 @@ export function useEthicalAds() {
   const type: AdType = ads?.type === "text" ? "text" : "image";
   const enabled = Boolean(publisher);
 
-  if (enabled) {
-    useHead({
-      script: [{ src: CLIENT_SRC, async: true, key: "ethicalads" }],
-    });
-  }
+  // Script injection lives in `plugins/ethicalads.client.ts`, not here: a
+  // component-scoped head entry is disposed on unmount and would double-load
+  // the vendor client every time an AdSlot remounts.
 
+  // No-op until the vendor client has executed. That is the correct contract for
+  // a placement mounted before the script loads: the script's own initial scan
+  // will find it. A placement mounted afterwards is only discovered by this call.
   function reload(): void {
     getClient()?.reload();
   }
