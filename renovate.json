@@ -25,6 +25,12 @@
   },
   "packageRules": [
     {
+      "description": "Keep vite on 7.x. @nuxt/vite-builder 4.4.8 depends on vite ^7.3.3. On vite 8 it creates a WebSocket server for both the client and SSR environments on the same HMR path, so one browser handshake is upgraded twice and vite throws an uncaughtException that kills `nuxt dev` on first page load. Reproduced on 8.1.3 and 8.1.5. Remove once Nuxt supports vite 8.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vite"],
+      "allowedVersions": "<8"
+    },
+    {
       "description": "Ignore local goopy module (replaced via go.mod replace directive)",
       "matchManagers": ["gomod"],
       "matchPackageNames": ["github.com/pypx/goopy"],
