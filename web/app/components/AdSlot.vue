@@ -8,9 +8,11 @@ const props = withDefaults(
   { keywords: () => [], sticky: false, placementId: undefined },
 );
 
-const { enabled, publisher, type, waitForFill, reload } = useEthicalAds();
+const { enabled, publisher, type, reload } = useEthicalAds();
 
 const filled = ref(false);
+const placementEl = ref<HTMLElement | null>(null);
+let observer: MutationObserver | undefined;
 
 const keywordAttr = computed(() =>
   props.keywords.length > 0 ? props.keywords.join("|") : undefined,
@@ -22,19 +24,32 @@ const cardClass = computed(() => {
   return props.sticky ? `sticky top-20 ${base}` : base;
 });
 
-onMounted(async () => {
-  filled.value = await waitForFill();
+function syncFilled(): void {
+  filled.value = (placementEl.value?.children.length ?? 0) > 0;
+}
+
+onMounted(() => {
+  const el = placementEl.value;
+  if (!el) return;
+  syncFilled();
+  observer = new MutationObserver(syncFilled);
+  observer.observe(el, { childList: true });
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
 });
 
 // Package-to-package navigation keeps this component mounted; without an
 // explicit reload the ad would stay pinned to the first package's keywords.
+// The MutationObserver reports the resulting fill state on its own once the
+// vendor client injects (or clears) content, so we don't await anything here.
 watch(
   () => keywordAttr.value,
-  async (next, previous) => {
+  (next, previous) => {
     if (next === previous) return;
     filled.value = false;
     reload();
-    filled.value = await waitForFill();
   },
 );
 </script>
@@ -43,6 +58,7 @@ watch(
   <div v-if="enabled" :class="cardClass">
     <h2 v-if="filled" class="section-label">Sponsored</h2>
     <div
+      ref="placementEl"
       :id="placementId"
       class="pypx-ad adaptive-css"
       :data-ea-publisher="publisher"
