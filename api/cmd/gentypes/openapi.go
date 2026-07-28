@@ -118,9 +118,16 @@ func operation(d routeDef, txt bool, usedIDs map[string]bool) map[string]any {
 		params = append(params, d.TwinParams...)
 	}
 
+	summary := d.Summary
+	if txt {
+		// Rendered doc UIs list summaries only, so the twin must be
+		// distinguishable from its JSON sibling at a glance.
+		summary += " (text)"
+	}
+
 	op := map[string]any{
 		"operationId": operationID(path, usedIDs),
-		"summary":     d.Summary,
+		"summary":     summary,
 		"description": description(d, txt, text),
 		"responses":   responses(d, text),
 	}
@@ -213,10 +220,18 @@ func responses(d routeDef, text bool) map[string]any {
 
 	out := map[string]any{"200": success}
 
-	if hasRequiredQuery(d) {
+	// A {name} route validates the package name before doing any work
+	// (handler.validateName), so it can 400 even with no query parameters.
+	named := strings.Contains(d.Path, "{name}")
+	switch {
+	case named && hasRequiredQuery(d):
+		out["400"] = textResponse("Invalid package name, or a missing or invalid query parameter.")
+	case named:
+		out["400"] = textResponse("Invalid package name.")
+	case hasRequiredQuery(d):
 		out["400"] = textResponse("Missing or invalid query parameter.")
 	}
-	if strings.Contains(d.Path, "{name}") {
+	if named {
 		out["404"] = textResponse("Package not found on PyPI.")
 	}
 	out["429"] = textResponse("Rate limit exceeded. See the RateLimit-* and Retry-After headers.")

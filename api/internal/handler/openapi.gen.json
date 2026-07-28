@@ -1324,7 +1324,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Side-by-side package comparison"
+        "summary": "Side-by-side package comparison (text)"
       }
     },
     "/api/health": {
@@ -1400,6 +1400,16 @@
             },
             "description": "Success."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -1460,6 +1470,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -1491,7 +1511,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Enriched package metadata"
+        "summary": "Enriched package metadata (text)"
       }
     },
     "/api/packages/{name}/changelog": {
@@ -1519,6 +1539,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -1580,6 +1610,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -1611,7 +1651,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Changelog entries"
+        "summary": "Changelog entries (text)"
       }
     },
     "/api/packages/{name}/dependencies": {
@@ -1639,6 +1679,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -1726,7 +1776,7 @@
                 }
               }
             },
-            "description": "Missing or invalid query parameter."
+            "description": "Invalid package name, or a missing or invalid query parameter."
           },
           "404": {
             "content": {
@@ -1814,7 +1864,7 @@
                 }
               }
             },
-            "description": "Missing or invalid query parameter."
+            "description": "Invalid package name, or a missing or invalid query parameter."
           },
           "404": {
             "content": {
@@ -1847,7 +1897,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Version-to-version diff"
+        "summary": "Version-to-version diff (text)"
       }
     },
     "/api/packages/{name}/docs": {
@@ -1875,6 +1925,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -1945,6 +2005,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -1976,7 +2046,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Extracted API documentation"
+        "summary": "Extracted API documentation (text)"
       }
     },
     "/api/packages/{name}/docs/{symbol}": {
@@ -2013,6 +2083,16 @@
               }
             },
             "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -2074,6 +2154,16 @@
             },
             "description": "Success."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -2134,6 +2224,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -2165,7 +2265,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Supplementary signals"
+        "summary": "Supplementary signals (text)"
       }
     },
     "/api/packages/{name}/security": {
@@ -2202,6 +2302,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -2272,6 +2382,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -2303,7 +2423,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Known vulnerabilities"
+        "summary": "Known vulnerabilities (text)"
       }
     },
     "/api/packages/{name}/stats": {
@@ -2345,6 +2465,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -2420,6 +2550,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -2451,7 +2591,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Download statistics"
+        "summary": "Download statistics (text)"
       }
     },
     "/api/packages/{name}/summary.txt": {
@@ -2479,6 +2619,16 @@
               }
             },
             "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -2572,6 +2722,16 @@
             },
             "description": "Plain-text representation."
           },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
           "404": {
             "content": {
               "text/plain": {
@@ -2634,6 +2794,16 @@
               }
             },
             "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
           },
           "404": {
             "content": {
@@ -2769,7 +2939,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Most-downloaded packages"
+        "summary": "Most-downloaded packages (text)"
       }
     },
     "/api/search": {
@@ -2910,7 +3080,7 @@
             "description": "Error. Upstream failures surface as 502; internal failures as 500."
           }
         },
-        "summary": "Full-text package search"
+        "summary": "Full-text package search (text)"
       }
     },
     "/api/sitemap/cached": {

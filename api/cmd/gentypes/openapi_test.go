@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -168,40 +172,67 @@ func TestOpenAPIPackagesPathAndTextTwin(t *testing.T) {
 	}
 }
 
+// TestOpenAPICoversEveryRegisteredRoute parses the real router source and
+// asserts the generated document describes exactly the routes it registers.
+// The expectation is derived from api/cmd/server/main.go rather than restated
+// here, so a route added there without a routes.go entry (or vice versa) fails
+// this test instead of silently going undocumented.
 func TestOpenAPICoversEveryRegisteredRoute(t *testing.T) {
 	doc, _ := buildTestDoc(t)
 	paths := doc["paths"].(map[string]any)
 
-	// Routes registered in api/cmd/server/main.go that must all be documented,
-	// including .txt-only endpoints and the alias root.
-	want := []string{
-		"/api", "/api/", "/api/health",
-		"/api/packages/{name}", "/api/packages/{name}.txt",
-		"/api/packages/{name}/versions",
-		"/api/packages/{name}/dependencies",
-		"/api/packages/{name}/changelog", "/api/packages/{name}/changelog.txt",
-		"/api/packages/{name}/stats", "/api/packages/{name}/stats.txt",
-		"/api/packages/{name}/security", "/api/packages/{name}/security.txt",
-		"/api/packages/{name}/summary.txt",
-		"/api/packages/{name}/extras", "/api/packages/{name}/extras.txt",
-		"/api/packages/{name}/docs", "/api/packages/{name}/docs.txt",
-		"/api/packages/{name}/docs/{symbol}",
-		"/api/packages/{name}/symbols.txt",
-		"/api/packages/{name}/diff", "/api/packages/{name}/diff.txt",
-		"/api/search", "/api/search.txt",
-		"/api/compare", "/api/compare.txt",
-		"/api/popular", "/api/popular.txt",
-		"/api/sitemap/popular", "/api/sitemap/cached",
-		"/llms.txt",
+	registered := parseRegisteredRoutes(t, "../server/main.go")
+	if len(registered) == 0 {
+		t.Fatal("parsed no routes from ../server/main.go — the parser is broken")
 	}
-	for _, p := range want {
+
+	for p := range registered {
 		if _, ok := paths[p]; !ok {
-			t.Errorf("paths[%s] missing", p)
+			t.Errorf("route %s is registered in main.go but not documented", p)
 		}
 	}
-	if len(paths) != len(want) {
-		t.Errorf("paths has %d entries, want %d", len(paths), len(want))
+	for p := range paths {
+		if !registered[p] {
+			t.Errorf("path %s is documented but not registered in main.go", p)
+		}
 	}
+}
+
+// parseRegisteredRoutes extracts the chi route patterns from a router source
+// file: every `X.Get("<pattern>", handler)` call expression, which covers both
+// the plain `r.Get(...)` form and the `r.With(...).Get(...)` form. chi's
+// pattern syntax ({name}) is already OpenAPI path syntax, so no translation is
+// needed.
+func parseRegisteredRoutes(t *testing.T, path string) map[string]bool {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+
+	out := map[string]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Get" || len(call.Args) != 2 {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		pattern, err := strconv.Unquote(lit.Value)
+		if err != nil || !strings.HasPrefix(pattern, "/") {
+			return true
+		}
+		out[pattern] = true
+		return true
+	})
+	return out
 }
 
 func TestOpenAPISymbolRouteHasNoNegotiationNote(t *testing.T) {
