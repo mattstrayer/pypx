@@ -120,6 +120,7 @@ func main() {
 		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 		r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
+		r.Get("/api/packages/{name}/stats.txt", statsHandler.GetText)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
 		r.Get("/api/packages/{name}/security.txt", securityHandler.GetText)
 		r.Get("/api/packages/{name}/summary.txt", summaryHandler.Get)
