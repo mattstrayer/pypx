@@ -459,6 +459,15 @@ func (idx *Index) Lookup(name string) (PackageEntry, bool, error) {
 	return entry, true, nil
 }
 
+// Count returns the number of packages currently in the index.
+func (idx *Index) Count() (int, error) {
+	var n int
+	if err := idx.db.QueryRow(`SELECT count(*) FROM packages_meta`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("search: count: %w", err)
+	}
+	return n, nil
+}
+
 // Close releases the underlying database connection.
 func (idx *Index) Close() error {
 	return idx.db.Close()
