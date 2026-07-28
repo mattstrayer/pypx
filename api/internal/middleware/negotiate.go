@@ -26,6 +26,11 @@ var txtTwins = []*regexp.Regexp{
 // client's Accept header strictly prefers a text media type over JSON.
 // It always sets "Vary: Accept" on the response and never returns 406 —
 // when negotiation doesn't apply (or is ambiguous), the JSON route wins.
+//
+// The rate limiter is deliberately mounted before this middleware (see
+// main.go), so requests it rejects with 429 never reach here — those
+// responses are neither negotiated (no .txt rewrite) nor tagged with
+// "Vary: Accept". Do not reorder the two.
 func NegotiateText(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Accept")
