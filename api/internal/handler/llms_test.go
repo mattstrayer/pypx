@@ -34,7 +34,7 @@ func TestLLMSCountFallback(t *testing.T) {
 }
 
 func TestLLMSContent(t *testing.T) {
-	h := NewLLMSHandler(stubCounter{n: 1})
+	h := NewLLMSHandler(stubCounter{n: 543210})
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/llms.txt", nil))
 	body := rec.Body.String()
@@ -45,6 +45,10 @@ func TestLLMSContent(t *testing.T) {
 		"## Rate limits",
 		"?limit=",
 		"GET /api",
+		"stats.txt",
+		"popular.txt",
+		"Accept: text/plain",
+		"Retry-After",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("llms.txt missing %q", want)
