@@ -106,6 +106,7 @@ func main() {
 
 	limiter := mw.NewRateLimiter(30, 60) // 30 req/s sustained, burst of 60
 	r.Use(limiter.Limit)
+	r.Use(mw.NegotiateText)
 
 	// Most routes get a 30s timeout.
 	r.Group(func(r chi.Router) {
