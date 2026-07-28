@@ -57,35 +57,19 @@ var sitemapSchema = map[string]any{
 
 var routes = []routeDef{
 	{
-		Path:    "/api",
-		Summary: "API root index",
+		Path:        "/api",
+		Summary:     "API root index",
 		Description: "Machine-readable index of the API surface. Agents probing the root " +
 			"get a pointer to /llms.txt rather than a 404.",
-		Inline: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"description": map[string]any{"type": "string"},
-				"llms":        map[string]any{"type": "string"},
-				"source":      map[string]any{"type": "string"},
-			},
-			"required": []any{"description", "llms", "source"},
-		},
-		Timeout: "30s",
+		ResponseRef: "APIRootResponse",
+		Timeout:     "30s",
 	},
 	{
 		Path:        "/api/",
 		Summary:     "API root index (trailing-slash alias)",
 		Description: "Identical to GET /api.",
-		Inline: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"description": map[string]any{"type": "string"},
-				"llms":        map[string]any{"type": "string"},
-				"source":      map[string]any{"type": "string"},
-			},
-			"required": []any{"description", "llms", "source"},
-		},
-		Timeout: "30s",
+		ResponseRef: "APIRootResponse",
+		Timeout:     "30s",
 	},
 	{
 		Path:    "/api/health",

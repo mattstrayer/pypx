@@ -27,6 +27,7 @@ import (
 // contract is the ordered list of types to emit. Order matches api.ts.
 // Each entry is a zero-value of the struct to emit.
 var contract = []any{
+	handler.APIRootResponse{},
 	handler.PackageResponse{},
 	handler.FileInfo{},
 	enrichment.PythonVersionInfo{},

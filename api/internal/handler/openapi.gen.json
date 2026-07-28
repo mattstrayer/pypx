@@ -60,6 +60,29 @@
         ],
         "type": "object"
       },
+      "APIRootResponse": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "llms": {
+            "type": "string"
+          },
+          "openapi": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "llms",
+          "openapi",
+          "source"
+        ],
+        "type": "object"
+      },
       "ChangelogResponse": {
         "properties": {
           "entries": {
@@ -1087,7 +1110,7 @@
     }
   },
   "info": {
-    "description": "A modern, agent-friendly frontend for the Python Package Index. Every JSON endpoint listed here that has a `.txt` sibling also honours `Accept: text/plain`, returning the plain-text representation instead. All responses are cacheable; requests are rate limited to 30 req/s (burst 60) per client, which is reported via the RateLimit-* headers and a 429 response.",
+    "description": "A modern, agent-friendly frontend for the Python Package Index. Every JSON endpoint listed here that has a `.txt` sibling also honours `Accept: text/plain`, returning the plain-text representation instead. All responses are cacheable; requests are rate limited to 30 req/s (burst 60) per client at the origin, reported via the X-RateLimit-* headers and a 429 response. The edge additionally enforces 60 req/min per IP on /api/*, with a 10-minute block for IPs that exceed it.",
     "license": {
       "identifier": "MIT",
       "name": "MIT"
@@ -1106,23 +1129,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "description": {
-                      "type": "string"
-                    },
-                    "llms": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "description",
-                    "llms",
-                    "source"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/APIRootResponse"
                 }
               }
             },
@@ -1136,7 +1143,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1161,23 +1188,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "description": {
-                      "type": "string"
-                    },
-                    "llms": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "description",
-                    "llms",
-                    "source"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/APIRootResponse"
                 }
               }
             },
@@ -1191,7 +1202,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1251,7 +1282,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1311,7 +1362,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1358,7 +1429,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1395,7 +1486,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1465,7 +1576,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1535,7 +1666,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1605,7 +1756,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1675,7 +1846,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1745,7 +1936,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1833,7 +2044,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1921,7 +2152,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -1991,7 +2242,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2070,7 +2341,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2149,7 +2440,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2219,7 +2530,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2289,7 +2620,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2368,7 +2719,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2447,7 +2818,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2531,7 +2922,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2615,7 +3026,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2685,7 +3116,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2787,7 +3238,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2860,7 +3331,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2913,7 +3404,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -2963,7 +3474,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -3035,7 +3566,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -3104,7 +3655,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -3154,7 +3725,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -3204,7 +3795,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -3243,7 +3854,27 @@
                 }
               }
             },
-            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
