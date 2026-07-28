@@ -73,8 +73,9 @@ func buildOpenAPI(types []any, defs []routeDef) (map[string]any, error) {
 				"Every JSON endpoint listed here that has a `.txt` sibling also honours " +
 				"`Accept: text/plain`, returning the plain-text representation instead. " +
 				"All responses are cacheable; requests are rate limited to 30 req/s " +
-				"(burst 60) per client, which is reported via the RateLimit-* headers " +
-				"and a 429 response.",
+				"(burst 60) per client at the origin, reported via the X-RateLimit-* " +
+				"headers and a 429 response. The edge additionally enforces 60 req/min " +
+				"per IP on /api/*, with a 10-minute block for IPs that exceed it.",
 			"license": map[string]any{
 				"name":       "MIT",
 				"identifier": "MIT",
@@ -234,7 +235,7 @@ func responses(d routeDef, text bool) map[string]any {
 	if named {
 		out["404"] = textResponse("Package not found on PyPI.")
 	}
-	out["429"] = textResponse("Rate limit exceeded. See the RateLimit-* and Retry-After headers.")
+	out["429"] = rateLimitResponse()
 	out["default"] = textResponse("Error. Upstream failures surface as 502; internal failures as 500.")
 
 	return out
@@ -256,6 +257,27 @@ func textResponse(desc string) map[string]any {
 			"text/plain": map[string]any{"schema": map[string]any{"type": "string"}},
 		},
 	}
+}
+
+// rateLimitResponse builds the 429 response object, declaring the three
+// headers middleware/ratelimit.go actually sets on a throttled request.
+func rateLimitResponse() map[string]any {
+	resp := textResponse("Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.")
+	resp["headers"] = map[string]any{
+		"X-RateLimit-Limit": map[string]any{
+			"description": "Configured requests-per-second rate, as a string.",
+			"schema":      map[string]any{"type": "string"},
+		},
+		"X-RateLimit-Remaining": map[string]any{
+			"description": "Remaining requests in the current burst window.",
+			"schema":      map[string]any{"type": "integer"},
+		},
+		"Retry-After": map[string]any{
+			"description": "Seconds to wait before retrying.",
+			"schema":      map[string]any{"type": "integer"},
+		},
+	}
+	return resp
 }
 
 // operationID derives a unique, stable camelCase operationId from a path,
