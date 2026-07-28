@@ -66,16 +66,34 @@ Create these rules to control what gets cached at the edge:
 - Then: Cache eligible, Edge TTL override 30 days, Browser TTL 30 days
 - Why: Nuxt static assets have content hashes in filenames — they're immutable. Cache forever.
 
+See "AI agent traffic" below for the `/llms.txt` cache rule (pending owner setup).
+
+## AI agent traffic (REQUIRED end-state)
+
+pypx is agent-first: coding agents (Claude Code, Cursor, ClaudeBot, GPTBot,
+plain curl) MUST receive 200s with real bodies on `/llms.txt` and all
+`/api/**` routes — never a challenge or block.
+
+- **Bot Fight Mode: OFF.** It challenges unverified automated clients,
+  which is exactly our target audience. Abuse is handled by the
+  rate-limit rule below plus the origin limiter (30 req/s, burst 60).
+- **No challenge actions on `/api/*` or `/llms.txt`.** If a managed
+  challenge is ever needed for the HTML site, scope it to paths NOT
+  matching `/api/*` and `/llms.txt`.
+- **Keep:** rate-limit rule — `/api/*` over 60 req/min/IP → block 10 min
+  (advertised to agents via llms.txt and 429 Retry-After headers).
+- **Cache rule (add):** `/llms.txt` — Cache eligible, Edge TTL 1 hour
+  (it lives outside `/api/*` so the API cache rule does not cover it).
+
+Verify after any dashboard change:
+    ./scripts/check-agent-access.sh
+
 ## Security
 
 **Settings → Security → Settings:**
 - Security Level: **Medium**
 - Challenge Passage: **30 minutes**
 - Browser Integrity Check: **On**
-
-**Settings → Security → Bots:**
-- Bot Fight Mode: **On** (free)
-- Why: Prevents scrapers from hammering your API
 
 **Settings → Security → WAF:**
 - Free tier gets managed rulesets — leave defaults on
@@ -106,12 +124,9 @@ Cloudflare's DDoS protection is always on (free tier). No configuration needed. 
 **Rule 1: Rate limit API**
 - When: URI Path starts with `/api/` AND Rate exceeds 60 requests per minute per IP
 - Then: Block for 10 minutes
-- Why: Prevents a single IP from overwhelming the origin
-
-**Rule 2: Block non-browser API abuse**
-- When: URI Path starts with `/api/` AND Known Bot score > 30 AND NOT verified bot
-- Then: Challenge (CAPTCHA)
-- Why: Lets legitimate bots (Googlebot, etc.) through while challenging suspicious automated traffic
+- Why: Prevents a single IP from overwhelming the origin — this is the only
+  abuse control on `/api/*`. See "AI agent traffic" above: no challenge or
+  CAPTCHA rule may target `/api/*` or `/llms.txt`.
 
 ## Analytics
 
