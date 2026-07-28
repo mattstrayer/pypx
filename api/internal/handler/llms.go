@@ -73,7 +73,7 @@ Same data as .txt, structured. GET /api returns a JSON pointer to this file.
 - /api/packages/{name} — metadata; /versions, /dependencies, /stats?period=4w|3m|6m
 - /api/packages/{name}/changelog | /security?version= | /extras | /docs | /docs/{symbol} | /diff?from=&to=
 - /api/search?q=&limit= | /api/compare?pkgs= | /api/popular?limit= (default 12, max 50) | /api/health
-- .txt twins: package, changelog, security, extras, search, compare, docs, docs/{symbol}, diff, stats, popular.
+- Drop ` + "`.txt`" + ` from any Endpoints route for JSON; /versions, /dependencies, /health are JSON-only.
 
 ## Rate limits
 
@@ -92,7 +92,7 @@ curl 'https://pypx.app/api/compare.txt?pkgs=httpx,requests,aiohttp'
 
 - Package names follow PEP 503 (case-insensitive); TSV ` + "`#`" + ` lines are headers.
 - Empty fields are omitted (no ` + "`key:`" + ` with no value); cache headers match JSON.
-- Send ` + "`Accept: text/plain`" + ` (or text/markdown) on a JSON route for its .txt twin.
+- ` + "`Accept: text/plain`" + ` on a JSON route returns its ` + "`.txt`" + ` twin — except /docs/{symbol} (suffix only).
 
 ## Source
 

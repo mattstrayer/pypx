@@ -54,7 +54,12 @@ func TestLLMSContent(t *testing.T) {
 			t.Errorf("llms.txt missing %q", want)
 		}
 	}
-	if len(body) > 2600 {
-		t.Errorf("llms.txt is %d bytes, budget 2600", len(body))
+	// The byte budget is a proxy for "cheap for an agent to read", not a hard
+	// spec — it exists to catch unbounded growth, not to force trimming
+	// accurate content. Raised from 2600 to 2800 (~50 tokens of headroom) to
+	// make room for the corrected wording above plus the phase-4 OpenAPI line,
+	// rather than trimming content that is accurate.
+	if len(body) > 2800 {
+		t.Errorf("llms.txt is %d bytes, budget 2800", len(body))
 	}
 }
