@@ -76,23 +76,24 @@ func (h *StatsHandler) resolveStats(r *http.Request, name string) (combined Comb
 
 	// Check cache — serve stale data rather than blocking on a re-fetch.
 	if data, fresh, err := h.cache.Get(cacheKey, statsTTL); err == nil && data != nil {
-		if !fresh {
-			// Background revalidation: re-fetch and update cache silently.
-			// cache.RefreshInBackground deduplicates concurrent refreshes for
-			// the same key via singleflight. fetchAndCache already calls
-			// h.cache.Set internally; returning the encoded bytes here causes
-			// an idempotent second write with the same value, which is harmless.
-			cache.RefreshInBackground(h.cache, cacheKey, statsTTL, func() ([]byte, error) {
-				refreshed := h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
-				if refreshed == nil {
-					return nil, fmt.Errorf("background stats refresh failed for %q/%s", name, period)
-				}
-				return refreshed, nil
-			})
-		}
-
-		var combined CombinedStats
+		// Unmarshal before triggering any background refresh: a corrupt entry
+		// must take only the synchronous fetch path below, not both a
+		// background refresh AND a synchronous re-fetch.
 		if err := json.Unmarshal(data, &combined); err == nil {
+			if !fresh {
+				// Background revalidation: re-fetch and update cache silently.
+				// cache.RefreshInBackground deduplicates concurrent refreshes for
+				// the same key via singleflight. fetchAndCache already calls
+				// h.cache.Set internally; returning the encoded bytes here causes
+				// an idempotent second write with the same value, which is harmless.
+				cache.RefreshInBackground(h.cache, cacheKey, statsTTL, func() ([]byte, error) {
+					refreshed := h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
+					if refreshed == nil {
+						return nil, fmt.Errorf("background stats refresh failed for %q/%s", name, period)
+					}
+					return refreshed, nil
+				})
+			}
 			return combined, data, true
 		}
 		// Fall through to a synchronous fetch if the cached blob is corrupt.
