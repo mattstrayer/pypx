@@ -27,6 +27,9 @@ func TestAPIRoot(t *testing.T) {
 	if body["llms"] != "/llms.txt" {
 		t.Errorf("llms = %q, want /llms.txt", body["llms"])
 	}
+	if body["openapi"] != "/api/openapi.json" {
+		t.Errorf("openapi = %q, want /api/openapi.json", body["openapi"])
+	}
 	if body["source"] == "" || body["description"] == "" {
 		t.Errorf("missing source/description keys: %v", body)
 	}

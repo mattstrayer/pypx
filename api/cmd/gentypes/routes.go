@@ -98,6 +98,13 @@ var routes = []routeDef{
 		Timeout: "30s",
 	},
 	{
+		Path:        "/api/openapi.json",
+		Summary:     "OpenAPI 3.1 document",
+		Description: "The generated OpenAPI 3.1 spec describing this JSON API, including this route.",
+		Inline:      map[string]any{},
+		Timeout:     "30s",
+	},
+	{
 		Path:        "/api/packages/{name}",
 		Summary:     "Enriched package metadata",
 		Description: "PyPI metadata enriched with dependencies, wheel/platform coverage, release cadence and maintainers.",

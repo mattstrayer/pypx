@@ -74,6 +74,7 @@ Same data as .txt, structured. GET /api returns a JSON pointer to this file.
 - /api/packages/{name}/changelog | /security?version= | /extras | /docs | /docs/{symbol} | /diff?from=&to=
 - /api/search?q=&limit= | /api/compare?pkgs= | /api/popular?limit= (default 12, max 50) | /api/health
 - Drop ` + "`.txt`" + ` from any Endpoints route for JSON; /versions, /dependencies, /health are JSON-only.
+- /api/openapi.json — OpenAPI 3.1 spec for the JSON API.
 
 ## Rate limits
 

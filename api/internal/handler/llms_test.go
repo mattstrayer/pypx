@@ -49,6 +49,7 @@ func TestLLMSContent(t *testing.T) {
 		"popular.txt",
 		"Accept: text/plain",
 		"Retry-After",
+		"openapi.json",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("llms.txt missing %q", want)

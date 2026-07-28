@@ -1374,6 +1374,43 @@
         "summary": "Liveness probe"
       }
     },
+    "/api/openapi.json": {
+      "get": {
+        "description": "The generated OpenAPI 3.1 spec describing this JSON API, including this route. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiOpenapiJson",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the RateLimit-* and Retry-After headers."
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "OpenAPI 3.1 document"
+      }
+    },
     "/api/packages/{name}": {
       "get": {
         "description": "PyPI metadata enriched with dependencies, wheel/platform coverage, release cadence and maintainers. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}.txt` instead of JSON. Server-side timeout: 30s.",

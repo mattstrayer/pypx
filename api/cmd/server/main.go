@@ -114,6 +114,7 @@ func main() {
 		r.Get("/api", handler.APIRoot)
 		r.Get("/api/", handler.APIRoot)
 		r.Get("/api/health", handler.Health)
+		r.Get("/api/openapi.json", handler.OpenAPI)
 		r.Get("/api/packages/{name}", pkgHandler.Get)
 		r.Get("/api/packages/{name}.txt", pkgHandler.GetText)
 		r.Get("/api/packages/{name}/versions", pkgHandler.GetVersions)
