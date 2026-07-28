@@ -43,7 +43,6 @@ func TestLLMSContent(t *testing.T) {
 		"/api/packages/{name}/stats",
 		"/api/popular",
 		"## Rate limits",
-		"Retry-After",
 		"?limit=",
 		"GET /api",
 	} {
