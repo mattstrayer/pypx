@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -291,6 +292,91 @@ func TestRateLimitHeaders(t *testing.T) {
 	}
 	if rec2.Header().Get("X-RateLimit-Remaining") != "0" {
 		t.Errorf("X-RateLimit-Remaining = %q", rec2.Header().Get("X-RateLimit-Remaining"))
+	}
+}
+
+func TestRateLimitHeaders_FractionalRate(t *testing.T) {
+	rl := middleware.NewRateLimiter(0.5, 1) // 0.5 req/s, burst 1 — exercises non-integral X-RateLimit-Limit
+	defer rl.Close()
+	h := rl.Limit(okHandler)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.2.2.2:1"
+
+	rr1 := httptest.NewRecorder()
+	h.ServeHTTP(rr1, req)
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("first request: %d", rr1.Code)
+	}
+
+	rr2 := httptest.NewRecorder()
+	h.ServeHTTP(rr2, req)
+	if rr2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request: %d, want 429", rr2.Code)
+	}
+	if got := rr2.Header().Get("X-RateLimit-Limit"); got != "0.5" {
+		t.Errorf("X-RateLimit-Limit = %q, want %q", got, "0.5")
+	}
+}
+
+// TestRateLimiter_ConcurrentDeniedRequestsDoNotAccumulateDebt is a regression
+// test for a bug where computing Retry-After via lim.Reserve() + res.Cancel()
+// mutated the token bucket: Cancel() only fully restores state when its
+// reservation is still the most recent one recorded on the limiter, so
+// concurrent 429s from the same IP raced each other and left real token
+// debt (reviewer reproduced -5.99 tokens after 20 concurrent denials on a
+// 1 req/s burst-1 limiter), extending lockouts beyond the configured rate.
+// The fix computes Retry-After analytically from a read-only Tokens() call,
+// so concurrent denials must never accumulate debt beyond the configured
+// refill schedule.
+func TestRateLimiter_ConcurrentDeniedRequestsDoNotAccumulateDebt(t *testing.T) {
+	rl := middleware.NewRateLimiter(1, 1) // 1 req/s, burst 1
+	defer rl.Close()
+	h := rl.Limit(okHandler)
+	ip := "10.5.5.5:1"
+
+	// Seed request consumes the only token.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = ip
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("seed request: %d", rr.Code)
+	}
+
+	// Fire many concurrent requests from the same IP. All must be denied.
+	const n = 20
+	var wg sync.WaitGroup
+	codes := make([]int, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = ip
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			codes[i] = rr.Code
+		}(i)
+	}
+	wg.Wait()
+	for i, c := range codes {
+		if c != http.StatusTooManyRequests {
+			t.Errorf("concurrent request %d: got %d, want 429", i, c)
+		}
+	}
+
+	// If token debt had accumulated (the pre-fix bug), refilling a single
+	// token would take far longer than one refill interval. Sleeping just
+	// over one refill interval (1s at this rate) must be enough for the
+	// bucket to have a token available again.
+	time.Sleep(1100 * time.Millisecond)
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = ip
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("after refill wait, request should succeed (no token debt), got %d", rr.Code)
 	}
 }
 

@@ -49,17 +49,23 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 		ip := extractIP(r)
 		ok, lim := rl.allow(ip)
 		if !ok {
-			// Time until one token refills, rounded up to whole seconds (min 1).
-			res := lim.Reserve()
-			delay := res.Delay()
-			res.Cancel()
+			// Read-only: derive the retry delay analytically from the
+			// current token count instead of Reserve()+Cancel(), which
+			// mutates the bucket and drifts under concurrent same-IP 429s
+			// (Cancel only fully restores state when its reservation is
+			// still the most recent one recorded on the limiter).
+			tokens := lim.Tokens()
+			var delay time.Duration
+			if tokens < 1 {
+				delay = time.Duration((1 - tokens) / float64(rl.rate) * float64(time.Second))
+			}
 			secs := int(math.Ceil(delay.Seconds()))
 			if secs < 1 {
 				secs = 1
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(secs))
-			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(int(rl.rate)))
-			remaining := int(lim.Tokens())
+			w.Header().Set("X-RateLimit-Limit", formatRate(rl.rate))
+			remaining := int(tokens)
 			if remaining < 0 {
 				remaining = 0
 			}
@@ -69,6 +75,18 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// formatRate renders the configured rate for X-RateLimit-Limit. Integral
+// rates print as plain integers (matching the existing contract); fractional
+// rates (e.g. 0.5 req/s) would otherwise truncate to "0" via int(), which is
+// misleading, so they print with their decimal value instead.
+func formatRate(r rate.Limit) string {
+	f := float64(r)
+	if f == math.Trunc(f) {
+		return strconv.Itoa(int(f))
+	}
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
 // allow checks the token bucket for ip and records the visit time.
