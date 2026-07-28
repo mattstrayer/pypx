@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,6 +176,87 @@ func TestPopular_EmptyIndex(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("expected empty array, got %d results", len(results))
+	}
+}
+
+// TestPopularText_ReturnsTSV verifies GET /api/popular.txt renders the same
+// data as GET /api/popular but as TSV via textfmt.FormatSearch.
+func TestPopularText_ReturnsTSV(t *testing.T) {
+	idx := mustPopularIndex(t)
+	c := mustPopularCache(t)
+
+	packages := []search.PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	h := handler.NewPopularHandler(idx, c)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=3", nil)
+	w := httptest.NewRecorder()
+	h.GetText(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Errorf("expected Content-Type text/plain; charset=utf-8, got %q", ct)
+	}
+
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "# name\tdownloads\tsummary") {
+		t.Errorf("expected body to start with TSV header, got %q", body)
+	}
+	if !strings.Contains(body, "numpy\t80000000\tScientific computing") {
+		t.Errorf("expected numpy row in body, got %q", body)
+	}
+}
+
+// TestPopularText_LimitClamped verifies the limit clamping (default 12, max 50)
+// applies identically to the text endpoint.
+func TestPopularText_LimitClamped(t *testing.T) {
+	idx := mustPopularIndex(t)
+	c := mustPopularCache(t)
+
+	packages := make([]search.PackageEntry, 60)
+	for i := range packages {
+		packages[i] = search.PackageEntry{
+			Name:      fmt.Sprintf("pkg-%02d", i),
+			Summary:   "A package",
+			Downloads: int64(1000 * (60 - i)),
+		}
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	h := handler.NewPopularHandler(idx, c)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=999", nil)
+	w := httptest.NewRecorder()
+	h.GetText(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+
+	body := w.Body.String()
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	// First line is the header, remaining lines are results — clamped to 50.
+	if len(lines)-1 != 50 {
+		t.Errorf("expected 50 results (clamped from 999), got %d", len(lines)-1)
 	}
 }
 

@@ -131,6 +131,7 @@ func main() {
 		r.Get("/api/compare", compareHandler.GetJSON)
 		r.Get("/api/compare.txt", compareHandler.Get)
 		r.Get("/api/popular", popularHandler.Get)
+		r.Get("/api/popular.txt", popularHandler.GetText)
 		r.Get("/api/sitemap/popular", sitemapHandler.Popular)
 		r.Get("/api/sitemap/cached", sitemapHandler.Cached)
 		r.Get("/llms.txt", llmsHandler.ServeHTTP)
