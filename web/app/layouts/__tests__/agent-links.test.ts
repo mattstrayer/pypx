@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { reactive } from "vue";
-import DefaultLayout from "../../layouts/default.vue";
+import DefaultLayout from "../default.vue";
 
 const routeMock = reactive({
   path: "/packages/requests",
