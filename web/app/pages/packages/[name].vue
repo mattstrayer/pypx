@@ -74,6 +74,17 @@ useSeoMeta({
   ogDescription: () => pkg.value?.summary || "",
 });
 
+useHead({
+  link: [
+    {
+      rel: "alternate",
+      type: "text/plain",
+      href: () => `https://pypx.app/api/packages/${name.value}.txt`,
+      title: "Plain-text package data for agents",
+    },
+  ],
+});
+
 defineOgImage(
   "PackageCard",
   {
