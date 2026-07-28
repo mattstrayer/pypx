@@ -111,6 +111,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Timeout(30 * time.Second))
 		r.Get("/api", handler.APIRoot)
+		r.Get("/api/", handler.APIRoot)
 		r.Get("/api/health", handler.Health)
 		r.Get("/api/packages/{name}", pkgHandler.Get)
 		r.Get("/api/packages/{name}.txt", pkgHandler.GetText)
