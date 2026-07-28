@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -257,6 +258,70 @@ func TestPopularText_LimitClamped(t *testing.T) {
 	// First line is the header, remaining lines are results — clamped to 50.
 	if len(lines)-1 != 50 {
 		t.Errorf("expected 50 results (clamped from 999), got %d", len(lines)-1)
+	}
+}
+
+// TestPopularTextSharesCacheWithJSON verifies GetText reads/populates the same
+// "popular:{limit}" cache entry as Get (unmarshaling the shared JSON blob to
+// render TSV) instead of a separate "popular.txt:{limit}" entry.
+func TestPopularTextSharesCacheWithJSON(t *testing.T) {
+	idx := mustPopularIndex(t)
+
+	packages := []search.PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	sqliteCache, dbPath := mustTempCache(t)
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	t.Cleanup(func() { c.Close() })
+
+	h := handler.NewPopularHandler(idx, c)
+
+	// Prime the cache via the JSON route.
+	primeReq := httptest.NewRequest(http.MethodGet, "/api/popular?limit=1", nil)
+	primeRec := httptest.NewRecorder()
+	h.Get(primeRec, primeReq)
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime: expected 200, got %d: %s", primeRec.Code, primeRec.Body.String())
+	}
+
+	// GetText should read the same "popular:1" entry — no separate
+	// "popular.txt:1" key should ever be written.
+	textReq := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=1", nil)
+	textRec := httptest.NewRecorder()
+	h.GetText(textRec, textReq)
+	if textRec.Code != http.StatusOK {
+		t.Fatalf("GetText: expected 200, got %d: %s", textRec.Code, textRec.Body.String())
+	}
+	if !strings.Contains(textRec.Body.String(), "numpy") {
+		t.Errorf("expected numpy row in body, got %q", textRec.Body.String())
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM cache WHERE key = ?`, "popular.txt:1").Scan(&count); err != nil {
+		t.Fatalf("query popular.txt key: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected no 'popular.txt:1' cache key, found %d", count)
+	}
+
+	if err := db.QueryRow(`SELECT COUNT(*) FROM cache WHERE key = ?`, "popular:1").Scan(&count); err != nil {
+		t.Fatalf("query popular key: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected exactly one 'popular:1' cache key, found %d", count)
 	}
 }
 
