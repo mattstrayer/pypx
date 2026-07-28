@@ -67,6 +67,15 @@ export default defineNuxtConfig({
 
   robots: {
     allow: '/',
+    groups: [
+      {
+        userAgent: ['*'],
+        comment: [
+          'pypx is agent-first. Machine-readable index: https://pypx.app/llms.txt',
+          'Plain-text API: https://pypx.app/api/packages/{name}.txt (see llms.txt)',
+        ],
+      },
+    ],
   },
 
   runtimeConfig: {
