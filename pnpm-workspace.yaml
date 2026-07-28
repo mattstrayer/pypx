@@ -13,8 +13,8 @@ ignoredOptionalDependencies:
   - sharp
 
 overrides:
-  nuxt-site-config: '4.1.1'
-  devalue: '5.8.1'
+  nuxt-site-config: '4.1.2'
+  devalue: '5.8.2'
   js-cookie: '3.0.8'
   ws: '8.21.1'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
@@ -36,7 +36,7 @@ overrides:
   '@nuxt/vite-builder>vite': '7.3.5'
   # GHSA-vmf3-w455-68vh (CVSS 6.9) + GHSA-r292-9mhp-454m (CVSS 5.3): tar
   # <7.5.21, pulled transitively. Force the patched version.
-  tar: '7.5.21'
+  tar: '7.5.22'
   # GHSA-3jxr-9vmj-r5cp (CVSS 7.7) + GHSA-mh99-v99m-4gvg (CVSS 7.5):
   # brace-expansion DoS. The second advisory is only fixed in 5.0.8, so every
   # earlier version is affected and both the 2.x and 5.x copies pulled in
@@ -58,4 +58,4 @@ overrides:
   # which requests ^0.14.1) was published <24h ago and trips pnpm's
   # minimumReleaseAge supply-chain gate. Pin to the newest in-range version
   # that clears the age window.
-  vite-plugin-checker: '0.14.4'
+  vite-plugin-checker: '0.14.5'
