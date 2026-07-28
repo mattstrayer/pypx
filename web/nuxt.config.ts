@@ -65,6 +65,12 @@ export default defineNuxtConfig({
     },
   },
 
+  // Note for maintainers: @nuxtjs/robots strips comments out of
+  // web/public/_robots.txt when generating the served /robots.txt, so any
+  // pointer note added there (e.g. "see llms.txt") is invisible to humans
+  // reading the actual output. Put maintainer-facing guidance about the
+  // served file's content in groups[].comment below instead — those DO
+  // survive into the rendered robots.txt.
   robots: {
     allow: '/',
     groups: [
