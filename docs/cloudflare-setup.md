@@ -81,7 +81,8 @@ plain curl) MUST receive 200s with real bodies on `/llms.txt` and all
   challenge is ever needed for the HTML site, scope it to paths NOT
   matching `/api/*` and `/llms.txt`.
 - **Keep:** rate-limit rule — `/api/*` over 60 req/min/IP → block 10 min
-  (advertised to agents via llms.txt and 429 Retry-After headers).
+  (planned — phases 2/3 of the agent-discoverability plan — will be
+  advertised to agents via llms.txt and 429 Retry-After headers).
 - **Cache rule (add):** `/llms.txt` — Cache eligible, Edge TTL 1 hour
   (it lives outside `/api/*` so the API cache rule does not cover it).
 
@@ -90,13 +91,34 @@ Verify after any dashboard change:
 
 ## Security
 
+Security Level and Browser Integrity Check both act on IP reputation and
+can challenge traffic on *any* path, including `/api/*` and `/llms.txt` —
+they are not scoped to the HTML site. That contradicts the AI agent
+traffic requirement above (no challenge on `/api/*` or `/llms.txt`), so
+pick one of these two options:
+
+**Option A — simplest: turn challenges off site-wide**
+- Security Level: **Essentially Off**
+- Browser Integrity Check: **Off**
+
+**Option B — recommended: keep challenges for HTML, skip them for agents**
+- Security Level: **Medium** (kept, for the HTML site)
+- Browser Integrity Check: **On** (kept, for the HTML site)
+- Add a WAF custom rule (Settings → Security → WAF → Custom rules):
+  - When: `(starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
+  - Then: **Skip** → Security Level, Browser Integrity Check, All managed rules
+  - Why: IP-reputation challenges are invisible to the CI canary
+    (`scripts/check-agent-access.sh`) because GitHub Actions runner IPs are
+    clean — the canary passing does NOT prove a flagged residential/VPN IP
+    running an agent would get through. This skip rule closes that gap
+    without weakening protection for the HTML pages.
+
 **Settings → Security → Settings:**
-- Security Level: **Medium**
 - Challenge Passage: **30 minutes**
-- Browser Integrity Check: **On**
 
 **Settings → Security → WAF:**
-- Free tier gets managed rulesets — leave defaults on
+- Free tier gets managed rulesets — leave defaults on (managed rules are
+  included in the Option B skip rule above for `/api/*` and `/llms.txt`)
 
 ### DDoS
 
@@ -127,6 +149,14 @@ Cloudflare's DDoS protection is always on (free tier). No configuration needed. 
 - Why: Prevents a single IP from overwhelming the origin — this is the only
   abuse control on `/api/*`. See "AI agent traffic" above: no challenge or
   CAPTCHA rule may target `/api/*` or `/llms.txt`.
+
+**Rule 2 (recommended, if using Security Option B above): Skip challenges for agent surface**
+- When: `(starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
+- Then: Skip → Security Level, Browser Integrity Check, All managed rules
+- Why: see "Security" section above — IP-reputation checks are path-agnostic
+  and would otherwise challenge agent traffic that the CI canary can't detect
+  (runner IPs are clean, so the canary alone doesn't prove flagged IPs pass).
+  Not needed if Option A (challenges off site-wide) is used instead.
 
 ## Analytics
 
