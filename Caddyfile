@@ -4,8 +4,8 @@
         timeouts {
             read_body   10s
             read_header 10s
-            # must exceed the API's 60s docs/diff handler timeout (main.go) or cold docs.txt extractions get severed mid-response
-            write        75s
+            # must exceed the API's 75s WriteTimeout (main.go), which itself exceeds the 60s docs/diff handler timeout
+            write        90s
             idle         90s
         }
     }
