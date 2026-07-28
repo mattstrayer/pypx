@@ -52,7 +52,7 @@ Use either the A record or CNAME for `www` — not both. CNAME is simpler if you
 Create these rules to control what gets cached at the edge:
 
 **Rule 0 (REQUIRED before the phase-3 content-negotiation deploy, PR #231): Bypass cache for text-negotiating agent requests**
-- When: `starts_with(http.request.uri.path, "/api/") and any(http.request.headers["accept"][*] contains "text/")`
+- When: `(http.request.uri.path eq "/api" or starts_with(http.request.uri.path, "/api/")) and any(http.request.headers["accept"][*] contains "text/")`
 - Then: Bypass cache
 - Place this rule ABOVE Rule 1 (`/api/packages/*` edge-cache rule) so it is evaluated first.
 - Why: Cloudflare ignores the `Vary` header by default. Once the API serves plain-text twins via Accept-header negotiation (phase 3), a negotiated text response cached under the URL-only cache key would be served to browser clients expecting JSON, breaking package pages for up to the edge TTL. Bypassing cache for text-negotiating requests costs edge caching only for agent traffic — the `.txt` suffix URLs remain fully cacheable.
@@ -111,7 +111,7 @@ pick one of these two options:
 - Security Level: **Medium** (kept, for the HTML site)
 - Browser Integrity Check: **On** (kept, for the HTML site)
 - Add a WAF custom rule (Settings → Security → WAF → Custom rules):
-  - When: `(starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
+  - When: `(http.request.uri.path eq "/api" or starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
   - Then: **Skip** → Security Level, Browser Integrity Check, All managed rules
   - Why: IP-reputation challenges are invisible to the CI canary
     (`scripts/check-agent-access.sh`) because GitHub Actions runner IPs are
@@ -150,14 +150,14 @@ Cloudflare's DDoS protection is always on (free tier). No configuration needed. 
 ## Firewall / WAF Rules (Settings → Security → WAF → Custom rules — 5 free)
 
 **Rule 1: Rate limit API**
-- When: URI Path starts with `/api/` AND Rate exceeds 60 requests per minute per IP
+- When: (URI Path equals `/api` OR starts with `/api/`) AND Rate exceeds 60 requests per minute per IP
 - Then: Block for 10 minutes
 - Why: Prevents a single IP from overwhelming the origin — this is the only
   abuse control on `/api/*`. See "AI agent traffic" above: no challenge or
   CAPTCHA rule may target `/api/*` or `/llms.txt`.
 
 **Rule 2 (recommended, if using Security Option B above): Skip challenges for agent surface**
-- When: `(starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
+- When: `(http.request.uri.path eq "/api" or starts_with(http.request.uri.path, "/api/") or http.request.uri.path eq "/llms.txt")`
 - Then: Skip → Security Level, Browser Integrity Check, All managed rules
 - Why: see "Security" section above — IP-reputation checks are path-agnostic
   and would otherwise challenge agent traffic that the CI canary can't detect
