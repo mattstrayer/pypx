@@ -2,7 +2,9 @@
 package middleware
 
 import (
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +47,23 @@ func NewRateLimiter(r float64, burst int) *RateLimiter {
 func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := extractIP(r)
-		if !rl.allow(ip) {
+		ok, lim := rl.allow(ip)
+		if !ok {
+			// Time until one token refills, rounded up to whole seconds (min 1).
+			res := lim.Reserve()
+			delay := res.Delay()
+			res.Cancel()
+			secs := int(math.Ceil(delay.Seconds()))
+			if secs < 1 {
+				secs = 1
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(secs))
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(int(rl.rate)))
+			remaining := int(lim.Tokens())
+			if remaining < 0 {
+				remaining = 0
+			}
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
 		}
@@ -54,7 +72,7 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 }
 
 // allow checks the token bucket for ip and records the visit time.
-func (rl *RateLimiter) allow(ip string) bool {
+func (rl *RateLimiter) allow(ip string) (bool, *rate.Limiter) {
 	rl.mu.Lock()
 	v, ok := rl.visitors[ip]
 	if !ok {
@@ -65,7 +83,7 @@ func (rl *RateLimiter) allow(ip string) bool {
 	lim := v.limiter
 	rl.mu.Unlock()
 
-	return lim.Allow()
+	return lim.Allow(), lim
 }
 
 // extractIP returns the client IP for rate-limit bucketing.
