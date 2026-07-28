@@ -38,8 +38,8 @@ lint: ## go vet (api, goopy) + oxlint (web)
 typecheck: ## Web typecheck (nuxi typecheck)
 	cd web && $(PNPM) run typecheck
 
-gentypes: ## Regenerate web/app/types/api.gen.ts from Go response structs
-	cd api && go run ./cmd/gentypes -out ../web/app/types/api.gen.ts
+gentypes: ## Regenerate web/app/types/api.gen.ts + api/internal/handler/openapi.gen.json
+	cd api && go run ./cmd/gentypes -out ../web/app/types/api.gen.ts -openapi internal/handler/openapi.gen.json
 
 fmt: ## Format web sources (oxfmt)
 	cd web && $(PNPM) run fmt
