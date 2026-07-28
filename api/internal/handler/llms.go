@@ -66,7 +66,7 @@ const llmsBody = `
 
 ## JSON endpoints
 
-Same data as .txt, structured. GET /api returns this index as JSON.
+Same data as .txt, structured. GET /api returns a JSON pointer to this file.
 
 - /api/packages/{name} — enriched metadata; /versions, /dependencies, /api/packages/{name}/stats?period=4w|3m|6m
 - /api/packages/{name}/changelog | /security?version= | /extras | /docs | /docs/{symbol} | /diff?from=&to=
