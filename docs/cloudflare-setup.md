@@ -51,6 +51,12 @@ Use either the A record or CNAME for `www` — not both. CNAME is simpler if you
 
 Create these rules to control what gets cached at the edge:
 
+**Rule 0 (REQUIRED before the phase-3 content-negotiation deploy, PR #231): Bypass cache for text-negotiating agent requests**
+- When: `starts_with(http.request.uri.path, "/api/") and any(http.request.headers["accept"][*] contains "text/")`
+- Then: Bypass cache
+- Place this rule ABOVE Rule 1 (`/api/packages/*` edge-cache rule) so it is evaluated first.
+- Why: Cloudflare ignores the `Vary` header by default. Once the API serves plain-text twins via Accept-header negotiation (phase 3), a negotiated text response cached under the URL-only cache key would be served to browser clients expecting JSON, breaking package pages for up to the edge TTL. Bypassing cache for text-negotiating requests costs edge caching only for agent traffic — the `.txt` suffix URLs remain fully cacheable.
+
 **Rule 1: Cache API package responses**
 - When: URI Path starts with `/api/packages/`
 - Then: Cache eligible, Edge TTL override 1 hour, Browser TTL respect origin
