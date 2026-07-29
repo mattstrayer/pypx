@@ -35,6 +35,12 @@ const sources = [
             class="underline decoration-dotted underline-offset-2 hover:text-primary"
             >Source on GitHub</a
           >
+          ·
+          <a
+            href="/llms.txt"
+            class="underline decoration-dotted underline-offset-2 hover:text-primary"
+            >API for agents</a
+          >
         </span>
         <span class="flex flex-wrap gap-x-1 gap-y-0.5">
           <span class="opacity-70">data from</span>

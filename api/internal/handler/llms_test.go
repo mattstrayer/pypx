@@ -1,44 +1,56 @@
-package handler_test
+package handler
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/pypx/api/internal/handler"
 )
 
-func TestLLMSHandler(t *testing.T) {
-	h := handler.NewLLMSHandler()
-	req := httptest.NewRequest("GET", "/llms.txt", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+type stubCounter struct {
+	n   int
+	err error
+}
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", w.Code)
+func (s stubCounter) Count() (int, error) { return s.n, s.err }
+
+func TestLLMSDynamicCount(t *testing.T) {
+	h := NewLLMSHandler(stubCounter{n: 543210})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/llms.txt", nil))
+	body := rec.Body.String()
+	if !strings.Contains(body, "543,210 packages indexed") {
+		t.Errorf("missing dynamic count, body header:\n%s", body[:200])
 	}
-	ct := w.Header().Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/plain") {
-		t.Errorf("Content-Type = %q, want text/plain prefix", ct)
+}
+
+func TestLLMSCountFallback(t *testing.T) {
+	h := NewLLMSHandler(stubCounter{err: http.ErrServerClosed})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/llms.txt", nil))
+	if !strings.Contains(rec.Body.String(), "500,000+ packages indexed") {
+		t.Error("missing static fallback count")
 	}
-	body := w.Body.String()
-	for _, expect := range []string{
-		"# pypx",
-		"/api/packages/{name}.txt",
-		"/api/packages/{name}/changelog.txt",
-		"/api/packages/{name}/security.txt",
-		"/api/packages/{name}/extras.txt",
-		"/api/packages/{name}/summary.txt",
-		"/api/search.txt",
-		"/api/packages/{name}/docs.txt",
-		"/api/packages/{name}/docs/{symbol}.txt",
-		"/api/packages/{name}/symbols.txt",
-		"/api/packages/{name}/diff.txt",
-		"/api/compare.txt",
+}
+
+func TestLLMSContent(t *testing.T) {
+	h := NewLLMSHandler(stubCounter{n: 1})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/llms.txt", nil))
+	body := rec.Body.String()
+	for _, want := range []string{
+		"## JSON endpoints",
+		"/api/packages/{name}/stats",
+		"/api/popular",
+		"## Rate limits",
+		"?limit=",
+		"GET /api",
 	} {
-		if !strings.Contains(body, expect) {
-			t.Errorf("body missing %q", expect)
+		if !strings.Contains(body, want) {
+			t.Errorf("llms.txt missing %q", want)
 		}
+	}
+	if len(body) > 2600 {
+		t.Errorf("llms.txt is %d bytes, budget 2600", len(body))
 	}
 }

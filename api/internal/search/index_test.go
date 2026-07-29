@@ -774,3 +774,27 @@ func TestIndexLookup(t *testing.T) {
 		t.Error("expected !ok for missing entry")
 	}
 }
+
+// TestCount verifies Count reports the number of indexed packages.
+func TestCount(t *testing.T) {
+	idx := mustNewIndex(t)
+
+	n, err := idx.Count()
+	if err != nil {
+		t.Fatalf("Count on empty index: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("Count on empty index = %d, want 0", n)
+	}
+
+	mustUpsert(t, idx, PackageEntry{Name: "httpx", Summary: "The next gen HTTP client", Downloads: 50000000})
+	mustUpsert(t, idx, PackageEntry{Name: "requests", Summary: "Python HTTP for Humans", Downloads: 60000000})
+
+	n, err = idx.Count()
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("Count = %d, want 2", n)
+	}
+}
