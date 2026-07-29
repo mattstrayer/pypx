@@ -250,7 +250,7 @@ const sparklineXLabels = computed(() => {
             <span
               v-for="label in sparklineXLabels"
               :key="label"
-              class="font-mono text-[9.5px] text-muted opacity-60"
+              class="font-mono text-[9.5px] text-muted"
               >{{ label }}</span
             >
           </div>

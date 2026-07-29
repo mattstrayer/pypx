@@ -42,17 +42,23 @@ const sources = [
             >API for agents</a
           >
         </span>
-        <span class="flex flex-wrap gap-x-1 gap-y-0.5">
-          <span class="opacity-70">data from</span>
+        <!-- gap-x-2 + py-1 on the links gives each one a >=24px tap target with
+             enough separation for the target-size audit on small screens. -->
+        <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <!-- No opacity utility here: text-muted sits close to the AA floor,
+               so dimming it drops this below 4.5:1. -->
+          <span>data from</span>
           <template v-for="(s, i) in sources" :key="s.href">
             <a
               :href="s.href"
               target="_blank"
               rel="noopener noreferrer"
-              class="underline decoration-dotted underline-offset-2 hover:text-primary"
+              class="inline-block py-1 underline decoration-dotted underline-offset-2 hover:text-primary"
               >{{ s.label }}</a
             >
-            <span v-if="i < sources.length - 1" class="opacity-50">·</span>
+            <!-- Decorative separator — hidden from assistive tech, and exempt
+                 from the contrast rule because it carries no information. -->
+            <span v-if="i < sources.length - 1" aria-hidden="true" class="opacity-50">·</span>
           </template>
         </span>
       </div>

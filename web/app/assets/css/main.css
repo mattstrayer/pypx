@@ -24,7 +24,12 @@
   --color-raised: #f4f4f5;
   --color-subtle: #e4e4e7;
   --color-primary: #18181b;
-  --color-muted: #71717a;
+  /* Darkened from #71717a: that value cleared 4.5:1 on --color-base but only
+     reached 4.39:1 on --color-raised, which is the background behind muted
+     text in KbdHint, AppHeader, PackageVersions and others. Tokens are
+     contrast-checked against every surface they sit on — see
+     app/__tests__/color-token-contrast.test.ts. */
+  --color-muted: #6c6c75;
 
   /* Brand — light mode (emerald-700, 5.25:1 on #fafafa) */
   --color-brand: #047857;
