@@ -4,7 +4,8 @@
         timeouts {
             read_body   10s
             read_header 10s
-            write        30s
+            # must exceed the API's 75s WriteTimeout (main.go), which itself exceeds the 60s docs/diff handler timeout
+            write        90s
             idle         90s
         }
     }

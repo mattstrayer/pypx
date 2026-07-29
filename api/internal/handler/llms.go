@@ -43,8 +43,8 @@ func humanComma(n int) string {
 
 const llmsHead = `# pypx — A modern PyPI frontend (agent-friendly endpoints)
 
-> pypx exposes plain-text variants of its main JSON endpoints so coding
-> agents can grep package data without parsing JSON. All routes return
+> pypx exposes plain-text variants of its main JSON endpoints so agents can
+> grep package data without parsing JSON. Routes return
 > ` + "`text/plain; charset=utf-8`" + ` and are read-only.
 > `
 
@@ -54,44 +54,45 @@ const llmsBody = `
 
 - /api/packages/{name}.txt — Package metadata (key:value plus dependency list).
 - /api/packages/{name}/changelog.txt — Markdown changelog (one ## heading per version).
-- /api/packages/{name}/security.txt — Vulnerabilities; supports ?version= ; vuln_count: 0 if clean.
+- /api/packages/{name}/security.txt — Vulnerabilities; ?version=; vuln_count: 0 if clean.
 - /api/packages/{name}/extras.txt — Type support, conda-forge availability, repo info.
 - /api/packages/{name}/summary.txt — One-screen agent briefing (≤2KB).
-- /api/search.txt?q= — TSV search results: name<TAB>downloads<TAB>summary; supports ?limit= (default 20, max 100).
-- /api/packages/{name}/docs.txt — API documentation; supports ?prefix= to filter by dotted path.
+- /api/search.txt?q= — TSV: name<TAB>downloads<TAB>summary; ?limit= (default 20, max 100).
+- /api/packages/{name}/docs.txt — API documentation; ?prefix= filters by dotted path.
 - /api/packages/{name}/docs/{symbol}.txt — Single symbol (e.g. /docs/Client.get.txt).
-- /api/packages/{name}/symbols.txt?q= — TSV symbol search; supports ?kind= and ?limit=.
-- /api/packages/{name}/diff.txt?from=X&to=Y — Markdown diff between two versions: changelog slice, dependency and API changes.
-- /api/compare.txt?pkgs=a,b,c — Side-by-side comparison of up to 5 packages. Missing packages emit a leading ` + "`# skipped:`" + ` line.
+- /api/packages/{name}/symbols.txt?q= — TSV symbol search; ?kind= and ?limit=.
+- /api/packages/{name}/diff.txt?from=X&to=Y — Markdown diff: changelog slice, dependency + API changes.
+- /api/compare.txt?pkgs=a,b,c — Compares up to 5 packages; missing ones get a leading ` + "`# skipped:`" + ` line.
+- /api/packages/{name}/stats.txt?period=4w|3m|6m — Downloads, python versions, systems.
+- /api/popular.txt?limit= — TSV top packages by downloads (max 50).
 
 ## JSON endpoints
 
 Same data as .txt, structured. GET /api returns a JSON pointer to this file.
 
-- /api/packages/{name} — enriched metadata; /versions, /dependencies, /api/packages/{name}/stats?period=4w|3m|6m
+- /api/packages/{name} — metadata; /versions, /dependencies, /stats?period=4w|3m|6m
 - /api/packages/{name}/changelog | /security?version= | /extras | /docs | /docs/{symbol} | /diff?from=&to=
 - /api/search?q=&limit= | /api/compare?pkgs= | /api/popular?limit= (default 12, max 50) | /api/health
-- .txt twins: package, changelog, security, extras, search, compare, docs, docs/{symbol}, diff.
+- Drop ` + "`.txt`" + ` from any Endpoints route for JSON; /versions, /dependencies, /health are JSON-only.
 
 ## Rate limits
 
-- Origin: 30 req/s sustained, burst 60 (per IP). Edge: 60 req/min per IP on /api/* (10-min block).
+- Origin: 30 req/s, burst 60/IP. Edge: 60 req/min/IP on /api/* (10-min block).
+- 429s include Retry-After and X-RateLimit-* headers.
 
 ## Examples
 
 ` + "```" + `
 curl https://pypx.app/api/packages/httpx.txt
-curl https://pypx.app/api/packages/httpx/security.txt
 curl 'https://pypx.app/api/search.txt?q=http+client&limit=10'
 curl 'https://pypx.app/api/compare.txt?pkgs=httpx,requests,aiohttp'
 ` + "```" + `
 
 ## Conventions
 
-- Package names follow PEP 503 normalization (case-insensitive).
-- Lines starting with ` + "`#`" + ` in TSV are headers; agents may skip them.
-- Empty fields are omitted entirely (no ` + "`key:`" + ` with no value).
-- Cache headers match the JSON variants.
+- Package names follow PEP 503 (case-insensitive); TSV ` + "`#`" + ` lines are headers.
+- Empty fields are omitted (no ` + "`key:`" + ` with no value); cache headers match JSON.
+- ` + "`Accept: text/plain`" + ` on a JSON route returns its ` + "`.txt`" + ` twin — except /docs/{symbol} (suffix only).
 
 ## Source
 

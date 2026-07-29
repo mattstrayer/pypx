@@ -1,10 +1,12 @@
 package handler_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,6 +177,151 @@ func TestPopular_EmptyIndex(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("expected empty array, got %d results", len(results))
+	}
+}
+
+// TestPopularText_ReturnsTSV verifies GET /api/popular.txt renders the same
+// data as GET /api/popular but as TSV via textfmt.FormatSearch.
+func TestPopularText_ReturnsTSV(t *testing.T) {
+	idx := mustPopularIndex(t)
+	c := mustPopularCache(t)
+
+	packages := []search.PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+		{Name: "requests", Summary: "HTTP for Humans", Downloads: 50_000_000},
+		{Name: "flask", Summary: "A micro web framework", Downloads: 30_000_000},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	h := handler.NewPopularHandler(idx, c)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=3", nil)
+	w := httptest.NewRecorder()
+	h.GetText(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Errorf("expected Content-Type text/plain; charset=utf-8, got %q", ct)
+	}
+
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "# name\tdownloads\tsummary") {
+		t.Errorf("expected body to start with TSV header, got %q", body)
+	}
+	if !strings.Contains(body, "numpy\t80000000\tScientific computing") {
+		t.Errorf("expected numpy row in body, got %q", body)
+	}
+}
+
+// TestPopularText_LimitClamped verifies the limit clamping (default 12, max 50)
+// applies identically to the text endpoint.
+func TestPopularText_LimitClamped(t *testing.T) {
+	idx := mustPopularIndex(t)
+	c := mustPopularCache(t)
+
+	packages := make([]search.PackageEntry, 60)
+	for i := range packages {
+		packages[i] = search.PackageEntry{
+			Name:      fmt.Sprintf("pkg-%02d", i),
+			Summary:   "A package",
+			Downloads: int64(1000 * (60 - i)),
+		}
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	h := handler.NewPopularHandler(idx, c)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=999", nil)
+	w := httptest.NewRecorder()
+	h.GetText(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+
+	body := w.Body.String()
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	// First line is the header, remaining lines are results — clamped to 50.
+	if len(lines)-1 != 50 {
+		t.Errorf("expected 50 results (clamped from 999), got %d", len(lines)-1)
+	}
+}
+
+// TestPopularTextSharesCacheWithJSON verifies GetText reads/populates the same
+// "popular:{limit}" cache entry as Get (unmarshaling the shared JSON blob to
+// render TSV) instead of a separate "popular.txt:{limit}" entry.
+func TestPopularTextSharesCacheWithJSON(t *testing.T) {
+	idx := mustPopularIndex(t)
+
+	packages := []search.PackageEntry{
+		{Name: "numpy", Summary: "Scientific computing", Downloads: 80_000_000},
+	}
+	if err := idx.UpsertBatch(packages); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	if err := idx.UpdateDownloadsBatch(packages); err != nil {
+		t.Fatalf("UpdateDownloadsBatch: %v", err)
+	}
+
+	sqliteCache, dbPath := mustTempCache(t)
+	c := cache.NewMemoryCache(sqliteCache, 100)
+	t.Cleanup(func() { c.Close() })
+
+	h := handler.NewPopularHandler(idx, c)
+
+	// Prime the cache via the JSON route.
+	primeReq := httptest.NewRequest(http.MethodGet, "/api/popular?limit=1", nil)
+	primeRec := httptest.NewRecorder()
+	h.Get(primeRec, primeReq)
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime: expected 200, got %d: %s", primeRec.Code, primeRec.Body.String())
+	}
+
+	// GetText should read the same "popular:1" entry — no separate
+	// "popular.txt:1" key should ever be written.
+	textReq := httptest.NewRequest(http.MethodGet, "/api/popular.txt?limit=1", nil)
+	textRec := httptest.NewRecorder()
+	h.GetText(textRec, textReq)
+	if textRec.Code != http.StatusOK {
+		t.Fatalf("GetText: expected 200, got %d: %s", textRec.Code, textRec.Body.String())
+	}
+	if !strings.Contains(textRec.Body.String(), "numpy") {
+		t.Errorf("expected numpy row in body, got %q", textRec.Body.String())
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM cache WHERE key = ?`, "popular.txt:1").Scan(&count); err != nil {
+		t.Fatalf("query popular.txt key: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected no 'popular.txt:1' cache key, found %d", count)
+	}
+
+	if err := db.QueryRow(`SELECT COUNT(*) FROM cache WHERE key = ?`, "popular:1").Scan(&count); err != nil {
+		t.Fatalf("query popular key: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected exactly one 'popular:1' cache key, found %d", count)
 	}
 }
 

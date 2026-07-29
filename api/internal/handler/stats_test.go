@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -583,4 +584,178 @@ func TestStatsSWRStaleHitRefreshes(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Error("stats cache was not refreshed to v2 data within 10s")
+}
+
+// TestStatsHandlerCorruptCache seeds a cache entry with non-JSON bytes and
+// verifies both Get and GetText fall back to a synchronous upstream fetch
+// (rather than erroring, or racing a background refresh) and repair the
+// cache entry with valid JSON.
+func TestStatsHandlerCorruptCache(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		invoke func(r *chi.Mux, path string) *httptest.ResponseRecorder
+	}{
+		{
+			name: "Get",
+			invoke: func(r *chi.Mux, path string) *httptest.ResponseRecorder {
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+				return rec
+			},
+		},
+		{
+			name: "GetText",
+			invoke: func(r *chi.Mux, path string) *httptest.ResponseRecorder {
+				req := httptest.NewRequest(http.MethodGet, path+".txt", nil)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+				return rec
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock, _ := mockPypiStatsNarrow(t)
+			defer mock.Close()
+
+			sqliteCache, dbPath := mustTempCache(t)
+			defer sqliteCache.Close()
+
+			statsClient := stats.NewClient(stats.WithBaseURL(mock.URL))
+			h := handler.NewStatsHandler(statsClient, sqliteCache)
+
+			r := chi.NewRouter()
+			r.Get("/api/packages/{name}/stats", h.Get)
+			r.Get("/api/packages/{name}/stats.txt", h.GetText)
+
+			// Seed the cache entry with garbage bytes rather than valid JSON.
+			cacheKey := "stats:django:4w"
+			if err := sqliteCache.Set(cacheKey, []byte("not json"), 24*time.Hour); err != nil {
+				t.Fatalf("seed corrupt cache: %v", err)
+			}
+
+			rec := tc.invoke(r, "/api/packages/django/stats")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200 despite corrupt cache, got %d: %s", rec.Code, rec.Body.String())
+			}
+
+			// The synchronous fetch should have repaired the cache entry with
+			// valid JSON — read it back directly to confirm.
+			db, err := sql.Open("sqlite", dbPath)
+			if err != nil {
+				t.Fatalf("open db: %v", err)
+			}
+			defer db.Close()
+
+			var repaired []byte
+			if err := db.QueryRow(`SELECT value FROM cache WHERE key = ?`, cacheKey).Scan(&repaired); err != nil {
+				t.Fatalf("query repaired cache entry: %v", err)
+			}
+			var combined handler.CombinedStats
+			if err := json.Unmarshal(repaired, &combined); err != nil {
+				t.Errorf("repaired cache entry is not valid JSON: %v (body: %q)", err, repaired)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetText (stats.txt)
+// ---------------------------------------------------------------------------
+
+func TestStatsHandlerGetText(t *testing.T) {
+	mock, _ := mockPypiStatsNarrow(t)
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	statsClient := stats.NewClient(stats.WithBaseURL(mock.URL))
+	h := handler.NewStatsHandler(statsClient, c)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/stats.txt", h.GetText)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain*", contentType)
+	}
+	if cc := w.Header().Get("Cache-Control"); cc != "public, max-age=86400" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "public, max-age=86400")
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "package: django") {
+		t.Errorf("body does not contain 'package: django':\n%s", body)
+	}
+	if !strings.Contains(body, "period: 4w") {
+		t.Errorf("body does not contain 'period: 4w':\n%s", body)
+	}
+	if !strings.Contains(body, "## weekly downloads") {
+		t.Errorf("body does not contain '## weekly downloads':\n%s", body)
+	}
+	if !strings.Contains(body, "## python versions") {
+		t.Errorf("body does not contain '## python versions':\n%s", body)
+	}
+	if !strings.Contains(body, "## systems") {
+		t.Errorf("body does not contain '## systems':\n%s", body)
+	}
+}
+
+// TestStatsHandlerGetTextServesFromCache verifies GetText correctly decodes a
+// cached JSON blob written by Get (same cache key, JSON round-trips via
+// json.Unmarshal on hit) rather than re-fetching from pypistats.
+func TestStatsHandlerGetTextServesFromCache(t *testing.T) {
+	mock, paths := mockPypiStatsNarrow(t)
+	defer mock.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+	defer c.Close()
+
+	statsClient := stats.NewClient(stats.WithBaseURL(mock.URL))
+	h := handler.NewStatsHandler(statsClient, c)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/stats", h.Get)
+	r.Get("/api/packages/{name}/stats.txt", h.GetText)
+
+	// Prime the cache via the JSON route.
+	primeReq := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats", nil)
+	primeRec := httptest.NewRecorder()
+	r.ServeHTTP(primeRec, primeReq)
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime: expected 200, got %d", primeRec.Code)
+	}
+
+	callsAfterPrime := len(*paths)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/packages/django/stats.txt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if len(*paths) != callsAfterPrime {
+		t.Errorf("GetText should serve from cache without hitting upstream: calls before=%d, after=%d", callsAfterPrime, len(*paths))
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "package: django") {
+		t.Errorf("body does not contain 'package: django':\n%s", body)
+	}
 }

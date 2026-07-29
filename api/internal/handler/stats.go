@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/stats"
+	"github.com/pypx/api/internal/textfmt"
 )
 
 const statsTTL = 24 * time.Hour
@@ -64,38 +65,56 @@ func NewStatsHandler(statsClient *stats.Client, c cache.Cacher) *StatsHandler {
 	return &StatsHandler{stats: statsClient, cache: c}
 }
 
-// Get handles GET /api/packages/{name}/stats?period=4w.
-func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+// resolveStats obtains a CombinedStats for name, using the cache when
+// available (stale-while-revalidate: stale data is returned immediately and
+// refreshed in the background) and fetching synchronously on a miss. It
+// returns the decoded CombinedStats and the raw encoded JSON bytes (needed by
+// Get to avoid a redundant re-encode); ok is false if fetching failed.
+func (h *StatsHandler) resolveStats(r *http.Request, name string) (combined CombinedStats, encoded []byte, ok bool) {
 	period, cfg := parsePeriod(r.URL.Query().Get("period"))
 	cacheKey := "stats:" + strings.ToLower(name) + ":" + period
 
 	// Check cache — serve stale data rather than blocking on a re-fetch.
 	if data, fresh, err := h.cache.Get(cacheKey, statsTTL); err == nil && data != nil {
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data) //nolint:errcheck
-
-		if !fresh {
-			// Background revalidation: re-fetch and update cache silently.
-			// cache.RefreshInBackground deduplicates concurrent refreshes for
-			// the same key via singleflight. fetchAndCache already calls
-			// h.cache.Set internally; returning the encoded bytes here causes
-			// an idempotent second write with the same value, which is harmless.
-			cache.RefreshInBackground(h.cache, cacheKey, statsTTL, func() ([]byte, error) {
-				encoded := h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
-				if encoded == nil {
-					return nil, fmt.Errorf("background stats refresh failed for %q/%s", name, period)
-				}
-				return encoded, nil
-			})
+		// Unmarshal before triggering any background refresh: a corrupt entry
+		// must take only the synchronous fetch path below, not both a
+		// background refresh AND a synchronous re-fetch.
+		if err := json.Unmarshal(data, &combined); err == nil {
+			if !fresh {
+				// Background revalidation: re-fetch and update cache silently.
+				// cache.RefreshInBackground deduplicates concurrent refreshes for
+				// the same key via singleflight. fetchAndCache already calls
+				// h.cache.Set internally; returning the encoded bytes here causes
+				// an idempotent second write with the same value, which is harmless.
+				cache.RefreshInBackground(h.cache, cacheKey, statsTTL, func() ([]byte, error) {
+					refreshed := h.fetchAndCache(context.Background(), name, period, cfg, cacheKey)
+					if refreshed == nil {
+						return nil, fmt.Errorf("background stats refresh failed for %q/%s", name, period)
+					}
+					return refreshed, nil
+				})
+			}
+			return combined, data, true
 		}
-		return
+		// Fall through to a synchronous fetch if the cached blob is corrupt.
 	}
 
 	// Cache miss — fetch synchronously.
-	encoded := h.fetchAndCache(r.Context(), name, period, cfg, cacheKey)
+	encoded = h.fetchAndCache(r.Context(), name, period, cfg, cacheKey)
 	if encoded == nil {
+		return CombinedStats{}, nil, false
+	}
+	if err := json.Unmarshal(encoded, &combined); err != nil {
+		return CombinedStats{}, nil, false
+	}
+	return combined, encoded, true
+}
+
+// Get handles GET /api/packages/{name}/stats?period=4w.
+func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	_, encoded, ok := h.resolveStats(r, name)
+	if !ok {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -103,6 +122,46 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(encoded) //nolint:errcheck
+}
+
+// GetText handles GET /api/packages/{name}/stats.txt?period=4w.
+func (h *StatsHandler) GetText(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	combined, _, ok := h.resolveStats(r, name)
+	if !ok {
+		http.Error(w, "failed to fetch stats", http.StatusInternalServerError)
+		return
+	}
+
+	input := textfmt.StatsInput{
+		Package:        combined.Package,
+		Period:         combined.Period,
+		Overall:        toStatPoints(combined.Overall),
+		PythonVersions: toStatPoints(combined.PythonVersions),
+		Systems:        toStatPoints(combined.Systems),
+	}
+	if combined.DateRange != nil {
+		input.DateFrom = combined.DateRange.From
+		input.DateTo = combined.DateRange.To
+	}
+
+	body := textfmt.FormatStats(input)
+
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(body)) //nolint:errcheck
+}
+
+// toStatPoints maps stats.DataPoint (Category label) to textfmt.StatPoint.
+func toStatPoints(points []stats.DataPoint) []textfmt.StatPoint {
+	if len(points) == 0 {
+		return nil
+	}
+	out := make([]textfmt.StatPoint, len(points))
+	for i, p := range points {
+		out[i] = textfmt.StatPoint{Label: p.Category, Downloads: p.Downloads}
+	}
+	return out
 }
 
 // filterByDate removes data points whose date falls outside the window.

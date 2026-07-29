@@ -106,6 +106,7 @@ func main() {
 
 	limiter := mw.NewRateLimiter(30, 60) // 30 req/s sustained, burst of 60
 	r.Use(limiter.Limit)
+	r.Use(mw.NegotiateText)
 
 	// Most routes get a 30s timeout.
 	r.Group(func(r chi.Router) {
@@ -120,6 +121,7 @@ func main() {
 		r.Get("/api/packages/{name}/changelog", changelogHandler.Get)
 		r.Get("/api/packages/{name}/changelog.txt", changelogHandler.GetText)
 		r.Get("/api/packages/{name}/stats", statsHandler.Get)
+		r.Get("/api/packages/{name}/stats.txt", statsHandler.GetText)
 		r.Get("/api/packages/{name}/security", securityHandler.Get)
 		r.Get("/api/packages/{name}/security.txt", securityHandler.GetText)
 		r.Get("/api/packages/{name}/summary.txt", summaryHandler.Get)
@@ -130,6 +132,7 @@ func main() {
 		r.Get("/api/compare", compareHandler.GetJSON)
 		r.Get("/api/compare.txt", compareHandler.Get)
 		r.Get("/api/popular", popularHandler.Get)
+		r.Get("/api/popular.txt", popularHandler.GetText)
 		r.Get("/api/sitemap/popular", sitemapHandler.Popular)
 		r.Get("/api/sitemap/cached", sitemapHandler.Cached)
 		r.Get("/llms.txt", llmsHandler.ServeHTTP)
@@ -146,8 +149,12 @@ func main() {
 	srv := &http.Server{
 		Addr:           ":" + port,
 		Handler:        r,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   60 * time.Second,
+		ReadTimeout: 15 * time.Second,
+		// Must exceed the 60s docs/diff handler timeout above (its clock starts
+		// on header-read, same as this one) — and Caddyfile's edge write timeout
+		// must in turn exceed this, so a cold docs.txt extraction is never
+		// severed at the origin before Caddy's proxy has a chance to.
+		WriteTimeout:   75 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
