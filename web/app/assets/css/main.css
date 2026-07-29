@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap");
+/* Geist and Geist Mono are self-hosted by @nuxt/fonts (see nuxt.config.ts),
+   which generates the @font-face rules from the font-family declarations
+   below. Do not reintroduce an `@import url(...)` to Google Fonts here — the
+   Vite build strips it, and the fonts then never load at all. */
 
 @theme inline {
   --color-base: var(--color-base);
