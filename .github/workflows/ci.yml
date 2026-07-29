@@ -157,6 +157,22 @@ jobs:
         working-directory: web
         run: pnpm run build
 
+  caddyfile:
+    name: Caddyfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # deploy.yml scp's this file straight onto the production host, so a
+      # syntax error here only surfaces when Caddy fails to start and the whole
+      # site is down. Validate with the same pinned image compose runs.
+      - name: Validate
+        run: |
+          docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
   web-typecheck:
     name: Web typecheck
     needs: changes
