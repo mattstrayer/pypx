@@ -73,7 +73,8 @@ docker-compose.yml      Full stack definition
 | `web/app/types/api.ts` | TypeScript type shim — re-exports from `api.gen.ts`; run `cd api && go run ./cmd/gentypes -out ../web/app/types/api.gen.ts` after changing a response struct |
 | `web/app/types/api.gen.ts` | Generated TypeScript interfaces (DO NOT EDIT — commit after regenerating) |
 | `api/cmd/gentypes/main.go` | Generator — reflects on Go response structs to emit `api.gen.ts` |
-| `web/nuxt.config.ts` | Runtime config: `apiBase` (server), `public.apiBase` (client) |
+| `web/nuxt.config.ts` | Runtime config: `apiBase` (server), `public.apiBase` (client); `fonts` (self-hosted Geist) |
+| `scripts/check-fonts-bundled.mjs` | Post-build guard: brand fonts must ship self-hosted, never from a third-party host. Run via `make check-fonts` after a web build; CI runs it in `web-build`. |
 
 ## Development Commands
 

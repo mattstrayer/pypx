@@ -38,6 +38,9 @@ lint: ## go vet (api, goopy) + oxlint (web)
 typecheck: ## Web typecheck (nuxi typecheck)
 	cd web && $(PNPM) run typecheck
 
+check-fonts: ## Verify brand fonts survive the web build (run after `cd web && pnpm build`)
+	node scripts/check-fonts-bundled.mjs
+
 gentypes: ## Regenerate web/app/types/api.gen.ts + api/internal/handler/openapi.gen.json
 	cd api && go run ./cmd/gentypes -out ../web/app/types/api.gen.ts -openapi internal/handler/openapi.gen.json
 

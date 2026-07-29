@@ -156,6 +156,8 @@ jobs:
       - name: Build
         working-directory: web
         run: pnpm run build
+      - name: Verify brand fonts are bundled
+        run: node scripts/check-fonts-bundled.mjs
 
   caddyfile:
     name: Caddyfile

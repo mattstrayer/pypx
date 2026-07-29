@@ -27,6 +27,7 @@
     "typecheck": "nuxi typecheck"
   },
   "dependencies": {
+    "@nuxt/fonts": "^0.14.0",
     "@nuxtjs/color-mode": "4.0.1",
     "@nuxtjs/seo": "5.3.2",
     "@tailwindcss/vite": "4.3.3",

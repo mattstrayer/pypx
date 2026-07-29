@@ -15,7 +15,22 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     '@nuxtjs/seo',
     '@nuxtjs/color-mode',
+    '@nuxt/fonts',
   ],
+
+  // Geist/Geist Mono used to be pulled in with an `@import url(...)` to Google
+  // Fonts at the top of main.css. That import never survived the Vite build —
+  // the deployed CSS contained zero @font-face rules, so every page silently
+  // rendered in the system fallback. @nuxt/fonts downloads the files at build
+  // time and serves them from this origin instead, which also keeps the CSP
+  // at `font-src 'self'` and removes a render-blocking third-party request.
+  fonts: {
+    defaults: { subsets: ['latin'] },
+    families: [
+      { name: 'Geist', provider: 'google', weights: [400, 500, 600, 700] },
+      { name: 'Geist Mono', provider: 'google', weights: [400, 500, 600, 700] },
+    ],
+  },
 
   colorMode: {
     classSuffix: '',
