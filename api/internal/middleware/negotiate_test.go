@@ -17,6 +17,7 @@ func newTestRouter() *chi.Mux {
 	r.Get("/api/packages/{name}.txt", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("text")) })
 	r.Get("/api/packages/{name}/docs/{symbol}", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("json")) })
 	r.Get("/api/health", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("json")) })
+	r.Get("/api/openapi.json", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("json")) })
 	r.Post("/api/packages/{name}", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("json")) })
 	return r
 }
@@ -42,6 +43,9 @@ func TestNegotiateText(t *testing.T) {
 		// though the handler here would happily return "json" either way;
 		// this pins the route-table contract, not just the response body.
 		{http.MethodGet, "text/plain", "/api/packages/httpx/docs/Client", "json"},
+		// /api/openapi.json is itself a JSON document with no .txt twin — it
+		// must never be rewritten, even under a strict text/plain preference.
+		{http.MethodGet, "text/plain", "/api/openapi.json", "json"},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(c.method, c.path, nil)
@@ -164,6 +168,7 @@ func TestHasTxtTwin(t *testing.T) {
 		{"/api/compare", true},
 		{"/api/popular", true},
 		{"/api/health", false},
+		{"/api/openapi.json", false},
 		{"/api/packages/httpx/versions", false},
 		{"/api/packages/httpx/dependencies", false},
 		{"/api/packages/httpx.txt", false},

@@ -1,5 +1,7 @@
-// gentypes generates TypeScript interface definitions from Go response structs.
-// Usage: go run ./cmd/gentypes -out ../web/app/types/api.gen.ts
+// gentypes generates TypeScript interface definitions from Go response structs,
+// and (optionally) the OpenAPI 3.1 description of the HTTP surface.
+// Usage: go run ./cmd/gentypes -out ../web/app/types/api.gen.ts \
+//	-openapi internal/handler/openapi.gen.json
 package main
 
 import (
@@ -25,6 +27,7 @@ import (
 // contract is the ordered list of types to emit. Order matches api.ts.
 // Each entry is a zero-value of the struct to emit.
 var contract = []any{
+	handler.APIRootResponse{},
 	handler.PackageResponse{},
 	handler.FileInfo{},
 	enrichment.PythonVersionInfo{},
@@ -78,7 +81,8 @@ var fieldTypeOverrides = map[string]string{
 }
 
 func main() {
-	out := flag.String("out", "", "output file path (required)")
+	out := flag.String("out", "", "TypeScript output file path (required)")
+	openapiOut := flag.String("openapi", "", "OpenAPI 3.1 JSON output file path (optional)")
 	flag.Parse()
 	if *out == "" {
 		fmt.Fprintln(os.Stderr, "gentypes: -out flag is required")
@@ -90,12 +94,30 @@ func main() {
 		fmt.Fprintf(os.Stderr, "gentypes: %v\n", err)
 		os.Exit(1)
 	}
+	writeOut(*out, buf)
 
-	if err := os.WriteFile(*out, buf, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "gentypes: write %s: %v\n", *out, err)
+	if *openapiOut != "" {
+		doc, err := buildOpenAPI(contract, routes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gentypes: openapi: %v\n", err)
+			os.Exit(1)
+		}
+		spec, err := marshalOpenAPI(doc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gentypes: openapi: %v\n", err)
+			os.Exit(1)
+		}
+		writeOut(*openapiOut, spec)
+	}
+}
+
+// writeOut writes buf to path, exiting non-zero on failure.
+func writeOut(path string, buf []byte) {
+	if err := os.WriteFile(path, buf, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "gentypes: write %s: %v\n", path, err)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "gentypes: wrote %s (%d bytes)\n", *out, len(buf))
+	fmt.Fprintf(os.Stderr, "gentypes: wrote %s (%d bytes)\n", path, len(buf))
 }
 
 // generate produces the TypeScript source for the given contract types.

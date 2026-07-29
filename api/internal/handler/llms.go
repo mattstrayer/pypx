@@ -71,9 +71,10 @@ const llmsBody = `
 Same data as .txt, structured. GET /api returns a JSON pointer to this file.
 
 - /api/packages/{name} — metadata; /versions, /dependencies, /stats?period=4w|3m|6m
-- /api/packages/{name}/changelog | /security?version= | /extras | /docs | /docs/{symbol} | /diff?from=&to=
+- /api/packages/{name}/changelog | /security?version= | /extras | /docs | /diff?from=&to=
 - /api/search?q=&limit= | /api/compare?pkgs= | /api/popular?limit= (default 12, max 50) | /api/health
-- Drop ` + "`.txt`" + ` from any Endpoints route for JSON; /versions, /dependencies, /health are JSON-only.
+- Drop ` + "`.txt`" + ` for JSON — except summary/symbols/docs/{symbol} (text-only). /versions, /dependencies, /health: JSON-only.
+- /api/openapi.json — OpenAPI 3.1 spec for the JSON API.
 
 ## Rate limits
 

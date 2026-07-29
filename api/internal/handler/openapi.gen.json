@@ -1,0 +1,3900 @@
+{
+  "components": {
+    "schemas": {
+      "APIChange": {
+        "properties": {
+          "FromSig": {
+            "type": "string"
+          },
+          "Path": {
+            "type": "string"
+          },
+          "ToSig": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Path",
+          "FromSig",
+          "ToSig"
+        ],
+        "type": "object"
+      },
+      "APIDiff": {
+        "properties": {
+          "Added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "AddedTruncated": {
+            "type": "integer"
+          },
+          "Changed": {
+            "items": {
+              "$ref": "#/components/schemas/APIChange"
+            },
+            "type": "array"
+          },
+          "ChangedTruncated": {
+            "type": "integer"
+          },
+          "Removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "RemovedTruncated": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "Added",
+          "Removed",
+          "Changed",
+          "AddedTruncated",
+          "RemovedTruncated",
+          "ChangedTruncated"
+        ],
+        "type": "object"
+      },
+      "APIRootResponse": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "llms": {
+            "type": "string"
+          },
+          "openapi": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "llms",
+          "openapi",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ChangelogResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array"
+          },
+          "package": {
+            "type": "string"
+          },
+          "repo_url": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "source",
+          "repo_url",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "CombinedStats": {
+        "properties": {
+          "date_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall": {
+            "items": {
+              "$ref": "#/components/schemas/DataPoint"
+            },
+            "type": "array"
+          },
+          "package": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "python_versions": {
+            "items": {
+              "$ref": "#/components/schemas/DataPoint"
+            },
+            "type": "array"
+          },
+          "systems": {
+            "items": {
+              "$ref": "#/components/schemas/DataPoint"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "package",
+          "period",
+          "overall",
+          "python_versions",
+          "systems"
+        ],
+        "type": "object"
+      },
+      "CompareInput": {
+        "properties": {
+          "Packages": {
+            "items": {
+              "$ref": "#/components/schemas/ComparePackageInput"
+            },
+            "type": "array"
+          },
+          "Skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedPackage"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "Skipped",
+          "Packages"
+        ],
+        "type": "object"
+      },
+      "ComparePackageInput": {
+        "properties": {
+          "DepCount": {
+            "type": "integer"
+          },
+          "DocURL": {
+            "type": "string"
+          },
+          "Downloads30d": {
+            "type": "integer"
+          },
+          "InstallSize": {
+            "type": "integer"
+          },
+          "LastReleasedDate": {
+            "type": "string"
+          },
+          "License": {
+            "type": "string"
+          },
+          "ModuleFormat": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "PythonMin": {
+            "type": "string"
+          },
+          "ReleasesLast12Mo": {
+            "type": "integer"
+          },
+          "RepoURL": {
+            "type": "string"
+          },
+          "Summary": {
+            "type": "string"
+          },
+          "Typed": {
+            "type": "string"
+          },
+          "Version": {
+            "type": "string"
+          },
+          "VulnCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "Name",
+          "Version",
+          "Summary",
+          "License",
+          "PythonMin",
+          "InstallSize",
+          "ModuleFormat",
+          "LastReleasedDate",
+          "ReleasesLast12Mo",
+          "DepCount",
+          "Downloads30d",
+          "VulnCount",
+          "Typed",
+          "RepoURL",
+          "DocURL"
+        ],
+        "type": "object"
+      },
+      "CondaForgeInfo": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "type": "object"
+      },
+      "DataPoint": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "downloads": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "downloads"
+        ],
+        "type": "object"
+      },
+      "DateRange": {
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "DepBump": {
+        "properties": {
+          "FromConstraint": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "ToConstraint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Name",
+          "FromConstraint",
+          "ToConstraint"
+        ],
+        "type": "object"
+      },
+      "DepDiff": {
+        "properties": {
+          "Added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "Bumped": {
+            "items": {
+              "$ref": "#/components/schemas/DepBump"
+            },
+            "type": "array"
+          },
+          "Removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "Added",
+          "Removed",
+          "Bumped"
+        ],
+        "type": "object"
+      },
+      "Dependency": {
+        "properties": {
+          "constraint": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "constraint"
+        ],
+        "type": "object"
+      },
+      "DependencyTree": {
+        "properties": {
+          "extras": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Dependency"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "required": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "required",
+          "extras"
+        ],
+        "type": "object"
+      },
+      "DiffInput": {
+        "properties": {
+          "APIChanges": {
+            "$ref": "#/components/schemas/APIDiff"
+          },
+          "APIChangesUnavailable": {
+            "type": "string"
+          },
+          "Changelog": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array"
+          },
+          "ChangelogUnavailable": {
+            "type": "string"
+          },
+          "DepChanges": {
+            "$ref": "#/components/schemas/DepDiff"
+          },
+          "DepChangesUnavailable": {
+            "type": "string"
+          },
+          "From": {
+            "type": "string"
+          },
+          "Package": {
+            "type": "string"
+          },
+          "To": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Package",
+          "From",
+          "To",
+          "Changelog",
+          "ChangelogUnavailable",
+          "DepChanges",
+          "DepChangesUnavailable",
+          "APIChanges",
+          "APIChangesUnavailable"
+        ],
+        "type": "object"
+      },
+      "DocModule": {
+        "properties": {
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/DocSymbol"
+            },
+            "type": "array"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/DocSymbol"
+            },
+            "type": "array"
+          },
+          "functions": {
+            "items": {
+              "$ref": "#/components/schemas/DocSymbol"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "functions",
+          "classes",
+          "exceptions"
+        ],
+        "type": "object"
+      },
+      "DocParam": {
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "type": "object"
+      },
+      "DocRaise": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "description"
+        ],
+        "type": "object"
+      },
+      "DocReturn": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description"
+        ],
+        "type": "object"
+      },
+      "DocSymbol": {
+        "properties": {
+          "docstring": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "function",
+              "class",
+              "exception"
+            ],
+            "type": "string"
+          },
+          "methods": {
+            "items": {
+              "$ref": "#/components/schemas/DocSymbol"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/DocParam"
+            },
+            "type": "array"
+          },
+          "raises": {
+            "items": {
+              "$ref": "#/components/schemas/DocRaise"
+            },
+            "type": "array"
+          },
+          "returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocReturn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "signature",
+          "docstring",
+          "parameters"
+        ],
+        "type": "object"
+      },
+      "DocsResponse": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/DocModule"
+            },
+            "type": "array"
+          },
+          "package": {
+            "type": "string"
+          },
+          "stub_package": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "version",
+          "available",
+          "modules"
+        ],
+        "type": "object"
+      },
+      "Entry": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "body_html": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "tag_name",
+          "title",
+          "body",
+          "body_html",
+          "published_at",
+          "url"
+        ],
+        "type": "object"
+      },
+      "ExtrasResponse": {
+        "properties": {
+          "conda_forge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CondaForgeInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "package": {
+            "type": "string"
+          },
+          "repo_info": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepoInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type_support": {
+            "$ref": "#/components/schemas/TypeSupport"
+          }
+        },
+        "required": [
+          "package",
+          "type_support",
+          "conda_forge"
+        ],
+        "type": "object"
+      },
+      "FileInfo": {
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "package_type": {
+            "type": "string"
+          },
+          "python_version": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "upload_time": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "size",
+          "package_type",
+          "python_version",
+          "upload_time"
+        ],
+        "type": "object"
+      },
+      "Maintainer": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ],
+        "type": "object"
+      },
+      "PackageEntry": {
+        "properties": {
+          "downloads": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "summary",
+          "downloads"
+        ],
+        "type": "object"
+      },
+      "PackageResponse": {
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "author_email": {
+            "type": "string"
+          },
+          "classifiers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependencies": {
+            "$ref": "#/components/schemas/DependencyTree"
+          },
+          "description": {
+            "type": "string"
+          },
+          "description_content_type": {
+            "type": "string"
+          },
+          "description_html": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "home_page": {
+            "type": "string"
+          },
+          "install_size": {
+            "type": "integer"
+          },
+          "latest_files": {
+            "items": {
+              "$ref": "#/components/schemas/FileInfo"
+            },
+            "type": "array"
+          },
+          "license": {
+            "type": "string"
+          },
+          "maintainers": {
+            "items": {
+              "$ref": "#/components/schemas/Maintainer"
+            },
+            "type": "array"
+          },
+          "module_format": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "platform_coverage": {
+            "$ref": "#/components/schemas/PlatformCoverage"
+          },
+          "project_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "python_versions": {
+            "$ref": "#/components/schemas/PythonVersionInfo"
+          },
+          "release_cadence": {
+            "$ref": "#/components/schemas/ReleaseCadence"
+          },
+          "requires_dist": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requires_python": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "summary",
+          "description",
+          "description_content_type",
+          "description_html",
+          "license",
+          "author",
+          "author_email",
+          "home_page",
+          "requires_python",
+          "requires_dist",
+          "project_urls",
+          "classifiers",
+          "latest_files",
+          "install_size",
+          "module_format",
+          "python_versions",
+          "dependencies",
+          "platform_coverage",
+          "release_cadence",
+          "maintainers",
+          "doc_url"
+        ],
+        "type": "object"
+      },
+      "PlatformCoverage": {
+        "properties": {
+          "linux_arm64": {
+            "type": "boolean"
+          },
+          "linux_x86_64": {
+            "type": "boolean"
+          },
+          "macos_arm64": {
+            "type": "boolean"
+          },
+          "macos_x86_64": {
+            "type": "boolean"
+          },
+          "musl": {
+            "type": "boolean"
+          },
+          "pure_python": {
+            "type": "boolean"
+          },
+          "windows_x86_64": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pure_python",
+          "linux_x86_64",
+          "linux_arm64",
+          "macos_x86_64",
+          "macos_arm64",
+          "windows_x86_64",
+          "musl"
+        ],
+        "type": "object"
+      },
+      "PythonVersionInfo": {
+        "properties": {
+          "constraint": {
+            "type": "string"
+          },
+          "min_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "constraint",
+          "min_version"
+        ],
+        "type": "object"
+      },
+      "QuarterCount": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "quarter": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quarter",
+          "count"
+        ],
+        "type": "object"
+      },
+      "ReleaseCadence": {
+        "properties": {
+          "avg_days_between_releases": {
+            "type": "number"
+          },
+          "last_released_at": {
+            "type": "string"
+          },
+          "quarterly_counts": {
+            "items": {
+              "$ref": "#/components/schemas/QuarterCount"
+            },
+            "type": "array"
+          },
+          "releases_last_12mo": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "releases_last_12mo",
+          "avg_days_between_releases",
+          "last_released_at",
+          "quarterly_counts"
+        ],
+        "type": "object"
+      },
+      "RepoInfo": {
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "forks": {
+            "type": "integer"
+          },
+          "last_pushed_at": {
+            "type": "string"
+          },
+          "open_issues": {
+            "type": "integer"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/RepoOwner"
+          },
+          "stars": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stars",
+          "forks",
+          "open_issues",
+          "last_pushed_at",
+          "archived",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "RepoOwner": {
+        "properties": {
+          "avatar_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "is_org": {
+            "type": "boolean"
+          },
+          "login": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "login",
+          "avatar_url",
+          "display_name",
+          "url",
+          "is_org"
+        ],
+        "type": "object"
+      },
+      "SecurityResponse": {
+        "properties": {
+          "checked_at": {
+            "type": "string"
+          },
+          "package": {
+            "type": "string"
+          },
+          "vulns": {
+            "items": {
+              "$ref": "#/components/schemas/VulnInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "package",
+          "vulns",
+          "checked_at"
+        ],
+        "type": "object"
+      },
+      "SkippedPackage": {
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "Reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Name",
+          "Reason"
+        ],
+        "type": "object"
+      },
+      "TypeSupport": {
+        "properties": {
+          "status": {
+            "enum": [
+              "typed",
+              "stubs",
+              "untyped"
+            ],
+            "type": "string"
+          },
+          "stubs_package": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "VersionInfo": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileInfo"
+            },
+            "type": "array"
+          },
+          "install_size": {
+            "type": "integer"
+          },
+          "module_format": {
+            "type": "string"
+          },
+          "upload_time": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "install_size",
+          "module_format",
+          "upload_time",
+          "files"
+        ],
+        "type": "object"
+      },
+      "VulnInfo": {
+        "properties": {
+          "affected_range": {
+            "type": "string"
+          },
+          "fixed_in": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "summary",
+          "severity",
+          "affected_range",
+          "url"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "A modern, agent-friendly frontend for the Python Package Index. Every JSON endpoint listed here that has a `.txt` sibling also honours `Accept: text/plain`, returning the plain-text representation instead. All responses are cacheable; requests are rate limited to 30 req/s (burst 60) per client at the origin, reported via the X-RateLimit-* headers and a 429 response. The edge additionally enforces 60 req/min per IP on /api/*, with a 10-minute block for IPs that exceed it.",
+    "license": {
+      "identifier": "MIT",
+      "name": "MIT"
+    },
+    "title": "pypx API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api": {
+      "get": {
+        "description": "Machine-readable index of the API surface. Agents probing the root get a pointer to /llms.txt rather than a 404. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIRootResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "API root index"
+      }
+    },
+    "/api/": {
+      "get": {
+        "description": "Identical to GET /api. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiIndex",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIRootResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "API root index (trailing-slash alias)"
+      }
+    },
+    "/api/compare": {
+      "get": {
+        "description": "Compares up to 5 packages on downloads, maintenance, typing, and vulnerabilities. Sending `Accept: text/plain` returns the plain-text representation served at `/api/compare.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiCompare",
+        "parameters": [
+          {
+            "description": "Comma-separated package names, 1-5 entries.",
+            "in": "query",
+            "name": "pkgs",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareInput"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Missing or invalid query parameter."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Side-by-side package comparison"
+      }
+    },
+    "/api/compare.txt": {
+      "get": {
+        "description": "Compares up to 5 packages on downloads, maintenance, typing, and vulnerabilities. Plain-text representation of GET /api/compare. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiCompareTxt",
+        "parameters": [
+          {
+            "description": "Comma-separated package names, 1-5 entries.",
+            "in": "query",
+            "name": "pkgs",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Missing or invalid query parameter."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Side-by-side package comparison (text)"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Liveness probe"
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "description": "The generated OpenAPI 3.1 spec describing this JSON API, including this route. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiOpenapiJson",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "OpenAPI 3.1 document"
+      }
+    },
+    "/api/packages/{name}": {
+      "get": {
+        "description": "PyPI metadata enriched with dependencies, wheel/platform coverage, release cadence and maintainers. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByName",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Enriched package metadata"
+      }
+    },
+    "/api/packages/{name}.txt": {
+      "get": {
+        "description": "PyPI metadata enriched with dependencies, wheel/platform coverage, release cadence and maintainers. Plain-text representation of GET /api/packages/{name}. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Enriched package metadata (text)"
+      }
+    },
+    "/api/packages/{name}/changelog": {
+      "get": {
+        "description": "Release notes gathered from GitHub/GitLab releases, tags, or an in-repo changelog file. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/changelog.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameChangelog",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangelogResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Changelog entries"
+      }
+    },
+    "/api/packages/{name}/changelog.txt": {
+      "get": {
+        "description": "Release notes gathered from GitHub/GitLab releases, tags, or an in-repo changelog file. Plain-text representation of GET /api/packages/{name}/changelog. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameChangelogTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Changelog entries (text)"
+      }
+    },
+    "/api/packages/{name}/dependencies": {
+      "get": {
+        "description": "PEP 508 `requires_dist` parsed into required dependencies and extras. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameDependencies",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependencyTree"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Parsed dependency tree"
+      }
+    },
+    "/api/packages/{name}/diff": {
+      "get": {
+        "description": "Changelog slice, dependency changes, and public API changes between two releases. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/diff.txt` instead of JSON. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDiff",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Older version.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Newer version. Must be strictly newer than from.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffInput"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name, or a missing or invalid query parameter."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Version-to-version diff"
+      }
+    },
+    "/api/packages/{name}/diff.txt": {
+      "get": {
+        "description": "Changelog slice, dependency changes, and public API changes between two releases. Plain-text representation of GET /api/packages/{name}/diff. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDiffTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Older version.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Newer version. Must be strictly newer than from.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name, or a missing or invalid query parameter."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Version-to-version diff (text)"
+      }
+    },
+    "/api/packages/{name}/docs": {
+      "get": {
+        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest wheel. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/docs.txt` instead of JSON. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDocs",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocsResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Extracted API documentation"
+      }
+    },
+    "/api/packages/{name}/docs.txt": {
+      "get": {
+        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest wheel. Plain-text representation of GET /api/packages/{name}/docs. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDocsTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only render symbols under this dotted path prefix.",
+            "in": "query",
+            "name": "prefix",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Extracted API documentation (text)"
+      }
+    },
+    "/api/packages/{name}/docs/{symbol}": {
+      "get": {
+        "description": "Renders one symbol's signature and docstring. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDocsBySymbol",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Dotted symbol path, optionally module-qualified (e.g. \"Client\" or \"httpx.Client\"). A trailing \".txt\" is ignored.",
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Documentation for a single symbol (text only)"
+      }
+    },
+    "/api/packages/{name}/extras": {
+      "get": {
+        "description": "Type-checking support, conda-forge availability, and repository health signals. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/extras.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameExtras",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtrasResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Supplementary signals"
+      }
+    },
+    "/api/packages/{name}/extras.txt": {
+      "get": {
+        "description": "Type-checking support, conda-forge availability, and repository health signals. Plain-text representation of GET /api/packages/{name}/extras. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameExtrasTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Supplementary signals (text)"
+      }
+    },
+    "/api/packages/{name}/security": {
+      "get": {
+        "description": "OSV advisories affecting the package. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/security.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameSecurity",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict advisories to this version. Defaults to the latest release.",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Known vulnerabilities"
+      }
+    },
+    "/api/packages/{name}/security.txt": {
+      "get": {
+        "description": "OSV advisories affecting the package. Plain-text representation of GET /api/packages/{name}/security. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameSecurityTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict advisories to this version. Defaults to the latest release.",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Known vulnerabilities (text)"
+      }
+    },
+    "/api/packages/{name}/stats": {
+      "get": {
+        "description": "Download counts, weekly series, and Python-version / system breakdowns from pypistats.org. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/stats.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameStats",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reporting window. Defaults to 4w; unknown values fall back to 4w.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4w",
+                "3m",
+                "6m"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CombinedStats"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Download statistics"
+      }
+    },
+    "/api/packages/{name}/stats.txt": {
+      "get": {
+        "description": "Download counts, weekly series, and Python-version / system breakdowns from pypistats.org. Plain-text representation of GET /api/packages/{name}/stats. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameStatsTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reporting window. Defaults to 4w; unknown values fall back to 4w.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4w",
+                "3m",
+                "6m"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Download statistics (text)"
+      }
+    },
+    "/api/packages/{name}/summary.txt": {
+      "get": {
+        "description": "Condensed overview combining metadata and security signals. No JSON representation exists. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameSummaryTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "One-screen package summary (text only)"
+      }
+    },
+    "/api/packages/{name}/symbols.txt": {
+      "get": {
+        "description": "Flat, filterable list of every extracted symbol. No JSON representation exists. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameSymbolsTxt",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Substring filter on the symbol path.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict to one symbol kind.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "function",
+                "class",
+                "exception"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum symbols, 1-500. Defaults to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Symbol index (text only)"
+      }
+    },
+    "/api/packages/{name}/versions": {
+      "get": {
+        "description": "All published versions with their distribution files, newest first. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiPackagesByNameVersions",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VersionInfo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Release history"
+      }
+    },
+    "/api/popular": {
+      "get": {
+        "description": "Top packages by 30-day download count. Sending `Accept: text/plain` returns the plain-text representation served at `/api/popular.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiPopular",
+        "parameters": [
+          {
+            "description": "Maximum results, 1-50. Defaults to 12.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PackageEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Most-downloaded packages"
+      }
+    },
+    "/api/popular.txt": {
+      "get": {
+        "description": "Top packages by 30-day download count. Plain-text representation of GET /api/popular. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiPopularTxt",
+        "parameters": [
+          {
+            "description": "Maximum results, 1-50. Defaults to 12.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Most-downloaded packages (text)"
+      }
+    },
+    "/api/search": {
+      "get": {
+        "description": "SQLite FTS5 search across package names and summaries, ranked by relevance and downloads. Sending `Accept: text/plain` returns the plain-text representation served at `/api/search.txt` instead of JSON. Server-side timeout: 30s.",
+        "operationId": "getApiSearch",
+        "parameters": [
+          {
+            "description": "Search query.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results, 1-100. Defaults to 20.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PackageEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Missing or invalid query parameter."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Full-text package search"
+      }
+    },
+    "/api/search.txt": {
+      "get": {
+        "description": "SQLite FTS5 search across package names and summaries, ranked by relevance and downloads. Plain-text representation of GET /api/search. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 30s.",
+        "operationId": "getApiSearchTxt",
+        "parameters": [
+          {
+            "description": "Search query.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results, 1-100. Defaults to 20.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Missing or invalid query parameter."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Full-text package search (text)"
+      }
+    },
+    "/api/sitemap/cached": {
+      "get": {
+        "description": "Names of every package fetched and cached at least once. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiSitemapCached",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "packages": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "packages"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Cached package names for sitemap generation"
+      }
+    },
+    "/api/sitemap/popular": {
+      "get": {
+        "description": "Names of the top 5,000 packages by download count. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 30s.",
+        "operationId": "getApiSitemapPopular",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "packages": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "packages"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Popular package names for sitemap generation"
+      }
+    },
+    "/llms.txt": {
+      "get": {
+        "description": "Index of the plain-text and JSON endpoints available on this API, per the llms.txt convention. Server-side timeout: 30s.",
+        "operationId": "getLlmsTxt",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Plain-text representation."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Agent discovery index (text only)"
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Production",
+      "url": "https://pypx.app"
+    }
+  ]
+}
