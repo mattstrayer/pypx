@@ -1,0 +1,40 @@
+name: Agent access check
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/check-agent-access.sh
+      - .github/workflows/agent-access.yml
+
+concurrency:
+  group: agent-access-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify agent-facing surface is unchallenged
+        run: |
+          set +e
+          ./scripts/check-agent-access.sh
+          rc=$?
+          set -e
+          if [ "$rc" = "1" ]; then
+            echo "::error::agent surface is blocked/challenged"
+            exit 1
+          elif [ "$rc" = "2" ]; then
+            echo "::warning::network errors during check (not a block signal)"
+            exit 0
+          fi
+          exit 0
