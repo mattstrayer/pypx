@@ -151,7 +151,10 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       <div class="mb-4 flex items-center gap-3">
         <span class="text-xs font-semibold uppercase tracking-[0.07em] text-muted">Trending</span>
         <div class="h-px flex-1 bg-subtle" />
-        <span class="font-mono text-[11.5px] text-muted opacity-70">
+        <!-- No opacity utility on text: text-muted is already close to the
+             WCAG AA floor, so dimming it further drops small text below 4.5:1
+             (2.68:1 in light mode). Use the token at full strength. -->
+        <span class="font-mono text-[11.5px] text-muted">
           top 15 by downloads · data from
           <a
             href="https://github.com/hugovk/top-pypi-packages"
@@ -163,7 +166,7 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
         </span>
         <NuxtLink
           to="/popular"
-          class="font-mono text-[11.5px] text-muted underline decoration-dotted underline-offset-2 opacity-70 hover:text-primary hover:opacity-100"
+          class="font-mono text-[11.5px] text-muted underline decoration-dotted underline-offset-2 hover:text-primary"
           >View all →</NuxtLink
         >
       </div>

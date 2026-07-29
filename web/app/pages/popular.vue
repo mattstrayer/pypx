@@ -30,7 +30,8 @@ defineOgImage("SiteCard", {}, { width: 1200, height: 630 });
       <div class="mb-4 flex items-center gap-3">
         <span class="text-xs font-semibold uppercase tracking-[0.07em] text-muted">Top 50</span>
         <div class="h-px flex-1 bg-subtle" />
-        <span class="font-mono text-[11.5px] text-muted opacity-70">
+        <!-- See index.vue: no opacity utility on text, it breaks AA contrast. -->
+        <span class="font-mono text-[11.5px] text-muted">
           by downloads · data from
           <a
             href="https://github.com/hugovk/top-pypi-packages"
