@@ -21,7 +21,24 @@
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'"
+        # script-src must allow static.cloudflareinsights.com: Cloudflare
+        # auto-injects the Web Analytics beacon, and without this the browser
+        # blocks it — which logged a CSP error on every page load AND meant Web
+        # Analytics recorded nothing at all.
+        #
+        # The host is allowed rather than Cloudflare's documented
+        # `.../beacon.min.js`, because auto-injection serves the script from a
+        # versioned sub-path (`/beacon.min.js/v4513...`). CSP source paths that
+        # do not end in "/" are matched exactly, so the documented value does
+        # not match the URL Cloudflare actually injects — verified in Chrome.
+        #
+        # connect-src stays 'self': under auto-injection the beacon reports to
+        # this origin, so it needs no third-party connect entry.
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'"
+        # Isolate this browsing context group from cross-origin openers. Safe
+        # here: the app opens no popups and holds no cross-origin window
+        # handles — every external link is target="_blank" rel="noopener".
+        Cross-Origin-Opener-Policy "same-origin"
         -Server
     }
 
