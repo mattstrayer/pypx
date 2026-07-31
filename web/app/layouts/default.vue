@@ -2,6 +2,12 @@
 const route = useRoute();
 const isHomepage = computed(() => route.path === "/");
 
+// Bound rather than inlined in the template: the UTM query uses bare `&`, and
+// routing it through a JS string sidesteps any HTML-entity decoding question
+// in the attribute. Their attribution depends on these params arriving intact.
+const nickLaunchesUrl =
+  "https://nicklaunches.com/products/pypx/?utm_source=pypx.app&utm_medium=badge&utm_campaign=featured";
+
 const sources = [
   { label: "PyPI", href: "https://pypi.org" },
   { label: "pypistats.org", href: "https://pypistats.org" },
@@ -61,6 +67,42 @@ const sources = [
             <span v-if="i < sources.length - 1" aria-hidden="true" class="opacity-50">·</span>
           </template>
         </span>
+        <!-- Nick Launches requires this backlink to stay live for the listing to
+             remain published on the free tier, so treat it as load-bearing.
+             `rel` is deliberately noopener WITHOUT noreferrer, unlike the links
+             above: stripping the Referer header would hide pypx from their
+             referral attribution, which is the traffic we get back.
+             Both badge variants ship with an opaque background, so neither one
+             reads correctly on the opposite theme — hence the dark: swap rather
+             than a single image. -->
+        <a
+          :href="nickLaunchesUrl"
+          target="_blank"
+          rel="noopener"
+          class="inline-block shrink-0 py-1"
+        >
+          <!-- Only ever one of these is in the a11y tree — the other is
+               display:none — so the visible alt is the link's accessible name.
+               Text matches the snippet Nick Launches issued for this listing. -->
+          <img
+            src="https://nicklaunches.com/badges/featured.png"
+            alt="pypx on Nick Launches"
+            width="240"
+            height="56"
+            loading="lazy"
+            decoding="async"
+            class="h-14 w-auto dark:hidden"
+          />
+          <img
+            src="https://nicklaunches.com/badges/featured-dark.png"
+            alt="pypx on Nick Launches"
+            width="240"
+            height="56"
+            loading="lazy"
+            decoding="async"
+            class="hidden h-14 w-auto dark:block"
+          />
+        </a>
       </div>
     </footer>
   </div>
