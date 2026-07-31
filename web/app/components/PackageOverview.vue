@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTimeAgo } from "@vueuse/core";
+import { useTimeAgo, useMediaQuery } from "@vueuse/core";
 import type { PackageData, RepoInfo } from "~/types/api";
 
 const props = defineProps<{
@@ -34,6 +34,20 @@ const allLinks = computed(() => {
   }
   return links;
 });
+
+const isDesktop = useMediaQuery("(min-width: 1024px)");
+const adKeywords = computed(() => deriveAdKeywords(props.pkg.classifiers));
+
+// Ads are client-only: useMediaQuery resolves to `false` during SSR (no
+// window), so the server would otherwise render the mobile slot into the
+// initial HTML while the client's first render (already knowing the real
+// viewport) picks a different branch — a structural hydration mismatch.
+// Gating both slots on `mounted` keeps the server output ad-free and lets
+// the client mount exactly one slot after hydration completes.
+const mounted = ref(false);
+onMounted(() => {
+  mounted.value = true;
+});
 </script>
 
 <template>
@@ -42,6 +56,11 @@ const allLinks = computed(() => {
     <div class="min-w-0 space-y-6">
       <!-- Install command -->
       <InstallCommand :package-name="pkg.name" />
+      <AdSlot
+        v-if="mounted && !isDesktop"
+        :keywords="adKeywords"
+        placement-id="package-overview-mobile"
+      />
 
       <!-- Description -->
       <div
@@ -200,6 +219,13 @@ const allLinks = computed(() => {
       <div class="rounded-lg border border-subtle bg-surface p-4">
         <PackageMaintainers :maintainers="pkg.maintainers" :repo-info="repoInfo" />
       </div>
+
+      <AdSlot
+        v-if="mounted && isDesktop"
+        sticky
+        :keywords="adKeywords"
+        placement-id="package-overview-sidebar"
+      />
     </div>
   </div>
 </template>

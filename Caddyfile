@@ -32,9 +32,13 @@
         # do not end in "/" are matched exactly, so the documented value does
         # not match the URL Cloudflare actually injects — verified in Chrome.
         #
-        # connect-src stays 'self': under auto-injection the beacon reports to
-        # this origin, so it needs no third-party connect entry.
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'"
+        # connect-src stays 'self' for the beacon: under auto-injection it
+        # reports to this origin, so it needs no third-party connect entry.
+        #
+        # EthicalAds needs its client script (media.ethicalads.io) in
+        # script-src and its ad-decision API (server.ethicalads.io) in
+        # connect-src. Creatives are covered by the existing img-src https:.
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://media.ethicalads.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://server.ethicalads.io; font-src 'self' data:; frame-ancestors 'none'"
         # Isolate this browsing context group from cross-origin openers. Safe
         # here: the app opens no popups and holds no cross-origin window
         # handles — every external link is target="_blank" rel="noopener".

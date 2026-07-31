@@ -49,6 +49,11 @@ services:
     environment:
       - NUXT_API_BASE=http://api:8080/api
       - NUXT_PUBLIC_API_BASE=/api
+      # EthicalAds publisher ID for pypx.app — public, not a secret (it ships
+      # in the served HTML). Set the variable to an explicit empty value in
+      # /opt/pypx/.env to disable ads.
+      - NUXT_PUBLIC_ADS_PUBLISHER=${NUXT_PUBLIC_ADS_PUBLISHER-pypxapp}
+      - NUXT_PUBLIC_ADS_TYPE=${NUXT_PUBLIC_ADS_TYPE:-image}
     expose:
       - "3000"
     depends_on:
