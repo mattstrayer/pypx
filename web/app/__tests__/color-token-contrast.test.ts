@@ -83,3 +83,27 @@ describe("design tokens meet WCAG AA on every surface they are used on", () => {
     });
   }
 });
+
+// Sibling of the fault above, one layer out. `--color-primary` was validated
+// against the app's own surfaces, but `.prose code` also matches `pre > code`,
+// where the surface is not a token at all: goldmark-highlighting inline-styles
+// the <pre> with Monokai's #272822 and its matching #f8f8f2 foreground. An
+// explicit colour on the child clobbered that, painting #18181b on #272822 —
+// 1.19:1. The token test could not see it because the background never appears
+// in main.css, and dark mode masked it because --color-primary is light there.
+//
+// So assert the ownership rule directly: highlighted blocks inherit their
+// foreground from whoever set the background.
+describe("highlighted code blocks do not inherit app text colour", () => {
+  const css = readFileSync(cssPath, "utf8");
+
+  it("resets colour to inherit on pre > code", () => {
+    const start = css.indexOf("& pre code {");
+    expect(start, "`& pre code` block not found in main.css").toBeGreaterThan(-1);
+    const block = css.slice(start, css.indexOf("}", start));
+
+    expect(block).toMatch(/color:\s*inherit\s*;/);
+    // A --color-* token here would re-introduce the clobber.
+    expect(block).not.toMatch(/color:\s*var\(--color-/);
+  });
+});
