@@ -61,6 +61,40 @@ const sources = [
             <span v-if="i < sources.length - 1" aria-hidden="true" class="opacity-50">·</span>
           </template>
         </span>
+        <!-- Nick Launches requires this backlink to stay live for the listing to
+             remain published on the free tier, so treat it as load-bearing.
+             `rel` is deliberately noopener WITHOUT noreferrer, unlike the links
+             above: stripping the Referer header would hide pypx from their
+             referral attribution, which is the traffic we get back.
+             Both badge variants ship with an opaque background, so neither one
+             reads correctly on the opposite theme — hence the dark: swap rather
+             than a single image. -->
+        <a
+          href="https://nicklaunches.com/"
+          target="_blank"
+          rel="noopener"
+          aria-label="Featured on Nick Launches"
+          class="inline-block shrink-0 py-1"
+        >
+          <img
+            src="https://nicklaunches.com/badges/featured.png"
+            alt=""
+            width="240"
+            height="56"
+            loading="lazy"
+            decoding="async"
+            class="h-14 w-auto dark:hidden"
+          />
+          <img
+            src="https://nicklaunches.com/badges/featured-dark.png"
+            alt=""
+            width="240"
+            height="56"
+            loading="lazy"
+            decoding="async"
+            class="hidden h-14 w-auto dark:block"
+          />
+        </a>
       </div>
     </footer>
   </div>
