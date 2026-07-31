@@ -171,6 +171,17 @@ pre,
   & pre code {
     padding: 0;
     background: none;
+    /* The `& code` rule above is meant for inline code, but it also matches
+       `pre > code`, where the syntax highlighter owns the palette: goldmark
+       emits `<pre style="color:#f8f8f2;background-color:#272822">` and an
+       explicit colour on the child clobbers it. Resetting background without
+       colour left light-mode blocks painting #18181b text on Monokai's
+       #272822 — 1.19:1, effectively invisible. Dark mode hid it because
+       --color-primary happens to be light there.
+       `inherit` hands the pair back to a single owner: the highlighter for
+       highlighted blocks, and .prose for plain fenced blocks, which carry no
+       inline colour and so still resolve to --color-primary on --color-surface. */
+    color: inherit;
   }
   & img {
     max-width: 100%;
