@@ -77,7 +77,7 @@ pypx is built on the public APIs of PyPI, pypistats, OSV, and conda-forge — a 
 - **Popular packages** — top packages by 30-day downloads — [browse →](https://pypx.app/popular)
 - **Compare** — up to 5 packages side by side — [compare →](https://pypx.app/compare)
 
-**Understand**
+**Dig deeper**
 
 - **Package insights** — install size, wheel platform coverage, Python version compatibility, release cadence
 - **Dependency tree** — parsed PEP 508 `requires_dist` with required vs. optional extras split out
