@@ -11,7 +11,7 @@ Search, dependency insights, security advisories, and API docs for 780K+ Python 
 [![Live at pypx.app](https://img.shields.io/badge/Live-pypx.app-00DC82?style=for-the-badge)](https://pypx.app)
 
 [![CI](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml)
+[![Security](https://github.com/mattstrayer/pypx/actions/workflows/security.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/security.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mattstrayer/pypx/badge)](https://scorecard.dev/viewer/?uri=github.com/mattstrayer/pypx)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://golang.org)
