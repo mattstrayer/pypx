@@ -63,9 +63,9 @@ Instant search · Dependency insights · Security advisories · API docs — one
 
 ## Why
 
-PyPI.org works — but it feels dated. No instant search, no at-a-glance insights, no dark mode, no keyboard navigation.
+Everything you want to know about a Python package, in one place: instant search, dependency trees, download trends, inline changelogs, security advisories, and API docs extracted straight from the wheels.
 
-pypx layers enriched data and modern UX on top of PyPI's public APIs. No scraping. No replacement. Just a better way to explore 780K+ packages.
+pypx is built on the public APIs of PyPI, pypistats, OSV, and conda-forge — a companion to the Python packaging ecosystem, not a replacement for any part of it. No scraping, no sign-up. Just open it and explore 780K+ packages.
 
 ---
 
