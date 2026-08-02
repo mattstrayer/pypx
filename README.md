@@ -63,7 +63,7 @@ Search, dependency insights, security advisories, and API docs for 780K+ Python 
 
 ## Why
 
-pypx pulls together the things you actually check before adding a dependency: how big it is, what it pulls in, whether it's still maintained, what changed since the version you're on, and what the API looks like — without opening six tabs.
+pypx pulls together the things you actually check before adding a new dependency or bumping an existing one: how big it is, what it pulls in, whether it's still maintained, what changed since the version you're on, and what the API looks like — without opening six tabs.
 
 Everything comes from public APIs (PyPI, pypistats, OSV, conda-forge). pypx is a companion to the packaging ecosystem, not a replacement for any part of it.
 
