@@ -24,7 +24,7 @@ Instant search · Dependency insights · Security advisories · API docs — one
 
 ---
 
-[![The pypx package page for FastAPI: metadata, install size, and version at a glance](docs/images/package-overview.webp)](https://pypx.app/packages/fastapi)
+[![The pypx package page for pydantic: metadata, install size, release cadence, and docs at a glance](docs/images/package-overview.webp)](https://pypx.app/packages/pydantic)
 
 <table>
 <tr>
