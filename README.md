@@ -6,7 +6,7 @@
 
 **The Python Package Index, reimagined.**
 
-Instant search · Dependency insights · Security advisories · API docs — one fast, modern interface for 780K+ Python packages.
+Search, dependency insights, security advisories, and API docs for 780K+ Python packages.
 
 [![Live at pypx.app](https://img.shields.io/badge/Live-pypx.app-00DC82?style=for-the-badge)](https://pypx.app)
 
@@ -30,7 +30,7 @@ Instant search · Dependency insights · Security advisories · API docs — one
 <tr>
 <td width="50%">
 <a href="https://pypx.app"><img src="docs/images/search-palette.webp" alt="Cmd+K command palette with instant fuzzy search results" /></a>
-<p align="center"><sub><b>⌘K instant search</b> — fuzzy results across 780K+ packages</sub></p>
+<p align="center"><sub><b>⌘K instant search</b> — results as you type</sub></p>
 </td>
 <td width="50%">
 <a href="https://pypx.app/packages/fastapi"><img src="docs/images/dependency-tree.webp" alt="Parsed dependency tree for FastAPI, required and optional extras split out" /></a>
@@ -63,9 +63,9 @@ Instant search · Dependency insights · Security advisories · API docs — one
 
 ## Why
 
-Everything you want to know about a Python package, in one place: instant search, dependency trees, download trends, inline changelogs, security advisories, and API docs extracted straight from the wheels.
+pypx pulls together the things you actually check before adding a dependency: how big it is, what it pulls in, whether it's still maintained, what changed since the version you're on, and what the API looks like — without opening six tabs.
 
-pypx is built on the public APIs of PyPI, pypistats, OSV, and conda-forge — a companion to the Python packaging ecosystem, not a replacement for any part of it. No scraping, no sign-up. Just open it and explore 780K+ packages.
+Everything comes from public APIs (PyPI, pypistats, OSV, conda-forge). pypx is a companion to the packaging ecosystem, not a replacement for any part of it.
 
 ---
 
@@ -73,7 +73,7 @@ pypx is built on the public APIs of PyPI, pypistats, OSV, and conda-forge — a 
 
 **Discover**
 
-- **Instant search** — FTS5-powered fuzzy search with typeahead and a `Cmd+K` command palette — [try it →](https://pypx.app)
+- **Instant search** — typeahead and a `Cmd+K` command palette, backed by SQLite FTS5 — [try it →](https://pypx.app)
 - **Popular packages** — top packages by 30-day downloads — [browse →](https://pypx.app/popular)
 - **Compare** — up to 5 packages side by side — [compare →](https://pypx.app/compare)
 
@@ -101,7 +101,7 @@ pypx is built on the public APIs of PyPI, pypistats, OSV, and conda-forge — a 
 
 ## Built for agents, too
 
-Every page has a plain-text twin. LLMs and coding agents get compact, token-cheap answers instead of HTML — discovery starts at [`pypx.app/llms.txt`](https://pypx.app/llms.txt):
+Every page has a plain-text twin, so coding agents and LLMs can pull what they need without parsing HTML. Discovery starts at [`pypx.app/llms.txt`](https://pypx.app/llms.txt):
 
 ```bash
 curl https://pypx.app/api/packages/requests/summary.txt   # ≤2KB agent briefing
@@ -115,7 +115,7 @@ The full list of `.txt` routes is in [API Endpoints](#api-endpoints).
 
 ## Quick Start
 
-Self-host the whole stack with one command:
+Run your own instance with Docker Compose:
 
 ```bash
 git clone https://github.com/mattstrayer/pypx.git
@@ -126,9 +126,7 @@ docker compose up --build
 
 Visit [http://localhost](http://localhost).
 
-> On first boot the background worker syncs the full PyPI package index (~780K packages). Search results populate within a few minutes — after that it's instant.
-
-**Status:** Live at [pypx.app](https://pypx.app) · indexing 780K+ packages · actively developed.
+> On first boot the background worker syncs the full PyPI package index (~780K names). Search results populate within a few minutes — after that it's instant.
 
 ---
 
@@ -232,7 +230,7 @@ The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `doc
 
 ## Contributing
 
-Pull requests, bug reports, and feature ideas are all welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and conventions, and please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating. Found a package whose docs render wrong or a changelog that doesn't show up? Those reports are gold — goopy extraction and changelog sources are improving fast.
+Pull requests, bug reports, and feature ideas are all welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and conventions, and please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating. If a package's docs render wrong or its changelog doesn't show up, an issue with the package name is enough — those reports drive most of the improvements to goopy and the changelog sources.
 
 - File bugs or feature requests via [GitHub Issues](https://github.com/mattstrayer/pypx/issues)
 - Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
