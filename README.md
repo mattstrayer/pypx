@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="docs/images/logo.webp" alt="pypx logo" width="112" />
+
 # pypx
 
 **The Python Package Index, reimagined.**
 
-pypx is a fast, modern frontend for PyPI — built for developers who want more than a name and a description. Get instant search, dependency trees, download trends, vulnerability data, inline changelogs, and API docs in one place.
+Instant search · Dependency insights · Security advisories · API docs — one fast, modern interface for 780K+ Python packages.
+
+[![Live at pypx.app](https://img.shields.io/badge/Live-pypx.app-00DC82?style=for-the-badge)](https://pypx.app)
 
 [![CI](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/codeql.yml)
@@ -12,32 +18,104 @@ pypx is a fast, modern frontend for PyPI — built for developers who want more 
 [![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt.js&logoColor=white)](https://nuxt.com)
 [![Discussions](https://img.shields.io/github/discussions/mattstrayer/pypx?logo=github)](https://github.com/mattstrayer/pypx/discussions)
 
-**[pypx.app](https://pypx.app)** — inspired by [npmx.dev](https://npmx.dev)
+**[→ Try it live at pypx.app](https://pypx.app)** · inspired by [npmx.dev](https://npmx.dev)
+
+</div>
+
+---
+
+[![The pypx package page for FastAPI: metadata, install size, and version at a glance](docs/images/package-overview.webp)](https://pypx.app/packages/fastapi)
+
+<table>
+<tr>
+<td width="50%">
+<a href="https://pypx.app"><img src="docs/images/search-palette.webp" alt="Cmd+K command palette with instant fuzzy search results" /></a>
+<p align="center"><sub><b>⌘K instant search</b> — fuzzy results across 780K+ packages</sub></p>
+</td>
+<td width="50%">
+<a href="https://pypx.app/packages/fastapi"><img src="docs/images/dependency-tree.webp" alt="Parsed dependency tree for FastAPI, required and optional extras split out" /></a>
+<p align="center"><sub><b>Dependency tree</b> — PEP 508 parsed, extras split out</sub></p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<a href="https://pypx.app/packages/pycrypto"><img src="docs/images/security-warnings.webp" alt="Package header for pycrypto showing red CVE and Likely Unmaintained warning badges" /></a>
+<p align="center"><sub><b>Security warnings</b> — OSV CVEs and maintenance flags, before you install</sub></p>
+</td>
+<td width="50%">
+<a href="https://pypx.app/packages/fastapi/docs"><img src="docs/images/api-docs-explorer.webp" alt="API documentation extracted from the published wheel: modules, signatures, docstrings" /></a>
+<p align="center"><sub><b>API docs from wheels</b> — signatures and docstrings, extracted in-process</sub></p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<a href="https://pypx.app/packages/fastapi"><img src="docs/images/download-stats.webp" alt="Download trend charts broken down by Python version and OS" /></a>
+<p align="center"><sub><b>Download trends</b> — by Python version and OS</sub></p>
+</td>
+<td width="50%">
+<a href="https://pypx.app/packages/fastapi/diff"><img src="docs/images/version-diff.webp" alt="Side-by-side diff of two package versions" /></a>
+<p align="center"><sub><b>Version diff</b> — what changed between two releases</sub></p>
+</td>
+</tr>
+</table>
 
 ---
 
 ## Why
 
-PyPI.org works — but it feels dated. No instant search, no at-a-glance package insights, no dark mode, no keyboard navigation. pypx layers enriched data and modern UX on top of PyPI's public APIs without scraping or replacing anything.
+PyPI.org works — but it feels dated. No instant search, no at-a-glance insights, no dark mode, no keyboard navigation.
+
+pypx layers enriched data and modern UX on top of PyPI's public APIs. No scraping. No replacement. Just a better way to explore 780K+ packages.
 
 ---
 
 ## Features
 
-- **Instant search** — FTS5-powered fuzzy search across 780K+ packages with typeahead and `Cmd+K` command palette
+**Discover**
+
+- **Instant search** — FTS5-powered fuzzy search with typeahead and a `Cmd+K` command palette — [try it →](https://pypx.app)
+- **Popular packages** — top packages by 30-day downloads — [browse →](https://pypx.app/popular)
+- **Compare** — up to 5 packages side by side — [compare →](https://pypx.app/compare)
+
+**Understand**
+
 - **Package insights** — install size, wheel platform coverage, Python version compatibility, release cadence
 - **Dependency tree** — parsed PEP 508 `requires_dist` with required vs. optional extras split out
 - **Download trends** — 4-week, 3-month, and 6-month charts broken down by Python version and OS
 - **Inline changelogs** — GitHub Releases, CHANGELOG.md files, and GitLab Releases rendered as markdown
-- **Security advisories** — OSV database CVE data per package, shown on the versions timeline
-- **API docs** — extracted in-process from published wheels via goopy: modules, function signatures, docstrings
+- **API docs** — extracted in-process from published wheels via goopy: modules, signatures, docstrings — [see fastapi's →](https://pypx.app/packages/fastapi/docs)
+- **Version diff** — compare any two releases of a package
+
+**Secure**
+
+- **Security advisories** — OSV database CVE data per package, flagged right on the package header when the version you're viewing is affected — [see pycrypto's →](https://pypx.app/packages/pycrypto)
+- **Maintenance signals** — unmaintained-package warnings from release cadence and repository activity
+
+**Developer experience**
+
 - **Install command switcher** — pip, uv, poetry, and pipx commands with one-click copy
 - **Dark-first terminal aesthetic** — Geist fonts, zinc palette, full keyboard navigation
 - **SSR + edge caching** — fast initial loads via Nuxt SSR, Cloudflare edge caching for repeat visits
 
 ---
 
+## Built for agents, too
+
+Every page has a plain-text twin. LLMs and coding agents get compact, token-cheap answers instead of HTML — discovery starts at [`pypx.app/llms.txt`](https://pypx.app/llms.txt):
+
+```bash
+curl https://pypx.app/api/packages/requests/summary.txt   # ≤2KB agent briefing
+curl https://pypx.app/api/packages/requests/security.txt  # CVE list, plain text
+curl "https://pypx.app/api/search.txt?q=http+client"      # TSV search results
+```
+
+The full list of `.txt` routes is in [API Endpoints](#api-endpoints).
+
+---
+
 ## Quick Start
+
+Self-host the whole stack with one command:
 
 ```bash
 git clone https://github.com/mattstrayer/pypx.git
@@ -48,7 +126,9 @@ docker compose up --build
 
 Visit [http://localhost](http://localhost).
 
-> On first boot the background worker syncs the full PyPI package index (~780K packages). Search results populate within a few minutes.
+> On first boot the background worker syncs the full PyPI package index (~780K packages). Search results populate within a few minutes — after that it's instant.
+
+**Status:** Live at [pypx.app](https://pypx.app) · indexing 780K+ packages · actively developed.
 
 ---
 
@@ -152,7 +232,7 @@ The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `doc
 
 ## Contributing
 
-Pull requests, bug reports, and feature ideas are all welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and conventions, and please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+Pull requests, bug reports, and feature ideas are all welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and conventions, and please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating. Found a package whose docs render wrong or a changelog that doesn't show up? Those reports are gold — goopy extraction and changelog sources are improving fast.
 
 - File bugs or feature requests via [GitHub Issues](https://github.com/mattstrayer/pypx/issues)
 - Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
