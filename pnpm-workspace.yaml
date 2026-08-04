@@ -41,7 +41,7 @@ overrides:
   # brace-expansion DoS. The second advisory is only fixed in 5.0.8, so every
   # earlier version is affected and both the 2.x and 5.x copies pulled in
   # transitively must be forced up to it.
-  brace-expansion: '5.0.8'
+  brace-expansion: '5.0.9'
   # GHSA-2p49-hgcm-8545 (CVSS 8.2): svgo <4.0.2, pulled transitively via
   # postcss-svgo. Force the patched version.
   svgo: '4.0.2'
