@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { useApi } from "../useApi";
+
+// Nuxt 4.5's auto-import template resolves `$fetch` to a binding captured
+// from `globalThis.$fetch` once, at module load. Stubbing the global after
+// `useApi` has already been imported no longer has any effect, so each test
+// resets the module registry and re-imports `useApi` after stubbing —
+// forcing the capture to happen against that test's mock.
+async function importUseApi() {
+  vi.resetModules();
+  return (await import("../useApi")).useApi;
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -11,6 +20,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockResolvedValue({ name: "requests" });
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { fetchPackage } = useApi();
       const result = await fetchPackage("requests");
 
@@ -26,6 +36,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockResolvedValue([]);
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { searchPackages } = useApi();
       await searchPackages("http", 5);
 
@@ -41,6 +52,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockResolvedValue({});
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { fetchStats } = useApi();
       await fetchStats("requests");
 
@@ -52,6 +64,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockResolvedValue({});
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { fetchStats } = useApi();
       await fetchStats("requests", "4w");
 
@@ -65,6 +78,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error("network error"));
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { fetchPackage } = useApi();
       await expect(fetchPackage("requests")).rejects.toThrow("network error");
     });
@@ -75,6 +89,7 @@ describe("useApi", () => {
       const mockFetch = vi.fn().mockResolvedValue({ name: "requests" });
       vi.stubGlobal("$fetch", mockFetch);
 
+      const useApi = await importUseApi();
       const { fetchPackage } = useApi();
       await fetchPackage("requests");
 
