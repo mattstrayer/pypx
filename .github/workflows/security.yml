@@ -86,5 +86,8 @@ jobs:
           # x/text is pulled in transitively by kin-openapi's jsonschema dep.
           # tar ships under BlueOak-1.0.0 (a permissive model license, MIT-like).
           # It is already a transitive dependency on main; allow it explicitly.
-          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys, pkg:golang/golang.org/x/text, pkg:npm/tar'
+          # caniuse-lite ships under CC-BY-4.0 (attribution-only, no share-alike):
+          # it is browser-usage data consumed by browserslist, not linked code.
+          # Already a transitive dependency on main; allow it explicitly.
+          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys, pkg:golang/golang.org/x/text, pkg:npm/tar, pkg:npm/caniuse-lite'
           comment-summary-in-pr: on-failure
