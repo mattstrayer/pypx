@@ -13,16 +13,16 @@ ignoredOptionalDependencies:
   - sharp
 
 overrides:
-  nuxt-site-config: '4.1.2'
+  nuxt-site-config: '4.2.0'
   devalue: '5.9.0'
   js-cookie: '3.0.8'
-  ws: '8.21.1'
+  ws: '8.21.3'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
   # launch-editor (dev-only). Force the patched version.
   shell-quote: '1.10.0'
   # GHSA-gv7w-rqvm-qjhr (CVSS 8.1) + GHSA-g7r4-m6w7-qqqr (CVSS 2.5): esbuild
   # <0.28.1, pulled transitively via vite. Force the patched version.
-  esbuild: '0.28.1'
+  esbuild: '0.28.2'
   # GHSA-fx2h-pf6j-xcff (CVSS 8.2): vite <7.3.5. @nuxt/vite-builder 4.5.1
   # requires vite ^8.1.5 (moved off 7.x), so the fix for this advisory is
   # already satisfied by that floor. The previous pin to 7.3.5 (kept here for
