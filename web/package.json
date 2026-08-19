@@ -47,9 +47,9 @@
     "@vue/test-utils": "2.4.11",
     "@vueuse/core": "14.4.0",
     "happy-dom": "20.11.2",
-    "oxfmt": "0.62.0",
-    "oxlint": "1.77.0",
-    "oxlint-plugin-complexity": "2.1.6",
+    "oxfmt": "0.63.0",
+    "oxlint": "1.78.0",
+    "oxlint-plugin-complexity": "2.1.7",
     "typescript": "6.0.3",
     "vitest": "4.1.10",
     "vue-tsc": "3.3.9"
