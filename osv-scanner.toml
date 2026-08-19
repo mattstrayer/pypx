@@ -1,0 +1,19 @@
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-11-17
+reason = """
+image-size@2.0.2 (transitive via @nuxtjs/seo -> nuxt-seo-utils, build-time \
+only). JXL/HEIF parser DoS: no fixed version published upstream as of \
+2026-08-19. Re-check on expiry and remove this ignore once a patched \
+release exists.
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-11-17
+reason = """
+image-size@2.0.2 (transitive via @nuxtjs/seo -> nuxt-seo-utils, build-time \
+only). ICNS parser DoS: no fixed version published upstream as of \
+2026-08-19. Re-check on expiry and remove this ignore once a patched \
+release exists.
+"""

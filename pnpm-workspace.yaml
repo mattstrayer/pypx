@@ -63,3 +63,7 @@ overrides:
   # GHSA-fxqj-rqcc-2cmp (CVSS 6.3): postcss <8.5.23, pulled transitively via
   # vite. Force the patched version.
   postcss: '8.5.26'
+  # GHSA-2v37-7h3g-55p8 (CVSS 8.2): nanoid <3.3.18 (custom generators loop
+  # indefinitely when size is zero), pulled transitively via postcss. Force
+  # the patched version.
+  nanoid: '3.3.18'
