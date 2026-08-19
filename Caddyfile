@@ -18,7 +18,6 @@
 
     header {
         X-Content-Type-Options nosniff
-        X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         # script-src must allow static.cloudflareinsights.com: Cloudflare
@@ -38,7 +37,7 @@
         # EthicalAds needs its client script (media.ethicalads.io) in
         # script-src and its ad-decision API (server.ethicalads.io) in
         # connect-src. Creatives are covered by the existing img-src https:.
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://media.ethicalads.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://server.ethicalads.io; font-src 'self' data:; frame-ancestors 'none'"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://media.ethicalads.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://server.ethicalads.io; font-src 'self' data:; frame-ancestors 'self' https://buildhop.io https://www.buildhop.io"
         # Isolate this browsing context group from cross-origin openers. Safe
         # here: the app opens no popups and holds no cross-origin window
         # handles — every external link is target="_blank" rel="noopener".
