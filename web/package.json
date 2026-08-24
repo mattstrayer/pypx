@@ -29,7 +29,7 @@
   "dependencies": {
     "@nuxt/fonts": "0.14.0",
     "@nuxtjs/color-mode": "4.0.1",
-    "@nuxtjs/seo": "5.3.12",
+    "@nuxtjs/seo": "5.3.14",
     "@tailwindcss/vite": "4.3.3",
     "@vueuse/nuxt": "14.4.0",
     "fuse.js": "7.5.0",
