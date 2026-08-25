@@ -14,7 +14,7 @@ ignoredOptionalDependencies:
 
 overrides:
   nuxt-site-config: '4.2.3'
-  devalue: '5.9.0'
+  devalue: '5.9.1'
   js-cookie: '3.0.8'
   ws: '8.21.3'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
