@@ -3,14 +3,14 @@ module github.com/pypx/api
 go 1.26.6
 
 require (
-	github.com/getkin/kin-openapi v0.146.0
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/getkin/kin-openapi v0.147.0
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.2
 	github.com/yuin/goldmark v1.8.5
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 )
 
 require (
