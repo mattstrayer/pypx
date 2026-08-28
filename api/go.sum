@@ -18,6 +18,8 @@ github.com/getkin/kin-openapi v0.146.0 h1:RA/1RdxrSJW4oc1+6IfnYB6AO9CaGy8GTKPh0k
 github.com/getkin/kin-openapi v0.146.0/go.mod h1:3BH9M9XDe/y9M5DSvEocVYAYq1w0qrhJHjC/vZi0AaY=
 github.com/getkin/kin-openapi v0.147.0 h1:s+Xsm9gUMPJbgCnABZ2to3zSQQ5A9dyj/zo62VVsldY=
 github.com/getkin/kin-openapi v0.147.0/go.mod h1:3BH9M9XDe/y9M5DSvEocVYAYq1w0qrhJHjC/vZi0AaY=
+github.com/getkin/kin-openapi v0.148.0 h1:+7YqIOP2D1r7ht8LkPQE5dpty2pr9NFSP/7xXIxwNUA=
+github.com/getkin/kin-openapi v0.148.0/go.mod h1:1+BHDzstro+P5CKtPy1X4PfofnFgmRe6uvMy9+r9fKY=
 github.com/go-chi/chi/v5 v5.3.1 h1:3j4HZLGZQ3JpMCrPJF/Jl3mYJfWLKBfNJ6quurUGCf8=
 github.com/go-chi/chi/v5 v5.3.1/go.mod h1:R+tYY2hNuVUUjxoPtqUdgBqevM9s9njzkTLutVsOCto=
 github.com/go-chi/chi/v5 v5.3.2 h1:5YQkICvTCSZ25hoRsyJazN0scjzKGiu4VAUc7H1o1nY=
@@ -59,6 +61,8 @@ github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZV
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.3/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
