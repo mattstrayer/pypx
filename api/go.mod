@@ -6,8 +6,9 @@ require (
 	github.com/getkin/kin-openapi v0.148.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.2
-	github.com/yuin/goldmark v1.8.5
+	github.com/yuin/goldmark v1.4.15
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
+	github.com/yuin/goldmark/v2 v2.0.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
 	modernc.org/sqlite v1.57.0
