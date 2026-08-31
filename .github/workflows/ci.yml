@@ -38,6 +38,7 @@ jobs:
               - '.golangci.yml'
             goopy:
               - 'goopy/**'
+              - 'api/Dockerfile' # builds goopy in-place (COPY goopy/ ./goopy/) — its Go version affects goopy too
               - '.github/workflows/ci.yml'
               - '.golangci.yml'
             web:
