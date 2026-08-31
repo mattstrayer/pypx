@@ -34,10 +34,12 @@ jobs:
           filters: |
             api:
               - 'api/**'
+              - 'api/Dockerfile' # redundant with api/** above — explicit so the Go version pin's reach is obvious
               - '.github/workflows/ci.yml'
               - '.golangci.yml'
             goopy:
               - 'goopy/**'
+              - 'api/Dockerfile' # builds goopy in-place (COPY goopy/ ./goopy/) — its Go version affects goopy too
               - '.github/workflows/ci.yml'
               - '.golangci.yml'
             web:
@@ -48,17 +50,23 @@ jobs:
               - '.github/workflows/ci.yml'
 
   api:
-    name: API (Go)
+    name: API (Go ${{ matrix.go-version }})
     needs: changes
     if: ${{ needs.changes.outputs.api == 'true' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # go.mod pins the version we ship on; 1.27.x rides along here to
+        # surface breakage before we bump the pin (see api/go.mod, goopy/go.mod).
+        go-version: ['1.26.x', '1.27.x']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: api/go.mod
+          go-version: ${{ matrix.go-version }}
           cache-dependency-path: api/go.sum
       - name: go vet
         working-directory: api
@@ -78,17 +86,23 @@ jobs:
           git diff --exit-code ../web/app/types/api.gen.ts internal/handler/openapi.gen.json
 
   goopy:
-    name: goopy (Go)
+    name: goopy (Go ${{ matrix.go-version }})
     needs: changes
     if: ${{ needs.changes.outputs.goopy == 'true' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # go.mod pins the version we ship on; 1.27.x rides along here to
+        # surface breakage before we bump the pin (see api/go.mod, goopy/go.mod).
+        go-version: ['1.26.x', '1.27.x']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: goopy/go.mod
+          go-version: ${{ matrix.go-version }}
           cache-dependency-path: goopy/go.sum
       - name: go vet
         working-directory: goopy
