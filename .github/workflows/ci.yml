@@ -34,6 +34,7 @@ jobs:
           filters: |
             api:
               - 'api/**'
+              - 'api/Dockerfile' # redundant with api/** above — explicit so the Go version pin's reach is obvious
               - '.github/workflows/ci.yml'
               - '.golangci.yml'
             goopy:
