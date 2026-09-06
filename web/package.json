@@ -50,7 +50,7 @@
     "oxfmt": "0.66.0",
     "oxlint": "1.81.0",
     "oxlint-plugin-complexity": "2.1.8",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "vitest": "4.1.11",
     "vue-tsc": "3.3.11"
   }
