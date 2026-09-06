@@ -14,7 +14,7 @@ ignoredOptionalDependencies:
 
 overrides:
   nuxt-site-config: '4.2.3'
-  devalue: '5.9.1'
+  devalue: '5.9.2'
   js-cookie: '3.0.8'
   ws: '8.21.3'
   # GHSA-w7jw-789q-3m8p (CVSS 9.2): shell-quote <1.8.4, pulled transitively via
@@ -45,7 +45,7 @@ overrides:
   brace-expansion: '5.0.9'
   # GHSA-2p49-hgcm-8545 (CVSS 8.2): svgo <4.0.2, pulled transitively via
   # postcss-svgo. Force the patched version.
-  svgo: '4.0.2'
+  svgo: '4.1.0'
   # GHSA-5qjj-4xww-7phc (CVSS 6.9): valibot <1.4.2, pulled transitively via
   # @nuxtjs/seo. Force the patched version.
   valibot: '1.4.2'
@@ -62,7 +62,7 @@ overrides:
   vite-plugin-checker: '0.14.5'
   # GHSA-fxqj-rqcc-2cmp (CVSS 6.3): postcss <8.5.23, pulled transitively via
   # vite. Force the patched version.
-  postcss: '8.5.26'
+  postcss: '8.5.28'
   # GHSA-2v37-7h3g-55p8 (CVSS 8.2): nanoid <3.3.18 (custom generators loop
   # indefinitely when size is zero), pulled transitively via postcss. Force
   # the patched version.
