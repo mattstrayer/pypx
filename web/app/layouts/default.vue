@@ -103,6 +103,26 @@ const sources = [
             class="hidden h-14 w-auto dark:block"
           />
         </a>
+        <!-- OpenHunts Club membership badge. The href, image URL and title are
+             the ones OpenHunts issued and must stay as-is; `rel` is noopener
+             only, for the same referral-attribution reason as above. -->
+        <a
+          href="https://openhunts.com"
+          target="_blank"
+          rel="noopener"
+          title="OpenHunts Club"
+          class="inline-block shrink-0 py-1"
+        >
+          <img
+            src="https://cdn.openhunts.com/badges/club.webp"
+            alt="OpenHunts Club Member"
+            width="486"
+            height="105"
+            loading="lazy"
+            decoding="async"
+            class="h-auto w-[195px]"
+          />
+        </a>
       </div>
     </footer>
   </div>

@@ -71,3 +71,20 @@ describe("default layout Nick Launches badge", () => {
     expect(imgs[1]!.classes()).toContain("dark:block");
   });
 });
+
+describe("default layout OpenHunts badge", () => {
+  it("keeps the issued href, image URL and title, without nofollow", async () => {
+    const wrapper = await mountSuspended(DefaultLayout);
+
+    const link = wrapper.find('a[href="https://openhunts.com"]');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes("title")).toBe("OpenHunts Club");
+    expect(link.attributes("rel") ?? "").not.toContain("nofollow");
+
+    const img = link.find("img");
+    expect(img.attributes("src")).toBe("https://cdn.openhunts.com/badges/club.webp");
+    expect(img.attributes("alt")).toBe("OpenHunts Club Member");
+    expect(img.attributes("width")).toBe("486");
+    expect(img.attributes("height")).toBe("105");
+  });
+});
