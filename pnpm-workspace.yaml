@@ -43,9 +43,10 @@ overrides:
   # earlier version is affected and both the 2.x and 5.x copies pulled in
   # transitively must be forced up to it.
   brace-expansion: '5.0.9'
-  # GHSA-2p49-hgcm-8545 (CVSS 8.2): svgo <4.0.2, pulled transitively via
+  # GHSA-2p49-hgcm-8545 (CVSS 8.2), GHSA-w27v-7q3p-w38r (CVSS 8.2) and
+  # GHSA-4vpr-x523-8j87 (CVSS 6.1): svgo <4.1.0, pulled transitively via
   # postcss-svgo. Force the patched version.
-  svgo: '4.0.2'
+  svgo: '4.1.0'
   # GHSA-5qjj-4xww-7phc (CVSS 6.9): valibot <1.4.2, pulled transitively via
   # @nuxtjs/seo. Force the patched version.
   valibot: '1.4.2'
