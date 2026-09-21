@@ -49,7 +49,7 @@
     "happy-dom": "20.14.3",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
-    "oxlint-plugin-complexity": "2.1.8",
+    "oxlint-plugin-complexity": "3.0.0",
     "typescript": "6.0.3",
     "vitest": "5.0.0",
     "vue-tsc": "3.3.11"

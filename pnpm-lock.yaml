@@ -87,8 +87,8 @@ importers:
         specifier: 1.83.0
         version: 1.83.0
       oxlint-plugin-complexity:
-        specifier: 2.1.8
-        version: 2.1.8(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.143.0)
+        specifier: 3.0.0
+        version: 3.0.0(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.143.0)
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -3525,8 +3525,8 @@ packages:
       vite-plus:
         optional: true
 
-  oxlint-plugin-complexity@2.1.8:
-    resolution: {integrity: sha512-4BnfNeQkeuEwUti+QAOBaCUuEWZaubk7L94dNl60RXzrs/pjzNOXhWx4rAmK8g/HoBrkIyJ8kqyto5nU0vDG9g==}
+  oxlint-plugin-complexity@3.0.0:
+    resolution: {integrity: sha512-VEScDKwvwYCaCfRo7fu9ugbwuMMd/UJ0iER6omjKN1xnpSddricm2rIPVcASl3H3sbQa7qdVYn0YHrmaTwF6Aw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       diff: '>=5.0.0'
@@ -8758,7 +8758,7 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.68.0
       '@oxfmt/binding-win32-x64-msvc': 0.68.0
 
-  oxlint-plugin-complexity@2.1.8(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.143.0):
+  oxlint-plugin-complexity@3.0.0(diff@9.0.0)(estree-walker@3.0.3)(oxc-parser@0.143.0):
     dependencies:
       '@oxlint/plugins': 1.74.0
     optionalDependencies:
