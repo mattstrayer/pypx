@@ -13,7 +13,7 @@ ignoredOptionalDependencies:
   - sharp
 
 overrides:
-  nuxt-site-config: '4.2.3'
+  nuxt-site-config: '5.0.3'
   devalue: '5.9.4'
   js-cookie: '3.0.8'
   ws: '8.21.3'
