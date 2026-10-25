@@ -81,13 +81,15 @@ jobs:
           # golang.org/x/* modules are BSD-3-Clause + Go's PATENTS file, which is
           # reported as the compound expression
           # "BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang".
-          # The patent grant is permissive. Allow both licenses rather than
+          # The patent grant is permissive. OFL-1.1 (SIL Open Font License)
+          # covers fonts bundled in packages such as chroma/v3; it permits use,
+          # embedding and redistribution. Allow these licenses rather than
           # listing packages one at a time, so the next module that ships under
           # them does not fail this gate.
           allow-licenses: >-
             MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
             Unlicense, 0BSD, CC0-1.0, Python-2.0, BlueOak-1.0.0,
-            LicenseRef-scancode-google-patent-license-golang
+            LicenseRef-scancode-google-patent-license-golang, OFL-1.1
           # caniuse-lite ships under CC-BY-4.0 (attribution-only, no share-alike):
           # it is browser-usage data consumed by browserslist, not linked code.
           # Already a transitive dependency on main; allow it explicitly.
