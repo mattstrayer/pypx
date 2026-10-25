@@ -72,7 +72,10 @@ jobs:
           persist-credentials: false
 
       - name: Generate app secret
-        run: echo "NUXT_APP_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "NUXT_APP_SECRET=$secret" >> "$GITHUB_ENV"
 
       - name: Build and start stack
         run: |
@@ -82,9 +85,12 @@ jobs:
       - name: Wait for health
         run: |
           set -euo pipefail
+          # Caddy serves localhost with `tls internal`, so plain http only
+          # returns a 308 to https (which curl -f accepts). Hit https with -k
+          # so these checks reach the API and Nuxt, not just Caddy.
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost/api/health >/dev/null \
-               && curl -fsS http://localhost/ >/dev/null; then
+            if curl -fsSk https://localhost/api/health >/dev/null \
+               && curl -fsSk https://localhost/ >/dev/null; then
               echo "Stack healthy after ${i}0s"
               exit 0
             fi
@@ -100,10 +106,10 @@ jobs:
       - name: Render OG image
         run: |
           set -euo pipefail
-          og=$(curl -fsS http://localhost/ | grep -oE '<meta property="og:image" content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)"/\1/')
+          og=$(curl -fsSk https://localhost/ | grep -oE '<meta property="og:image" content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)"/\1/' || true)
           test -n "$og" || { echo "no og:image on /"; exit 1; }
-          url="http://localhost/${og#https://*/}"
-          type=$(curl -fsS -o /dev/null -w '%{content_type}' "$url") || {
+          url="https://localhost/${og#https://*/}"
+          type=$(curl -fsSk -o /dev/null -w '%{content_type}' "$url") || {
             echo "OG image request failed: $url"
             docker compose --profile prod logs --tail=50 web
             exit 1
