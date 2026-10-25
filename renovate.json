@@ -45,11 +45,13 @@
       "automerge": true
     },
     {
-      "description": "Nuxt + Vite move together — nuxt releases track vite compatibility. nuxt-* covers the Nuxt SEO module family (nuxt-site-config, nuxt-og-image, nuxt-ai-ready, ...), whose peer ranges must move with @nuxtjs/seo or the install breaks.",
+      "description": "Nuxt + Vite move together — nuxt releases track vite compatibility. nuxt-* covers the Nuxt SEO module family (nuxt-site-config, nuxt-og-image, nuxt-ai-ready, ...), whose peer ranges must move with @nuxtjs/seo or the install breaks. vue and vue-router are direct nuxt dependencies: bumping nuxt alone (e.g. 4.6.2 needs vue ^3.5.44) installs a second vue copy, and Nuxt auto-import types then miss the templates (#307).",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "nuxt",
         "nuxt-*",
+        "vue",
+        "vue-router",
         "@nuxt/**",
         "@nuxtjs/**",
         "vite",
@@ -60,11 +62,9 @@
       "automerge": false
     },
     {
-      "description": "Vue ecosystem",
+      "description": "Vue ecosystem (vue and vue-router move with nuxt, above)",
       "matchManagers": ["npm"],
       "matchPackageNames": [
-        "vue",
-        "vue-router",
         "@vue/**",
         "@vueuse/**"
       ],
@@ -90,6 +90,12 @@
       ],
       "groupName": "web: typescript",
       "automerge": false
+    },
+    {
+      "description": "Keep typescript on 6.x. TypeScript 7 ships only the native compiler with no JS compiler API (no lib/tsc), so vue-tsc fails with ERR_PACKAGE_PATH_NOT_EXPORTED (#218). The TS 7.0 announcement says Vue projects must wait for the API planned for 7.1. Remove once vue-tsc supports TypeScript 7.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     },
     {
       "description": "oxc tooling — plugin API must stay compatible with the oxlint version (if oxlint-plugin-complexity breaks, pin oxlint to the last working version)",
