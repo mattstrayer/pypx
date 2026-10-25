@@ -33,7 +33,7 @@ jobs:
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -71,6 +71,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Generate app secret
+        run: |
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "NUXT_APP_SECRET=$secret" >> "$GITHUB_ENV"
+
       - name: Build and start stack
         run: |
           docker compose --profile prod build
@@ -79,9 +85,12 @@ jobs:
       - name: Wait for health
         run: |
           set -euo pipefail
+          # Caddy serves localhost with `tls internal`, so plain http only
+          # returns a 308 to https (which curl -f accepts). Hit https with -k
+          # so these checks reach the API and Nuxt, not just Caddy.
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost/api/health >/dev/null \
-               && curl -fsS http://localhost/ >/dev/null; then
+            if curl -fsSk https://localhost/api/health >/dev/null \
+               && curl -fsSk https://localhost/ >/dev/null; then
               echo "Stack healthy after ${i}0s"
               exit 0
             fi
@@ -91,6 +100,22 @@ jobs:
           docker compose --profile prod ps
           docker compose --profile prod logs --tail=200
           exit 1
+
+      # A broken OG renderer (missing secret, renderer or font regression)
+      # still serves every page with a 200, so check the image itself.
+      - name: Render OG image
+        run: |
+          set -euo pipefail
+          og=$(curl -fsSk https://localhost/ | grep -oE '<meta property="og:image" content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)"/\1/' || true)
+          test -n "$og" || { echo "no og:image on /"; exit 1; }
+          url="https://localhost/${og#https://*/}"
+          type=$(curl -fsSk -o /dev/null -w '%{content_type}' "$url") || {
+            echo "OG image request failed: $url"
+            docker compose --profile prod logs --tail=50 web
+            exit 1
+          }
+          test "$type" = "image/png" || { echo "OG image returned $type"; exit 1; }
+          echo "OG image ok: $url"
 
       - name: Tear down
         if: always()
@@ -115,13 +140,13 @@ jobs:
           persist-credentials: false
 
       - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master
+      - uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master
         with:
           image-ref: ghcr.io/mattstrayer/pypx/${{ matrix.service }}:main
           format: sarif
@@ -130,7 +155,7 @@ jobs:
           ignore-unfixed: true
           exit-code: '0'
 
-      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}

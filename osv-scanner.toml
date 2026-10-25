@@ -1,19 +1,20 @@
 [[IgnoredVulns]]
-id = "GHSA-5p2g-fcmc-qvqq"
-ignoreUntil = 2026-11-17
+id = "GHSA-vjh5-4x84-xrqp"
+ignoreUntil = 2026-12-31
 reason = """
-image-size@2.0.2 (transitive via @nuxtjs/seo -> nuxt-seo-utils, build-time \
-only). JXL/HEIF parser DoS: no fixed version published upstream as of \
-2026-08-19. Re-check on expiry and remove this ignore once a patched \
-release exists.
+False positive for nuxt / @nuxt/nitro-server 4.6.2, the patched version. \
+GitHub's advisory bounds its 3.x range at <4.0.0, but the OSV copy drops \
+that upper bound, so every version >=3.0.0 matches. Remove once the OSV \
+record is corrected.
 """
 
 [[IgnoredVulns]]
-id = "GHSA-w3rx-r6r6-pgpr"
-ignoreUntil = 2026-11-17
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2026-12-31
 reason = """
-image-size@2.0.2 (transitive via @nuxtjs/seo -> nuxt-seo-utils, build-time \
-only). ICNS parser DoS: no fixed version published upstream as of \
-2026-08-19. Re-check on expiry and remove this ignore once a patched \
-release exists.
+node-forge@1.4.0 (transitive via nitropack -> listhen, dev server only; not \
+in the production .output bundle). RSA PKCS#1 v1.5 signature verification \
+flaw: listhen only uses node-forge to generate self-signed dev certificates \
+and never verifies signatures. No fixed version published upstream as of \
+2026-10-25. Re-check on expiry and remove once a patched release exists.
 """

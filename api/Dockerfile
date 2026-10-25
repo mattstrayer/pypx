@@ -1,4 +1,4 @@
-FROM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
+FROM golang:1.27-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS builder
 WORKDIR /app
 
 # Copy goopy module first (local dependency).
@@ -13,7 +13,7 @@ RUN go mod download
 COPY api/ ./
 RUN CGO_ENABLED=0 go build -o /pypx-api ./cmd/server
 
-FROM alpine:3.24@sha256:5b02b42e375f7426f8d65c3af331ca05d9878f9989230354504e0b9dfd431f60
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /pypx-api /pypx-api
 EXPOSE 8080
