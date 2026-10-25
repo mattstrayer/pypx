@@ -76,18 +76,20 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
-          allow-licenses: >-
-            MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
-            Unlicense, 0BSD, CC0-1.0, Python-2.0
+          # BlueOak-1.0.0 is a permissive model license (MIT-like), used by
+          # isaacs' packages (tar, lru-cache, minimatch, ...).
           # golang.org/x/* modules are BSD-3-Clause + Go's PATENTS file, which is
           # reported as the compound expression
           # "BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang".
-          # The patent grant is permissive — allow these Go modules explicitly.
-          # x/text is pulled in transitively by kin-openapi's jsonschema dep.
-          # tar ships under BlueOak-1.0.0 (a permissive model license, MIT-like).
-          # It is already a transitive dependency on main; allow it explicitly.
+          # The patent grant is permissive. Allow both licenses rather than
+          # listing packages one at a time, so the next module that ships under
+          # them does not fail this gate.
+          allow-licenses: >-
+            MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
+            Unlicense, 0BSD, CC0-1.0, Python-2.0, BlueOak-1.0.0,
+            LicenseRef-scancode-google-patent-license-golang
           # caniuse-lite ships under CC-BY-4.0 (attribution-only, no share-alike):
           # it is browser-usage data consumed by browserslist, not linked code.
           # Already a transitive dependency on main; allow it explicitly.
-          allow-dependencies-licenses: 'pkg:golang/golang.org/x/sys, pkg:golang/golang.org/x/text, pkg:npm/tar, pkg:npm/caniuse-lite'
+          allow-dependencies-licenses: 'pkg:npm/caniuse-lite'
           comment-summary-in-pr: on-failure
