@@ -54,12 +54,16 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.api == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      # Test the matrix version, not the one go.mod's toolchain line names.
+      GOTOOLCHAIN: local
     strategy:
       fail-fast: false
       matrix:
-        # go.mod pins the version we ship on; 1.27.x rides along here to
-        # surface breakage before we bump the pin (see api/go.mod, goopy/go.mod).
-        go-version: ['1.26.x', '1.27.x']
+        # go.mod's `go` line is the minimum we support and its `toolchain`
+        # line is the version we ship (matching the golang base image). For
+        # the API both are 1.27: goldmark-highlighting/v3 requires go 1.27.
+        go-version: ['1.27.x']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,11 +94,16 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.goopy == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      # go.mod's toolchain line would otherwise make the 1.26.x job download
+      # and run the shipped toolchain instead of testing 1.26.
+      GOTOOLCHAIN: local
     strategy:
       fail-fast: false
       matrix:
-        # go.mod pins the version we ship on; 1.27.x rides along here to
-        # surface breakage before we bump the pin (see api/go.mod, goopy/go.mod).
+        # go.mod's `go` line is the minimum we support (1.26.x) and its
+        # `toolchain` line is the version we ship (1.27.x, matching the golang
+        # base image). Test both (see api/go.mod, goopy/go.mod).
         go-version: ['1.26.x', '1.27.x']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

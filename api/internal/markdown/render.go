@@ -3,32 +3,41 @@ package markdown
 import (
 	"bytes"
 
-	"github.com/yuin/goldmark"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/renderer/html"
+	highlighting "github.com/yuin/goldmark-highlighting/v3"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/renderer/html"
 )
 
-var md = goldmark.New(
-	goldmark.WithExtensions(
-		extension.GFM,
-		highlighting.NewHighlighting(
-			highlighting.WithStyle("monokai"),
-		),
-	),
-	goldmark.WithRendererOptions(
-		html.WithUnsafe(),
+var mdParser = parser.New(
+	parser.WithExtensions(
+		extension.GFMParser,
+		highlighting.Parser,
 	),
 )
 
-var mdSafe = goldmark.New(
-	goldmark.WithExtensions(
-		extension.GFM,
-		highlighting.NewHighlighting(
+func newRenderer(opts ...html.Option) html.Renderer {
+	return html.New(append(opts, html.WithExtensions(
+		extension.GFMHTMLRenderer,
+		highlighting.NewHTMLRenderer(
 			highlighting.WithStyle("monokai"),
 		),
-	),
+	))...)
+}
+
+var (
+	md     = newRenderer(html.WithUnsafe())
+	mdSafe = newRenderer()
 )
+
+func convert(r html.Renderer, src string) (string, error) {
+	source := []byte(src)
+	var buf bytes.Buffer
+	if err := r.Render(&buf, source, mdParser.Parse(source)); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
 
 // Render converts markdown source to HTML. Returns empty string for empty input.
 func Render(src string) (string, error) {
@@ -36,11 +45,7 @@ func Render(src string) (string, error) {
 		return "", nil
 	}
 
-	var buf bytes.Buffer
-	if err := md.Convert([]byte(src), &buf); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return convert(md, src)
 }
 
 // RenderSafe renders markdown to HTML, stripping raw HTML to prevent XSS.
@@ -50,9 +55,5 @@ func RenderSafe(src string) (string, error) {
 		return "", nil
 	}
 
-	var buf bytes.Buffer
-	if err := mdSafe.Convert([]byte(src), &buf); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return convert(mdSafe, src)
 }
