@@ -67,6 +67,11 @@ services:
       # in the served HTML). Override to empty in .env to disable ads.
       - NUXT_PUBLIC_ADS_PUBLISHER=${NUXT_PUBLIC_ADS_PUBLISHER-pypxapp}
       - NUXT_PUBLIC_ADS_TYPE=${NUXT_PUBLIC_ADS_TYPE:-image}
+      # Root app secret (32+ chars). nuxt-og-image derives its URL-signing key
+      # from it; without it every OG image request returns 500 while pages
+      # still render. `:?` makes compose refuse to start instead.
+      # Generate with: openssl rand -hex 32
+      - NUXT_APP_SECRET=${NUXT_APP_SECRET:?set NUXT_APP_SECRET (32+ chars) in .env}
     expose:
       - "3000"
     depends_on:

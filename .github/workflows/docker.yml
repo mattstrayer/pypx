@@ -71,6 +71,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Generate app secret
+        run: echo "NUXT_APP_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
       - name: Build and start stack
         run: |
           docker compose --profile prod build
@@ -91,6 +94,22 @@ jobs:
           docker compose --profile prod ps
           docker compose --profile prod logs --tail=200
           exit 1
+
+      # A broken OG renderer (missing secret, renderer or font regression)
+      # still serves every page with a 200, so check the image itself.
+      - name: Render OG image
+        run: |
+          set -euo pipefail
+          og=$(curl -fsS http://localhost/ | grep -oE '<meta property="og:image" content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)"/\1/')
+          test -n "$og" || { echo "no og:image on /"; exit 1; }
+          url="http://localhost/${og#https://*/}"
+          type=$(curl -fsS -o /dev/null -w '%{content_type}' "$url") || {
+            echo "OG image request failed: $url"
+            docker compose --profile prod logs --tail=50 web
+            exit 1
+          }
+          test "$type" = "image/png" || { echo "OG image returned $type"; exit 1; }
+          echo "OG image ok: $url"
 
       - name: Tear down
         if: always()
