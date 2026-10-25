@@ -3,18 +3,20 @@
 The frontend is a Nuxt 4 application using Vue 3, Tailwind 4, and VueUse. It uses server-side rendering (SSR) for fast initial loads, then hydrates in the browser and loads secondary data in parallel.
 
 **Source:** `web/`  
-**Framework:** Nuxt 4.4.2, Vue 3, Tailwind 4  
+**Framework:** Nuxt 4, Vue 3, Tailwind 4  
 **Listen port:** `3000`
 
 ## Pages
 
 | Route | File | Description |
 |---|---|---|
-| `/` | `app/pages/index.vue` | Landing page — trending packages, search prompt |
-| `/search` | `app/pages/search.vue` | Full search results page |
+| `/` | `app/pages/index.vue` | Landing page — trending packages, search typeahead (there is no separate search results page) |
+| `/popular` | `app/pages/popular.vue` | Most-downloaded packages |
+| `/compare` | `app/pages/compare.vue` | Side-by-side comparison of up to 5 packages |
 | `/packages/[name]` | `app/pages/packages/[name].vue` | Main package detail page |
 | `/packages/[name]/[version]` | `app/pages/packages/[name]/[version].vue` | Specific version detail |
 | `/packages/[name]/docs` | `app/pages/packages/[name]/docs.vue` | API docs tab |
+| `/packages/[name]/diff` | `app/pages/packages/[name]/diff.vue` | Diff between two versions (`?from=&to=`) |
 
 ## SSR vs. Client-Side Data Split
 

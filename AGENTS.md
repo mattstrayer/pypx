@@ -38,7 +38,7 @@ api/                    Go API service
 
 web/                    Nuxt 4 frontend
   app/
-    pages/              Route components ([name].vue, search.vue, index.vue)
+    pages/              Route components (index.vue, popular.vue, compare.vue, packages/[name].vue)
     components/         Reusable UI components
     composables/        useApi.ts, useSearchTypeahead.ts, usePackageManager.ts
     types/api.ts        TypeScript interfaces matching Go response shapes
