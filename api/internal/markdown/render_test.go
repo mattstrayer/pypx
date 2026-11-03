@@ -269,3 +269,72 @@ func TestRender_HTMLEscaping(t *testing.T) {
 		t.Errorf("expected code tag in %q", got)
 	}
 }
+
+func TestRenderSafe_UnsafeURLsNeverReachHTML(t *testing.T) {
+	cases := []string{
+		"[here](javascript:alert(1))",
+		"[here](JaVaScRiPt:alert(1))",
+		"[here](&#106;avascript:alert(1))",
+		"[here](java&#9;script:alert(1))",
+		"[here](&#1;javascript:alert(1))",
+		"[here](vbscript:msgbox(1))",
+		"[here](data:text/html,hi)",
+		"[here](blob:https://example.com/a)",
+		"[here](foo:bar)",
+		"[here][r]\n\n[r]: javascript:alert(1)",
+	}
+	for _, src := range cases {
+		got, err := RenderSafe(src)
+		if err != nil {
+			t.Fatalf("RenderSafe(%q): %v", src, err)
+		}
+		if strings.Contains(got, "<a") {
+			t.Errorf("RenderSafe(%q) kept the link: %q", src, got)
+		}
+		if !strings.Contains(got, "here") {
+			t.Errorf("RenderSafe(%q) lost the text: %q", src, got)
+		}
+	}
+}
+
+func TestRenderSafe_UnsafeAutolinkBecomesText(t *testing.T) {
+	got, _ := RenderSafe("<foo:bar>")
+	if strings.Contains(got, "<a") || !strings.Contains(got, "foo:bar") {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestRenderSafe_UnsafeImageKeepsAltText(t *testing.T) {
+	for _, src := range []string{"![alt](data:image/svg+xml;base64,AAAA)", "![alt](blob:https://example.com/a)"} {
+		got, _ := RenderSafe(src)
+		if strings.Contains(got, "<img") || !strings.Contains(got, "alt") {
+			t.Errorf("RenderSafe(%q) = %q", src, got)
+		}
+	}
+}
+
+func TestRenderSafe_UnsafeLinkKeepsImageInside(t *testing.T) {
+	got, _ := RenderSafe("[![b](https://example.com/b.png)](foo:bar)")
+	if strings.Contains(got, "<a") || !strings.Contains(got, `<img src="https://example.com/b.png"`) {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestRenderSafe_SafeURLsStillRender(t *testing.T) {
+	cases := map[string]string{
+		"[x](https://example.com/a)":     `<a href="https://example.com/a">x</a>`,
+		"[x](mailto:a@example.com)":      `<a href="mailto:a@example.com">x</a>`,
+		"[x](./docs/a.md#b)":             `<a href="./docs/a.md#b">x</a>`,
+		"[x](#install)":                  `<a href="#install">x</a>`,
+		"<https://example.com/a>":        `<a href="https://example.com/a">`,
+		"https://example.com/a":          `<a href="https://example.com/a">`,
+		"a@example.com":                  `<a href="mailto:a@example.com">`,
+		"![x](data:image/png;base64,AA)": `<img src="data:image/png;base64,AA"`,
+	}
+	for src, want := range cases {
+		got, _ := RenderSafe(src)
+		if !strings.Contains(got, want) {
+			t.Errorf("RenderSafe(%q) = %q, want %q", src, got, want)
+		}
+	}
+}

@@ -256,3 +256,49 @@ func TestFetchPackageAtVersion_InvalidVersion(t *testing.T) {
 		t.Errorf("expected nil response on error, got %+v", got)
 	}
 }
+
+func TestPackageInfo_DropsUnsafeURLs(t *testing.T) {
+	const body = `{"info":{
+		"name":"x",
+		"home_page":"java\tscript:alert(1)",
+		"project_urls":{
+			"Homepage":"https://example.com",
+			"Docs":"mailto:docs@example.com",
+			"Evil":"javascript:alert(1)",
+			"Tab":"java\tscript:alert(1)",
+			"Control":"\u0001javascript:alert(1)",
+			"Data":"data:text/html,hi"
+		}}}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	got, err := NewClient(WithBaseURL(srv.URL)).FetchPackage(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("FetchPackage: %v", err)
+	}
+	if got.Info.HomePage != "" {
+		t.Errorf("HomePage = %q, want empty", got.Info.HomePage)
+	}
+	if len(got.Info.ProjectURLs) != 2 ||
+		got.Info.ProjectURLs["Homepage"] != "https://example.com" ||
+		got.Info.ProjectURLs["Docs"] != "mailto:docs@example.com" {
+		t.Errorf("ProjectURLs = %v", got.Info.ProjectURLs)
+	}
+}
+
+func TestPackageInfo_KeepsSafeHomePageAndOtherFields(t *testing.T) {
+	var got PackageInfo
+	err := json.Unmarshal([]byte(`{"name":"x","version":"1","home_page":"https://example.com"}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "x" || got.Version != "1" || got.HomePage != "https://example.com" {
+		t.Errorf("got %+v", got)
+	}
+	if got.ProjectURLs != nil {
+		t.Errorf("ProjectURLs = %v, want nil", got.ProjectURLs)
+	}
+}
