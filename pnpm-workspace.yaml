@@ -11,3 +11,10 @@ allowBuilds:
 # libvips binaries (which fail the dependency-review license gate).
 ignoredOptionalDependencies:
   - sharp
+
+# Security overrides for transitive dependencies with no patched release in
+# their parents' ranges (osv-scanner). Remove each one when the parent moves.
+overrides:
+  node-forge: '>=1.4.2'
+  glob: '>=14.0.2'
+  minimatch: '>=11.0.1'
