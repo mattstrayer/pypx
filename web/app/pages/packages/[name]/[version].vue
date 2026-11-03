@@ -5,20 +5,21 @@ const version = computed(() => route.params.version as string);
 
 const { fetchPackage, fetchVersions, fetchChangelog } = useApi();
 
-const [{ data: pkg }, { data: versions }] = await Promise.all([
-  useAsyncData(
-    () => `package-${name.value}`,
-    () => fetchPackage(name.value),
-    { watch: [name] },
-  ),
-  useAsyncData(
-    () => `versions-${name.value}`,
-    () => fetchVersions(name.value),
-    {
-      watch: [name],
-    },
-  ),
-]);
+const [{ data: pkg, error: pkgError }, { data: versions, error: versionsError }] =
+  await Promise.all([
+    useAsyncData(
+      () => `package-${name.value}`,
+      () => fetchPackage(name.value),
+      { watch: [name] },
+    ),
+    useAsyncData(
+      () => `versions-${name.value}`,
+      () => fetchVersions(name.value),
+      {
+        watch: [name],
+      },
+    ),
+  ]);
 
 const { data: changelog } = useAsyncData(
   () => `changelog-${name.value}`,
@@ -29,6 +30,12 @@ const { data: changelog } = useAsyncData(
 const matchedVersion = computed(
   () => versions.value?.find((v) => v.version === version.value) ?? null,
 );
+
+const packageStatus = computed(() => pageStatusForApiError(pkgError.value ?? versionsError.value));
+const isVersionMissing = computed(
+  () => !packageStatus.value && !!versions.value && !matchedVersion.value,
+);
+usePageStatus(computed(() => packageStatus.value ?? (isVersionMissing.value ? 404 : null)));
 
 const changelogEntry = computed(() => {
   if (!changelog.value?.entries) return null;
@@ -45,20 +52,27 @@ function formatDate(iso: string): string {
 }
 
 useSeoMeta({
-  title: () => `${name.value} ${version.value}`,
+  title: () => {
+    if (packageStatus.value === 404) return "Package not found";
+    if (packageStatus.value) return "Package unavailable";
+    if (isVersionMissing.value) return "Version not found";
+    return `${name.value} ${version.value}`;
+  },
   description: () => `Version ${version.value} of ${name.value} on pypx.`,
 });
 
-defineOgImage(
-  "PackageCard",
-  {
-    name: () => name.value,
-    version: () => version.value,
-    summary: () => pkg.value?.summary ?? undefined,
-    license: () => pkg.value?.license ?? undefined,
-  },
-  { width: 1200, height: 630 },
-);
+if (matchedVersion.value) {
+  defineOgImage(
+    "PackageCard",
+    {
+      name: () => name.value,
+      version: () => version.value,
+      summary: () => pkg.value?.summary ?? undefined,
+      license: () => pkg.value?.license ?? undefined,
+    },
+    { width: 1200, height: 630 },
+  );
+}
 </script>
 
 <template>
@@ -73,8 +87,11 @@ defineOgImage(
       </NuxtLink>
     </div>
 
+    <!-- Package failed to load -->
+    <PackageLoadError v-if="packageStatus" :status="packageStatus" :name="name" />
+
     <!-- Version not found -->
-    <div v-if="versions && !matchedVersion" class="py-24 text-center">
+    <div v-else-if="isVersionMissing" class="py-24 text-center">
       <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Version not found</p>
       <p class="mt-1 text-sm text-muted">No version "{{ version }}" found for "{{ name }}".</p>
     </div>

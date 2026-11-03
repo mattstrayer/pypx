@@ -20,67 +20,66 @@ export function useApi() {
     ? (config.apiBase as string) || config.public.apiBase
     : config.public.apiBase;
 
+  async function request<T>(path: string, params?: Record<string, unknown>): Promise<T> {
+    try {
+      return await $fetch<T>(`${baseURL}${path}`, params ? { params } : {});
+    } catch (err) {
+      if (!import.meta.server) throw err;
+      // The full error, with its URL, stays in the server log.
+      // oxlint-disable-next-line no-console
+      console.error(`[api] ${path}:`, err);
+      throw toPublicApiError(err);
+    }
+  }
+
   async function fetchPackage(name: string): Promise<PackageData> {
-    return $fetch<PackageData>(`${baseURL}/packages/${name}`);
+    return request(`/packages/${name}`);
   }
 
   async function fetchVersions(name: string): Promise<VersionInfo[]> {
-    return $fetch<VersionInfo[]>(`${baseURL}/packages/${name}/versions`);
+    return request(`/packages/${name}/versions`);
   }
 
   async function fetchDependencies(name: string): Promise<DependencyTree> {
-    return $fetch<DependencyTree>(`${baseURL}/packages/${name}/dependencies`);
+    return request(`/packages/${name}/dependencies`);
   }
 
   async function fetchStats(name: string, period?: string): Promise<StatsData> {
-    return $fetch<StatsData>(`${baseURL}/packages/${name}/stats`, {
-      params: period ? { period } : undefined,
-    });
+    return request(`/packages/${name}/stats`, period ? { period } : undefined);
   }
 
   async function searchPackages(query: string, limit = 20): Promise<SearchResult[]> {
-    return $fetch<SearchResult[]>(`${baseURL}/search`, {
-      params: { q: query, limit },
-    });
+    return request("/search", { q: query, limit });
   }
 
   async function fetchChangelog(name: string): Promise<ChangelogData> {
-    return $fetch<ChangelogData>(`${baseURL}/packages/${name}/changelog`);
+    return request(`/packages/${name}/changelog`);
   }
 
   async function fetchSecurity(name: string, version?: string): Promise<SecurityData> {
-    return $fetch<SecurityData>(`${baseURL}/packages/${name}/security`, {
-      params: version ? { version } : undefined,
-    });
+    return request(`/packages/${name}/security`, version ? { version } : undefined);
   }
 
   async function fetchExtras(name: string): Promise<ExtrasData> {
-    return $fetch<ExtrasData>(`${baseURL}/packages/${name}/extras`);
+    return request(`/packages/${name}/extras`);
   }
 
   async function fetchDocs(name: string): Promise<DocsData> {
-    return $fetch<DocsData>(`${baseURL}/packages/${name}/docs`);
+    return request(`/packages/${name}/docs`);
   }
 
   async function fetchPopular(
     limit = 24,
   ): Promise<Array<{ name: string; summary: string; downloads: number }>> {
-    return $fetch<Array<{ name: string; summary: string; downloads: number }>>(
-      `${baseURL}/popular`,
-      { params: { limit } },
-    );
+    return request("/popular", { limit });
   }
 
   async function fetchCompare(pkgs: string[]): Promise<CompareData> {
-    return $fetch<CompareData>(`${baseURL}/compare`, {
-      params: { pkgs: pkgs.join(",") },
-    });
+    return request("/compare", { pkgs: pkgs.join(",") });
   }
 
   async function fetchDiff(name: string, from: string, to: string): Promise<DiffData> {
-    return $fetch<DiffData>(`${baseURL}/packages/${name}/diff`, {
-      params: { from, to },
-    });
+    return request(`/packages/${name}/diff`, { from, to });
   }
 
   return {
