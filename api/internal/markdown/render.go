@@ -61,37 +61,12 @@ var mdParser = parser.New(
 	parser.WithASTTransformers(util.Prioritized[parser.ASTTransformer](urlAllowList{}, 10000)),
 )
 
-func newRenderer(opts ...html.Option) html.Renderer {
-	return html.New(append(opts, html.WithExtensions(
-		extension.NewGFMHTMLRenderer(),
-		highlighting.NewHTMLRenderer(
-			highlighting.WithStyle("monokai"),
-		),
-	))...)
-}
-
-var (
-	md     = newRenderer(html.WithUnsafe())
-	mdSafe = newRenderer()
-)
-
-func convert(r html.Renderer, src string) (string, error) {
-	source := []byte(src)
-	var buf bytes.Buffer
-	if err := r.Render(&buf, source, mdParser.Parse(source)); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-// Render converts markdown source to HTML. Returns empty string for empty input.
-func Render(src string) (string, error) {
-	if src == "" {
-		return "", nil
-	}
-
-	return convert(md, src)
-}
+var mdSafe = html.New(html.WithExtensions(
+	extension.NewGFMHTMLRenderer(),
+	highlighting.NewHTMLRenderer(
+		highlighting.WithStyle("monokai"),
+	),
+))
 
 // RenderSafe renders markdown to HTML, stripping raw HTML to prevent XSS.
 // Use this for third-party content (changelogs, etc).
@@ -100,5 +75,10 @@ func RenderSafe(src string) (string, error) {
 		return "", nil
 	}
 
-	return convert(mdSafe, src)
+	source := []byte(src)
+	var buf bytes.Buffer
+	if err := mdSafe.Render(&buf, source, mdParser.Parse(source)); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
