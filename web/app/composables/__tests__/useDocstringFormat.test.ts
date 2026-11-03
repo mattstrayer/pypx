@@ -2,6 +2,46 @@ import { describe, it, expect } from "vitest";
 import { formatDocstring, renderDocstring } from "../useDocstringFormat";
 
 describe("formatDocstring", () => {
+  describe("docstrings whose first line has no indent", () => {
+    const flaskStyle = [
+      "Sometimes it is necessary to set additional headers in a view.",
+      "    Views do not have to return response objects.",
+      "",
+      "    If view looked like this and you want to add a new header::",
+      "",
+      "        def index():",
+      "            return render_template('index.html', foo=42)",
+      "",
+      "    You can now do something like this",
+      "    without a full stop at the end",
+    ].join("\n");
+
+    it("renders the indented body as prose", () => {
+      const result = formatDocstring(flaskStyle);
+      expect(result).toContain("<p>If view looked like this and you want to add a new header</p>");
+      expect(result).toContain("<p>You can now do something like this without a full stop");
+    });
+
+    it("keeps real code as a code block, with its own indent removed", () => {
+      const result = formatDocstring(flaskStyle);
+      expect((result.match(/<pre>/g) ?? []).length).toBe(1);
+      expect(result).toContain("def index():\n    return render_template");
+    });
+
+    it("keeps a deeper block as code without a :: marker", () => {
+      const result = formatDocstring("Summary.\n\n    Body text\n\n        x = compute()");
+      expect(result).toContain("<p>Body text</p>");
+      expect(result).toContain("<pre><code");
+      expect(result).toContain("x = compute()");
+    });
+
+    it("keeps doctest blocks as code", () => {
+      const result = formatDocstring("Summary.\n\n    >>> add(1, 2)\n    3");
+      expect(result).toContain(">>> add(1, 2)".replace(">>>", "&gt;&gt;&gt;"));
+      expect(result).toContain("<pre><code");
+    });
+  });
+
   it("returns empty string for empty input", () => {
     expect(formatDocstring("")).toBe("");
     expect(formatDocstring("   ")).toBe("");

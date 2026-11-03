@@ -20,23 +20,15 @@ function applyInlineFormatting(text: string): string {
   return text;
 }
 
+// Same rule as Python's inspect.cleandoc: a docstring's first line starts right after
+// the opening quotes, so its indent says nothing about the margin of the other lines.
 function dedent(lines: string[]): string[] {
-  if (lines.length === 0) return lines;
-
-  // Find minimum indentation across all non-empty lines
-  const nonEmpty = lines.filter((l) => l.trim().length > 0);
-  if (nonEmpty.length === 0) return lines;
-
-  const minIndent = Math.min(
-    ...nonEmpty.map((l) => {
-      const match = l.match(/^(\s*)/);
-      return match ? (match[1]?.length ?? 0) : 0;
-    }),
-  );
-
-  if (minIndent === 0) return lines;
-
-  return lines.map((l) => l.slice(minIndent));
+  const [first = "", ...rest] = lines;
+  const indents = rest
+    .filter((l) => l.trim().length > 0)
+    .map((l) => l.match(/^\s*/)?.[0].length ?? 0);
+  const margin = indents.length > 0 ? Math.min(...indents) : 0;
+  return [first.trimStart(), ...rest.map((l) => l.slice(margin))];
 }
 
 // Code stays as source text until a renderer needs it, so no caller has to
