@@ -24,6 +24,15 @@
     "prHourlyLimit": 0,
     "prConcurrentLimit": 0
   },
+  "customManagers": [
+    {
+      "description": "pnpm pin in the web Dockerfile. Node 25+ does not ship corepack, so the image installs pnpm from npm.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^web/Dockerfile$/"],
+      "matchStrings": ["renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nENV PNPM_VERSION=(?<currentValue>\\S+)"],
+      "versioningTemplate": "semver"
+    }
+  ],
   "packageRules": [
     {
       "description": "Ignore local goopy module (replaced via go.mod replace directive)",
@@ -142,6 +151,11 @@
       "matchDepNames": ["go", "golang"],
       "matchManagers": ["gomod", "dockerfile"],
       "groupName": "go toolchain"
+    },
+    {
+      "description": "pnpm moves atomically: the action-setup version in CI + the web Dockerfile pin (must come after the actions rule to pull pnpm out of that group)",
+      "matchDepNames": ["pnpm"],
+      "groupName": "pnpm"
     },
     {
       "description": "Automerge non-major test tooling updates",

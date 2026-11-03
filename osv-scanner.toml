@@ -2,19 +2,20 @@
 id = "GHSA-vjh5-4x84-xrqp"
 ignoreUntil = 2026-12-31
 reason = """
-False positive for nuxt / @nuxt/nitro-server 4.6.2, the patched version. \
+False positive for nuxt / @nuxt/nitro-server 4.6.2 and later (4.6.2 is the \
+patched version). \
 GitHub's advisory bounds its 3.x range at <4.0.0, but the OSV copy drops \
 that upper bound, so every version >=3.0.0 matches. Remove once the OSV \
 record is corrected.
 """
 
 [[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
+id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2026-12-31
 reason = """
-node-forge@1.4.0 (transitive via nitropack -> listhen, dev server only; not \
-in the production .output bundle). RSA PKCS#1 v1.5 signature verification \
-flaw: listhen only uses node-forge to generate self-signed dev certificates \
-and never verifies signatures. No fixed version published upstream as of \
-2026-10-25. Re-check on expiry and remove once a patched release exists.
+deepmerge@4.3.1 (transitive via nitropack -> @rollup/plugin-node-resolve, \
+build time only). The advisory is prototype poisoning through mergeObject() \
+on untrusted input. The plugin only calls deepMerge({}, defaults) on its own \
+constant defaults. No fixed version published upstream as of 2026-11-03. \
+Re-check on expiry and remove once a patched release exists.
 """

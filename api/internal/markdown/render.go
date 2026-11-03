@@ -11,14 +11,14 @@ import (
 
 var mdParser = parser.New(
 	parser.WithExtensions(
-		extension.GFMParser,
-		highlighting.Parser,
+		extension.NewGFMParser(),
+		highlighting.NewParser(),
 	),
 )
 
 func newRenderer(opts ...html.Option) html.Renderer {
 	return html.New(append(opts, html.WithExtensions(
-		extension.GFMHTMLRenderer,
+		extension.NewGFMHTMLRenderer(),
 		highlighting.NewHTMLRenderer(
 			highlighting.WithStyle("monokai"),
 		),
