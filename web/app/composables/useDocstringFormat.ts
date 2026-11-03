@@ -39,6 +39,18 @@ function dedent(lines: string[]): string[] {
   return lines.map((l) => l.slice(minIndent));
 }
 
+// Code stays as source text until a renderer needs it, so no caller has to
+// decode HTML to get it back.
+type DocstringPart = { type: "html"; html: string } | { type: "code"; code: string };
+
+function html(value: string): DocstringPart {
+  return { type: "html", html: value };
+}
+
+function plainCodeBlock(code: string): string {
+  return `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
+}
+
 type BlockType = "paragraph" | "code" | "directive" | "hidden";
 
 interface Block {
@@ -95,9 +107,9 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
   });
 }
 
-function renderBlock(block: Block): string {
+function renderBlock(block: Block): DocstringPart | null {
   if (block.type === "hidden") {
-    return "";
+    return null;
   }
 
   if (block.type === "code") {
@@ -114,8 +126,7 @@ function renderBlock(block: Block): string {
         : 0;
 
     const dedented = block.lines.map((l) => l.slice(minIndent));
-    const content = escapeHtml(dedented.join("\n").trimEnd());
-    return `<pre><code class="language-python">${content}</code></pre>`;
+    return { type: "code", code: dedented.join("\n").trimEnd() };
   }
 
   if (block.type === "directive") {
@@ -129,22 +140,22 @@ function renderBlock(block: Block): string {
         .join(" ");
       const content = escapeHtml(rest);
       const label = content ? `${directiveType}: ${content}` : directiveType;
-      return `<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${label}</p>`;
+      return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${label}</p>`);
     }
     // Fallback
     const content = escapeHtml(block.lines.join(" ").trim());
-    return `<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${content}</p>`;
+    return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${content}</p>`);
   }
 
   // Paragraph: join lines, escape, then apply inline formatting
   const text = block.lines.join(" ").trim();
   const escaped = escapeHtml(text);
   const formatted = applyInlineFormatting(escaped);
-  return `<p>${formatted}</p>`;
+  return html(`<p>${formatted}</p>`);
 }
 
-export function formatDocstring(raw: string): string {
-  if (!raw || !raw.trim()) return "";
+function parseDocstring(raw: string): DocstringPart[] {
+  if (!raw || !raw.trim()) return [];
 
   // Normalize line endings
   const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -170,7 +181,7 @@ export function formatDocstring(raw: string): string {
     rawBlocks.push(current);
   }
 
-  if (rawBlocks.length === 0) return "";
+  if (rawBlocks.length === 0) return [];
 
   // Build prev-block lookup for "::" detection
   const prevBlockLines: string[][] = rawBlocks.map((_, i) =>
@@ -205,5 +216,22 @@ export function formatDocstring(raw: string): string {
     return renderBlock(block);
   });
 
-  return rendered.filter(Boolean).join("\n");
+  return rendered.filter((part) => part !== null);
+}
+
+export function formatDocstring(raw: string): string {
+  return parseDocstring(raw)
+    .map((part) => (part.type === "code" ? plainCodeBlock(part.code) : part.html))
+    .join("\n");
+}
+
+/** Like formatDocstring, but `highlight` renders each code block from its source text. */
+export async function renderDocstring(
+  raw: string,
+  highlight: (code: string) => Promise<string>,
+): Promise<string> {
+  const rendered = await Promise.all(
+    parseDocstring(raw).map((part) => (part.type === "code" ? highlight(part.code) : part.html)),
+  );
+  return rendered.join("\n");
 }

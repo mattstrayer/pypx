@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDocstring } from "../useDocstringFormat";
+import { formatDocstring, renderDocstring } from "../useDocstringFormat";
 
 describe("formatDocstring", () => {
   it("returns empty string for empty input", () => {
@@ -69,5 +69,60 @@ describe("formatDocstring", () => {
     expect(result).toContain("<code>err</code>");
     expect(result).toContain('<pre><code class="language-python">');
     expect(result).toContain("click.echo");
+  });
+});
+
+describe("renderDocstring", () => {
+  // Records the source each code block hands to the highlighter.
+  function recorder(render: (code: string) => string = (code) => `<hl>${code.length}</hl>`) {
+    const seen: string[] = [];
+    const highlight = async (code: string) => {
+      seen.push(code);
+      return render(code);
+    };
+    return { seen, highlight };
+  }
+
+  it.each([
+    ["an escaped entity", "s = '&amp;lt;'"],
+    ["a double-escaped entity", "s = '&amp;amp;lt;'"],
+    ["an entity that spells a tag", "s = '&lt;script&gt;'"],
+    ["a quote entity", "s = '&amp;quot;'"],
+    ["plain operators", "a & b < c > d"],
+    ["quotes", `s = "x"`],
+  ])("hands the highlighter the exact source for %s", async (_, code) => {
+    const { seen, highlight } = recorder();
+    await renderDocstring(`Example::\n\n    ${code}`, highlight);
+    expect(seen).toEqual([code]);
+  });
+
+  it("does not reinterpret replacement patterns in highlighted code", async () => {
+    const before = `Example::\n\n    a = "$&"\n\nNext.\n\n>>> b = "$'"\n\nEnd.`;
+    const { highlight } = recorder((code) => `<hl>${code}</hl>`);
+    const html = await renderDocstring(before, highlight);
+    expect(html).toBe(
+      `<p>Example</p>\n<hl>a = "$&"</hl>\n<p>Next.</p>\n<hl>>>> b = "$'"</hl>\n<p>End.</p>`,
+    );
+  });
+
+  it("highlights every block when two blocks hold the same code", async () => {
+    const { seen, highlight } = recorder((code) => `<hl>${code}</hl>`);
+    const html = await renderDocstring(">>> a\n\nMiddle.\n\n>>> a", highlight);
+    expect(seen).toEqual([">>> a", ">>> a"]);
+    expect(html).toBe("<hl>>>> a</hl>\n<p>Middle.</p>\n<hl>>>> a</hl>");
+  });
+
+  it("keeps escaping prose around the code blocks", async () => {
+    const { highlight } = recorder();
+    const html = await renderDocstring("<img src=x onerror=alert(1)>\n\n>>> a", highlight);
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img");
+  });
+
+  it("escapes code in the plain fallback", () => {
+    const html = formatDocstring(">>> '<script>alert(1)</script>' &amp;lt;");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&amp;amp;lt;");
+    expect(html).not.toContain("<script>");
   });
 });

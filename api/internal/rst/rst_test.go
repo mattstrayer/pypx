@@ -389,3 +389,55 @@ func TestRender_LiteralBlockPreservesIndentation(t *testing.T) {
 		t.Errorf("missing code content in %q", got)
 	}
 }
+
+func TestRender_UnsafeURLsNeverReachHTML(t *testing.T) {
+	urls := []string{
+		"javascript:alert(1)",
+		"JaVaScRiPt:alert(1)",
+		"java\tscript:alert(1)",
+		"\x01javascript:alert(1)",
+		"java\x01script:alert(1)",
+		"vbscript:msgbox(1)",
+		"data:text/html,hi",
+		"blob:https://example.com/a",
+	}
+	for _, u := range urls {
+		link, _ := rst.Render("Click `here <" + u + ">`_.\n")
+		if strings.Contains(link, "<a ") {
+			t.Errorf("link %q reached HTML: %q", u, link)
+		}
+		if !strings.Contains(link, "here") {
+			t.Errorf("link %q lost its text: %q", u, link)
+		}
+
+		img, _ := rst.Render(".. image:: " + u + "\n")
+		if strings.Contains(img, "<img") {
+			t.Errorf("image %q reached HTML: %q", u, img)
+		}
+
+		sub, _ := rst.Render(".. |b| image:: https://example.com/a.png\n   :target: " + u + "\n\n|b|\n")
+		if strings.Contains(sub, "<a ") || !strings.Contains(sub, "<img") {
+			t.Errorf("target %q: want image with no link, got %q", u, sub)
+		}
+	}
+}
+
+func TestRender_URLEntitiesStayEscaped(t *testing.T) {
+	got, _ := rst.Render("Click `here <&#106;avascript:alert(1)>`_.\n")
+	if !strings.Contains(got, `href="&amp;#106;avascript:alert(1)"`) {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestRender_SafeURLsStillRender(t *testing.T) {
+	for _, u := range []string{"https://example.com/a", "mailto:a@example.com", "docs/index.html", "#install"} {
+		got, _ := rst.Render("Click `here <" + u + ">`_.\n")
+		if !strings.Contains(got, `<a href="`+u+`">here</a>`) {
+			t.Errorf("link %q: got %q", u, got)
+		}
+	}
+	got, _ := rst.Render(".. image:: data:image/png;base64,AAAA\n")
+	if !strings.Contains(got, `<img src="data:image/png;base64,AAAA"`) {
+		t.Errorf("raster data image should render, got %q", got)
+	}
+}

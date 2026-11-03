@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pypx/api/internal/circuitbreaker"
+	"github.com/pypx/api/internal/safeurl"
 )
 
 // ErrNotFound is returned by FetchPackage when the package does not exist on PyPI.
@@ -80,6 +81,25 @@ type PackageInfo struct {
 	ProjectURLs       map[string]string `json:"project_urls"`
 	Classifiers       []string          `json:"classifiers"`
 	Keywords          string            `json:"keywords"`
+}
+
+// UnmarshalJSON drops the URLs that safeurl refuses. Package authors control
+// these values and the web app binds them to href, so every reader of a
+// PackageInfo, fresh or from cache, gets only allowed URLs.
+func (p *PackageInfo) UnmarshalJSON(data []byte) error {
+	type plain PackageInfo
+	if err := json.Unmarshal(data, (*plain)(p)); err != nil {
+		return err
+	}
+	if !safeurl.Link(p.HomePage) {
+		p.HomePage = ""
+	}
+	for label, u := range p.ProjectURLs {
+		if !safeurl.Link(u) {
+			delete(p.ProjectURLs, label)
+		}
+	}
+	return nil
 }
 
 // ReleaseFile represents a single distribution file for a release.

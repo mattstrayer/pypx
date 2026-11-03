@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html"
 	"strings"
+
+	"github.com/pypx/api/internal/safeurl"
 )
 
 // Render converts RST source to HTML.
@@ -58,12 +60,6 @@ func isUnderline(underline, above string) bool {
 	return true
 }
 
-// safeURL returns true when the URL scheme is not a script protocol.
-func safeURL(u string) bool {
-	lower := strings.ToLower(strings.TrimSpace(u))
-	return !strings.HasPrefix(lower, "javascript:") && !strings.HasPrefix(lower, "vbscript:")
-}
-
 // applyInline processes inline RST markup and returns escaped HTML.
 // subs is the map of substitution definitions (may be nil).
 func applyInline(s string, subs map[string]subDef) string {
@@ -75,10 +71,10 @@ func applyInline(s string, subs map[string]subDef) string {
 			pipeEnd := strings.IndexByte(s[i+1:], '|')
 			if pipeEnd >= 0 {
 				name := s[i+1 : i+1+pipeEnd]
-				if sub, ok := subs[name]; ok && safeURL(sub.src) {
+				if sub, ok := subs[name]; ok && safeurl.Image(sub.src) {
 					alt := html.EscapeString(sub.alt)
 					img := fmt.Sprintf(`<img src="%s" alt="%s">`, html.EscapeString(sub.src), alt)
-					if sub.target != "" && safeURL(sub.target) {
+					if sub.target != "" && safeurl.Link(sub.target) {
 						fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(sub.target), img)
 					} else {
 						b.WriteString(img)
@@ -144,7 +140,7 @@ func applyInline(s string, subs map[string]subDef) string {
 					afterTick < len(s) && s[afterTick] == '_' {
 					text := strings.TrimSpace(content[:ltIdx])
 					url := content[ltIdx+2 : len(content)-1]
-					if safeURL(url) {
+					if safeurl.Link(url) {
 						fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(url), html.EscapeString(text))
 					} else {
 						b.WriteString(html.EscapeString(text))
@@ -338,7 +334,7 @@ func renderDoc(src string) string {
 					inline(strings.Join(body, " ")))
 
 			case "image":
-				if safeURL(args) {
+				if safeurl.Image(args) {
 					alt := ""
 					for _, opt := range body {
 						opt = strings.TrimSpace(opt)
