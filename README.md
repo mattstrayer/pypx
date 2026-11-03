@@ -14,7 +14,7 @@ Search, dependency insights, security advisories, and API docs for 780K+ Python 
 [![Security](https://github.com/mattstrayer/pypx/actions/workflows/security.yml/badge.svg)](https://github.com/mattstrayer/pypx/actions/workflows/security.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mattstrayer/pypx/badge)](https://scorecard.dev/viewer/?uri=github.com/mattstrayer/pypx)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://golang.org)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt.js&logoColor=white)](https://nuxt.com)
 [![Discussions](https://img.shields.io/github/discussions/mattstrayer/pypx?logo=github)](https://github.com/mattstrayer/pypx/discussions)
 
@@ -199,7 +199,7 @@ Full architecture documentation: [`docs/architecture/`](docs/architecture/)
 
 ## Development
 
-**Prerequisites:** Go 1.26+, Node.js 20+ with pnpm, Docker + Compose
+**Prerequisites:** Go 1.27.3+ (the `goopy` module alone needs 1.26.6+), Node.js 26 with pnpm, Docker + Compose
 
 ```bash
 make install      # web dependencies (pnpm via mise)
@@ -218,7 +218,7 @@ The Nuxt dev server proxies `/api/*` to `localhost:8080` automatically (via `doc
 
 | Layer | Technology |
 |---|---|
-| API | Go 1.26, chi v5, goldmark, modernc.org/sqlite |
+| API | Go 1.27, chi v5, goldmark, modernc.org/sqlite |
 | Frontend | Nuxt 4, Vue 3, Tailwind 4, VueUse, @nuxtjs/seo |
 | Search | SQLite FTS5 (porter + unicode61 tokenizer) |
 | Cache | SQLite (persistent TTL) + in-memory LRU (1,000 entries) |

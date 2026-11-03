@@ -8,7 +8,7 @@ pypx is a modern frontend for PyPI (Python Package Index). It enriches PyPI's pu
 
 | Layer | Technology |
 |---|---|
-| API | Go 1.26, chi v5, goldmark (markdown→HTML), modernc.org/sqlite |
+| API | Go 1.27, chi v5, goldmark (markdown→HTML), modernc.org/sqlite |
 | Frontend | Nuxt 4, Vue 3, Tailwind 4, VueUse, @nuxtjs/seo |
 | Search | SQLite FTS5 (porter + unicode61 tokenizer) |
 | Cache | Two-tier: in-memory LRU (1,000 entries) + SQLite persistent TTL store |

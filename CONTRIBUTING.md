@@ -8,8 +8,8 @@ For an architectural overview of how the system fits together — the API, two-t
 
 ## Prerequisites
 
-- Go 1.26+
-- Node.js 20+ with pnpm (`npm install -g pnpm`)
+- Go 1.27.3+ (the `goopy` module alone needs 1.26.6+)
+- Node.js 26 with pnpm (`npm install -g pnpm`)
 - Docker + Compose (for full-stack local runs)
 
 ## Running locally

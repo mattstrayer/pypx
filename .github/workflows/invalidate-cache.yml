@@ -12,6 +12,9 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   invalidate:
     runs-on: ubuntu-latest

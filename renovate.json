@@ -26,13 +26,19 @@
   },
   "customManagers": [
     {
-      "description": "pnpm pin in the web Dockerfile. Node 25+ does not ship corepack, so the image installs pnpm from npm.",
+      "description": "govulncheck pin in the Security workflow. A go install command has no built-in manager.",
       "customType": "regex",
-      "managerFilePatterns": ["/^web/Dockerfile$/"],
-      "matchStrings": ["renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nENV PNPM_VERSION=(?<currentValue>\\S+)"],
-      "versioningTemplate": "semver"
+      "managerFilePatterns": ["/^\\.github/workflows/security\\.yml$/"],
+      "matchStrings": ["go install (?<depName>golang\\.org/x/vuln)/cmd/govulncheck@(?<currentValue>v\\S+)"],
+      "datasourceTemplate": "go"
     }
   ],
+  "pip-compile": {
+    "managerFilePatterns": ["/^goopy/internal/ecosystem/requirements\\.txt$/"]
+  },
+  "pip_requirements": {
+    "enabled": false
+  },
   "packageRules": [
     {
       "description": "Ignore local goopy module (replaced via go.mod replace directive)",
@@ -153,9 +159,17 @@
       "groupName": "go toolchain"
     },
     {
-      "description": "pnpm moves atomically: the action-setup version in CI + the web Dockerfile pin (must come after the actions rule to pull pnpm out of that group)",
+      "description": "pnpm moves atomically: the action-setup version in CI + the deploy/pnpm lockfile that web/Dockerfile installs (must come after the npm catch-all and the actions rule to pull pnpm out of those groups). No automerge, as before deploy/pnpm joined the npm catch-all.",
       "matchDepNames": ["pnpm"],
-      "groupName": "pnpm"
+      "groupName": "pnpm",
+      "automerge": false
+    },
+    {
+      "description": "Keep the security floors in pnpm-workspace.yaml as >= ranges. A pin would stop them from picking up later patched versions. Lock file maintenance moves the resolved versions. Only the workspace overrides match, so these packages keep rangeStrategy pin elsewhere.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["pnpm-workspace.overrides"],
+      "matchPackageNames": ["glob", "minimatch", "node-forge"],
+      "rangeStrategy": "replace"
     },
     {
       "description": "Automerge non-major test tooling updates",

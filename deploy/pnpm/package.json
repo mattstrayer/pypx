@@ -1,0 +1,8 @@
+{
+  "name": "pypx-pnpm-pin",
+  "private": true,
+  "description": "Pins the pnpm that web/Dockerfile installs with npm ci. Keep the version equal to pnpm/action-setup in .github/workflows/ci.yml.",
+  "dependencies": {
+    "pnpm": "12.16.1"
+  }
+}
