@@ -7,11 +7,11 @@ require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/pypx/goopy v0.0.0
-	github.com/yuin/goldmark-highlighting/v3 v3.1.0
-	github.com/yuin/goldmark/v2 v2.1.9
+	github.com/yuin/goldmark-highlighting/v3 v3.1.1
+	github.com/yuin/goldmark/v2 v2.1.15
 	golang.org/x/sync v0.24.0
 	golang.org/x/time v0.16.0
-	modernc.org/sqlite v1.61.0
+	modernc.org/sqlite v1.61.1
 )
 
 require (
