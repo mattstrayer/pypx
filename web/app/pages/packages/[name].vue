@@ -5,11 +5,19 @@ const activeTab = ref("overview");
 const isChildRoute = computed(() => route.path !== `/packages/${name.value}`);
 
 const api = useApi();
-const { data: pkg, status } = await useAsyncData(
+const {
+  data: pkg,
+  status,
+  error,
+} = await useAsyncData(
   () => `package-${name.value}`,
   () => api.fetchPackage(name.value),
   { watch: [name] },
 );
+
+// Runs for child routes too, because they render inside this page.
+const pageStatus = computed(() => pageStatusForApiError(error.value));
+usePageStatus(pageStatus);
 
 // Non-blocking parallel fetches (client-side, don't block SSR)
 const { data: security } = useAsyncData(
@@ -68,33 +76,42 @@ onUnmounted(() => {
 });
 
 useSeoMeta({
-  title: () => (pkg.value ? pkg.value.name : "Loading"),
+  title: () => {
+    if (pkg.value) return pkg.value.name;
+    if (pageStatus.value === 404) return "Package not found";
+    return pageStatus.value ? "Package unavailable" : "Loading";
+  },
   description: () => pkg.value?.summary || "",
   ogTitle: () => (pkg.value ? `${pkg.value.name} ${pkg.value.version}` : "pypx"),
   ogDescription: () => pkg.value?.summary || "",
 });
 
 useHead({
-  link: [
-    {
-      rel: "alternate",
-      type: "text/plain",
-      href: () => `https://pypx.app/api/packages/${name.value}.txt`,
-      title: "Plain-text package data for agents",
-    },
-  ],
+  link: () =>
+    pkg.value
+      ? [
+          {
+            rel: "alternate",
+            type: "text/plain",
+            href: `https://pypx.app/api/packages/${name.value}.txt`,
+            title: "Plain-text package data for agents",
+          },
+        ]
+      : [],
 });
 
-defineOgImage(
-  "PackageCard",
-  {
-    name: () => pkg.value?.name ?? "",
-    version: () => pkg.value?.version ?? "",
-    summary: () => pkg.value?.summary ?? undefined,
-    license: () => pkg.value?.license ?? undefined,
-  },
-  { width: 1200, height: 630 },
-);
+if (pkg.value) {
+  defineOgImage(
+    "PackageCard",
+    {
+      name: () => pkg.value?.name ?? "",
+      version: () => pkg.value?.version ?? "",
+      summary: () => pkg.value?.summary ?? undefined,
+      license: () => pkg.value?.license ?? undefined,
+    },
+    { width: 1200, height: 630 },
+  );
+}
 
 useSchemaOrg(
   computed(() =>
@@ -152,10 +169,7 @@ useSchemaOrg(
     </div>
 
     <!-- Error state -->
-    <div v-else-if="status === 'error'" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
-      <p class="mt-1 text-sm text-muted">No package named "{{ name }}" could be found.</p>
-    </div>
+    <PackageLoadError v-else-if="pageStatus" :status="pageStatus" :name="name" />
 
     <!-- Loaded state -->
     <div v-else-if="pkg">

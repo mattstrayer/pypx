@@ -6,11 +6,17 @@ const name = computed(() => route.params.name as string);
 
 const api = useApi();
 
-const { data: pkg, status: pkgStatus } = await useAsyncData(
+const {
+  data: pkg,
+  status: pkgStatus,
+  error: pkgError,
+} = await useAsyncData(
   () => `package-${name.value}`,
   () => api.fetchPackage(name.value),
   { watch: [name] },
 );
+
+const pageStatus = computed(() => pageStatusForApiError(pkgError.value));
 
 const { data: docs, status: docsStatus } = useAsyncData(
   () => `docs-data-${name.value}`,
@@ -193,18 +199,24 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, { capture: tr
 
 // ── SEO ────────────────────────────────────────────────────────────────────
 useSeoMeta({
-  title: () => (pkg.value ? `${pkg.value.name} API Docs` : "Loading"),
+  title: () => {
+    if (pkg.value) return `${pkg.value.name} API Docs`;
+    if (pageStatus.value === 404) return "Package not found";
+    return pageStatus.value ? "Package unavailable" : "Loading";
+  },
   description: () => `API documentation for ${pkg.value?.name ?? name.value}`,
 });
 
-defineOgImage(
-  "DocsCard",
-  {
-    name: () => pkg.value?.name ?? "",
-    version: () => pkg.value?.version ?? "",
-  },
-  { width: 1200, height: 630 },
-);
+if (pkg.value) {
+  defineOgImage(
+    "DocsCard",
+    {
+      name: () => pkg.value?.name ?? "",
+      version: () => pkg.value?.version ?? "",
+    },
+    { width: 1200, height: 630 },
+  );
+}
 </script>
 
 <template>
@@ -215,9 +227,7 @@ defineOgImage(
     </div>
 
     <!-- Package error -->
-    <div v-else-if="pkgStatus === 'error'" class="py-24 text-center">
-      <p class="text-lg font-medium text-zinc-700 dark:text-zinc-300">Package not found</p>
-    </div>
+    <PackageLoadError v-else-if="pageStatus" :status="pageStatus" :name="name" />
 
     <div v-else-if="pkg">
       <!-- Docs context bar -->
