@@ -47,8 +47,7 @@ function html(value: string): DocstringPart {
   return { type: "html", html: value };
 }
 
-/** Renders code as an escaped block with no highlighting. */
-export function plainCodeBlock(code: string): string {
+function plainCodeBlock(code: string): string {
   return `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
 }
 

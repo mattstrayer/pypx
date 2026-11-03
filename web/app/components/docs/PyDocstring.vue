@@ -1,19 +1,30 @@
 <script setup lang="ts">
 import { formatDocstring, renderDocstring } from "~/composables/useDocstringFormat";
-import { highlightPython } from "~/utils/shikiHighlight";
 
 const props = defineProps<{
   text: string;
 }>();
 
-const formattedHtml = computedAsync(async () => {
-  if (!props.text?.trim()) return "";
+// Load Shiki only when a docstring holds code, to keep it out of the initial bundle.
+async function highlightLazily(code: string): Promise<string> {
+  const { highlightPython } = await import("~/utils/shikiHighlight");
+  return highlightPython(code);
+}
 
-  // During SSR, highlight code blocks with Shiki.
-  return import.meta.server
-    ? renderDocstring(props.text, highlightPython)
-    : formatDocstring(props.text);
-}, "");
+const highlighted = computedAsync(async () => {
+  const text = props.text;
+  if (import.meta.server) return null;
+  try {
+    return { text, html: await renderDocstring(text, highlightLazily) };
+  } catch {
+    // The plain block stays on the page, so a failed chunk load costs only colour.
+    return null;
+  }
+}, null);
+
+const formattedHtml = computed(() =>
+  highlighted.value?.text === props.text ? highlighted.value.html : formatDocstring(props.text),
+);
 </script>
 
 <template>
