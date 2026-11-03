@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDocstring } from "~/composables/useDocstringFormat";
+import { formatDocstring, renderDocstring } from "~/composables/useDocstringFormat";
 import { highlightPython } from "~/utils/shikiHighlight";
 
 const props = defineProps<{
@@ -9,24 +9,10 @@ const props = defineProps<{
 const formattedHtml = computedAsync(async () => {
   if (!props.text?.trim()) return "";
 
-  let html = formatDocstring(props.text);
-
-  // During SSR, replace code blocks with Shiki-highlighted versions.
-  if (import.meta.server) {
-    const codeBlockRegex = /<pre><code class="language-python">([\s\S]*?)<\/code><\/pre>/g;
-    const matches = [...html.matchAll(codeBlockRegex)];
-    for (const match of matches) {
-      const code = (match[1] ?? "")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"');
-      const highlighted = await highlightPython(code);
-      html = html.replace(match[0], highlighted);
-    }
-  }
-
-  return html;
+  // During SSR, highlight code blocks with Shiki.
+  return import.meta.server
+    ? renderDocstring(props.text, highlightPython)
+    : formatDocstring(props.text);
 }, "");
 </script>
 

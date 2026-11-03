@@ -1,4 +1,5 @@
 import { createHighlighter, type Highlighter } from "shiki";
+import { plainCodeBlock } from "~/composables/useDocstringFormat";
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
@@ -14,7 +15,7 @@ function getHighlighter(): Promise<Highlighter> {
 
 export async function highlightPython(code: string): Promise<string> {
   if (!import.meta.server) {
-    return `<pre><code class="language-python">${code}</code></pre>`;
+    return plainCodeBlock(code);
   }
 
   const highlighter = await getHighlighter();
