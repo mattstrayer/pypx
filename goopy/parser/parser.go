@@ -40,6 +40,9 @@ type Parser struct {
 	errors []Error
 	src    []byte
 	depth  int // current expression-recursion depth (guards against stack overflow)
+
+	prev     token.Type // type of the most recently consumed token
+	consumed int        // number of tokens consumed, used to detect a stalled loop
 }
 
 // New creates a parser for the given Python source bytes.
@@ -68,7 +71,7 @@ func (p *Parser) Parse() *ast.Module {
 	}
 
 	for p.tok.Type != token.EOF {
-		stmt := p.parseStmt()
+		stmt := p.parseStmtRecovering()
 		if stmt != nil {
 			mod.Body = append(mod.Body, stmt)
 		}
@@ -88,11 +91,24 @@ func (p *Parser) Parse() *ast.Module {
 
 // next advances to the next token.
 func (p *Parser) next() {
+	p.prev = p.tok.Type
+	p.consumed++
 	p.tok = p.lex.Next()
 }
 
-// expect consumes the current token if it matches typ, otherwise records an error
-// and advances past the unexpected token to prevent infinite loops.
+// atLineEnd returns true at a token that ends the logical line or changes block
+// nesting. The lexer emits these tokens only outside brackets, so they always mean
+// real structure. Only the statement and block parsers may consume them.
+func (p *Parser) atLineEnd() bool {
+	switch p.tok.Type {
+	case token.NEWLINE, token.INDENT, token.DEDENT, token.EOF:
+		return true
+	}
+	return false
+}
+
+// expect consumes the current token if it matches typ. Otherwise it records an
+// error and skips the unexpected token, unless that token is structural.
 // Returns the consumed token (or the unexpected token on failure).
 func (p *Parser) expect(typ token.Type) token.Token {
 	if p.tok.Type == typ {
@@ -102,10 +118,23 @@ func (p *Parser) expect(typ token.Type) token.Token {
 	}
 	t := p.tok
 	p.errorf("expected %s, got %s", typ, p.tok.Type)
-	if p.tok.Type != token.EOF {
+	if !p.atLineEnd() {
 		p.next()
 	}
 	return t
+}
+
+// expectColon consumes the colon that ends a compound statement header. If the
+// header has unexpected tokens, it records an error and skips to the colon, so
+// that the block body stays attached to this statement.
+func (p *Parser) expectColon() {
+	if p.tok.Type != token.COLON {
+		p.errorf("expected %s, got %s", token.COLON, p.tok.Type)
+		p.skipHeader()
+	}
+	if p.tok.Type == token.COLON {
+		p.next()
+	}
 }
 
 // expectName is a convenience for expecting a NAME token and returning its literal.
@@ -169,9 +198,36 @@ func (p *Parser) isStmtStart() bool {
 	return false
 }
 
-// syncStmt skips tokens until we reach a statement boundary (NEWLINE, DEDENT, or EOF).
+// syncStmt skips tokens until we reach the end of the logical line.
 func (p *Parser) syncStmt() {
-	for !p.at(token.NEWLINE, token.DEDENT, token.EOF) {
+	for !p.atLineEnd() {
+		p.next()
+	}
+}
+
+// skipHeader advances to the colon that ends a compound statement header. It
+// ignores colons inside brackets and colons that belong to a lambda, and it never
+// passes the end of the logical line.
+func (p *Parser) skipHeader() {
+	depth, lambdas := 0, 0
+	for !p.atLineEnd() {
+		switch p.tok.Type {
+		case token.LPAREN, token.LBRACK, token.LBRACE:
+			depth++
+		case token.RPAREN, token.RBRACK, token.RBRACE:
+			depth--
+		case token.LAMBDA:
+			if depth <= 0 {
+				lambdas++
+			}
+		case token.COLON:
+			if depth <= 0 {
+				if lambdas == 0 {
+					return
+				}
+				lambdas--
+			}
+		}
 		p.next()
 	}
 }
@@ -180,7 +236,7 @@ func (p *Parser) syncStmt() {
 // It tracks bracket nesting so it won't stop at a delimiter inside a nested group.
 func (p *Parser) skipUntil(close token.Type) {
 	depth := 0
-	for p.tok.Type != token.EOF {
+	for !p.atLineEnd() {
 		switch p.tok.Type {
 		case token.LPAREN, token.LBRACK, token.LBRACE:
 			depth++
@@ -198,9 +254,45 @@ func (p *Parser) skipUntil(close token.Type) {
 // Statement parsing
 // ---------------------------------------------------------------------------
 
+// parseStmtRecovering parses one statement and contains any error inside it. After
+// an error it drops the rest of the logical line, so that the block continues. It
+// also guarantees progress, so that the statement loops always end.
+func (p *Parser) parseStmtRecovering() ast.Stmt {
+	errs, consumed := len(p.errors), p.consumed
+	stmt := p.parseStmt()
+	if len(p.errors) > errs && !p.atStmtBoundary() {
+		p.syncStmt()
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+	}
+	if p.consumed == consumed {
+		p.next()
+	}
+	return stmt
+}
+
+// atStmtBoundary returns true if the parser already stands at the start of a
+// statement: the previous statement ended its line or its block, or it was
+// abandoned at a statement keyword because of an unclosed bracket.
+func (p *Parser) atStmtBoundary() bool {
+	switch p.prev {
+	case token.NEWLINE, token.INDENT, token.DEDENT:
+		return true
+	}
+	return p.isStmtStart()
+}
+
 // parseStmt parses a single statement, dispatching based on the current token.
 func (p *Parser) parseStmt() ast.Stmt {
 	switch p.tok.Type {
+	case token.INDENT:
+		// An indent with no header, or after a header that failed. Keep the
+		// body as a nested block so that its DEDENT cannot close the enclosing block.
+		pos := p.tok.Pos
+		p.errorf("unexpected indent")
+		body := p.parseIndentedBody()
+		return &ast.PassThrough{Kind: "error", Body: body, Position: pos, EndPos: p.tok.Pos}
 	case token.AT:
 		return p.parseDecorated()
 	case token.DEF:
@@ -340,7 +432,7 @@ func (p *Parser) parseFuncDef(decorators []ast.Expr) ast.Stmt {
 		returns = p.parseExpr()
 	}
 
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	endPos := pos
@@ -391,7 +483,7 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 		p.expect(token.RPAREN)
 	}
 
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	endPos := pos
@@ -417,7 +509,7 @@ func (p *Parser) parseClassArgs() ([]ast.Expr, []*ast.Keyword) {
 	var bases []ast.Expr
 	var keywords []*ast.Keyword
 
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
 		// Bail out if we hit a statement keyword — the paren was never closed.
 		if p.isStmtStart() {
 			p.errorf("unclosed parenthesis in class bases")
@@ -489,11 +581,16 @@ func (p *Parser) parseBlock() []ast.Stmt {
 		// Empty block or malformed — don't error, just return empty.
 		return nil
 	}
+	return p.parseIndentedBody()
+}
+
+// parseIndentedBody parses INDENT stmt+ DEDENT. The caller stands at the INDENT.
+func (p *Parser) parseIndentedBody() []ast.Stmt {
 	p.next() // consume INDENT
 
 	var body []ast.Stmt
 	for p.tok.Type != token.DEDENT && p.tok.Type != token.EOF {
-		stmt := p.parseStmt()
+		stmt := p.parseStmtRecovering()
 		if stmt != nil {
 			body = append(body, stmt)
 		}
@@ -618,6 +715,9 @@ func (p *Parser) parseImportFrom() ast.Stmt {
 	} else {
 		names = p.parseImportNames()
 	}
+	if len(names) == 0 {
+		p.errorf("expected import name, got %s", p.tok.Type)
+	}
 
 	endPos := p.tok.Pos
 	if p.tok.Type == token.NEWLINE {
@@ -706,7 +806,7 @@ func (p *Parser) parseIf() ast.Stmt {
 	p.next() // consume 'if'
 
 	test := p.parseExpr()
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	var orelse []ast.Stmt
@@ -720,7 +820,7 @@ func (p *Parser) parseIf() ast.Stmt {
 		}
 	} else if p.tok.Type == token.ELSE {
 		p.next() // consume 'else'
-		p.expect(token.COLON)
+		p.expectColon()
 		orelse = p.parseBlock()
 	}
 
@@ -746,7 +846,7 @@ func (p *Parser) parseElif() ast.Stmt {
 	p.next() // consume 'elif'
 
 	test := p.parseExpr()
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	var orelse []ast.Stmt
@@ -759,7 +859,7 @@ func (p *Parser) parseElif() ast.Stmt {
 		}
 	} else if p.tok.Type == token.ELSE {
 		p.next()
-		p.expect(token.COLON)
+		p.expectColon()
 		orelse = p.parseBlock()
 	}
 
@@ -1027,7 +1127,7 @@ func (p *Parser) parseParameters() *ast.Arguments {
 	var params []paramInfo
 	slashIdx := -1 // index after which we saw '/'
 
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
 		// Bail out if we hit a statement keyword — the paren was never closed.
 		if p.isStmtStart() {
 			p.errorf("unclosed parenthesis in parameter list")
@@ -1205,7 +1305,7 @@ func (p *Parser) parseTypeParams() []*ast.TypeParam {
 	p.next() // consume '['
 	var params []*ast.TypeParam
 
-	for p.tok.Type != token.RBRACK && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RBRACK && !p.atLineEnd() {
 		tp := &ast.TypeParam{Position: p.tok.Pos}
 		tp.Name = p.expectName()
 

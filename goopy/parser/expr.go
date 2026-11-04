@@ -365,7 +365,7 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 	var args []ast.Expr
 	var keywords []*ast.Keyword
 
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
 		// Bail out if we hit a statement keyword — the paren was never closed.
 		// But FOR is valid inside calls (generator expressions), so exclude it.
 		if p.isStmtStart() && p.tok.Type != token.FOR {
@@ -549,10 +549,11 @@ func (p *Parser) parseAtom() ast.Expr {
 	case token.LAMBDA:
 		return p.parseLambda()
 	default:
-		// Unrecognized token — record error and advance to prevent infinite loops.
+		// Unrecognized token: record an error and skip it, unless it is structural.
+		// The statement loops guarantee progress at structural tokens.
 		p.errorf("unexpected token %s in expression", p.tok.Type)
 		pos := p.tok.Pos
-		if p.tok.Type != token.EOF {
+		if !p.atLineEnd() {
 			p.next()
 		}
 		return &ast.Constant{
@@ -857,7 +858,7 @@ func (p *Parser) parseLambda() ast.Expr {
 	p.next() // consume 'lambda'
 
 	// Skip to the colon — we don't deeply model lambda params.
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
+	for p.tok.Type != token.COLON && !p.atLineEnd() {
 		p.next()
 	}
 	if p.tok.Type == token.COLON {

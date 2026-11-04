@@ -1200,3 +1200,112 @@ func TestComprehensionInDefaultValue(t *testing.T) {
 		t.Errorf("name = %q, want foo", fd.Name)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Recovery: an error stays inside its statement and its block
+// ---------------------------------------------------------------------------
+
+func TestRecoveryStaysInBlock(t *testing.T) {
+	cases := map[string]string{
+		"bad expression": `class C:
+    def m(self):
+        x = )
+        y = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"bad keyword in expression": `class C:
+    def m(self):
+        y = 1 + class + 2
+        z = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"line ends inside expression": `class C:
+    def m(self):
+        y = 1 +
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"bad header": `class C:
+    def m(self) oops:
+        y = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"stray indent": `class C:
+    def m(self):
+        y = 1
+            z = 2
+        w = 3
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			mod, errs := parseWithErrors(t, src)
+			if len(errs) == 0 {
+				t.Fatal("expected a parse error")
+			}
+			requireStmts(t, mod, 2)
+			cls := asClassDef(t, mod.Body[0])
+			if cls.Name != "C" {
+				t.Fatalf("expected class C, got %s", cls.Name)
+			}
+			var methods []string
+			for _, stmt := range cls.Body {
+				if fd, ok := stmt.(*ast.FunctionDef); ok {
+					methods = append(methods, fd.Name)
+				}
+			}
+			if strings.Join(methods, ",") != "m,after_m" {
+				t.Errorf("methods of C: got %v, want [m after_m]", methods)
+			}
+			if fn := asFuncDef(t, mod.Body[1]); fn.Name != "after_c" {
+				t.Errorf("expected module function after_c, got %s", fn.Name)
+			}
+		})
+	}
+}
+
+// Invalid input must end, and must not panic, in any loop that parses a list.
+func TestRecoveryAlwaysEnds(t *testing.T) {
+	for _, src := range []string{
+		"f(]\nx = 1\n",
+		"def f(]\nx = 1\n",
+		"class C(]\nx = 1\n",
+		"def f[]\nx = 1\n",
+		"def f[T]\n",
+		"x[]\ny = 1\n",
+		"x = {]\ny = 1\n",
+		"from x import\n",
+		"import\n",
+		"@\n",
+		"  x = 1\n",
+		"if\n  x = 1\ny = 2\n",
+		"lambda\n",
+		"(a for ]\nx = 1\n",
+		"    a\n  b\nc\n",
+		")\n]\n}\n",
+	} {
+		if mod, errs := parseWithErrors(t, src); mod == nil || len(errs) == 0 {
+			t.Errorf("%q: expected a module and parse errors, got %d errors", src, len(errs))
+		}
+	}
+}
