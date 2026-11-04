@@ -82,19 +82,35 @@ func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports map[
 		case *ast.Assign:
 			// Extract __all__ is handled separately; skip it here.
 			// Also extract simple module-level assignments as attributes.
+			addAttr := func(name, value string) {
+				if name == "__all__" {
+					return
+				}
+				attr := &model.Attribute{Name: name, Value: value}
+				if isPublic(name, exports) {
+					m.Attributes = append(m.Attributes, attr)
+				} else {
+					m.Hidden.Attributes = append(m.Hidden.Attributes, attr)
+				}
+			}
 			for _, target := range s.Targets {
-				if n, ok := target.(*ast.Name); ok {
-					if n.Name == "__all__" {
-						continue
-					}
-					attr := &model.Attribute{
-						Name:  n.Name,
-						Value: exprToString(s.Value),
-					}
-					if isPublic(n.Name, exports) {
-						m.Attributes = append(m.Attributes, attr)
-					} else {
-						m.Hidden.Attributes = append(m.Hidden.Attributes, attr)
+				switch t := target.(type) {
+				case *ast.Name:
+					addAttr(t.Name, exprToString(s.Value))
+				case *ast.Tuple:
+					// "a, b = 1, 2" pairs values with names. For any other value
+					// the parts are unknown, so the attributes have no value.
+					values, _ := s.Value.(*ast.Tuple)
+					for i, elt := range t.Elts {
+						n, ok := elt.(*ast.Name)
+						if !ok {
+							continue
+						}
+						value := ""
+						if values != nil && len(values.Elts) == len(t.Elts) {
+							value = exprToString(values.Elts[i])
+						}
+						addAttr(n.Name, value)
 					}
 				}
 			}

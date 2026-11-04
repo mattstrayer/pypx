@@ -1,6 +1,7 @@
 package extractor
 
 import (
+	"maps"
 	"slices"
 	"testing"
 
@@ -1051,6 +1052,21 @@ func TestExtractAllExports_FiltersOnlyWhenComplete(t *testing.T) {
 	}
 	if len(m.Hidden.Functions) != 1 || m.Hidden.Functions[0].Name != "_d" {
 		t.Errorf("partial __all__: Hidden.Functions = %v", m.Hidden.Functions)
+	}
+}
+
+func TestExtractModule_TupleTargets(t *testing.T) {
+	m := extract("a, b = 1, 2\nc, _d = list(E)\n__all__, f = [], 3\n")
+	got := map[string]string{}
+	for _, attr := range m.Attributes {
+		got[attr.Name] = attr.Value
+	}
+	want := map[string]string{"a": "1", "b": "2", "c": "", "f": "3"}
+	if !maps.Equal(got, want) {
+		t.Errorf("attributes = %v, want %v", got, want)
+	}
+	if len(m.Hidden.Attributes) != 1 || m.Hidden.Attributes[0].Name != "_d" {
+		t.Errorf("Hidden.Attributes = %+v", m.Hidden.Attributes)
 	}
 }
 
