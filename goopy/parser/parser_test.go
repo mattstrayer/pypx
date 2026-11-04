@@ -1731,3 +1731,36 @@ func TestMatchTypeCaseAsNames(t *testing.T) {
 		t.Errorf("got %#v", a)
 	}
 }
+
+func TestSemicolons(t *testing.T) {
+	mod := parse(t, "a = 1; b = 2\nimport c; from d import e; pass; f = 3;\ng = 4\n")
+	requireStmts(t, mod, 7)
+	if asName(t, asAssign(t, mod.Body[1]).Targets[0]).Name != "b" {
+		t.Errorf("got %#v", mod.Body[1])
+	}
+	if asName(t, asAssign(t, mod.Body[6]).Targets[0]).Name != "g" {
+		t.Errorf("got %#v", mod.Body[6])
+	}
+
+	mod = parse(t, "def f(): a = 1; b = 2;\nclass C: x = 1; y = 2\nz = 3\n")
+	requireStmts(t, mod, 3)
+	if n := len(asFuncDef(t, mod.Body[0]).Body); n != 2 {
+		t.Errorf("f: expected 2 statements, got %d", n)
+	}
+	if n := len(asClassDef(t, mod.Body[1]).Body); n != 2 {
+		t.Errorf("C: expected 2 statements, got %d", n)
+	}
+
+	// A keyword statement ends at the semicolon.
+	mod = parse(t, "global a; a = 1\n")
+	requireStmts(t, mod, 2)
+	asAssign(t, mod.Body[1])
+}
+
+func TestTrailingTokensAreAnError(t *testing.T) {
+	for _, src := range []string{"a b\n", "a = 1 2\n", "import a b\n", "from a import b c\n", "pass a\n", "x: int y\n"} {
+		if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+			t.Errorf("%q: expected a parse error", src)
+		}
+	}
+}

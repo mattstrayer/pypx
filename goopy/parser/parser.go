@@ -514,11 +514,16 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 func (p *Parser) parseBlock() []ast.Stmt {
 	// Single-line block (no NEWLINE INDENT).
 	if p.tok.Type != token.NEWLINE {
-		stmt := p.parseSimpleStmtInline()
-		if stmt != nil {
-			return []ast.Stmt{stmt}
+		var body []ast.Stmt
+		for {
+			if stmt := p.parseSimpleStmtInline(); stmt != nil {
+				body = append(body, stmt)
+			}
+			// A ';' that endSimpleStmt consumed means this line has more statements.
+			if p.prev != token.SEMI || p.atLineEnd() {
+				return body
+			}
 		}
-		return nil
 	}
 
 	p.next() // consume NEWLINE
@@ -559,14 +564,29 @@ func (p *Parser) parseSimpleStmtInline() ast.Stmt {
 	return p.parseSimpleStmt()
 }
 
+// endSimpleStmt consumes the end of a simple statement: a NEWLINE, or a ';' with
+// the NEWLINE that can follow it. Any other token is an error. The parser then
+// stands at the next statement, on this line or the next one.
+func (p *Parser) endSimpleStmt() {
+	switch p.tok.Type {
+	case token.NEWLINE:
+		p.next()
+	case token.SEMI:
+		p.next()
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+	case token.DEDENT, token.EOF:
+	default:
+		p.errorf("expected end of statement, got %s", p.tok.Type)
+	}
+}
+
 // parsePass parses a 'pass' statement.
 func (p *Parser) parsePass() ast.Stmt {
 	pos := p.tok.Pos
 	p.next() // consume 'pass'
-	// Consume trailing newline if present.
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 	return &ast.PassThrough{
 		Kind:     "pass",
 		Position: pos,
@@ -590,10 +610,7 @@ func (p *Parser) parseImport() ast.Stmt {
 	}
 
 	endPos := p.tok.Pos
-	// Consume trailing newline.
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.Import{
 		Position: pos,
@@ -667,9 +684,7 @@ func (p *Parser) parseImportFrom() ast.Stmt {
 	}
 
 	endPos := p.tok.Pos
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.ImportFrom{
 		Position: pos,
@@ -726,9 +741,7 @@ func (p *Parser) parseTypeOrSimple() ast.Stmt {
 	p.expect(token.ASSIGN)
 	value := p.parseExpr()
 	endPos := value.End()
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 	return &ast.TypeAliasDef{
 		Position:   pos,
 		EndPos:     endPos,
@@ -943,13 +956,11 @@ func (p *Parser) parseSimpleKeywordStmt() ast.Stmt {
 	kind := strings.ToLower(p.tok.Lit)
 	p.next()
 
-	// Consume the rest of the line.
-	for !p.at(token.NEWLINE, token.EOF, token.DEDENT) {
+	// Consume the rest of the statement.
+	for !p.atLineEnd() && p.tok.Type != token.SEMI {
 		p.next()
 	}
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.PassThrough{
 		Kind:     kind,
@@ -964,9 +975,7 @@ func (p *Parser) parseSimpleStmt() ast.Stmt {
 	if expr == nil {
 		p.errorf("expected statement, got %s", p.tok.Type)
 		p.syncStmt()
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return nil
 	}
 
@@ -989,9 +998,7 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 			value = p.parseExprList()
 		}
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.Assign{
 			Position: expr.Pos(),
 			EndPos:   endPos,
@@ -1007,9 +1014,7 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 		p.next()
 		value := p.parseExprList()
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.Assign{
 			Position: expr.Pos(),
 			EndPos:   endPos,
@@ -1027,9 +1032,7 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 			value = p.parseExprList()
 		}
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		// Simple is true when the target is a plain name (not subscript/attribute).
 		_, simple := expr.(*ast.Name)
 		return &ast.AnnAssign{
@@ -1043,9 +1046,7 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 
 	default:
 		// Bare expression statement.
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.ExprStmt{Value: expr}
 	}
 }
