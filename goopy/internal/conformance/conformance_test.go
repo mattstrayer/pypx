@@ -11,8 +11,7 @@ import (
 
 // knownFailures lists fixtures the parser fails today, keyed by fixture
 // filename with a one-line reason. A listed fixture that passes fails the test.
-var knownFailures = map[string]string{
-}
+var knownFailures = map[string]string{}
 
 func TestFixtures(t *testing.T) {
 	files, err := filepath.Glob("testdata/*.py")
