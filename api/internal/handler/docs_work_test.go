@@ -374,6 +374,36 @@ func TestEncodeDocs_MatchesMarshal(t *testing.T) {
 	}
 }
 
+func TestEncodeDocs_RespectsSizeLimit(t *testing.T) {
+	response := func() DocsResponse {
+		return DocsResponse{Package: "p", Version: "1", Available: true, Modules: []DocModule{
+			{Name: "a", Functions: []DocSymbol{}, Classes: []DocSymbol{}, Exceptions: []DocSymbol{}},
+			{Name: "b", Functions: []DocSymbol{}, Classes: []DocSymbol{}, Exceptions: []DocSymbol{}},
+		}}
+	}
+	want, err := json.Marshal(response())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The size reserves one comma per module, one more than the output has.
+	reserved := len(want) + 1
+	got, err := encodeDocsWithin(response(), reserved)
+	if err != nil {
+		t.Fatalf("at the limit: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("at the limit:\n%s\nwant:\n%s", got, want)
+	}
+
+	// One byte less fails on a module, and a tiny limit fails on the head.
+	for _, limit := range []int{reserved - 1, 1} {
+		if _, err := encodeDocsWithin(response(), limit); !errors.Is(err, errEncodedDocsTooLarge) {
+			t.Errorf("limit %d: err = %v, want errEncodedDocsTooLarge", limit, err)
+		}
+	}
+}
+
 func TestDocsWork_PanicInWeighReleasesBudget(t *testing.T) {
 	c := newTTLCache()
 	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {

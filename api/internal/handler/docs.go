@@ -468,11 +468,24 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 	return encoded, nil
 }
 
+// maxEncodedDocs caps the encoded docs of one package. Sources are capped at 200 MB,
+// so real packages stay far below it. It also keeps the size sum from overflowing.
+const maxEncodedDocs = 1 << 30
+
+// errEncodedDocsTooLarge means a package's encoded docs exceed maxEncodedDocs.
+var errEncodedDocsTooLarge = errors.New("docs: encoded docs exceed size limit")
+
 // encodeDocs returns the same bytes as json.Marshal(resp), one module at a time.
 // json.Marshal holds the whole response and a buffer that grows by doubling, then
 // copies that buffer. For a package with 60 MiB of docs that exceeds the live
 // memory of the rest of the extraction. Here each module is released once encoded.
 func encodeDocs(resp DocsResponse) ([]byte, error) {
+	return encodeDocsWithin(resp, maxEncodedDocs)
+}
+
+// encodeDocsWithin is encodeDocs with the size limit as a parameter, so a test can
+// reach it without a gigabyte of input.
+func encodeDocsWithin(resp DocsResponse, limit int) ([]byte, error) {
 	modules := resp.Modules
 	resp.Modules = []DocModule{}
 	head, err := json.Marshal(resp)
@@ -482,12 +495,18 @@ func encodeDocs(resp DocsResponse) ([]byte, error) {
 	// Modules is the last field, so head ends with its empty array and the brace.
 	head = head[:len(head)-len("]}")]
 
+	if len(head) > limit-len(modules)-len("]}") {
+		return nil, errEncodedDocsTooLarge
+	}
 	chunks := make([][]byte, len(modules))
 	size := len(head) + len(modules) + len("]}")
 	for i := range modules {
 		chunk, err := json.Marshal(&modules[i])
 		if err != nil {
 			return nil, err
+		}
+		if len(chunk) > limit-size {
+			return nil, errEncodedDocsTooLarge
 		}
 		chunks[i] = chunk
 		size += len(chunk)
