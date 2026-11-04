@@ -707,6 +707,130 @@ func TestPublicAPICoverage(t *testing.T) {
 	}
 }
 
+// memberShape counts members that have the wrong form in extraction output.
+type memberShape struct {
+	cachedProperty, accessor, otherProperty int
+	sameFunctions, sameMethods              int
+	sameClasses, sameAttributes             int
+	classes, methods                        int
+}
+
+func (s memberShape) wrong() int {
+	return s.cachedProperty + s.accessor + s.otherProperty +
+		s.sameFunctions + s.sameMethods + s.sameClasses + s.sameAttributes
+}
+
+func (s *memberShape) add(o memberShape) {
+	s.cachedProperty += o.cachedProperty
+	s.accessor += o.accessor
+	s.otherProperty += o.otherProperty
+	s.sameFunctions += o.sameFunctions
+	s.sameMethods += o.sameMethods
+	s.sameClasses += o.sameClasses
+	s.sameAttributes += o.sameAttributes
+	s.classes += o.classes
+	s.methods += o.methods
+}
+
+// repeats returns how many items share a name with an earlier item.
+func repeats[T any](items []T, name func(T) string) int {
+	seen := make(map[string]bool, len(items))
+	n := 0
+	for _, it := range items {
+		if seen[name(it)] {
+			n++
+		}
+		seen[name(it)] = true
+	}
+	return n
+}
+
+func (s *memberShape) addDecorator(d string) {
+	last := d
+	if i := strings.LastIndex(strings.SplitN(d, "(", 2)[0], "."); i >= 0 {
+		last = d[i+1:]
+	}
+	switch last {
+	case "setter", "getter", "deleter":
+		s.accessor++
+		return
+	}
+	last, _, _ = strings.Cut(last, "(")
+	switch last {
+	case "cached_property":
+		s.cachedProperty++
+	case "property", "abstractproperty":
+		s.otherProperty++
+	}
+}
+
+func (s *memberShape) addClass(c *model.Class) {
+	s.classes++
+	s.methods += len(c.Methods)
+	s.sameMethods += repeats(c.Methods, func(f *model.Function) string { return f.Name })
+	s.sameClasses += repeats(c.Classes, func(k *model.Class) string { return k.Name })
+	s.sameAttributes += repeats(c.Attributes, func(a *model.Attribute) string { return a.Name })
+	for _, m := range c.Methods {
+		for _, d := range m.Decorators {
+			s.addDecorator(d)
+		}
+	}
+	for _, k := range c.Classes {
+		s.addClass(k)
+	}
+}
+
+func (s *memberShape) addModule(m *model.Module) {
+	s.sameFunctions += repeats(m.Functions, func(f *model.Function) string { return f.Name })
+	s.sameClasses += repeats(m.Classes, func(k *model.Class) string { return k.Name })
+	s.sameAttributes += repeats(m.Attributes, func(a *model.Attribute) string { return a.Name })
+	for _, c := range m.Classes {
+		s.addClass(c)
+	}
+}
+
+// TestMemberShape checks that no property shows as a method and that one scope
+// never lists a name twice, across the pinned packages.
+func TestMemberShape(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping member shape test in short mode")
+	}
+
+	var total memberShape
+	downloadFailures := 0
+	list := loadPackages(t)
+	for _, pkg := range list.Packages {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		result, err := goopy.ExtractFromPyPI(ctx, pkg.Name, pkg.Version)
+		cancel()
+		if err != nil {
+			downloadFailures++
+			t.Logf("download failed for %s==%s: %v", pkg.Name, pkg.Version, err)
+			continue
+		}
+		var s memberShape
+		for _, m := range result.Modules {
+			s.addModule(m)
+		}
+		if s.wrong() > 0 {
+			t.Errorf("%s: %+v", pkg.Name, s)
+		}
+		total.add(s)
+	}
+	if downloadFailures > 3 {
+		t.Fatalf("%d package downloads failed (limit 3)", downloadFailures)
+	}
+	t.Logf("=== MEMBER SHAPE (%d packages, %d downloads failed): %d classes, %d methods ===",
+		len(list.Packages), downloadFailures, total.classes, total.methods)
+	t.Logf("cached_property methods: %d", total.cachedProperty)
+	t.Logf("accessor methods:        %d", total.accessor)
+	t.Logf("other property methods:  %d", total.otherProperty)
+	t.Logf("same-named functions:    %d", total.sameFunctions)
+	t.Logf("same-named methods:      %d", total.sameMethods)
+	t.Logf("same-named classes:      %d", total.sameClasses)
+	t.Logf("same-named attributes:   %d", total.sameAttributes)
+}
+
 // trimErr removes the line:col prefix and quoted detail so errors group by kind.
 func trimErr(msg string) string {
 	if i := strings.Index(msg, " "); i > 0 && strings.Contains(msg[:i], ":") {
