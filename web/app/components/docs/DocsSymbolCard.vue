@@ -8,6 +8,10 @@ const props = defineProps<{
 
 const expanded = ref(false);
 
+const hasMembers = computed(
+  () => props.symbol.kind === "class" || props.symbol.kind === "exception",
+);
+
 function toggleExpand() {
   expanded.value = !expanded.value;
 }
@@ -91,8 +95,41 @@ function toggleExpand() {
       </div>
     </div>
 
-    <!-- Methods (classes only) -->
-    <div v-if="symbol.kind === 'class' && symbol.methods && symbol.methods.length" class="mb-1">
+    <!-- Attributes -->
+    <div v-if="hasMembers && symbol.attributes && symbol.attributes.length" class="mb-4">
+      <p class="section-label">Attributes</p>
+      <div class="space-y-1.5">
+        <div
+          v-for="attr in symbol.attributes"
+          :key="attr.name"
+          class="flex flex-wrap items-baseline gap-2 rounded-md border-l-2 border-subtle bg-raised px-3 py-1.5"
+        >
+          <span class="font-mono text-[12px] text-sky-400">{{ attr.name }}</span>
+          <span v-if="attr.type" class="font-mono text-[11px] text-muted">{{ attr.type }}</span>
+          <span
+            v-if="attr.default !== undefined"
+            class="min-w-0 break-all font-mono text-[11px] text-[var(--py-default)]"
+            >= {{ attr.default }}</span
+          >
+          <span
+            v-if="attr.is_property"
+            class="rounded border border-subtle px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted"
+            >property</span
+          >
+          <span
+            v-if="attr.is_property && !attr.writable"
+            class="rounded border border-subtle px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted"
+            >read-only</span
+          >
+          <span v-if="attr.description" class="ml-1 text-[11.5px] text-muted">{{
+            attr.description
+          }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Methods (classes and exceptions) -->
+    <div v-if="hasMembers && symbol.methods && symbol.methods.length" class="mb-1">
       <button
         class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted transition-colors hover:bg-raised hover:text-primary"
         @click="toggleExpand"

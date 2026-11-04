@@ -61,6 +61,89 @@ describe("DocsSymbolCard", () => {
     expect(wrapper.text()).not.toMatch(/methods/i);
   });
 
+  it("shows methods for exceptions", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "HTTPError",
+          kind: "exception",
+          methods: [makeSymbol({ name: "explain" })],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.text()).toMatch(/methods/i);
+    await wrapper.find("button").trigger("click");
+    expect(wrapper.text()).toContain("explain");
+  });
+
+  it.each(["class", "exception"] as const)("shows attributes on a %s", async (kind) => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Thing",
+          kind,
+          attributes: [
+            {
+              name: "timeout",
+              type: "float",
+              default: "30.0",
+              description: "Seconds to wait.",
+              is_property: false,
+              writable: false,
+            },
+          ],
+        }),
+        isActive: false,
+      },
+    });
+    const text = wrapper.text();
+    expect(text).toContain("Attributes");
+    expect(text).toContain("timeout");
+    expect(text).toContain("float");
+    expect(text).toContain("= 30.0");
+    expect(text).toContain("Seconds to wait.");
+    expect(text).not.toMatch(/read-only/);
+    expect(text).not.toContain("property");
+  });
+
+  it("labels a read-only property", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Thing",
+          kind: "class",
+          attributes: [{ name: "size", description: "", is_property: true, writable: false }],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.text()).toContain("property");
+    expect(wrapper.text()).toContain("read-only");
+  });
+
+  it("does not label a writable property read-only", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Thing",
+          kind: "class",
+          attributes: [{ name: "size", description: "", is_property: true, writable: true }],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.text()).toContain("property");
+    expect(wrapper.text()).not.toContain("read-only");
+  });
+
+  it("hides the attributes section when a class has none", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ kind: "class", attributes: [] }), isActive: false },
+    });
+    expect(wrapper.text()).not.toContain("Attributes");
+  });
+
   it("exposes sym-{name} id for scroll targeting", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: { symbol: makeSymbol({ name: "predict" }), isActive: false },
