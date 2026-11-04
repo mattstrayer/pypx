@@ -404,6 +404,69 @@ func TestEncodeDocs_RespectsSizeLimit(t *testing.T) {
 	}
 }
 
+// TestDocsWork_SlowStubsDoNotHoldTheBudget uses a package that takes the whole budget
+// to show that its slow stub download leaves room for other packages.
+func TestDocsWork_SlowStubsDoNotHoldTheBudget(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{}, nil
+	})
+	h.weigh = func(context.Context, string, string) (int64, error) { return extractionBudget, nil }
+	stubStarted, releaseStubs := make(chan struct{}), make(chan struct{})
+	h.stubs = func(_ context.Context, name, _ string) (stubIndex, string) {
+		if name == "slow" {
+			close(stubStarted)
+			<-releaseStubs
+		}
+		return make(stubIndex), ""
+	}
+
+	slowDone := make(chan error, 1)
+	go func() {
+		_, _, err := h.fetchDocsAtVersion(context.Background(), "slow", "1")
+		slowDone <- err
+	}()
+	<-stubStarted
+
+	other := make(chan error, 1)
+	go func() {
+		_, _, err := h.fetchDocsAtVersion(context.Background(), "other", "1")
+		other <- err
+	}()
+	select {
+	case err := <-other:
+		if err != nil {
+			t.Errorf("other package: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("another package waited for the slow stub download")
+	}
+
+	close(releaseStubs)
+	if err := <-slowDone; err != nil {
+		t.Errorf("slow package: %v", err)
+	}
+}
+
+// TestDocsWork_StubsReachTheResponse checks that stubs found before the extraction
+// still fill in types.
+func TestDocsWork_StubsReachTheResponse(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{Modules: []*model.Module{{Name: "m", Functions: []*model.Function{{Name: "f"}}}}}, nil
+	})
+	h.stubs = func(context.Context, string, string) (stubIndex, string) {
+		return make(stubIndex), "m-stubs"
+	}
+	resp, _, err := h.fetchDocsAtVersion(context.Background(), "m", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StubPackage != "m-stubs" {
+		t.Errorf("StubPackage = %q, want m-stubs", resp.StubPackage)
+	}
+}
+
 func TestDocsWork_PanicInWeighReleasesBudget(t *testing.T) {
 	c := newTTLCache()
 	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
