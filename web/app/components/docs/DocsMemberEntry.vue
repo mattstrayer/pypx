@@ -6,9 +6,6 @@ const props = defineProps<{
 }>();
 
 const isClass = computed(() => props.member.kind === "class");
-const shownParams = computed(() =>
-  (props.member.parameters ?? []).filter((p) => p.name !== "self" && p.name !== "cls"),
-);
 </script>
 
 <template>
@@ -32,68 +29,7 @@ const shownParams = computed(() =>
     <DocsOverloads v-if="member.overloads?.length" :overloads="member.overloads" class="mb-2" />
     <DocsPyDocstring v-if="member.docstring" :text="member.docstring" class="mb-2" />
 
-    <div v-if="shownParams.length" class="mb-2">
-      <p class="section-label">Parameters</p>
-      <div class="space-y-1">
-        <div
-          v-for="param in shownParams"
-          :key="param.name"
-          class="flex flex-wrap items-baseline gap-2 rounded-md border-l-2 border-subtle bg-raised px-3 py-1.5"
-        >
-          <span class="min-w-0 font-mono text-[12px] text-sky-400 [overflow-wrap:anywhere]">{{
-            param.name
-          }}</span>
-          <span
-            v-if="param.type"
-            class="min-w-0 font-mono text-[11px] text-muted [overflow-wrap:anywhere]"
-            >{{ param.type }}</span
-          >
-          <DocsPyInlineMarkup
-            v-if="param.description"
-            :text="param.description"
-            class="ml-1 min-w-0 text-[11.5px] text-muted [overflow-wrap:anywhere]"
-          />
-        </div>
-      </div>
-    </div>
-
-    <div v-if="member.returns" class="mb-2">
-      <p class="section-label">Returns</p>
-      <div
-        class="flex flex-wrap items-baseline gap-2 rounded-md border-l-2 border-[rgba(74,222,128,0.4)] bg-raised px-3 py-1.5"
-      >
-        <span
-          v-if="member.returns.type"
-          class="min-w-0 font-mono text-[12px] text-sky-400 [overflow-wrap:anywhere]"
-          >{{ member.returns.type }}</span
-        >
-        <DocsPyInlineMarkup
-          v-if="member.returns.description"
-          :text="member.returns.description"
-          class="min-w-0 text-[11.5px] text-muted [overflow-wrap:anywhere]"
-        />
-      </div>
-    </div>
-
-    <div v-if="member.raises && member.raises.length" class="mb-2">
-      <p class="section-label">Raises</p>
-      <div class="space-y-1">
-        <div
-          v-for="r in member.raises"
-          :key="r.type"
-          class="flex flex-wrap items-baseline gap-2 rounded-md border-l-2 border-red-500/30 bg-raised px-3 py-1.5"
-        >
-          <span class="min-w-0 font-mono text-[12px] text-red-400 [overflow-wrap:anywhere]">{{
-            r.type
-          }}</span>
-          <DocsPyInlineMarkup
-            v-if="r.description"
-            :text="r.description"
-            class="min-w-0 text-[11.5px] text-muted [overflow-wrap:anywhere]"
-          />
-        </div>
-      </div>
-    </div>
+    <DocsSymbolFields :symbol="member" dense />
 
     <template v-if="isClass">
       <div v-if="member.attributes && member.attributes.length" class="mb-2">

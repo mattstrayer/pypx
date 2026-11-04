@@ -428,4 +428,29 @@ describe("DocsSymbolCard", () => {
     });
     expect(wrapper.text()).not.toContain("Attributes");
   });
+
+  it("lets parameter, return and raise rows wrap at phone width", async () => {
+    const fields = {
+      parameters: [
+        { name: "X", type: "array", description: "Data.", kind: "positional_or_keyword" },
+      ],
+      returns: { type: "self", description: "Done." },
+      raises: [{ type: "ValueError", description: "Bad." }],
+    };
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          kind: "class",
+          ...fields,
+          methods: [{ ...makeSymbol(), ...fields }],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button[aria-expanded='false']").trigger("click");
+
+    const rows = wrapper.findAll("[data-testid='field-row']");
+    expect(rows).toHaveLength(6);
+    for (const row of rows) expect(row.classes()).toContain("flex-wrap");
+  });
 });

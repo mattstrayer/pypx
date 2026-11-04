@@ -8,7 +8,7 @@ defineProps<{
 
 <template>
   <!-- Full fetch skeleton: matches two-column layout to prevent layout shift -->
-  <div v-if="mode === 'fetch'" class="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8">
+  <div v-if="mode === 'fetch'" class="flex gap-0 -mx-4 min-[74rem]:-mx-8">
     <!-- Sidebar skeleton -->
     <div
       class="w-48 flex-shrink-0 sticky top-0 h-screen border-r border-subtle bg-base py-3 hidden md:block"
