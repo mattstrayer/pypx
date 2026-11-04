@@ -63,6 +63,8 @@ func exprToString(expr ast.Expr) string {
 			s += ":" + exprToString(e.Step)
 		}
 		return s
+	case *ast.Await:
+		return "await " + exprToString(e.Value)
 	case *ast.Yield:
 		switch {
 		case e.From:

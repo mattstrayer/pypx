@@ -47,6 +47,7 @@ func TestTypeString(t *testing.T) {
 		{NONLOCAL, "NONLOCAL"},
 		{ASSERT, "ASSERT"},
 		{LAMBDA, "LAMBDA"},
+		{AWAIT, "AWAIT"},
 		{AND, "AND"},
 		{OR, "OR"},
 		{NOT, "NOT"},

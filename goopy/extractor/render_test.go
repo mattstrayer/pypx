@@ -13,6 +13,7 @@ func TestExprToString_NewNodes(t *testing.T) {
 		"(b := 1)":       "b := 1",
 		"y[1:2, ::3]":    "y[1:2, ::3]",
 		"y[:]":           "y[:]",
+		"await a.b":      "await a.b",
 		"(yield)":        "yield",
 		"(yield a)":      "yield a",
 		"(yield from a)": "yield from a",

@@ -343,6 +343,17 @@ func (i *IfExpr) Pos() token.Pos { return i.Position }
 func (i *IfExpr) End() token.Pos { return i.EndPos }
 func (i *IfExpr) exprNode()      {}
 
+// Await is an await expression (await value).
+type Await struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Value    Expr
+}
+
+func (a *Await) Pos() token.Pos { return a.Position }
+func (a *Await) End() token.Pos { return a.EndPos }
+func (a *Await) exprNode()      {}
+
 // Yield is a yield expression (yield value, yield from value). Value can be nil.
 type Yield struct {
 	Position token.Pos

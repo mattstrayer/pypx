@@ -272,7 +272,15 @@ func (p *Parser) parseUnary() ast.Expr {
 }
 
 func (p *Parser) parsePower() ast.Expr {
-	base := p.parseAtomExpr()
+	var base ast.Expr
+	if p.tok.Type == token.AWAIT {
+		pos := p.tok.Pos
+		p.next()
+		val := p.parseAtomExpr()
+		base = &ast.Await{Position: pos, EndPos: val.End(), Value: val}
+	} else {
+		base = p.parseAtomExpr()
+	}
 	if p.tok.Type == token.DSTAR {
 		op := p.tok.Type
 		p.next()

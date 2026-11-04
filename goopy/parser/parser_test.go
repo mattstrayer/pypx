@@ -1764,3 +1764,32 @@ func TestTrailingTokensAreAnError(t *testing.T) {
 		}
 	}
 }
+
+func TestAwait(t *testing.T) {
+	aw, ok := asAssign(t, parse(t, "x = await f(a).b\n").Body[0]).Value.(*ast.Await)
+	if !ok {
+		t.Fatal("expected Await value")
+	}
+	if _, ok := aw.Value.(*ast.Attribute); !ok {
+		t.Errorf("got %T, want Attribute", aw.Value)
+	}
+	// await binds tighter than ** and every other operator.
+	op, ok := exprOf(t, "-await a ** 2 + 1").(*ast.BinOp)
+	if !ok || op.Op != token.PLUS {
+		t.Fatalf("got %#v", op)
+	}
+	neg, ok := op.Left.(*ast.UnaryOp)
+	if !ok {
+		t.Fatalf("got %T, want UnaryOp", op.Left)
+	}
+	pow, ok := neg.Operand.(*ast.BinOp)
+	if !ok || pow.Op != token.DSTAR {
+		t.Fatalf("got %#v", neg.Operand)
+	}
+	if _, ok := pow.Left.(*ast.Await); !ok {
+		t.Errorf("got %T, want Await", pow.Left)
+	}
+	exprOf(t, "f(await a, k=await b)")
+	exprOf(t, "[await a for a in b]")
+	parse(t, "if await a:\n    pass\n")
+}
