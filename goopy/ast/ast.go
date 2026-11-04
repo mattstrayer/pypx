@@ -254,7 +254,8 @@ func (l *List) Pos() token.Pos { return l.Position }
 func (l *List) End() token.Pos { return l.EndPos }
 func (l *List) exprNode()      {}
 
-// Dict is a dict expression {k1: v1, k2: v2}.
+// Dict is a dict expression {k1: v1, k2: v2}. As in CPython, an unpack entry
+// {**x} has a nil key at its position in Keys, and x as its value.
 type Dict struct {
 	Position token.Pos
 	EndPos   token.Pos

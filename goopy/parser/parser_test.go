@@ -1501,3 +1501,25 @@ func TestWalrus(t *testing.T) {
 	asNamedExpr(t, exprOf(t, "x[a := 1]").(*ast.Subscript).Slice)
 	exprOf(t, "[(a := x) for x in y]")
 }
+
+func TestDictUnpack(t *testing.T) {
+	d, ok := exprOf(t, "{**a, 'k': 1, **b.c, 'l': 2,}").(*ast.Dict)
+	if !ok {
+		t.Fatal("expected Dict")
+	}
+	if len(d.Keys) != 4 || len(d.Values) != 4 {
+		t.Fatalf("got %d keys and %d values, want 4 of each", len(d.Keys), len(d.Values))
+	}
+	if d.Keys[0] != nil || d.Keys[2] != nil {
+		t.Errorf("unpack entries must have nil keys: %#v", d.Keys)
+	}
+	if asName(t, d.Values[0]).Name != "a" {
+		t.Errorf("value 0: got %#v", d.Values[0])
+	}
+	if asConstant(t, d.Keys[1]).Value != "k" {
+		t.Errorf("key 1: got %#v", d.Keys[1])
+	}
+	if _, ok := d.Values[2].(*ast.Attribute); !ok {
+		t.Errorf("value 2: got %T, want Attribute", d.Values[2])
+	}
+}

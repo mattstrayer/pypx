@@ -742,6 +742,19 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		return &ast.Dict{Position: pos, EndPos: endPos}
 	}
 
+	// Dict starting with an unpack, or an unpacking comprehension: {**x for ...}.
+	if p.tok.Type == token.DSTAR {
+		p.next()
+		firstVal := p.parseExpr()
+		if p.at(token.FOR, token.ASYNC) {
+			p.skipUntil(token.RBRACE)
+			endPos := p.tok.Pos
+			p.expect(token.RBRACE)
+			return &ast.Dict{Position: pos, EndPos: endPos, Keys: []ast.Expr{nil}, Values: []ast.Expr{firstVal}}
+		}
+		return p.parseDictItems(pos, nil, firstVal)
+	}
+
 	first := p.parseNamedExpr()
 
 	if p.tok.Type == token.COLON {
@@ -762,27 +775,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 			}
 		}
 
-		keys := []ast.Expr{first}
-		vals := []ast.Expr{firstVal}
-		for p.tok.Type == token.COMMA {
-			p.next()
-			if p.tok.Type == token.RBRACE {
-				break
-			}
-			k := p.parseExpr()
-			p.expect(token.COLON)
-			v := p.parseExpr()
-			keys = append(keys, k)
-			vals = append(vals, v)
-		}
-		endPos := p.tok.Pos
-		p.expect(token.RBRACE)
-		return &ast.Dict{
-			Position: pos,
-			EndPos:   endPos,
-			Keys:     keys,
-			Values:   vals,
-		}
+		return p.parseDictItems(pos, first, firstVal)
 	}
 
 	// Set comprehension: {expr for ...}
@@ -809,6 +802,32 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		EndPos:   endPos,
 		Elts:     elts,
 	}
+}
+
+// parseDictItems parses the rest of a dict display after its first entry, up to
+// and including the closing brace. A nil key marks a ** unpack entry.
+func (p *Parser) parseDictItems(pos token.Pos, firstKey, firstVal ast.Expr) ast.Expr {
+	keys := []ast.Expr{firstKey}
+	vals := []ast.Expr{firstVal}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.tok.Type == token.RBRACE {
+			break
+		}
+		if p.tok.Type == token.DSTAR {
+			p.next()
+			keys = append(keys, nil)
+			vals = append(vals, p.parseExpr())
+			continue
+		}
+		k := p.parseExpr()
+		p.expect(token.COLON)
+		keys = append(keys, k)
+		vals = append(vals, p.parseExpr())
+	}
+	endPos := p.tok.Pos
+	p.expect(token.RBRACE)
+	return &ast.Dict{Position: pos, EndPos: endPos, Keys: keys, Values: vals}
 }
 
 // parseLambda parses 'lambda params: expr'. We treat it as a passthrough

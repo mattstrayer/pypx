@@ -62,6 +62,10 @@ func exprToString(expr ast.Expr) string {
 	case *ast.Dict:
 		var parts []string
 		for i := range e.Keys {
+			if e.Keys[i] == nil {
+				parts = append(parts, "**"+exprToString(e.Values[i]))
+				continue
+			}
 			parts = append(parts, exprToString(e.Keys[i])+": "+exprToString(e.Values[i]))
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
