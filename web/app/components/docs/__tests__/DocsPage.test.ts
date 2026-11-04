@@ -41,6 +41,15 @@ describe("docs page", () => {
     expect(wrapper.text()).not.toContain("Jump to symbol");
   });
 
+  it("has one h1 naming the package", async () => {
+    fetchDocs.mockResolvedValue({ package: "pkg", version: "1.0", available: true, modules: [] });
+    const page = await mountSuspended(DocsPage);
+    await flushPromises();
+    const headings = page.findAll("h1");
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text()).toBe("pkg API documentation");
+  });
+
   it("offers the symbol jump when docs exist", async () => {
     const available: DocsResponse = {
       package: "pkg",
