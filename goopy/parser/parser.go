@@ -624,20 +624,20 @@ func (p *Parser) parseImportFrom() ast.Stmt {
 	p.next() // consume 'from'
 
 	// Count leading dots for relative imports.
+	// The lexer groups dots greedily, so '....' is ELLIPSIS DOT.
 	level := 0
-	for p.tok.Type == token.DOT {
-		level++
-		p.next()
-	}
-	// Handle '...' (ELLIPSIS) as three dots.
-	for p.tok.Type == token.ELLIPSIS {
-		level += 3
+	for p.at(token.DOT, token.ELLIPSIS) {
+		if p.tok.Type == token.DOT {
+			level++
+		} else {
+			level += 3
+		}
 		p.next()
 	}
 
 	// Optional module name.
 	module := ""
-	if p.tok.Type == token.NAME {
+	if p.tok.Type == token.NAME || p.isSoftKeyword() {
 		module = p.parseDottedName()
 	}
 

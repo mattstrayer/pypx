@@ -1433,3 +1433,27 @@ func TestChainedAssignmentKeepsEveryTarget(t *testing.T) {
 	asName(t, a.Targets[2])
 	asConstant(t, a.Value)
 }
+
+func TestImportFrom_RelativeLevels(t *testing.T) {
+	cases := []struct {
+		src    string
+		level  int
+		module string
+	}{
+		{"from . import a", 1, ""},
+		{"from .. import a", 2, ""},
+		{"from ... import a", 3, ""},
+		{"from .... import a", 4, ""},
+		{"from ..... import a", 5, ""},
+		{"from ....... import a", 7, ""},
+		{"from ....b.c import a", 4, "b.c"},
+		{"from .type import a", 1, "type"},
+		{"from match import a", 0, "match"},
+	}
+	for _, c := range cases {
+		imp := asImportFrom(t, parse(t, c.src+"\n").Body[0])
+		if imp.Level != c.level || imp.Module != c.module {
+			t.Errorf("%s: got level %d module %q", c.src, imp.Level, imp.Module)
+		}
+	}
+}

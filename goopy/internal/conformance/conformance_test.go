@@ -17,7 +17,6 @@ var knownFailures = map[string]string{
 	"loop_else.py":        "else clauses on for, while and async for",
 	"match_guard.py":      "match case with star pattern and guard",
 	"matmul.py":           "@ and @= operators",
-	"relative_imports.py": "relative imports with four or more dots",
 	"semicolons.py":       "semicolon-separated statements in a one-line block",
 	"subscripts.py":       "slices and tuple subscripts",
 	"walrus.py":           "assignment expressions in if headers",
