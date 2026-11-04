@@ -140,16 +140,16 @@ func TestBuildStubIndex(t *testing.T) {
 
 	idx := buildStubIndex(pkg)
 
-	if _, ok := idx["django.db.models.get_object_or_404"]; !ok {
+	if _, ok := idx.functions["django.db.models.get_object_or_404"]; !ok {
 		t.Error("buildStubIndex: missing module-level function key")
 	}
-	if _, ok := idx["django.db.models.QuerySet.filter"]; !ok {
+	if _, ok := idx.functions["django.db.models.QuerySet.filter"]; !ok {
 		t.Error("buildStubIndex: missing class method key")
 	}
-	if _, ok := idx["django.db.models.QuerySet.exclude"]; !ok {
+	if _, ok := idx.functions["django.db.models.QuerySet.exclude"]; !ok {
 		t.Error("buildStubIndex: missing class method key")
 	}
-	if _, ok := idx["django.db.models.QuerySet"]; ok {
+	if _, ok := idx.functions["django.db.models.QuerySet"]; ok {
 		t.Error("buildStubIndex: should not index class itself, only methods")
 	}
 }
@@ -268,11 +268,11 @@ func TestFetchStubPackage_OtherFilesDoNotCount(t *testing.T) {
 
 func TestBuildStubIndex_NilPackage(t *testing.T) {
 	idx := buildStubIndex(nil)
-	if idx == nil {
+	if idx.functions == nil {
 		t.Error("buildStubIndex(nil) returned nil, want empty map")
 	}
-	if len(idx) != 0 {
-		t.Errorf("buildStubIndex(nil) len = %d, want 0", len(idx))
+	if len(idx.functions) != 0 {
+		t.Errorf("buildStubIndex(nil) len = %d, want 0", len(idx.functions))
 	}
 }
 

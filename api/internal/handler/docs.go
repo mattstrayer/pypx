@@ -24,6 +24,7 @@ import (
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
+	"github.com/pypx/goopy/extractor"
 	"github.com/pypx/goopy/model"
 	"github.com/pypx/goopy/wheel"
 	"golang.org/x/sync/semaphore"
@@ -657,26 +658,26 @@ func (h *DocsHandler) findStubs(ctx context.Context, name, version string) (stub
 func resolveStubs(ctx context.Context, pypiClient *pypi.Client, pkgName, sourceVersion string) (stubIndex, string) {
 	stubPkgName, ok := lookupStubPackage(pkgName)
 	if !ok {
-		return make(stubIndex), ""
+		return stubIndex{}, ""
 	}
 
 	stubPyPI, err := pypiClient.FetchPackage(ctx, stubPkgName)
 	if err != nil {
 		log.Printf("stubs: failed to fetch %s metadata: %v", stubPkgName, err)
-		return make(stubIndex), ""
+		return stubIndex{}, ""
 	}
 
 	sourceMajor := strings.SplitN(sourceVersion, ".", 2)[0]
 	stubVersion := resolveStubVersion(stubPyPI.Releases, sourceMajor)
 	if stubVersion == "" {
 		log.Printf("stubs: no releases found for %s", stubPkgName)
-		return make(stubIndex), ""
+		return stubIndex{}, ""
 	}
 
 	stubPkg, err := fetchStubPackage(ctx, stubPkgName, stubPyPI.Releases, stubVersion)
 	if err != nil {
 		log.Printf("stubs: failed to extract %s@%s: %v", stubPkgName, stubVersion, err)
-		return make(stubIndex), ""
+		return stubIndex{}, ""
 	}
 
 	return buildStubIndex(stubPkg), stubPkgName
@@ -795,24 +796,25 @@ func originKey(origin, originName, name string) string {
 // the path where it is defined. A stub package need not re-export a name the
 // same way the source package does.
 func stubForFunction(stubs stubIndex, modName string, fn *model.Function) *model.Function {
-	if s := stubs[modName+"."+fn.Name]; s != nil {
+	if s := stubs.functions[modName+"."+fn.Name]; s != nil {
 		return s
 	}
 	if key := originKey(fn.Origin, fn.OriginName, fn.Name); key != "" {
-		return stubs[key]
+		return stubs.functions[key]
 	}
 	return nil
 }
 
 func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
+	decorators := extractor.FunctionDecorators(fn, stubFn)
 	sym := DocSymbol{
 		Name:       fn.Name,
 		Kind:       "function",
 		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 		Origin:     fn.Origin,
-		MethodKind: methodKind(fn),
-		Decorators: servedDecorators(fn.Decorators),
+		MethodKind: methodKind(fn.IsMethod, decorators),
+		Decorators: servedDecorators(decorators),
 		Overloads:  overloadSignatures(fn, stubFn),
 	}
 	// Note: Signature is set after the parameter loop so stub-filled types appear.
@@ -871,7 +873,11 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	}
 
 	// Build signature after merge so stub-filled types appear in the displayed signature.
-	sym.Signature = buildMergedSignature(fn, sym.Parameters, sym.Returns)
+	returnType := ""
+	if sym.Returns != nil {
+		returnType = sym.Returns.Type
+	}
+	sym.Signature = functionSignature(fn.IsAsync, fn.Name, sym.Parameters, returnType)
 
 	// Raises: populate from docstring (stubs don't carry raise docs).
 	if fn.Docstring != nil && len(fn.Docstring.Raises) > 0 {
@@ -889,12 +895,12 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 
 // methodKind reads how a method is bound from its decorators. A decorator keeps its
 // module prefix in the model, as in abc.abstractclassmethod.
-func methodKind(fn *model.Function) string {
-	if !fn.IsMethod {
+func methodKind(isMethod bool, decorators []string) string {
+	if !isMethod {
 		return ""
 	}
-	for _, dec := range fn.Decorators {
-		switch decoratorName(dec) {
+	for _, dec := range decorators {
+		switch extractor.DecoratorName(dec) {
 		case "classmethod", "abstractclassmethod":
 			return "classmethod"
 		case "staticmethod", "abstractstaticmethod":
@@ -902,13 +908,6 @@ func methodKind(fn *model.Function) string {
 		}
 	}
 	return ""
-}
-
-// decoratorName returns a decorator's name without its arguments or module path:
-// functools.lru_cache(maxsize=128) gives lru_cache.
-func decoratorName(dec string) string {
-	head, _, _ := strings.Cut(dec, "(")
-	return head[strings.LastIndex(head, ".")+1:]
 }
 
 // servedDecoratorNames maps each decorator with meaning for a caller to its served
@@ -927,7 +926,7 @@ var servedDecoratorNames = map[string]string{
 func servedDecorators(decs []string) []string {
 	var out []string
 	for _, dec := range decs {
-		name, ok := servedDecoratorNames[decoratorName(dec)]
+		name, ok := servedDecoratorNames[extractor.DecoratorName(dec)]
 		if !ok || slices.Contains(out, name) {
 			continue
 		}
@@ -942,7 +941,7 @@ func servedDecorators(decs []string) []string {
 // isOverload reports whether fn is itself an @overload. That happens when no
 // implementation exists, as in a stub.
 func isOverload(fn *model.Function) bool {
-	return slices.ContainsFunc(fn.Decorators, func(dec string) bool { return decoratorName(dec) == "overload" })
+	return slices.ContainsFunc(fn.Decorators, func(dec string) bool { return extractor.DecoratorName(dec) == "overload" })
 }
 
 // overloadSignatures returns the signatures of fn's overloads, or of its stub's if
@@ -974,13 +973,17 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 // convertClassAt converts a class published at path. Its stubs are under path or
 // originPath, which is empty for a class that is not a re-export.
 func convertClassAt(cls *model.Class, stubs stubIndex, path, originPath string) DocSymbol {
+	stubCls := stubs.classes[path]
+	if stubCls == nil && originPath != "" {
+		stubCls = stubs.classes[originPath]
+	}
 	sym := DocSymbol{
 		Name:       cls.Name,
 		Kind:       "class",
 		Signature:  buildClassSignature(cls),
 		Docstring:  cleanDocstringText(cls.Docstring),
 		Origin:     cls.Origin,
-		Decorators: servedDecorators(cls.Decorators),
+		Decorators: servedDecorators(extractor.ClassDecorators(cls, stubCls)),
 	}
 	// A stub can make a class a dataclass with no decorator on the source class.
 	if cls.Dataclass != nil && !slices.Contains(sym.Decorators, "dataclass") {
@@ -989,11 +992,11 @@ func convertClassAt(cls *model.Class, stubs stubIndex, path, originPath string) 
 
 	// A member's stub is under the class's published path or under its origin.
 	stubForMember := func(member string) *model.Function {
-		if s := stubs[path+"."+member]; s != nil {
+		if s := stubs.functions[path+"."+member]; s != nil {
 			return s
 		}
 		if originPath != "" {
-			return stubs[originPath+"."+member]
+			return stubs.functions[originPath+"."+member]
 		}
 		return nil
 	}
@@ -1181,32 +1184,19 @@ func isRSTAdornment(line string) bool {
 		strings.Trim(line, line[:1]) == ""
 }
 
-// buildMergedSignature builds a function signature using the already-merged DocParam
-// slice (which may include stub-backfilled types) rather than the raw model parameters.
-func buildMergedSignature(fn *model.Function, params []DocParam, returns *DocReturn) string {
-	parts := make([]string, len(params))
-	for i, dp := range params {
-		parts[i] = paramText(dp.Name, dp.Type, dp.Default)
-	}
-	returnType := ""
-	if returns != nil {
-		returnType = returns.Type
-	}
-	return joinSignature(fn.IsAsync, fn.Name, parts, returnType)
-}
-
-// overloadSignature renders one @overload under the name it is published as. The
-// main signature leaves out "*", "**" and "/", because the page rebuilds them from
-// Parameters. An overload is served only as this string, so it keeps them.
-func overloadSignature(name string, o *model.Function) string {
-	parts := make([]string, 0, len(o.Parameters)+2)
-	star := slices.ContainsFunc(o.Parameters, func(p *model.Parameter) bool { return p.Kind == model.ParamVarPositional })
-	for i, p := range o.Parameters {
-		if i > 0 && o.Parameters[i-1].Kind == model.ParamPositionalOnly && p.Kind != model.ParamPositionalOnly {
+// functionSignature renders a def line from merged parameters, with the "*", "**"
+// and "/" that each parameter's kind implies. Main signatures and overloads both
+// come through here, so they cannot disagree about how a parameter list reads.
+func functionSignature(isAsync bool, name string, params []DocParam, returnType string) string {
+	kind := func(i int) model.ParamKind { return model.ParamKind(params[i].Kind) }
+	parts := make([]string, 0, len(params)+2)
+	star := slices.ContainsFunc(params, func(p DocParam) bool { return model.ParamKind(p.Kind) == model.ParamVarPositional })
+	for i, p := range params {
+		if i > 0 && kind(i-1) == model.ParamPositionalOnly && kind(i) != model.ParamPositionalOnly {
 			parts = append(parts, "/")
 		}
 		prefix := ""
-		switch p.Kind {
+		switch kind(i) {
 		case model.ParamKeywordOnly:
 			if !star {
 				parts = append(parts, "*")
@@ -1217,12 +1207,22 @@ func overloadSignature(name string, o *model.Function) string {
 		case model.ParamVarKeyword:
 			prefix = "**"
 		}
-		parts = append(parts, paramText(prefix+p.Name, typeRaw(p.Type), p.Default))
+		parts = append(parts, paramText(prefix+p.Name, p.Type, p.Default))
 	}
-	if n := len(o.Parameters); n > 0 && o.Parameters[n-1].Kind == model.ParamPositionalOnly {
+	if n := len(params); n > 0 && kind(n-1) == model.ParamPositionalOnly {
 		parts = append(parts, "/")
 	}
-	return joinSignature(o.IsAsync, name, parts, typeRaw(o.Returns))
+	return joinSignature(isAsync, name, parts, returnType)
+}
+
+// overloadSignature renders one @overload under the name it is published as. It
+// uses the overload's own annotations: a docstring describes the implementation.
+func overloadSignature(name string, o *model.Function) string {
+	params := make([]DocParam, len(o.Parameters))
+	for i, p := range o.Parameters {
+		params[i] = DocParam{Name: p.Name, Kind: string(p.Kind), Type: typeRaw(p.Type), Default: p.Default}
+	}
+	return functionSignature(o.IsAsync, name, params, typeRaw(o.Returns))
 }
 
 func typeRaw(t *model.TypeExpr) string {

@@ -166,7 +166,7 @@ func TestConvertToDocsResponse_DocstringOnlyModules(t *testing.T) {
 			{Name: "pkg", Docstring: doc("About pkg.")},
 			{Name: "pkg.core", Functions: []*model.Function{{Name: "f"}}},
 			{Name: "pkg.notes", Docstring: doc("Only words.")},
-		}}, nil)
+		}}, stubIndex{})
 		var names []string
 		for _, m := range resp.Modules {
 			names = append(names, m.Name)
@@ -182,7 +182,7 @@ func TestConvertToDocsResponse_DocstringOnlyModules(t *testing.T) {
 	t.Run("a summary alone does not make a package available", func(t *testing.T) {
 		resp := convertToDocsResponse("pkg", "1", &model.Package{Modules: []*model.Module{
 			{Name: "pkg", Docstring: doc("About pkg.")},
-		}}, nil)
+		}}, stubIndex{})
 		if resp.Available {
 			t.Error("Available = true, want false")
 		}

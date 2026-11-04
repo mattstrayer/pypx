@@ -14,12 +14,12 @@ func stubFn(ret string) *model.Function {
 }
 
 func TestStubForFunction_LookupOrder(t *testing.T) {
-	stubs := stubIndex{
+	stubs := stubIndex{functions: map[string]*model.Function{
 		"pkg.published":  stubFn("published"),
 		"pkg._x.defined": stubFn("origin"),
 		"pkg._x.other":   stubFn("origin-other"),
 		"pkg._x.old":     stubFn("origin-renamed"),
-	}
+	}}
 	tests := []struct {
 		name string
 		fn   *model.Function
@@ -45,11 +45,11 @@ func TestStubForFunction_LookupOrder(t *testing.T) {
 }
 
 func TestConvertClass_StubFallbackToOrigin(t *testing.T) {
-	stubs := stubIndex{
+	stubs := stubIndex{functions: map[string]*model.Function{
 		"pandas.core.frame.DataFrame.head": stubFn("DataFrame"),
 		"pkg.New.direct":                   stubFn("direct"),
 		"pkg._x.Old.renamed":               stubFn("renamed"),
-	}
+	}}
 	cls := &model.Class{
 		Name:    "DataFrame",
 		Origin:  "pandas.core.frame",
@@ -89,13 +89,13 @@ func TestBuildStubIndex_Aliases(t *testing.T) {
 		{Name: "pkg.io", Functions: []*model.Function{read}},
 	}}
 	idx := buildStubIndex(pkg)
-	if idx["pkg.DF.head"] != head {
+	if idx.functions["pkg.DF.head"] != head {
 		t.Error("alias of a class must index its methods")
 	}
-	if idx["pkg.read"] != read {
+	if idx.functions["pkg.read"] != read {
 		t.Error("alias of a function must index the function")
 	}
-	if _, ok := idx["pkg.gone"]; ok {
+	if _, ok := idx.functions["pkg.gone"]; ok {
 		t.Error("alias with no target must not be indexed")
 	}
 }

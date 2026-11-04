@@ -344,7 +344,7 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 		badges = " [" + strings.Join(words, ", ") + "]"
 	}
 	if sym.Signature != "" {
-		fmt.Fprintf(b, "### %s — %s%s\n", dottedPath, sym.Signature, badges)
+		fmt.Fprintf(b, "### %s — %s%s\n", dottedPath, lineBreaks.Replace(sym.Signature), badges)
 	} else {
 		fmt.Fprintf(b, "### %s%s\n", dottedPath, badges)
 	}

@@ -49,11 +49,11 @@ func TestConvertFunction_BindingAndDecorators(t *testing.T) {
 }
 
 func TestConvertClass_Decorators(t *testing.T) {
-	sym := convertClass(&model.Class{Name: "C", Decorators: []string{"dataclasses.dataclass(frozen=True)", "typing.final"}}, nil, "m")
+	sym := convertClass(&model.Class{Name: "C", Decorators: []string{"dataclasses.dataclass(frozen=True)", "typing.final"}}, stubIndex{}, "m")
 	if want := []string{"dataclass", "final"}; !slices.Equal(sym.Decorators, want) {
 		t.Errorf("Decorators = %q, want %q", sym.Decorators, want)
 	}
-	viaStub := convertClass(&model.Class{Name: "C", Dataclass: &model.Dataclass{}}, nil, "m")
+	viaStub := convertClass(&model.Class{Name: "C", Dataclass: &model.Dataclass{}}, stubIndex{}, "m")
 	if want := []string{"dataclass"}; !slices.Equal(viaStub.Decorators, want) {
 		t.Errorf("Decorators with Dataclass set = %q, want %q", viaStub.Decorators, want)
 	}
@@ -146,7 +146,7 @@ func TestConvertClass_ConstructorOverloads(t *testing.T) {
 	sym := convertClass(&model.Class{Name: "C", Constructor: &model.Function{
 		Name:      "__init__",
 		Overloads: []*model.Function{{Name: "__init__", Decorators: []string{"overload"}, Parameters: []*model.Parameter{{Name: "x", Type: &model.TypeExpr{Raw: "int"}}}}},
-	}}, nil, "m")
+	}}, stubIndex{}, "m")
 	if want := []string{"def __init__(x: int)"}; !slices.Equal(sym.Overloads, want) {
 		t.Errorf("Overloads = %q, want %q", sym.Overloads, want)
 	}
@@ -167,7 +167,7 @@ func TestConvertClass_NestedClasses(t *testing.T) {
 		{Name: "__Mangled"},
 	}}
 
-	sym := convertClass(outer, nil, "m")
+	sym := convertClass(outer, stubIndex{}, "m")
 	if len(sym.Classes) != 1 {
 		t.Fatalf("Classes = %+v, want Inner only", sym.Classes)
 	}
@@ -221,7 +221,7 @@ func TestConvertToDocsResponse_NestedExceptionStaysInParent(t *testing.T) {
 			Name:    "Outer",
 			Classes: []*model.Class{{Name: "InnerError", BaseClasses: []*model.TypeRef{{Name: "Exception"}}}},
 		}},
-	}}}, nil)
+	}}}, stubIndex{})
 	dm := resp.Modules[0]
 	if len(dm.Exceptions) != 0 || len(dm.Classes) != 1 {
 		t.Fatalf("Exceptions = %+v, Classes = %+v", dm.Exceptions, dm.Classes)

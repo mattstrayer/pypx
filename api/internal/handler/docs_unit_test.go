@@ -33,7 +33,7 @@ func TestConvertClass_Attributes(t *testing.T) {
 			{Name: "rw", IsProperty: true, Writable: true},
 		},
 	}
-	got := convertClass(cls, nil, "m").Attributes
+	got := convertClass(cls, stubIndex{}, "m").Attributes
 	want := []DocAttribute{
 		{Name: "plain", Type: "int", Default: "1"},
 		{Name: "ro", Description: "A property.", IsProperty: true},
@@ -52,7 +52,7 @@ func TestConvertClass_Attributes(t *testing.T) {
 func TestConvertClass_InstanceAttributesHaveNoDefault(t *testing.T) {
 	inst := &model.Attribute{Name: "app", Value: "app", Instance: true, Type: &model.TypeExpr{Raw: "App"}}
 	cls := &model.Class{Name: "C", Attributes: []*model.Attribute{inst, {Name: "limit", Value: "1"}}}
-	got := convertClass(cls, nil, "m").Attributes
+	got := convertClass(cls, stubIndex{}, "m").Attributes
 	if len(got) != 2 || got[0].Default != "" || got[0].Type != "App" || got[1].Default != "1" {
 		t.Errorf("Attributes = %+v", got)
 	}
@@ -71,7 +71,7 @@ func TestConvertClass_HidesDunderAttributes(t *testing.T) {
 		{Name: "____", Value: "4"},
 	}}
 	names := []string{}
-	for _, a := range convertClass(cls, nil, "m").Attributes {
+	for _, a := range convertClass(cls, stubIndex{}, "m").Attributes {
 		names = append(names, a.Name)
 	}
 	if got, want := strings.Join(names, ","), "__mangled,public,trailing__,____"; got != want {
@@ -100,7 +100,7 @@ func TestTruncateDefault(t *testing.T) {
 		})
 	}
 	long := &model.Attribute{Name: "x", Value: strings.Repeat("v", 500)}
-	got := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{long}}, nil, "m").Attributes[0]
+	got := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{long}}, stubIndex{}, "m").Attributes[0]
 	if utf8.RuneCountInString(got.Default) != 120 || len(long.Value) != 500 {
 		t.Errorf("Default has %d runes, model value has %d bytes", utf8.RuneCountInString(got.Default), len(long.Value))
 	}
@@ -110,7 +110,7 @@ func TestFlattenSymbols_InstanceValueChurn(t *testing.T) {
 	flatten := func(value string) map[string]string {
 		attrs := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
 			{Name: "x", Value: value, Instance: true},
-		}}, nil, "m").Attributes
+		}}, stubIndex{}, "m").Attributes
 		return flattenSymbols(DocsResponse{Modules: []DocModule{{
 			Name:    "m",
 			Classes: []DocSymbol{{Name: "C", Attributes: attrs}},
@@ -128,7 +128,7 @@ func TestDocSymbolJSON_AttributesKey(t *testing.T) {
 		Functions: []*model.Function{{Name: "f"}},
 		Classes:   []*model.Class{testClass("Plain"), testClass("Bad", "ValueError")},
 	}}}
-	resp := convertToDocsResponse("p", "1", pkg, nil)
+	resp := convertToDocsResponse("p", "1", pkg, stubIndex{})
 	raw := func(sym DocSymbol) map[string]json.RawMessage {
 		data, err := json.Marshal(sym)
 		if err != nil {
@@ -184,7 +184,7 @@ func TestFlattenSymbols_Attributes(t *testing.T) {
 
 func TestFlattenSymbols_ChangePastTruncatedDefault(t *testing.T) {
 	flat := func(value string) map[string]string {
-		sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{{Name: "x", Value: value}}}, nil, "m")
+		sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{{Name: "x", Value: value}}}, stubIndex{}, "m")
 		return flattenSymbols(DocsResponse{Modules: []DocModule{{Name: "m", Classes: []DocSymbol{sym}}}})
 	}
 	long := strings.Repeat("a", 200)
@@ -204,7 +204,7 @@ func TestDocAttribute_DigestOnlyWhenTruncated(t *testing.T) {
 	sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
 		{Name: "long", Value: strings.Repeat("a", 200)},
 		{Name: "short", Value: "1"},
-	}}, nil, "m")
+	}}, stubIndex{}, "m")
 	if sym.Attributes[0].DefaultDigest == "" {
 		t.Error("a truncated default needs a digest")
 	}
@@ -225,7 +225,7 @@ func TestConvertClass_MethodKind(t *testing.T) {
 		method("sm", "staticmethod"),
 		method("sm_abstract", "abstractstaticmethod"),
 		method("other", "mymod.classmethod_like", "lru_cache(1)"),
-	}}, nil, "m")
+	}}, stubIndex{}, "m")
 	want := map[string]string{
 		"plain": "", "cm": "classmethod", "cm_stacked": "classmethod", "cm_abstract": "classmethod",
 		"sm": "staticmethod", "sm_abstract": "staticmethod", "other": "",
@@ -367,7 +367,7 @@ func TestConvertToDocsResponse_GroupsDerivedExceptions(t *testing.T) {
 		Name:    "m",
 		Classes: []*model.Class{testClass("B", "A"), testClass("A", "Exception"), testClass("Plain")},
 	}}}
-	resp := convertToDocsResponse("p", "1", pkg, nil)
+	resp := convertToDocsResponse("p", "1", pkg, stubIndex{})
 	dm := resp.Modules[0]
 	if len(dm.Exceptions) != 2 || len(dm.Classes) != 1 || dm.Classes[0].Name != "Plain" {
 		t.Errorf("Exceptions = %+v, Classes = %+v", dm.Exceptions, dm.Classes)
@@ -663,7 +663,7 @@ func TestConvertClass_Methods(t *testing.T) {
 		},
 	}
 
-	sym := convertClass(cls, make(stubIndex), "mymod")
+	sym := convertClass(cls, stubIndex{}, "mymod")
 
 	if len(sym.Methods) != 2 {
 		t.Fatalf("Methods len = %d, want 2", len(sym.Methods))
@@ -691,7 +691,7 @@ func TestConvertClass_Methods(t *testing.T) {
 
 func TestConvertClass_NoMethods(t *testing.T) {
 	cls := &model.Class{Name: "Empty"}
-	sym := convertClass(cls, make(stubIndex), "mymod")
+	sym := convertClass(cls, stubIndex{}, "mymod")
 	if sym.Methods != nil {
 		t.Errorf("Methods should be nil for class with no methods, got %v", sym.Methods)
 	}
@@ -708,7 +708,7 @@ func TestConvertClass_ConstructorParameters(t *testing.T) {
 			},
 		},
 	}
-	sym := convertClass(cls, make(stubIndex), "mymod")
+	sym := convertClass(cls, stubIndex{}, "mymod")
 	if len(sym.Parameters) != 2 {
 		t.Fatalf("Parameters len = %d, want 2", len(sym.Parameters))
 	}
@@ -721,7 +721,7 @@ func TestConvertClass_ConstructorParameters(t *testing.T) {
 }
 
 func TestConvertClass_NoConstructorEmptyParameters(t *testing.T) {
-	sym := convertClass(&model.Class{Name: "Plain"}, make(stubIndex), "mymod")
+	sym := convertClass(&model.Class{Name: "Plain"}, stubIndex{}, "mymod")
 	if sym.Parameters == nil || len(sym.Parameters) != 0 {
 		t.Errorf("Parameters = %#v, want empty non-nil slice", sym.Parameters)
 	}

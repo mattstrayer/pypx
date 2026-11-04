@@ -159,12 +159,14 @@ func AddStubDefinitions(m *model.Module, defs model.Definitions) {
 
 // MergeFunction applies a stub's signature to fn. Parameters match by name, and a
 // stub parameter fn does not have is ignored. A stub that only has overloads says
-// nothing about the implementation's own parameters, so it adds overloads alone.
+// nothing about the implementation's own parameters, so it adds overloads and the
+// decorators that apply to all of them.
 func MergeFunction(fn, stub *model.Function) {
 	if fn.Docstring == nil && stub.Docstring != nil {
 		fn.Docstring = stub.Docstring
 		attachDocParams(fn.Parameters, fn.Docstring.Params)
 	}
+	fn.Decorators = addDecorators(fn.Decorators, wholeDecorators(stub))
 	if isOverload(stub) {
 		first := *stub
 		first.Overloads = nil
@@ -186,11 +188,74 @@ func MergeFunction(fn, stub *model.Function) {
 	}
 }
 
+// FunctionDecorators returns the decorators that apply to all of fn, then the ones
+// stub adds. It never returns @overload. stub may be nil. It serves a stub that was
+// not merged into fn, as from a separate stub package.
+func FunctionDecorators(fn, stub *model.Function) []string {
+	if stub == nil {
+		return wholeDecorators(fn)
+	}
+	return addDecorators(wholeDecorators(fn), wholeDecorators(stub))
+}
+
+// ClassDecorators returns cls's decorators, then the ones stub adds. stub may be nil.
+// It serves a stub that was not merged into cls, as from a separate stub package.
+func ClassDecorators(cls, stub *model.Class) []string {
+	if stub == nil {
+		return cls.Decorators
+	}
+	return addDecorators(cls.Decorators, stub.Decorators)
+}
+
+// wholeDecorators returns fn's decorators without @overload. A decorator on an
+// overload can describe that overload alone, as @deprecated does, so it counts only
+// if every overload has it. @final and @override count from one overload, because
+// the typing rules put them on the first overload in a stub.
+func wholeDecorators(fn *model.Function) []string {
+	if !isOverload(fn) {
+		return fn.Decorators
+	}
+	var out []string
+	for _, dec := range fn.Decorators {
+		switch name := DecoratorName(dec); {
+		case name == "overload":
+		case name == "final", name == "override",
+			!slices.ContainsFunc(fn.Overloads, func(o *model.Function) bool { return !hasDecoratorNamed(o.Decorators, name) }):
+			out = append(out, dec)
+		}
+	}
+	return out
+}
+
+// addDecorators returns decs in order, then each decorator in more whose name decs
+// does not have. @typing.final and @final count as one, and the first stays.
+func addDecorators(decs, more []string) []string {
+	out := slices.Clip(decs)
+	for _, dec := range more {
+		if !hasDecoratorNamed(out, DecoratorName(dec)) {
+			out = append(out, dec)
+		}
+	}
+	return out
+}
+
+func hasDecoratorNamed(decs []string, name string) bool {
+	return slices.ContainsFunc(decs, func(dec string) bool { return DecoratorName(dec) == name })
+}
+
+// DecoratorName returns a decorator's name without its arguments or module path:
+// functools.lru_cache(maxsize=128) gives lru_cache.
+func DecoratorName(dec string) string {
+	head, _, _ := strings.Cut(dec, "(")
+	return head[strings.LastIndex(head, ".")+1:]
+}
+
 // MergeClass merges a stub's class into cls, member by member.
 func MergeClass(cls, stub *model.Class) {
 	if cls.Docstring == nil && stub.Docstring != nil {
 		cls.Docstring = stub.Docstring
 	}
+	cls.Decorators = addDecorators(cls.Decorators, stub.Decorators)
 	if len(cls.BaseClasses) == 0 {
 		cls.BaseClasses = stub.BaseClasses
 	}
