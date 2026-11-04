@@ -133,7 +133,7 @@ func FormatDiff(in *DiffInput) string {
 				fmt.Fprintf(&b, "# truncated: %d more removed\n", ad.RemovedTruncated)
 			}
 			for _, c := range ad.Changed {
-				fmt.Fprintf(&b, "~ changed: %s  (was: %s; now: %s)\n", c.Path, c.FromSig, c.ToSig)
+				fmt.Fprintf(&b, "~ changed: %s  (was: %s; now: %s)\n", c.Path, lineBreaks.Replace(c.FromSig), lineBreaks.Replace(c.ToSig))
 			}
 			if ad.ChangedTruncated > 0 {
 				fmt.Fprintf(&b, "# truncated: %d more changed\n", ad.ChangedTruncated)

@@ -19,9 +19,13 @@ import (
 // stubHTTPClient is used for downloading stub wheels with an explicit timeout.
 var stubHTTPClient = &http.Client{Timeout: 30 * time.Second, Transport: wheel.Transport()}
 
-// stubIndex maps qualified symbol names to stub functions.
-// Keys: "module.FuncName" for functions, "module.ClassName.methodName" for methods.
-type stubIndex map[string]*model.Function
+// stubIndex maps qualified symbol names to a stub package's definitions.
+type stubIndex struct {
+	// functions has keys "module.FuncName" and "module.ClassName.methodName".
+	functions map[string]*model.Function
+	// classes has keys "module.ClassName" and "module.ClassName.NestedName".
+	classes map[string]*model.Class
+}
 
 // stubRegistry maps lowercase PyPI package names to their known type stub packages.
 // Only add entries for verified, well-maintained stub packages.
@@ -211,31 +215,30 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 
 // buildStubIndex builds a flat lookup map from a parsed stub package.
 func buildStubIndex(pkg *model.Package) stubIndex {
-	idx := make(stubIndex)
+	idx := stubIndex{functions: make(map[string]*model.Function), classes: make(map[string]*model.Class)}
 	if pkg == nil {
 		return idx
 	}
-	classes := make(map[string]*model.Class)
 	// The extractor moves __init__ out of Methods, so a class's members are both.
-	var addMembers func(path string, cls *model.Class)
-	addMembers = func(path string, cls *model.Class) {
+	var addClass func(path string, cls *model.Class)
+	addClass = func(path string, cls *model.Class) {
+		idx.classes[path] = cls
 		for _, m := range cls.Methods {
-			idx[path+"."+m.Name] = m
+			idx.functions[path+"."+m.Name] = m
 		}
 		if cls.Constructor != nil {
-			idx[path+".__init__"] = cls.Constructor
+			idx.functions[path+".__init__"] = cls.Constructor
 		}
 		for _, n := range cls.Classes {
-			addMembers(path+"."+n.Name, n)
+			addClass(path+"."+n.Name, n)
 		}
 	}
 	for _, mod := range pkg.Modules {
 		for _, fn := range mod.Functions {
-			idx[mod.Name+"."+fn.Name] = fn
+			idx.functions[mod.Name+"."+fn.Name] = fn
 		}
 		for _, cls := range mod.Classes {
-			classes[mod.Name+"."+cls.Name] = cls
-			addMembers(mod.Name+"."+cls.Name, cls)
+			addClass(mod.Name+"."+cls.Name, cls)
 		}
 	}
 	// A stub's alias answers for its target, so a source symbol published under
@@ -243,11 +246,11 @@ func buildStubIndex(pkg *model.Package) stubIndex {
 	for _, mod := range pkg.Modules {
 		for _, a := range mod.Aliases {
 			path := mod.Name + "." + a.Name
-			if fn, ok := idx[a.Target]; ok {
-				idx[path] = fn
+			if fn, ok := idx.functions[a.Target]; ok {
+				idx.functions[path] = fn
 			}
-			if cls, ok := classes[a.Target]; ok {
-				addMembers(path, cls)
+			if cls, ok := idx.classes[a.Target]; ok {
+				addClass(path, cls)
 			}
 		}
 	}

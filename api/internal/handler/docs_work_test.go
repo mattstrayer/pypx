@@ -418,7 +418,7 @@ func TestDocsWork_SlowStubsDoNotHoldTheBudget(t *testing.T) {
 			close(stubStarted)
 			<-releaseStubs
 		}
-		return make(stubIndex), ""
+		return stubIndex{}, ""
 	}
 
 	slowDone := make(chan error, 1)
@@ -456,7 +456,7 @@ func TestDocsWork_StubsReachTheResponse(t *testing.T) {
 		return &model.Package{Modules: []*model.Module{{Name: "m", Functions: []*model.Function{{Name: "f"}}}}}, nil
 	})
 	h.stubs = func(context.Context, string, string) (stubIndex, string) {
-		return make(stubIndex), "m-stubs"
+		return stubIndex{}, "m-stubs"
 	}
 	resp, _, err := h.fetchDocsAtVersion(context.Background(), "m", "1")
 	if err != nil {

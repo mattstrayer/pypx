@@ -112,7 +112,7 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 	}
 	for i := 0; i < max; i++ {
 		e := entries[i]
-		sig := strings.ReplaceAll(e.sig, "\t", " ")
+		sig := strings.ReplaceAll(lineBreaks.Replace(e.sig), "\t", " ")
 		fmt.Fprintf(&b, "%s\t%s\t%s\n", e.path, e.kind, sig)
 	}
 	return b.String()
