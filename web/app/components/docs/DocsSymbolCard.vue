@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
 const props = defineProps<{
-  symbol: DocSymbol;
+  symbol: DocEntry;
   isActive: boolean;
 }>();
 
@@ -19,8 +19,8 @@ function toggleExpand() {
 
 <template>
   <div
-    :id="`sym-${encodeURIComponent(symbol.name)}`"
-    class="mb-4 scroll-mt-4 rounded-xl border bg-surface p-5 transition-[border-color,background-color]"
+    :id="`sym-${encodeURIComponent(symbol.id)}`"
+    class="mb-4 scroll-mt-16 rounded-xl border bg-surface p-5 transition-[border-color,background-color]"
     :class="
       isActive
         ? 'border-[var(--color-brand-border)] bg-[rgba(74,222,128,0.03)] shadow-[0_0_0_1px_rgba(74,222,128,0.08)]'
@@ -28,6 +28,9 @@ function toggleExpand() {
     "
   >
     <!-- Symbol name + kind badge -->
+    <p data-testid="symbol-module" class="mb-1 truncate font-mono text-[11px] text-muted">
+      {{ symbol.module }}
+    </p>
     <div class="mb-3 flex items-center gap-2.5">
       <span class="font-mono text-[15px] font-bold text-primary">{{ symbol.name }}</span>
       <span

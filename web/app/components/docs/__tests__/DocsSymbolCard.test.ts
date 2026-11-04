@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import DocsSymbolCard from "../DocsSymbolCard.vue";
-import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
-function makeSymbol(overrides: Partial<DocSymbol> = {}): DocSymbol {
+function makeSymbol(overrides: Partial<DocEntry> = {}): DocEntry {
   return {
+    module: "sklearn.base",
+    path: "sklearn.base.fit",
+    id: "sklearn.base.fit",
+    repeated: false,
     name: "fit",
     kind: "function",
     signature: "def fit(X, y=None)",
@@ -19,6 +23,14 @@ function makeSymbol(overrides: Partial<DocSymbol> = {}): DocSymbol {
 }
 
 describe("DocsSymbolCard", () => {
+  it("shows the module and uses the id as its anchor", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol(), isActive: false },
+    });
+    expect(wrapper.find("[data-testid='symbol-module']").text()).toBe("sklearn.base");
+    expect(wrapper.find("[id='sym-sklearn.base.fit']").exists()).toBe(true);
+  });
+
   it("renders symbol name", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: { symbol: makeSymbol(), isActive: false },
@@ -226,12 +238,5 @@ describe("DocsSymbolCard", () => {
       props: { symbol: makeSymbol({ kind: "class", attributes: [] }), isActive: false },
     });
     expect(wrapper.text()).not.toContain("Attributes");
-  });
-
-  it("exposes sym-{name} id for scroll targeting", async () => {
-    const wrapper = await mountSuspended(DocsSymbolCard, {
-      props: { symbol: makeSymbol({ name: "predict" }), isActive: false },
-    });
-    expect(wrapper.find("#sym-predict").exists()).toBe(true);
   });
 });

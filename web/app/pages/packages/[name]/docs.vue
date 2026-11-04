@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
 const route = useRoute();
 const name = computed(() => route.params.name as string);
@@ -35,30 +35,16 @@ const unavailableDetail = computed(() => {
   }
 });
 
-function dedup(symbols: DocSymbol[]): DocSymbol[] {
-  const seen = new Set<string>();
-  return symbols.filter((s) => {
-    if (seen.has(s.name)) return false;
-    seen.add(s.name);
-    return true;
-  });
+const entries = computed(() => docEntries(docs.value?.modules ?? []));
+const allFunctions = computed(() => entries.value.functions);
+const allClasses = computed(() => entries.value.classes);
+const allExceptions = computed(() => entries.value.exceptions);
+
+function symId(id: string) {
+  return `sym-${encodeURIComponent(id)}`;
 }
 
-const allFunctions = computed<DocSymbol[]>(() =>
-  dedup(docs.value?.modules?.flatMap((m) => m.functions) ?? []),
-);
-const allClasses = computed<DocSymbol[]>(() =>
-  dedup(docs.value?.modules?.flatMap((m) => m.classes) ?? []),
-);
-const allExceptions = computed<DocSymbol[]>(() =>
-  dedup(docs.value?.modules?.flatMap((m) => m.exceptions) ?? []),
-);
-
-function symId(name: string) {
-  return `sym-${encodeURIComponent(name)}`;
-}
-
-const allSymbols = computed<DocSymbol[]>(() => [
+const allSymbols = computed<DocEntry[]>(() => [
   ...allFunctions.value,
   ...allClasses.value,
   ...allExceptions.value,
@@ -71,7 +57,7 @@ const paletteSections = computed(() => [
           label: "Functions",
           kind: "functions",
           count: allFunctions.value.length,
-          firstSymbol: allFunctions.value[0]?.name ?? null,
+          firstSymbol: allFunctions.value[0]?.id ?? null,
         },
       ]
     : []),
@@ -81,7 +67,7 @@ const paletteSections = computed(() => [
           label: "Classes",
           kind: "classes",
           count: allClasses.value.length,
-          firstSymbol: allClasses.value[0]?.name ?? null,
+          firstSymbol: allClasses.value[0]?.id ?? null,
         },
       ]
     : []),
@@ -91,7 +77,7 @@ const paletteSections = computed(() => [
           label: "Exceptions",
           kind: "exceptions",
           count: allExceptions.value.length,
-          firstSymbol: allExceptions.value[0]?.name ?? null,
+          firstSymbol: allExceptions.value[0]?.id ?? null,
         },
       ]
     : []),
@@ -164,9 +150,9 @@ watch(renderedCount, (newCount, oldCount) => {
   for (let i = oldCount; i < newCount; i++) {
     const sym = allSymbols.value[i];
     if (!sym) continue;
-    const el = document.getElementById(symId(sym.name));
+    const el = document.getElementById(symId(sym.id));
     if (el) {
-      el.dataset.symbol = sym.name;
+      el.dataset.symbol = sym.id;
       observer!.observe(el);
     }
   }
@@ -178,8 +164,8 @@ onUnmounted(() => {
 });
 
 // ── Jump to symbol ─────────────────────────────────────────────────────────
-async function jumpToSymbol(symbolName: string) {
-  const targetIndex = allSymbols.value.findIndex((s) => s.name === symbolName);
+async function jumpToSymbol(symbolId: string) {
+  const targetIndex = allSymbols.value.findIndex((s) => s.id === symbolId);
   if (targetIndex === -1) return;
 
   if (targetIndex >= renderedCount.value) {
@@ -188,8 +174,8 @@ async function jumpToSymbol(symbolName: string) {
     await nextTick();
   }
 
-  activeSymbol.value = symbolName;
-  const el = document.getElementById(symId(symbolName));
+  activeSymbol.value = symbolId;
+  const el = document.getElementById(symId(symbolId));
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -349,9 +335,9 @@ if (pkg.value) {
             <!-- Rendered symbols (deferred) -->
             <DocsSymbolCard
               v-for="sym in visibleSymbols"
-              :key="sym.name"
+              :key="sym.id"
               :symbol="sym"
-              :is-active="activeSymbol === sym.name"
+              :is-active="activeSymbol === sym.id"
             />
 
             <!-- Render progress indicator -->
