@@ -494,7 +494,7 @@ func TestExtractPyFiles_DecompressionBudget(t *testing.T) {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
 	f, _ := w.Create("bomb/huge.py")
-	big := bytes.Repeat([]byte("A"), maxDecompressedFile+1024)
+	big := bytes.Repeat([]byte("A"), MaxDecompressedFile+1024)
 	_, _ = f.Write(big)
 	_ = w.Close()
 
@@ -1121,5 +1121,150 @@ func TestFetch_EmptyVersionUsesLatest(t *testing.T) {
 	}
 	if len(paths) != 1 || paths[0] != "/pypi/testpkg/json" {
 		t.Errorf("requested paths = %v, want [/pypi/testpkg/json]", paths)
+	}
+}
+
+func TestExtractPyFiles_Pyi(t *testing.T) {
+	data := buildTestWheel(map[string]string{
+		"fast/__init__.py":       "from ._fast import *\n",
+		"fast/__init__.pyi":      "def run(n: int) -> int: ...\n",
+		"fast/py.typed":          "",
+		"fast/_fast.so":          "binary",
+		"fast/__pycache__/x.pyi": "skipped",
+	})
+	contents, err := extractBytes(data, "fast")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+	if got := string(contents.Files["fast/__init__.pyi"]); got != "def run(n: int) -> int: ...\n" {
+		t.Errorf("fast/__init__.pyi = %q", got)
+	}
+	if len(contents.Files) != 2 {
+		t.Errorf("Files = %d, want 2", len(contents.Files))
+	}
+	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "fast" {
+		t.Errorf("TopLevelPkgs = %v, want [fast]", contents.TopLevelPkgs)
+	}
+}
+
+func TestExtractPyFiles_PyiTopLevel(t *testing.T) {
+	const topLevel = "foo-1.0.dist-info/top_level.txt"
+	tests := []struct {
+		name  string
+		files map[string]string
+	}{
+		{"bare stub", map[string]string{"foo.pyi": "x: int\n"}},
+		{"stub directory", map[string]string{"foo-stubs/__init__.pyi": "x: int\n"}},
+		{"source and stub directory", map[string]string{
+			"foo/__init__.py":        "x = 1\n",
+			"foo-stubs/__init__.pyi": "x: int\n",
+		}},
+		{"top_level.txt names the module", map[string]string{
+			"foo-stubs/__init__.pyi": "x: int\n",
+			topLevel:                 "foo\n",
+		}},
+		{"top_level.txt names the stub directory", map[string]string{
+			"foo-stubs/__init__.pyi": "x: int\n",
+			topLevel:                 "foo-stubs\n",
+		}},
+		{"top_level.txt names a bare stub", map[string]string{
+			"foo.pyi": "x: int\n",
+			topLevel:  "foo\n",
+		}},
+		{"top_level.txt names both", map[string]string{
+			"foo/__init__.py":        "x = 1\n",
+			"foo-stubs/__init__.pyi": "x: int\n",
+			topLevel:                 "foo\nfoo-stubs\n",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contents, err := extractBytes(buildTestWheel(tt.files), "foo")
+			if err != nil {
+				t.Fatalf("extractPyFiles: %v", err)
+			}
+			if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "foo" {
+				t.Errorf("TopLevelPkgs = %v, want [foo]", contents.TopLevelPkgs)
+			}
+		})
+	}
+}
+
+func TestExtractPyFiles_PyiDecompressionCaps(t *testing.T) {
+	big := strings.Repeat("A", MaxDecompressedFile+1)
+	if _, err := extractBytes(buildTestWheel(map[string]string{"foo/big.pyi": big}), "foo"); err == nil {
+		t.Error("over-cap .pyi: want error")
+	}
+	chunk := strings.Repeat("A", MaxDecompressedFile)
+	files := map[string]string{}
+	for i := range MaxDecompressedTotal/MaxDecompressedFile + 1 {
+		files[fmt.Sprintf("foo/f%d.pyi", i)] = chunk
+	}
+	if _, err := extractBytes(buildTestWheel(files), "foo"); err == nil {
+		t.Error("over-budget .pyi files: want error")
+	}
+}
+
+// bodyFailReaderAt fails reads that touch the range [from, to).
+type bodyFailReaderAt struct {
+	data     []byte
+	from, to int64
+}
+
+func (r *bodyFailReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < r.to && off+int64(len(p)) > r.from {
+		return 0, errors.New("connection reset")
+	}
+	n := copy(p, r.data[off:])
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func TestExtractPyFiles_PyiReadFailureFails(t *testing.T) {
+	data := buildTestWheel(map[string]string{"foo/__init__.pyi": strings.Repeat("x: int\n", 4096)})
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	offset, err := zr.File[0].DataOffset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The central directory stays readable, the entry body does not.
+	ra := &bodyFailReaderAt{data: data, from: offset, to: offset + int64(zr.File[0].CompressedSize64)}
+	if _, err := extractPyFiles(ra, int64(len(data)), "foo"); err == nil {
+		t.Fatal("want an error when reading a .pyi entry fails")
+	}
+}
+
+func TestExtractPyFiles_PyiCorruptEntrySkipped(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for _, name := range []string{"foo/bad.pyi", "foo/good.pyi"} {
+		f, _ := w.Create(name)
+		_, _ = f.Write([]byte(strings.Repeat("x: int\n", 64)))
+	}
+	_ = w.Close()
+	data := buf.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	offset, err := zr.File[0].DataOffset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[offset] ^= 0xFF
+	contents, err := extractBytes(data, "foo")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+	if _, ok := contents.Files["foo/good.pyi"]; !ok {
+		t.Error("good.pyi is missing")
+	}
+	if _, ok := contents.Files["foo/bad.pyi"]; ok {
+		t.Error("corrupt bad.pyi should be skipped")
 	}
 }
