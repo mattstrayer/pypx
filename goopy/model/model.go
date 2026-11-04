@@ -37,6 +37,55 @@ type Module struct {
 	Attributes  []*Attribute `json:"attributes,omitempty"`
 	TypeAliases []*TypeAlias `json:"type_aliases,omitempty"`
 	Imports     []*TypeRef   `json:"imports,omitempty"`
+	// Aliases lists names this module re-exports whose definition is published
+	// in another module. Each definition is published once.
+	Aliases []*Alias `json:"aliases,omitempty"`
+
+	// The fields below are resolver input. ExtractPackage reads them and then
+	// clears them. They never reach JSON.
+
+	// ImportFroms records every import with its source module and level.
+	ImportFroms []*Import `json:"-"`
+	// Exports is the module's __all__, or nil if it has none.
+	Exports *Exports `json:"-"`
+	// Hidden holds definitions that are not public under the module's own rules.
+	// A re-export from another module can still reach them.
+	Hidden Definitions `json:"-"`
+}
+
+// Alias is a public name whose definition is published elsewhere. Target is the
+// dotted module and name of that definition.
+type Alias struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+}
+
+// Import is one name bound by an import statement. "from .a import b as c" is
+// {Module: "a", Level: 1, Name: "b", Alias: "c"}. "from .a import *" has Name "*".
+// "import a.b as c" has an empty Name because it binds a module.
+type Import struct {
+	Module string
+	Level  int
+	Name   string
+	Alias  string
+}
+
+// Exports is the statically known content of __all__.
+type Exports struct {
+	// Names lists the string literals in source order, without duplicates.
+	Names []string
+	// Refs lists dotted modules whose __all__ is included ("a.b" for a.b.__all__).
+	Refs []string
+	// Dynamic is true if some part of __all__ cannot be read statically.
+	Dynamic bool
+}
+
+// Definitions groups the definition kinds of a module.
+type Definitions struct {
+	Functions   []*Function
+	Classes     []*Class
+	Attributes  []*Attribute
+	TypeAliases []*TypeAlias
 }
 
 // Function represents a function or method.
@@ -48,6 +97,10 @@ type Function struct {
 	IsAsync    bool         `json:"is_async"`
 	IsMethod   bool         `json:"is_method"`
 	Decorators []string     `json:"decorators,omitempty"`
+	// Origin is the dotted module that defines this function, set on a re-export.
+	Origin string `json:"origin,omitempty"`
+	// OriginName is the name in Origin, set if the re-export renames the function.
+	OriginName string `json:"-"`
 }
 
 // Class represents a class.
@@ -60,6 +113,10 @@ type Class struct {
 	Decorators  []string     `json:"decorators,omitempty"`
 	Classes     []*Class     `json:"classes,omitempty"`
 	Constructor *Function    `json:"constructor,omitempty"`
+	// Origin is the dotted module that defines this class, set on a re-export.
+	Origin string `json:"origin,omitempty"`
+	// OriginName is the name in Origin, set if the re-export renames the class.
+	OriginName string `json:"-"`
 }
 
 // Parameter represents a function parameter.
@@ -78,12 +135,16 @@ type Attribute struct {
 	Value      string     `json:"value,omitempty"`
 	Docstring  *Docstring `json:"docstring,omitempty"`
 	IsProperty bool       `json:"is_property"`
+	// Origin is the dotted module that defines this attribute, set on a re-export.
+	Origin string `json:"origin,omitempty"`
 }
 
 // TypeAlias represents a type alias (type X = ...).
 type TypeAlias struct {
 	Name  string    `json:"name"`
 	Value *TypeExpr `json:"value"`
+	// Origin is the dotted module that defines this alias, set on a re-export.
+	Origin string `json:"origin,omitempty"`
 }
 
 // TypeRef represents a reference to a type (for imports, bases, etc).

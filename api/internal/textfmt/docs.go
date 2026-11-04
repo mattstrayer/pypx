@@ -21,6 +21,13 @@ type DocModuleInput struct {
 	Functions  []DocSymbolInput
 	Classes    []DocSymbolInput
 	Exceptions []DocSymbolInput
+	Aliases    []DocAliasInput
+}
+
+// DocAliasInput is a public name that points at a symbol documented elsewhere.
+type DocAliasInput struct {
+	Name   string
+	Target string // Dotted module and name of the documented symbol.
 }
 
 type DocSymbolInput struct {
@@ -209,7 +216,28 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //
 // A class lookup returns only the class block, not its methods. Methods are
 // addressed individually by their dotted path.
+//
+// A path that starts with an alias resolves to the alias target, and the block
+// shows the target's path.
 func FormatSymbol(in *DocsInput, dotted string) (string, bool) {
+	if out, ok := formatDirectSymbol(in, dotted); ok {
+		return out, true
+	}
+	for _, mod := range in.Modules {
+		for _, a := range mod.Aliases {
+			path := mod.Name + "." + a.Name
+			if dotted == path || strings.HasPrefix(dotted, path+".") {
+				if out, ok := formatDirectSymbol(in, a.Target+strings.TrimPrefix(dotted, path)); ok {
+					return out, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+// formatDirectSymbol looks dotted up among documented symbols only.
+func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 	for _, mod := range in.Modules {
 		if !strings.HasPrefix(dotted, mod.Name+".") && dotted != mod.Name {
 			continue

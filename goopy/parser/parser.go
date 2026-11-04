@@ -990,15 +990,18 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 		token.AMPEREQ, token.PIPEEQ, token.CARETEQ,
 		token.RSHIFTEQ, token.LSHIFTEQ, token.ATEQ:
 		// Augmented assignment: target op= value
+		op := p.tok.Type
 		p.next()
 		value := p.parseExprList()
 		endPos := p.tok.Pos
 		p.endSimpleStmt()
 		return &ast.Assign{
-			Position: expr.Pos(),
-			EndPos:   endPos,
-			Targets:  []ast.Expr{expr},
-			Value:    value,
+			Position:  expr.Pos(),
+			EndPos:    endPos,
+			Targets:   []ast.Expr{expr},
+			Value:     value,
+			Augmented: true,
+			Op:        op,
 		}
 
 	case token.COLON:

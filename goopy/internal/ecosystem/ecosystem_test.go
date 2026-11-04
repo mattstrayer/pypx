@@ -14,9 +14,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -365,6 +367,344 @@ func TestASTConformance(t *testing.T) {
 	ratchet("missing defs", missing, maxMissingDefs)
 	ratchet("extra defs", extra, maxExtraDefs)
 	ratchet("param mismatches", paramMismatches, maxParamMismatches)
+}
+
+// publicNamesScript reads top-level __init__.py files with CPython's ast module,
+// so the coverage gate does not trust the extractor's own export logic. For each
+// path it prints the names the file publishes: __all__, or its public relative
+// imports.
+const publicNamesScript = `
+import ast, json, sys
+
+def literal(e):
+    if isinstance(e, (ast.List, ast.Tuple, ast.Set)):
+        return [x.value for x in e.elts if isinstance(x, ast.Constant) and isinstance(x.value, str)]
+    if isinstance(e, ast.BinOp) and isinstance(e.op, ast.Add):
+        return literal(e.left) + literal(e.right)
+    return []
+
+def read(path):
+    with open(path, "rb") as f:
+        tree = ast.parse(f.read())
+    state = {"all": None, "relative": []}
+
+    def add(names):
+        state["all"] = (state["all"] or []) + names
+
+    def walk(stmts, nested):
+        for s in stmts:
+            if isinstance(s, (ast.Assign, ast.AnnAssign)):
+                targets = s.targets if isinstance(s, ast.Assign) else [s.target]
+                if s.value is not None and any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets):
+                    names = literal(s.value)
+                    state["all"] = (state["all"] or []) + names if nested else names
+            elif isinstance(s, ast.AugAssign) and isinstance(s.target, ast.Name) and s.target.id == "__all__":
+                if isinstance(s.op, ast.Sub):
+                    drop = set(literal(s.value))
+                    state["all"] = [n for n in state["all"] or [] if n not in drop]
+                else:
+                    add(literal(s.value))
+            elif isinstance(s, ast.Expr) and isinstance(s.value, ast.Call):
+                f = s.value.func
+                if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "__all__" and s.value.args:
+                    a = s.value.args[0]
+                    if f.attr == "extend":
+                        add(literal(a))
+                    elif f.attr == "append" and isinstance(a, ast.Constant) and isinstance(a.value, str):
+                        add([a.value])
+            elif isinstance(s, ast.ImportFrom):
+                for a in s.names:
+                    n = a.asname or a.name
+                    if s.level > 0 and n != "*" and not n.startswith("_"):
+                        state["relative"].append(n)
+            elif isinstance(s, ast.If):
+                walk(s.body, True)
+                walk(s.orelse, True)
+            elif isinstance(s, ast.Try):
+                walk(s.body, True)
+                for h in s.handlers:
+                    walk(h.body, True)
+                walk(s.orelse, True)
+                walk(s.finalbody, True)
+
+    walk(tree.body, False)
+    names = state["all"] if state["all"] is not None else state["relative"]
+    return {"names": sorted(set(names))}
+
+json.dump({p: read(p) for p in sys.argv[1:]}, sys.stdout)
+`
+
+type publicNames struct {
+	Names []string `json:"names"`
+}
+
+// coverageExtras adds packages the plan names that are not in packages.json.
+var coverageExtras = []packageEntry{
+	{Name: "yarl", Version: "1.25.1"},
+	{Name: "openai", Version: "3.44.0"},
+	{Name: "anthropic", Version: "2.4.0"},
+	{Name: "pandas", Version: "3.1.0"},
+}
+
+// coverageCount is one package's result in TestPublicAPICoverage. Covered counts
+// definitions, aliases, submodules and names from outside the wheel.
+type coverageCount struct {
+	total, covered, outside, compiled int
+	misses                            []string
+}
+
+// missKind says why a name is absent from the output.
+type missKind int
+
+const (
+	missUnknown  missKind = iota
+	missOutside           // The chain of imports leaves the wheel.
+	missCompiled          // The chain reaches a wheel module with no .py file.
+	missModule            // The name is a submodule of the wheel.
+)
+
+// classifyMiss follows imports to learn why name in module has no definition.
+func classifyMiss(contents *wheel.WheelContents, module, name string, visited map[[2]string]bool) missKind {
+	key := [2]string{module, name}
+	if visited[key] {
+		return missUnknown
+	}
+	visited[key] = true
+
+	file := func(mod string) (string, bool) {
+		path := strings.ReplaceAll(mod, ".", "/")
+		for _, p := range []string{path + "/__init__.py", path + ".py"} {
+			if _, ok := contents.Files[p]; ok {
+				return p, true
+			}
+		}
+		return "", false
+	}
+	first, _, _ := strings.Cut(module, ".")
+	if _, ok := file(first); !ok && !slices.Contains(contents.TopLevelPkgs, first) {
+		return missOutside
+	}
+	if _, ok := file(module + "." + name); ok {
+		return missModule
+	}
+	path, ok := file(module)
+	if !ok {
+		return missCompiled
+	}
+
+	mod, _ := goopy.ExtractModule(module, contents.Files[path])
+	source := func(imp *model.Import) string {
+		if imp.Level == 0 {
+			return imp.Module
+		}
+		base := module
+		levels := imp.Level
+		if strings.HasSuffix(path, "/__init__.py") {
+			levels--
+		}
+		for range levels {
+			i := strings.LastIndex(base, ".")
+			if i < 0 {
+				return ""
+			}
+			base = base[:i]
+		}
+		if imp.Module == "" {
+			return base
+		}
+		return base + "." + imp.Module
+	}
+	var stars []string
+	for _, imp := range mod.ImportFroms {
+		if imp.Name == "*" {
+			stars = append(stars, source(imp))
+			continue
+		}
+		binding := imp.Alias
+		if binding == "" {
+			binding = imp.Name
+		}
+		if imp.Name != "" && binding == name {
+			if k := classifyMiss(contents, source(imp), imp.Name, visited); k != missUnknown {
+				return k
+			}
+		}
+	}
+	for _, src := range stars {
+		if k := classifyMiss(contents, src, name, visited); k == missCompiled || k == missOutside {
+			return k
+		}
+	}
+	return missUnknown
+}
+
+// countCoverage classifies every name a package's top-level __init__.py files
+// publish.
+func countCoverage(top string, pn publicNames, contents *wheel.WheelContents, published, modules map[string]bool, c *coverageCount) {
+	for _, name := range pn.Names {
+		c.total++
+		if published[name] || modules[top+"."+name] {
+			c.covered++
+			continue
+		}
+		switch classifyMiss(contents, top, name, map[[2]string]bool{}) {
+		case missOutside:
+			c.covered++
+			c.outside++
+		case missModule:
+			c.covered++
+		case missCompiled:
+			c.compiled++
+			c.misses = append(c.misses, name+" (compiled)")
+		default:
+			c.misses = append(c.misses, name)
+		}
+	}
+}
+
+// TestPublicAPICoverage checks that each name a package's top-level __init__.py
+// publishes appears in the output, and that one definition is never published
+// in two modules.
+//
+// Requires: python3 (standard library only).
+func TestPublicAPICoverage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping coverage test in short mode")
+	}
+	if err := exec.Command("python3", "-c", "import ast").Run(); err != nil {
+		t.Skip("python3 not available")
+	}
+
+	// Ratchet: raise it when coverage rises. Set from the measured run.
+	const minCoveragePct = 99.0
+
+	// Name-level targets from the plan, as a minimum covered count.
+	targets := map[string]int{"httpx": 65, "h11": 23, "pluggy": 14, "yarl": 8, "attrs": 40}
+
+	var total, covered, outside, compiled, downloadFailures, duplicates, dangling int
+	list := loadPackages(t)
+	for _, pkg := range append(slices.Clone(list.Packages), coverageExtras...) {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		contents, err := wheel.NewSource().Fetch(ctx, pkg.Name, pkg.Version)
+		cancel()
+		if err != nil {
+			downloadFailures++
+			t.Logf("download failed for %s==%s: %v", pkg.Name, pkg.Version, err)
+			continue
+		}
+		result := goopy.ExtractPackage(context.Background(), pkg.Name, contents.Files, contents.TopLevelPkgs)
+
+		published := map[string]bool{}
+		modules := map[string]bool{}
+		locations := map[string]map[string]bool{}
+		definitions := map[string]bool{}
+		note := func(mod, name, origin, originName string) {
+			published[name] = true
+			definitions[mod+"."+name] = true
+			if origin == "" {
+				origin = mod
+			}
+			if originName == "" {
+				originName = name
+			}
+			id := origin + "." + originName
+			if locations[id] == nil {
+				locations[id] = map[string]bool{}
+			}
+			locations[id][mod] = true
+		}
+		for _, m := range result.Modules {
+			modules[m.Name] = true
+			for _, f := range m.Functions {
+				note(m.Name, f.Name, f.Origin, f.OriginName)
+			}
+			for _, c := range m.Classes {
+				note(m.Name, c.Name, c.Origin, c.OriginName)
+			}
+			for _, a := range m.Attributes {
+				note(m.Name, a.Name, a.Origin, "")
+			}
+			for _, a := range m.TypeAliases {
+				note(m.Name, a.Name, a.Origin, "")
+			}
+		}
+		for _, m := range result.Modules {
+			for _, a := range m.Aliases {
+				published[a.Name] = true
+				if !definitions[a.Target] {
+					dangling++
+					t.Errorf("%s: alias %s.%s has no definition at %s", pkg.Name, m.Name, a.Name, a.Target)
+				}
+			}
+		}
+		for id, mods := range locations {
+			if len(mods) > 1 {
+				duplicates++
+				t.Errorf("%s: definition %s is published in %d modules: %v", pkg.Name, id, len(mods), slices.Sorted(maps.Keys(mods)))
+			}
+		}
+
+		// A submodule counts even if extraction dropped it for lack of content.
+		for path := range contents.Files {
+			if strings.HasSuffix(path, ".py") {
+				name := strings.TrimSuffix(strings.TrimSuffix(path, ".py"), "/__init__")
+				modules[strings.ReplaceAll(name, "/", ".")] = true
+			}
+		}
+
+		dir := t.TempDir()
+		var paths []string
+		tops := map[string]string{}
+		for _, top := range contents.TopLevelPkgs {
+			src, ok := contents.Files[top+"/__init__.py"]
+			if !ok {
+				continue
+			}
+			p := filepath.Join(dir, top+"__init__.py")
+			if err := os.WriteFile(p, src, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			paths = append(paths, p)
+			tops[p] = top
+		}
+		if len(paths) == 0 {
+			continue
+		}
+		out, err := exec.Command("python3", append([]string{"-I", "-c", publicNamesScript}, paths...)...).Output()
+		if err != nil {
+			t.Fatalf("publicNamesScript for %s: %v", pkg.Name, err)
+		}
+		var names map[string]publicNames
+		if err := json.Unmarshal(out, &names); err != nil {
+			t.Fatalf("decoding publicNamesScript output for %s: %v", pkg.Name, err)
+		}
+
+		var c coverageCount
+		for _, p := range paths {
+			countCoverage(tops[p], names[p], contents, published, modules, &c)
+		}
+		total += c.total
+		covered += c.covered
+		outside += c.outside
+		compiled += c.compiled
+		t.Logf("%s: %d of %d (%d outside the wheel)", pkg.Name, c.covered, c.total, c.outside)
+		if len(c.misses) > 0 {
+			t.Logf("  misses: %s", strings.Join(c.misses, ", "))
+		}
+		if want, ok := targets[pkg.Name]; ok && c.covered < want {
+			t.Errorf("%s: %d covered, target %d", pkg.Name, c.covered, want)
+		}
+	}
+
+	if downloadFailures > 3 {
+		t.Fatalf("%d package downloads failed (limit 3)", downloadFailures)
+	}
+	got := pct(covered, total)
+	t.Logf("=== PUBLIC API COVERAGE: %d of %d names (%.1f%%), %d outside the wheel, %d misses in compiled modules, %d downloads failed ===",
+		covered, total, got, outside, compiled, downloadFailures)
+	if got < minCoveragePct {
+		t.Errorf("coverage %.1f%% is below ratchet %.1f%%", got, minCoveragePct)
+	}
 }
 
 // trimErr removes the line:col prefix and quoted detail so errors group by kind.

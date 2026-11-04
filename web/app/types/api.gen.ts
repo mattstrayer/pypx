@@ -212,6 +212,7 @@ export interface DocSymbol {
   returns?: DocReturn | null;
   raises?: DocRaise[];
   methods?: DocSymbol[];
+  origin?: string;
 }
 
 export interface DocModule {
@@ -219,6 +220,7 @@ export interface DocModule {
   functions: DocSymbol[];
   classes: DocSymbol[];
   exceptions: DocSymbol[];
+  aliases?: { name: string; target: string }[];
 }
 
 export interface DocsResponse {

@@ -4,11 +4,13 @@
 package extractor
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/pypx/goopy/ast"
 	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
+	"github.com/pypx/goopy/token"
 )
 
 // Extractor walks an AST and produces documentation model types.
@@ -21,7 +23,16 @@ func New() *Extractor { return &Extractor{} }
 func (e *Extractor) ExtractModule(name string, mod *ast.Module) *model.Module {
 	m := &model.Module{Name: name}
 
-	exports := extractAllExports(mod.Body)
+	m.Exports = extractAllExports(mod.Body)
+	// A partial __all__ cannot filter here. The package resolver filters once it
+	// knows the referenced lists.
+	var exports map[string]struct{}
+	if m.Exports != nil && len(m.Exports.Refs) == 0 && !m.Exports.Dynamic {
+		exports = make(map[string]struct{}, len(m.Exports.Names))
+		for _, n := range m.Exports.Names {
+			exports[n] = struct{}{}
+		}
+	}
 
 	// Check for module-level docstring (first statement).
 	if len(mod.Body) > 0 {
@@ -42,53 +53,78 @@ func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports map[
 	for _, stmt := range stmts {
 		switch s := stmt.(type) {
 		case *ast.FunctionDef:
-			if !isPublic(s.Name, exports) {
-				continue
-			}
 			fn := e.extractFunction(s, false)
-			m.Functions = append(m.Functions, fn)
+			if isPublic(s.Name, exports) {
+				m.Functions = append(m.Functions, fn)
+			} else {
+				m.Hidden.Functions = append(m.Hidden.Functions, fn)
+			}
 
 		case *ast.ClassDef:
-			if !isPublic(s.Name, exports) {
-				continue
-			}
 			cls := e.extractClass(s, exports)
-			m.Classes = append(m.Classes, cls)
+			if isPublic(s.Name, exports) {
+				m.Classes = append(m.Classes, cls)
+			} else {
+				m.Hidden.Classes = append(m.Hidden.Classes, cls)
+			}
 
 		case *ast.AnnAssign:
 			attr := e.extractAttribute(s)
-			if attr != nil && isPublic(attr.Name, exports) {
+			if attr == nil || attr.Name == "__all__" {
+				continue
+			}
+			if isPublic(attr.Name, exports) {
 				m.Attributes = append(m.Attributes, attr)
+			} else {
+				m.Hidden.Attributes = append(m.Hidden.Attributes, attr)
 			}
 
 		case *ast.Assign:
 			// Extract __all__ is handled separately; skip it here.
 			// Also extract simple module-level assignments as attributes.
-			for _, target := range s.Targets {
-				if n, ok := target.(*ast.Name); ok {
-					if n.Name == "__all__" {
-						continue
-					}
-					if !isPublic(n.Name, exports) {
-						continue
-					}
-					attr := &model.Attribute{
-						Name:  n.Name,
-						Value: exprToString(s.Value),
-					}
+			addAttr := func(name, value string) {
+				if name == "__all__" {
+					return
+				}
+				attr := &model.Attribute{Name: name, Value: value}
+				if isPublic(name, exports) {
 					m.Attributes = append(m.Attributes, attr)
+				} else {
+					m.Hidden.Attributes = append(m.Hidden.Attributes, attr)
+				}
+			}
+			for _, target := range s.Targets {
+				switch t := target.(type) {
+				case *ast.Name:
+					addAttr(t.Name, exprToString(s.Value))
+				case *ast.Tuple:
+					// "a, b = 1, 2" pairs values with names. For any other value
+					// the parts are unknown, so the attributes have no value.
+					values, _ := s.Value.(*ast.Tuple)
+					for i, elt := range t.Elts {
+						n, ok := elt.(*ast.Name)
+						if !ok {
+							continue
+						}
+						value := ""
+						if values != nil && len(values.Elts) == len(t.Elts) {
+							value = exprToString(values.Elts[i])
+						}
+						addAttr(n.Name, value)
+					}
 				}
 			}
 
 		case *ast.TypeAliasDef:
-			if !isPublic(s.Name, exports) {
-				continue
-			}
 			ta := &model.TypeAlias{
 				Name:  s.Name,
 				Value: exprToTypeExpr(s.Value),
 			}
-			m.TypeAliases = append(m.TypeAliases, ta)
+			if isPublic(s.Name, exports) {
+				m.TypeAliases = append(m.TypeAliases, ta)
+			} else {
+				m.Hidden.TypeAliases = append(m.Hidden.TypeAliases, ta)
+			}
 
 		case *ast.Import:
 			for _, alias := range s.Names {
@@ -97,6 +133,7 @@ func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports map[
 					n = alias.Alias
 				}
 				m.Imports = append(m.Imports, &model.TypeRef{Name: n})
+				m.ImportFroms = append(m.ImportFroms, &model.Import{Module: alias.Name, Alias: alias.Alias})
 			}
 
 		case *ast.ImportFrom:
@@ -106,6 +143,12 @@ func (e *Extractor) extractStmts(stmts []ast.Stmt, m *model.Module, exports map[
 					n = alias.Alias
 				}
 				m.Imports = append(m.Imports, &model.TypeRef{Name: n})
+				m.ImportFroms = append(m.ImportFroms, &model.Import{
+					Module: s.Module,
+					Level:  s.Level,
+					Name:   alias.Name,
+					Alias:  alias.Alias,
+				})
 			}
 
 		case *ast.PassThrough:
@@ -590,39 +633,205 @@ func extractDocstring(stmt ast.Stmt) string {
 	return c.Value
 }
 
-// extractAllExports finds __all__ = [...] in module body and returns a set of names.
-// Returns nil if __all__ is not defined.
-func extractAllExports(body []ast.Stmt) map[string]struct{} {
-	for _, stmt := range body {
-		assign, ok := stmt.(*ast.Assign)
-		if !ok {
-			continue
+// extractAllExports reads __all__ from the module body, in statement order. It
+// follows the same blocks as extractStmts (try/except, if, for, with).
+// Returns nil if the module never touches __all__.
+//
+// At module level "__all__ = x" replaces the list, "+=" adds and "-=" removes.
+// Inside a block a plain assignment adds, because the condition is unknown and
+// every branch counts.
+func extractAllExports(body []ast.Stmt) *model.Exports {
+	var ex *model.Exports
+	var walk func(stmts []ast.Stmt, nested bool)
+	add := func(value ast.Expr) {
+		if ex == nil {
+			ex = &model.Exports{}
 		}
-		for _, target := range assign.Targets {
-			n, ok := target.(*ast.Name)
-			if !ok || n.Name != "__all__" {
-				continue
-			}
-			var elts []ast.Expr
-			switch v := assign.Value.(type) {
-			case *ast.List:
-				elts = v.Elts
-			case *ast.Tuple:
-				elts = v.Elts
-			default:
-				continue
-			}
-			exports := make(map[string]struct{}, len(elts))
-			for _, elt := range elts {
-				c, ok := elt.(*ast.Constant)
-				if ok && c.Kind == "str" {
-					exports[c.Value] = struct{}{}
+		addExportExpr(ex, value)
+	}
+	// assign handles a plain assignment. "__all__ = __all__ + x" keeps the old
+	// list, because addExportExpr ignores __all__ itself.
+	assign := func(value ast.Expr, nested bool) {
+		if !nested && !refersToAll(value) {
+			ex = nil
+		}
+		add(value)
+	}
+	walk = func(stmts []ast.Stmt, nested bool) {
+		for _, stmt := range stmts {
+			switch s := stmt.(type) {
+			case *ast.Assign:
+				for _, target := range s.Targets {
+					n, ok := target.(*ast.Name)
+					if !ok || n.Name != "__all__" {
+						continue
+					}
+					switch {
+					case !s.Augmented:
+						assign(s.Value, nested)
+					case s.Op == token.PLUSEQ || s.Op == token.PIPEEQ:
+						add(s.Value)
+					case s.Op == token.MINUSEQ:
+						if ex != nil {
+							removeExportExpr(ex, s.Value)
+						}
+					default:
+						// Any other operator cannot be read statically.
+						if ex == nil {
+							ex = &model.Exports{}
+						}
+						ex.Dynamic = true
+					}
 				}
+			case *ast.AnnAssign:
+				if n, ok := s.Target.(*ast.Name); ok && n.Name == "__all__" && s.Value != nil {
+					assign(s.Value, nested)
+				}
+			case *ast.ExprStmt:
+				// __all__.extend(...) and __all__.append(...).
+				c, ok := s.Value.(*ast.Call)
+				if !ok || len(c.Args) != 1 {
+					continue
+				}
+				f, ok := c.Func.(*ast.Attribute)
+				if !ok {
+					continue
+				}
+				if n, ok := f.Value.(*ast.Name); !ok || n.Name != "__all__" {
+					continue
+				}
+				switch f.Attr {
+				case "extend":
+					add(c.Args[0])
+				case "append":
+					add(&ast.List{Elts: c.Args})
+				case "remove":
+					if ex != nil {
+						removeExportExpr(ex, &ast.List{Elts: c.Args})
+					}
+				}
+			case *ast.If:
+				walk(s.Body, true)
+				walk(s.Orelse, true)
+			case *ast.PassThrough:
+				walk(s.Body, true)
 			}
-			return exports
 		}
 	}
-	return nil
+	walk(body, false)
+	return ex
+}
+
+// refersToAll reports whether a __all__ expression reads __all__ itself.
+func refersToAll(e ast.Expr) bool {
+	switch v := e.(type) {
+	case *ast.Name:
+		return v.Name == "__all__"
+	case *ast.BinOp:
+		return refersToAll(v.Left) || refersToAll(v.Right)
+	case *ast.List:
+		return slices.ContainsFunc(v.Elts, refersToAll)
+	case *ast.Tuple:
+		return slices.ContainsFunc(v.Elts, refersToAll)
+	case *ast.Starred:
+		return refersToAll(v.Value)
+	}
+	return false
+}
+
+// removeExportExpr removes string literals from ex. Removing anything else marks
+// ex as Dynamic, because the result cannot be read statically.
+func removeExportExpr(ex *model.Exports, e ast.Expr) {
+	var elts []ast.Expr
+	switch v := e.(type) {
+	case *ast.List:
+		elts = v.Elts
+	case *ast.Tuple:
+		elts = v.Elts
+	case *ast.Set:
+		elts = v.Elts
+	default:
+		ex.Dynamic = true
+		return
+	}
+	for _, elt := range elts {
+		c, ok := elt.(*ast.Constant)
+		if !ok || c.Kind != "str" {
+			ex.Dynamic = true
+			continue
+		}
+		ex.Names = slices.DeleteFunc(ex.Names, func(n string) bool { return n == c.Value })
+	}
+}
+
+// addExportExpr adds the content of one __all__ expression to ex: string
+// literals in a list or tuple, "+" between such lists, and other.__all__
+// references. Anything else marks ex as Dynamic.
+func addExportExpr(ex *model.Exports, e ast.Expr) {
+	switch v := e.(type) {
+	case *ast.List:
+		addExportElts(ex, v.Elts)
+	case *ast.Tuple:
+		addExportElts(ex, v.Elts)
+	case *ast.Set:
+		addExportElts(ex, v.Elts)
+	case *ast.Name:
+		if v.Name != "__all__" {
+			ex.Dynamic = true
+		}
+	case *ast.BinOp:
+		if v.Op != token.PLUS {
+			ex.Dynamic = true
+			return
+		}
+		addExportExpr(ex, v.Left)
+		addExportExpr(ex, v.Right)
+	case *ast.Attribute:
+		if v.Attr != "__all__" {
+			ex.Dynamic = true
+			return
+		}
+		if !isDottedName(v.Value) {
+			ex.Dynamic = true
+			return
+		}
+		if ref := exprToString(v.Value); !slices.Contains(ex.Refs, ref) {
+			ex.Refs = append(ex.Refs, ref)
+		}
+	default:
+		ex.Dynamic = true
+	}
+}
+
+func addExportElts(ex *model.Exports, elts []ast.Expr) {
+	for _, elt := range elts {
+		switch c := elt.(type) {
+		case *ast.Constant:
+			if c.Kind != "str" {
+				ex.Dynamic = true
+			} else if !slices.Contains(ex.Names, c.Value) {
+				ex.Names = append(ex.Names, c.Value)
+			}
+		case *ast.Starred:
+			addExportExpr(ex, c.Value)
+		default:
+			ex.Dynamic = true
+		}
+	}
+}
+
+// isDottedName reports whether e is a name or a chain of attributes on a name.
+func isDottedName(e ast.Expr) bool {
+	for {
+		switch v := e.(type) {
+		case *ast.Name:
+			return true
+		case *ast.Attribute:
+			e = v.Value
+		default:
+			return false
+		}
+	}
 }
 
 // isPublic determines if a name should be included in the output.

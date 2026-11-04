@@ -341,6 +341,45 @@ func TestDocsHandlerGetSymbol(t *testing.T) {
 	}
 }
 
+func TestDocsHandlerAliases(t *testing.T) {
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"info":{"name":"pkg","version":"1.0"},"urls":[],"releases":{}}`)
+	}))
+	defer pypiSrv.Close()
+
+	c, err := cache.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	memCache := cache.NewMemoryCache(c, 100)
+
+	docsJSON := []byte(`{"package":"pkg","version":"1.0","available":true,"modules":[
+		{"name":"pkg","functions":[],"classes":[],"exceptions":[],"aliases":[{"name":"Frame","target":"pkg.core.frame.Frame"}]},
+		{"name":"pkg.core.frame","functions":[],"classes":[{"name":"Frame","kind":"class","signature":"class Frame","methods":[{"name":"head","kind":"method","signature":"def head(self)"}]}],"exceptions":[]}]}`)
+	if err := memCache.Set(handler.DocsCacheKey("pkg", "1.0"), docsJSON, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	h := handler.NewDocsHandler(pypi.NewClient(pypi.WithBaseURL(pypiSrv.URL)), memCache)
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/docs/{symbol}", h.GetSymbol)
+	r.Get("/api/packages/{name}/symbols.txt", h.GetSymbols)
+
+	for path, want := range map[string]string{
+		"/api/packages/pkg/docs/pkg.Frame.txt":      "### pkg.core.frame.Frame",
+		"/api/packages/pkg/docs/pkg.Frame.head.txt": "### pkg.core.frame.Frame.head",
+		"/api/packages/pkg/symbols.txt":             "pkg.Frame\talias\t-> pkg.core.frame.Frame\n",
+	} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 200 || !strings.Contains(w.Body.String(), want) {
+			t.Errorf("%s: status %d, want %q in:\n%s", path, w.Code, want, w.Body.String())
+		}
+	}
+}
+
 func TestDocsHandlerGetSymbols(t *testing.T) {
 	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

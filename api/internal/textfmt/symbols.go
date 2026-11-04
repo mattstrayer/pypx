@@ -15,6 +15,7 @@ import (
 //
 //	# path<TAB>kind<TAB>signature
 //	httpx.Client<TAB>class<TAB>class Client(BaseClient)
+//	pandas.DataFrame<TAB>alias<TAB>-> pandas.core.frame.DataFrame
 //	...
 //
 // Results are sorted alphabetically by path for determinism. The header line
@@ -68,6 +69,12 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 			path := mod.Name + "." + exc.Name
 			if matchesQ(path) && matchesKind("exception") {
 				entries = append(entries, entry{path, "exception", exc.Signature})
+			}
+		}
+		for _, a := range mod.Aliases {
+			path := mod.Name + "." + a.Name
+			if matchesQ(path) && matchesKind("alias") {
+				entries = append(entries, entry{path, "alias", "-> " + a.Target})
 			}
 		}
 	}

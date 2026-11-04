@@ -1,6 +1,8 @@
 package extractor
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/pypx/goopy/model"
@@ -959,5 +961,164 @@ class Child(Base):
 		if m.Classes[0].Constructor == nil {
 			t.Errorf("base %q should keep the synthesized constructor", base)
 		}
+	}
+}
+
+func TestExtractAllExports_Forms(t *testing.T) {
+	tests := []struct {
+		name      string
+		src       string
+		wantNames []string
+		wantRefs  []string
+		dynamic   bool
+	}{
+		{name: "list", src: `__all__ = ["a", "b"]`, wantNames: []string{"a", "b"}},
+		{name: "tuple", src: `__all__ = ("a", "b")`, wantNames: []string{"a", "b"}},
+		{name: "plus", src: `__all__ = ["a"] + ["b"] + ("c",)`, wantNames: []string{"a", "b", "c"}},
+		{name: "plus equals", src: "__all__ = [\"a\"]\n__all__ += [\"b\"]", wantNames: []string{"a", "b"}},
+		{name: "extend", src: "__all__ = [\"a\"]\n__all__.extend([\"b\", \"c\"])", wantNames: []string{"a", "b", "c"}},
+		{name: "append", src: "__all__ = [\"a\"]\n__all__.append(\"b\")", wantNames: []string{"a", "b"}},
+		{name: "ref", src: `__all__ = sub.__all__`, wantRefs: []string{"sub"}},
+		{name: "refs and names", src: `__all__ = ["a"] + x.__all__ + y.z.__all__`, wantNames: []string{"a"}, wantRefs: []string{"x", "y.z"}},
+		{name: "ref plus equals", src: "__all__ = []\n__all__ += sub.__all__", wantRefs: []string{"sub"}},
+		{name: "ref extend", src: "__all__ = []\n__all__.extend(sub.__all__)", wantRefs: []string{"sub"}},
+		{name: "starred ref", src: `__all__ = ["a", *sub.__all__]`, wantNames: []string{"a"}, wantRefs: []string{"sub"}},
+		{name: "reassignment replaces", src: "__all__ = [\"a\"]\n__all__ = [\"b\"]", wantNames: []string{"b"}},
+		{name: "reassignment clears refs", src: "__all__ = sub.__all__ + make()\n__all__ = [\"b\"]", wantNames: []string{"b"}},
+		{name: "self reference keeps list", src: "__all__ = [\"a\"]\n__all__ = __all__ + [\"b\"]", wantNames: []string{"a", "b"}},
+		{name: "starred self reference keeps list", src: "__all__ = [\"a\"]\n__all__ = [*__all__, \"b\"]", wantNames: []string{"a", "b"}},
+		{name: "minus equals removes", src: "__all__ = {\"a\", \"b\"}\n__all__ -= {\"a\"}", wantNames: []string{"b"}},
+		{name: "minus equals unreadable", src: "__all__ = [\"a\"]\n__all__ -= other", wantNames: []string{"a"}, dynamic: true},
+		{name: "remove call", src: "__all__ = [\"a\", \"b\"]\n__all__.remove(\"a\")", wantNames: []string{"b"}},
+		{name: "other operator", src: "__all__ = [\"a\"]\n__all__ *= 2", wantNames: []string{"a"}, dynamic: true},
+		{name: "duplicates", src: "__all__ = [\"a\", \"a\"]\n__all__ += [\"a\"]", wantNames: []string{"a"}},
+		{name: "annotated", src: `__all__: list[str] = ["a"]`, wantNames: []string{"a"}},
+		{name: "in if", src: "__all__ = [\"a\"]\nif X:\n    __all__ += [\"b\"]\nelse:\n    __all__ += [\"c\"]", wantNames: []string{"a", "b", "c"}},
+		{name: "in try", src: "__all__ = [\"a\"]\ntry:\n    __all__.append(\"b\")\nexcept ImportError:\n    pass", wantNames: []string{"a", "b"}},
+		{name: "comprehension", src: `__all__ = [n for n in dir()]`, dynamic: true},
+		{name: "call", src: `__all__ = make()`, dynamic: true},
+		{name: "partial", src: `__all__ = ["a"] + make()`, wantNames: []string{"a"}, dynamic: true},
+		{name: "non string element", src: `__all__ = ["a", foo.__name__]`, wantNames: []string{"a"}, dynamic: true},
+		{name: "other attribute", src: `__all__ = sub.names`, dynamic: true},
+		{name: "append variable", src: "__all__ = [\"a\"]\n__all__.append(name)", wantNames: []string{"a"}, dynamic: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := extract(tt.src + "\n")
+			if m.Exports == nil {
+				t.Fatal("Exports is nil")
+			}
+			if !slices.Equal(m.Exports.Names, tt.wantNames) {
+				t.Errorf("Names = %q, want %q", m.Exports.Names, tt.wantNames)
+			}
+			if !slices.Equal(m.Exports.Refs, tt.wantRefs) {
+				t.Errorf("Refs = %q, want %q", m.Exports.Refs, tt.wantRefs)
+			}
+			if m.Exports.Dynamic != tt.dynamic {
+				t.Errorf("Dynamic = %v, want %v", m.Exports.Dynamic, tt.dynamic)
+			}
+		})
+	}
+}
+
+func TestExtractAllExports_Absent(t *testing.T) {
+	m := extract("def f(): pass\n__all__other = [\"x\"]\n")
+	if m.Exports != nil {
+		t.Errorf("Exports = %+v, want nil", m.Exports)
+	}
+}
+
+func TestExtractAllExports_InFunctionIgnored(t *testing.T) {
+	m := extract("def f():\n    __all__ = [\"x\"]\n")
+	if m.Exports != nil {
+		t.Errorf("Exports = %+v, want nil", m.Exports)
+	}
+}
+
+func TestExtractAllExports_FiltersOnlyWhenComplete(t *testing.T) {
+	// A complete __all__ hides unlisted names.
+	m := extract("__all__ = [\"a\"] + [\"b\"]\ndef a(): pass\ndef c(): pass\n")
+	if len(m.Functions) != 1 || m.Functions[0].Name != "a" {
+		t.Errorf("complete __all__: Functions = %v", m.Functions)
+	}
+	if len(m.Hidden.Functions) != 1 || m.Hidden.Functions[0].Name != "c" {
+		t.Errorf("complete __all__: Hidden.Functions = %v", m.Hidden.Functions)
+	}
+
+	// A partial __all__ cannot judge names yet, so the underscore rule applies.
+	m = extract("__all__ = [\"a\"] + sub.__all__\ndef c(): pass\ndef _d(): pass\n")
+	if len(m.Functions) != 1 || m.Functions[0].Name != "c" {
+		t.Errorf("partial __all__: Functions = %v", m.Functions)
+	}
+	if len(m.Hidden.Functions) != 1 || m.Hidden.Functions[0].Name != "_d" {
+		t.Errorf("partial __all__: Hidden.Functions = %v", m.Hidden.Functions)
+	}
+}
+
+func TestExtractModule_TupleTargets(t *testing.T) {
+	m := extract("a, b = 1, 2\nc, _d = list(E)\n__all__, f = [], 3\n")
+	got := map[string]string{}
+	for _, attr := range m.Attributes {
+		got[attr.Name] = attr.Value
+	}
+	want := map[string]string{"a": "1", "b": "2", "c": "", "f": "3"}
+	if !maps.Equal(got, want) {
+		t.Errorf("attributes = %v, want %v", got, want)
+	}
+	if len(m.Hidden.Attributes) != 1 || m.Hidden.Attributes[0].Name != "_d" {
+		t.Errorf("Hidden.Attributes = %+v", m.Hidden.Attributes)
+	}
+}
+
+func TestExtractModule_HiddenDefinitions(t *testing.T) {
+	m := extract(`
+def _f(): pass
+class _C: pass
+_a = 1
+_b: int = 2
+type _T = int
+`)
+	if len(m.Functions)+len(m.Classes)+len(m.Attributes)+len(m.TypeAliases) != 0 {
+		t.Errorf("private names leaked into public lists: %+v", m)
+	}
+	if len(m.Hidden.Functions) != 1 || len(m.Hidden.Classes) != 1 ||
+		len(m.Hidden.Attributes) != 2 || len(m.Hidden.TypeAliases) != 1 {
+		t.Errorf("Hidden = %+v", m.Hidden)
+	}
+}
+
+func TestExtractModule_ImportFroms(t *testing.T) {
+	m := extract(`
+import os
+import a.b as c
+from .x import y
+from ..p.q import r as s
+from . import t
+from .u import *
+from abs.mod import v
+if TYPE_CHECKING:
+    from ._w import W
+`)
+	want := []model.Import{
+		{Module: "os"},
+		{Module: "a.b", Alias: "c"},
+		{Module: "x", Level: 1, Name: "y"},
+		{Module: "p.q", Level: 2, Name: "r", Alias: "s"},
+		{Level: 1, Name: "t"},
+		{Module: "u", Level: 1, Name: "*"},
+		{Module: "abs.mod", Name: "v"},
+		{Module: "_w", Level: 1, Name: "W"},
+	}
+	if len(m.ImportFroms) != len(want) {
+		t.Fatalf("ImportFroms len = %d, want %d", len(m.ImportFroms), len(want))
+	}
+	for i, w := range want {
+		if *m.ImportFroms[i] != w {
+			t.Errorf("ImportFroms[%d] = %+v, want %+v", i, *m.ImportFroms[i], w)
+		}
+	}
+	// The existing field keeps its shape.
+	if len(m.Imports) != len(want) || m.Imports[1].Name != "c" {
+		t.Errorf("Imports = %+v", m.Imports)
 	}
 }

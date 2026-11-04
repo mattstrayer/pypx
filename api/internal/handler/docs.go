@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,16 @@ type DocModule struct {
 	Functions  []DocSymbol `json:"functions"`
 	Classes    []DocSymbol `json:"classes"`
 	Exceptions []DocSymbol `json:"exceptions"`
+	// Aliases lists names this module re-exports whose documentation is
+	// published under another module.
+	Aliases []DocAlias `json:"aliases,omitempty"`
+}
+
+// DocAlias is a public name that points at a symbol documented elsewhere.
+type DocAlias struct {
+	Name string `json:"name"`
+	// Target is the dotted module and name of the documented symbol.
+	Target string `json:"target"`
 }
 
 // DocSymbol is a single documented symbol (function, class, or exception).
@@ -50,6 +61,8 @@ type DocSymbol struct {
 	Returns    *DocReturn  `json:"returns,omitempty"`
 	Raises     []DocRaise  `json:"raises,omitempty"`
 	Methods    []DocSymbol `json:"methods,omitempty"`
+	// Origin is the dotted module that defines a re-exported symbol.
+	Origin string `json:"origin,omitempty"`
 }
 
 // DocParam is a function parameter.
@@ -444,6 +457,11 @@ func resolveStubs(ctx context.Context, pypiClient *pypi.Client, pkgName, sourceV
 // format expected by the frontend.
 func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubIndex) DocsResponse {
 	var modules []DocModule
+	type moduleAliases struct {
+		index   int
+		aliases []*model.Alias
+	}
+	var aliases []moduleAliases
 
 	for _, mod := range pkg.Modules {
 		dm := DocModule{
@@ -454,8 +472,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 
 		for _, fn := range mod.Functions {
-			stubFn := stubs[mod.Name+"."+fn.Name]
-			dm.Functions = append(dm.Functions, convertFunction(fn, stubFn))
+			dm.Functions = append(dm.Functions, convertFunction(fn, stubForFunction(stubs, mod.Name, fn)))
 		}
 
 		for _, cls := range mod.Classes {
@@ -468,10 +485,34 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 			}
 		}
 
-		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 {
+		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 || len(mod.Aliases) > 0 {
 			modules = append(modules, dm)
+			if len(mod.Aliases) > 0 {
+				aliases = append(aliases, moduleAliases{len(modules) - 1, mod.Aliases})
+			}
 		}
 	}
+
+	// The API documents functions, classes and exceptions. Keep only the aliases
+	// whose target is one of those, then drop any module left empty.
+	documented := map[string]bool{}
+	for _, dm := range modules {
+		for _, group := range [][]DocSymbol{dm.Functions, dm.Classes, dm.Exceptions} {
+			for _, sym := range group {
+				documented[dm.Name+"."+sym.Name] = true
+			}
+		}
+	}
+	for _, ma := range aliases {
+		for _, a := range ma.aliases {
+			if documented[a.Target] {
+				modules[ma.index].Aliases = append(modules[ma.index].Aliases, DocAlias{Name: a.Name, Target: a.Target})
+			}
+		}
+	}
+	modules = slices.DeleteFunc(modules, func(dm DocModule) bool {
+		return len(dm.Functions) == 0 && len(dm.Classes) == 0 && len(dm.Exceptions) == 0 && len(dm.Aliases) == 0
+	})
 
 	if modules == nil {
 		modules = []DocModule{}
@@ -485,12 +526,38 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 	}
 }
 
+// originKey returns the dotted path of a re-exported definition in its defining
+// module, or "" if the definition is not a re-export.
+func originKey(origin, originName, name string) string {
+	if origin == "" {
+		return ""
+	}
+	if originName != "" {
+		name = originName
+	}
+	return origin + "." + name
+}
+
+// stubForFunction finds a function's stub under its published path, then under
+// the path where it is defined. A stub package need not re-export a name the
+// same way the source package does.
+func stubForFunction(stubs stubIndex, modName string, fn *model.Function) *model.Function {
+	if s := stubs[modName+"."+fn.Name]; s != nil {
+		return s
+	}
+	if key := originKey(fn.Origin, fn.OriginName, fn.Name); key != "" {
+		return stubs[key]
+	}
+	return nil
+}
+
 func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	sym := DocSymbol{
 		Name:       fn.Name,
 		Kind:       "function",
 		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
+		Origin:     fn.Origin,
 	}
 	// Note: Signature is set after the parameter loop so stub-filled types appear.
 
@@ -570,20 +637,32 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		Kind:      "class",
 		Signature: buildClassSignature(cls),
 		Docstring: cleanDocstringText(cls.Docstring),
+		Origin:    cls.Origin,
+	}
+
+	// A member's stub is under the class's published path or under its origin.
+	originPath := originKey(cls.Origin, cls.OriginName, cls.Name)
+	stubForMember := func(member string) *model.Function {
+		if s := stubs[modName+"."+cls.Name+"."+member]; s != nil {
+			return s
+		}
+		if originPath != "" {
+			return stubs[originPath+"."+member]
+		}
+		return nil
 	}
 
 	// Constructor parameters; empty slice (not null) so JSON matches the type.
 	sym.Parameters = make([]DocParam, 0)
 	if cls.Constructor != nil {
-		ctor := convertFunction(cls.Constructor, stubs[modName+"."+cls.Name+".__init__"])
+		ctor := convertFunction(cls.Constructor, stubForMember("__init__"))
 		sym.Parameters = ctor.Parameters
 	}
 
 	if len(cls.Methods) > 0 {
 		sym.Methods = make([]DocSymbol, 0, len(cls.Methods))
 		for _, m := range cls.Methods {
-			stubFn := stubs[modName+"."+cls.Name+"."+m.Name]
-			sym.Methods = append(sym.Methods, convertFunction(m, stubFn))
+			sym.Methods = append(sym.Methods, convertFunction(m, stubForMember(m.Name)))
 		}
 	}
 
@@ -845,6 +924,9 @@ func docsInputFrom(d DocsResponse) *textfmt.DocsInput {
 	}
 	for _, m := range d.Modules {
 		mod := textfmt.DocModuleInput{Name: m.Name}
+		for _, a := range m.Aliases {
+			mod.Aliases = append(mod.Aliases, textfmt.DocAliasInput{Name: a.Name, Target: a.Target})
+		}
 		for _, fn := range m.Functions {
 			mod.Functions = append(mod.Functions, docSymbolFrom(fn))
 		}

@@ -76,6 +76,9 @@ type Assign struct {
 	EndPos   token.Pos
 	Targets  []Expr
 	Value    Expr
+	// Augmented is true for "target op= value". Op then holds the operator token.
+	Augmented bool
+	Op        token.Type
 }
 
 func (a *Assign) Pos() token.Pos { return a.Position }
