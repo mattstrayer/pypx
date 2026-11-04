@@ -129,7 +129,7 @@ func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 	return &DocsHandler{
 		pypi:        pypiClient,
 		cache:       c,
-		extract:     goopy.ExtractFromPyPI,
+		extract:     goopy.ExtractDocsFromPyPI,
 		weigh:       goopy.WeighFromPyPI,
 		budget:      semaphore.NewWeighted(extractionBudget),
 		workTimeout: docsExtractTimeout,

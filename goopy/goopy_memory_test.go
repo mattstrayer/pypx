@@ -2,8 +2,12 @@ package goopy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"runtime"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -76,5 +80,82 @@ func TestExtractFromWheel_ReleasesSourcesAsItParses(t *testing.T) {
 				t.Errorf("%d sources collected before the last module parsed, want at least %d", got, want)
 			}
 		})
+	}
+}
+
+func TestFlattenTypes_KeepsRawAndKindEverywhere(t *testing.T) {
+	src := []byte(`
+from typing import Callable, Dict, List, overload
+
+T = Dict[str, List[int]]
+x: List[int] = []
+
+def f(a: Dict[str, List[int]], *b: Callable[[int], str]) -> List[Dict[str, int]]:
+    pass
+
+class Base(Dict[str, int]):
+    y: List[str]
+    def __init__(self, z: List[int]) -> None:
+        pass
+    def m(self, q: Dict[str, int]) -> List[str]:
+        pass
+    class Inner:
+        def n(self, r: List[int]) -> None:
+            pass
+
+def _private(s: List[int]) -> List[int]:
+    pass
+`)
+	mod, errs := ExtractModule("m", src)
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	before, err := json.Marshal(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flattenTypes(mod)
+	after, err := json.Marshal(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(after), `"args"`) || strings.Contains(string(after), `"elements"`) {
+		t.Errorf("flattened module still has nested types: %s", after)
+	}
+
+	var want []string
+	var walkTop func(v any)
+	walkTop = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			// A type expression's outer Raw is what stays. Its children go.
+			if raw, ok := x["raw"].(string); ok {
+				want = append(want, raw)
+				return
+			}
+			for _, k := range slices.Sorted(maps.Keys(x)) {
+				walkTop(x[k])
+			}
+		case []any:
+			for _, e := range x {
+				walkTop(e)
+			}
+		}
+	}
+	var decoded any
+	if err := json.Unmarshal(before, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	walkTop(decoded)
+
+	var decodedAfter any
+	if err := json.Unmarshal(after, &decodedAfter); err != nil {
+		t.Fatal(err)
+	}
+	beforeRaws := want
+	want = nil
+	walkTop(decodedAfter)
+	if !slices.Equal(beforeRaws, want) || len(want) < 8 {
+		t.Errorf("outer Raw values changed:\nbefore %v\nafter  %v", beforeRaws, want)
 	}
 }
