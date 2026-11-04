@@ -997,3 +997,417 @@ func TestExtractFromPyPI_Integration(t *testing.T) {
 		t.Error("no functions found in click")
 	}
 }
+
+// stubPackage extracts files under the single top-level package "pkg".
+func stubPackage(t *testing.T, files map[string]string) map[string]*model.Module {
+	t.Helper()
+	in := make(map[string][]byte, len(files))
+	for p, s := range files {
+		in[p] = []byte(s)
+	}
+	mods := map[string]*model.Module{}
+	for _, m := range ExtractPackage(context.Background(), "pkg", in, []string{"pkg"}).Modules {
+		mods[m.Name] = m
+	}
+	return mods
+}
+
+func stubFunc(t *testing.T, m *model.Module, name string) *model.Function {
+	t.Helper()
+	if m == nil {
+		t.Fatalf("module is missing, want function %s", name)
+	}
+	for _, f := range m.Functions {
+		if f.Name == name {
+			return f
+		}
+	}
+	t.Fatalf("%s has no function %s", m.Name, name)
+	return nil
+}
+
+func TestExtractPackage_MergesPyAndPyi(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/core.py": `
+def get(url, timeout=None):
+    """Fetch a URL."""
+
+class Client:
+    """A client."""
+    def __init__(self, base):
+        self.base = base
+    def send(self, body):
+        """Send a body."""
+`,
+		"pkg/core.pyi": `
+def get(url: str, timeout: float | None = ..., extra: int = ...) -> bytes:
+    """Stub text."""
+
+def only_in_stub(n: int) -> int: ...
+
+class Client:
+    base: str
+    def __init__(self, base: str) -> None: ...
+    def send(self, body: bytes) -> int: ...
+    def close(self) -> None: ...
+
+class StubClass: ...
+`,
+	})
+	m := mods["pkg.core"]
+	get := stubFunc(t, m, "get")
+	if get.Docstring == nil || get.Docstring.Text != "Fetch a URL." {
+		t.Errorf("get docstring = %+v, want the .py text", get.Docstring)
+	}
+	if len(get.Parameters) != 2 {
+		t.Errorf("get has %d parameters, want the 2 in the .py", len(get.Parameters))
+	}
+	if get.Parameters[0].Type == nil || get.Parameters[0].Type.Name != "str" {
+		t.Errorf("url type = %+v, want str", get.Parameters[0].Type)
+	}
+	if get.Parameters[1].Default != "None" {
+		t.Errorf("timeout default = %q, want the .py value", get.Parameters[1].Default)
+	}
+	if get.Returns == nil || get.Returns.Name != "bytes" {
+		t.Errorf("get returns = %+v, want bytes", get.Returns)
+	}
+	if got := stubFunc(t, m, "only_in_stub"); got.Returns == nil {
+		t.Error("only_in_stub has no return type")
+	}
+
+	names := map[string]*model.Class{}
+	for _, c := range m.Classes {
+		names[c.Name] = c
+	}
+	if len(m.Classes) != 2 || names["StubClass"] == nil {
+		t.Fatalf("classes = %v, want Client and StubClass", names)
+	}
+	cl := names["Client"]
+	if cl.Docstring == nil || cl.Docstring.Text != "A client." {
+		t.Errorf("Client docstring = %+v", cl.Docstring)
+	}
+	if cl.Constructor == nil || cl.Constructor.Parameters[0].Type == nil {
+		t.Errorf("constructor = %+v, want a typed parameter", cl.Constructor)
+	}
+	methods := map[string]*model.Function{}
+	for _, f := range cl.Methods {
+		methods[f.Name] = f
+	}
+	if methods["close"] == nil {
+		t.Error("close from the stub is missing")
+	}
+	if s := methods["send"]; s == nil || s.Parameters[0].Type == nil || s.Returns == nil || s.Docstring == nil {
+		t.Errorf("send = %+v, want types from the stub and the .py docstring", s)
+	}
+	if len(cl.Attributes) != 1 || cl.Attributes[0].Type == nil || cl.Attributes[0].Value != "base" {
+		t.Errorf("attributes = %+v, want base with the stub's type and the .py's value", cl.Attributes)
+	}
+}
+
+func TestExtractPackage_StubOnlyModule(t *testing.T) {
+	// orjson's shape: the .py imports from a compiled module, the .pyi holds the API.
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.py": `
+from .pkg import *
+from .pkg import __version__
+
+__all__ = ("dumps", "loads", "OPT_X", "Fragment", "__version__")
+`,
+		"pkg/__init__.pyi": `
+from typing import Any
+
+__version__: str
+
+def dumps(obj: Any, /, option: int | None = None) -> bytes: ...
+def loads(obj: bytes) -> Any: ...
+def hidden_helper() -> None: ...
+
+class Fragment:
+    contents: bytes
+
+OPT_X: int
+`,
+	})
+	m := mods["pkg"]
+	if d := stubFunc(t, m, "dumps"); d.Returns == nil || d.Returns.Name != "bytes" {
+		t.Errorf("dumps returns = %+v", d.Returns)
+	}
+	stubFunc(t, m, "loads")
+	for _, f := range m.Functions {
+		if f.Name == "hidden_helper" {
+			t.Error("hidden_helper is not in the .py's __all__")
+		}
+	}
+	if len(m.Classes) != 1 || m.Classes[0].Name != "Fragment" {
+		t.Errorf("classes = %+v", m.Classes)
+	}
+
+	// A bare stub with no .py at all.
+	mods = stubPackage(t, map[string]string{
+		"pkg/__init__.pyi": "def run(n: int) -> int: ...\n",
+		"pkg/sub.pyi":      "def go() -> None: ...\n",
+	})
+	stubFunc(t, mods["pkg"], "run")
+	stubFunc(t, mods["pkg.sub"], "go")
+}
+
+func TestExtractPackage_StubOverloads(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/mixed.py": `
+def f(a, b=None):
+    """Doc."""
+`,
+		"pkg/mixed.pyi": `
+from typing import overload
+
+@overload
+def f(a: int) -> int: ...
+@overload
+def f(a: str, b: int) -> str: ...
+`,
+		"pkg/only.pyi": `
+from typing import overload
+
+@overload
+def g(a: int) -> int: ...
+@overload
+def g(a: str) -> str: ...
+
+class C:
+    @overload
+    def m(self, a: int) -> int: ...
+    @overload
+    def m(self, a: str) -> str: ...
+`,
+	})
+	f := stubFunc(t, mods["pkg.mixed"], "f")
+	if len(f.Overloads) != 2 {
+		t.Errorf("f has %d overloads, want 2", len(f.Overloads))
+	}
+	if f.Parameters[0].Type != nil || f.Returns != nil {
+		t.Errorf("f takes no single signature from its overloads: %+v, %+v", f.Parameters[0].Type, f.Returns)
+	}
+	if f.Docstring == nil {
+		t.Error("f lost its docstring")
+	}
+	g := stubFunc(t, mods["pkg.only"], "g")
+	if len(mods["pkg.only"].Functions) != 1 || len(g.Overloads) != 1 {
+		t.Errorf("g: %d functions and %d overloads, want 1 and 1", len(mods["pkg.only"].Functions), len(g.Overloads))
+	}
+	if m := mods["pkg.only"].Classes[0].Methods; len(m) != 1 || len(m[0].Overloads) != 1 {
+		t.Errorf("C methods = %+v", m)
+	}
+}
+
+func TestExtractPackage_StubFillsImportedDefinition(t *testing.T) {
+	// attrs' shape: the .pyi defines what the .py imports from a private .py.
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.py":  "from ._impl import run\n",
+		"pkg/__init__.pyi": "def run(n: int) -> int: ...\n",
+		"pkg/_impl.py":     "def run(n):\n    \"\"\"Run it.\"\"\"\n",
+	})
+	run := stubFunc(t, mods["pkg"], "run")
+	if run.Docstring == nil || run.Docstring.Text != "Run it." {
+		t.Errorf("run docstring = %+v, want the .py text", run.Docstring)
+	}
+	if run.Returns == nil || run.Parameters[0].Type == nil {
+		t.Errorf("run = %+v, want the stub's types", run)
+	}
+	if run.Origin != "pkg._impl" {
+		t.Errorf("run origin = %q, want pkg._impl", run.Origin)
+	}
+}
+
+func TestExtractPackage_StubInPrivateCompiledModule(t *testing.T) {
+	// pandas' shape: public names come through private modules with only a .pyi,
+	// and "try/except" fallbacks do not hide them.
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.py":                "from pkg.core.api import Stamp, NA\n__all__ = ['Stamp', 'NA']\n",
+		"pkg/core/__init__.py":           "",
+		"pkg/core/api.py":                "from pkg._libs import NA, Stamp\n",
+		"pkg/_libs/__init__.py":          "from pkg._libs.tslibs import Stamp\nfrom pkg._libs.missing import NA\n",
+		"pkg/_libs/missing.pyi":          "class NAType: ...\nNA: NAType\n",
+		"pkg/_libs/tslibs/__init__.py":   "from .stamps import Stamp\n__all__ = ['Stamp']\n",
+		"pkg/_libs/tslibs/stamps.pyi":    "class Stamp:\n    def now(self) -> Stamp: ...\n",
+		"pkg/_libs/tslibs/unrelated.pyi": "class Other: ...\n",
+	})
+	published := func(mod, name string) bool {
+		m := mods[mod]
+		if m == nil {
+			return false
+		}
+		return slices.ContainsFunc(m.Classes, func(c *model.Class) bool { return c.Name == name }) ||
+			slices.ContainsFunc(m.Attributes, func(a *model.Attribute) bool { return a.Name == name }) ||
+			slices.ContainsFunc(m.Aliases, func(a *model.Alias) bool { return a.Name == name })
+	}
+	for _, name := range []string{"Stamp", "NA"} {
+		if !published("pkg", name) {
+			t.Errorf("pkg does not publish %s", name)
+		}
+	}
+	for mod := range mods {
+		if strings.Contains(mod, "_libs") {
+			t.Errorf("private module %s is published", mod)
+		}
+	}
+}
+
+func TestExtractPackage_StubImportsDoNotReexport(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.pyi": `
+from ._types import Hidden
+from ._types import Shown as Shown
+from ._star import *
+from . import sub
+`,
+		"pkg/_types.pyi": "class Hidden: ...\nclass Shown: ...\n",
+		"pkg/_star.pyi":  "class Starred: ...\n",
+		"pkg/sub.pyi":    "def go() -> None: ...\n",
+	})
+	m := mods["pkg"]
+	got := map[string]bool{}
+	for _, c := range m.Classes {
+		got[c.Name] = true
+	}
+	if !got["Shown"] || !got["Starred"] || got["Hidden"] {
+		t.Errorf("classes = %v, want Shown and Starred only", got)
+	}
+}
+
+func TestExtractPackage_StubAllLists(t *testing.T) {
+	// The .py has no readable __all__, so the stub's list adds names without
+	// taking any away.
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.py":  "import os\n__all__ = sorted(os.listdir('.'))\nfrom ._a import Listed\n\ndef from_py(): ...\n",
+		"pkg/__init__.pyi": "from ._a import Listed\n__all__ = ['Listed', 'from_py']\n",
+		"pkg/_a.py":        "class Listed: ...\n",
+	})
+	m := mods["pkg"]
+	stubFunc(t, m, "from_py")
+	if !slices.ContainsFunc(m.Classes, func(c *model.Class) bool { return c.Name == "Listed" }) {
+		t.Errorf("classes = %+v, want Listed", m.Classes)
+	}
+}
+
+func TestExtractPackage_StubReplacesPlainAttribute(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/mod.py":  "make = build()\nLIMIT = 5\n",
+		"pkg/mod.pyi": "def make(n: int) -> int: ...\nLIMIT: int\n",
+	})
+	m := mods["pkg.mod"]
+	stubFunc(t, m, "make")
+	if len(m.Attributes) != 1 || m.Attributes[0].Name != "LIMIT" || m.Attributes[0].Value != "5" || m.Attributes[0].Type == nil {
+		t.Errorf("attributes = %+v, want typed LIMIT with its value", m.Attributes)
+	}
+}
+
+func TestExtractPackage_StubDirectory(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.py":        "def f(a): ...\n",
+		"pkg/__init__.pyi":       "def f(a: bytes) -> bytes: ...\n",
+		"pkg-stubs/__init__.pyi": "def f(a: int) -> int: ...\n",
+		"pkg-stubs/extra.pyi":    "def e() -> None: ...\n",
+	})
+	if f := stubFunc(t, mods["pkg"], "f"); f.Returns == nil || f.Returns.Name != "int" {
+		t.Errorf("f returns = %+v, want the stub directory's int", f.Returns)
+	}
+	stubFunc(t, mods["pkg.extra"], "e")
+}
+
+func TestExtractPackage_StubRulesForTestsAndPrivacy(t *testing.T) {
+	mods := stubPackage(t, map[string]string{
+		"pkg/__init__.pyi":     "def f() -> None: ...\n",
+		"pkg/tests/data.pyi":   "def t() -> None: ...\n",
+		"pkg/test_thing.pyi":   "def t() -> None: ...\n",
+		"pkg/conftest.pyi":     "def t() -> None: ...\n",
+		"pkg/_private.pyi":     "def p() -> None: ...\n",
+		"pkg/sub/__init__.pyi": "from ._inner import go as go\n",
+		"pkg/sub/_inner.pyi":   "def go() -> None: ...\n",
+	})
+	want := []string{"pkg", "pkg.sub"}
+	got := slices.Sorted(maps.Keys(mods))
+	if !slices.Equal(got, want) {
+		t.Errorf("modules = %v, want %v", got, want)
+	}
+	// A relative import in a package's __init__.pyi must find the sibling.
+	if go_ := stubFunc(t, mods["pkg.sub"], "go"); go_.Origin != "pkg.sub._inner" {
+		t.Errorf("go origin = %q, want pkg.sub._inner", go_.Origin)
+	}
+}
+
+func TestExtractPackage_MergedFilesParseOnceEach(t *testing.T) {
+	orig := extractModuleFn
+	defer func() { extractModuleFn = orig }()
+
+	for _, size := range []int{0, 8} { // Below and above parallelThreshold.
+		files := map[string][]byte{
+			"pkg/__init__.py":  []byte("from .a import f\n"),
+			"pkg/__init__.pyi": []byte("def f(n: int) -> int: ...\n"),
+			"pkg/a.py":         []byte("def f(n): ...\n"),
+			"pkg/a.pyi":        []byte("def f(n: int) -> int: ...\n"),
+			"pkg/only.pyi":     []byte("def g() -> None: ...\n"),
+		}
+		for i := range size {
+			files[fmt.Sprintf("pkg/m%d.py", i)] = []byte("x = 1\n")
+		}
+		var mu sync.Mutex
+		calls := map[string]int{}
+		extractModuleFn = func(name string, src []byte) (*model.Module, []error) {
+			mu.Lock()
+			calls[string(src)]++
+			mu.Unlock()
+			return orig(name, src)
+		}
+		ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+		var total int
+		for _, n := range calls {
+			total += n
+		}
+		if total != len(files) {
+			t.Errorf("size %d: %d parses, want one per file (%d)", size, total, len(files))
+		}
+		if len(calls) == 0 || calls["def g() -> None: ...\n"] != 1 {
+			t.Errorf("size %d: stub-only file parsed %d times", size, calls["def g() -> None: ...\n"])
+		}
+	}
+}
+
+func TestExtractPackage_StubPanicKeepsSource(t *testing.T) {
+	orig := extractModuleFn
+	defer func() { extractModuleFn = orig }()
+	extractModuleFn = func(name string, src []byte) (*model.Module, []error) {
+		if strings.Contains(string(src), "boom") {
+			panic("bad stub")
+		}
+		return orig(name, src)
+	}
+	mods := stubPackage(t, map[string]string{
+		"pkg/a.py":  "def f(): ...\n",
+		"pkg/a.pyi": "boom: int\n",
+		"pkg/b.py":  "boom = 1\n",
+		"pkg/b.pyi": "def g() -> None: ...\n",
+	})
+	stubFunc(t, mods["pkg.a"], "f")
+	stubFunc(t, mods["pkg.b"], "g")
+}
+
+func TestExtractPackage_StubOutputIsStable(t *testing.T) {
+	files := map[string][]byte{}
+	for i := range 12 {
+		files[fmt.Sprintf("pkg/m%d.py", i)] = fmt.Appendf(nil, "from ._p%d import *\ndef a(x): ...\n", i)
+		files[fmt.Sprintf("pkg/m%d.pyi", i)] = fmt.Appendf(nil, "def a(x: int) -> int: ...\ndef b(y: str) -> str: ...\nclass C%d: ...\nZ: int\n", i)
+		files[fmt.Sprintf("pkg/_p%d.py", i)] = fmt.Appendf(nil, "def b(y):\n    \"\"\"From %d.\"\"\"\n", i)
+	}
+	var first []byte
+	for i := range 20 {
+		data, err := json.Marshal(ExtractPackage(context.Background(), "pkg", files, []string{"pkg"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = data
+		} else if !bytes.Equal(first, data) {
+			t.Fatalf("run %d differs from run 0", i)
+		}
+	}
+}

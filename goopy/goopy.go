@@ -41,7 +41,8 @@ func ExtractModule(name string, src []byte) (*model.Module, []error) {
 }
 
 // ExtractPackage parses multiple Python source files and returns a Package.
-// files maps relative paths (e.g., "mypackage/module.py") to source bytes.
+// files maps relative paths (e.g., "mypackage/module.py") to source bytes. A .pyi
+// file merges with the .py of the same module, or stands in for one.
 // Module extraction is parallelized across available CPUs.
 func ExtractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string) *model.Package {
 	return extractPackage(ctx, name, files, topLevelPkgs, func(*model.Module) {})
@@ -50,55 +51,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 // extractPackage is ExtractPackage with a step that runs on each module once it is
 // parsed, before modules can reference each other.
 func extractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string, afterParse func(*model.Module)) *model.Package {
-	// Collect eligible files. Private modules are parsed so re-exports can reach
-	// them, but they are never published.
-	type work struct {
-		modName string
-		path    string
-		src     []byte
-	}
-	var items []work
-	testDirs := testFileDirs(files)
-	for _, pkgName := range topLevelPkgs {
-		dirPrefix := pkgName + "/"
-		hasDir := false
-		for path := range files {
-			if strings.HasPrefix(path, dirPrefix) {
-				hasDir = true
-				break
-			}
-		}
-		for path, src := range files {
-			switch {
-			case strings.HasPrefix(path, dirPrefix):
-				if !isTestModule(path, testDirs) {
-					items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
-				}
-			case !hasDir && path == pkgName+".py":
-				// Single-file module distribution (e.g. six.py).
-				items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
-			}
-		}
-	}
-
-	// Map iteration order is random. Sort by module name so output is stable
-	// and a package root ("pkg") precedes its submodules ("pkg.sub").
-	// If "foo.py" and "foo/__init__.py" both exist they share a module name:
-	// keep the package directory's file, which Python's import system prefers.
-	slices.SortFunc(items, func(a, b work) int {
-		if c := strings.Compare(a.modName, b.modName); c != 0 {
-			return c
-		}
-		aInit, bInit := strings.HasSuffix(a.path, "/__init__.py"), strings.HasSuffix(b.path, "/__init__.py")
-		if aInit != bInit {
-			if aInit {
-				return -1
-			}
-			return 1
-		}
-		return strings.Compare(a.path, b.path)
-	})
-	items = slices.CompactFunc(items, func(a, b work) bool { return a.modName == b.modName })
+	items := collectWork(files, topLevelPkgs)
 
 	results := make([]*model.Module, len(items))
 	if len(items) <= parallelThreshold {
@@ -107,8 +60,8 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 			if ctx.Err() != nil {
 				break
 			}
-			results[i] = extractSafely(item.modName, item.src)
-			items[i].src = nil // parsing copies what it keeps
+			results[i] = item.extract()
+			items[i].src, items[i].stub = nil, nil // parsing copies what it keeps
 			if results[i] != nil {
 				afterParse(results[i])
 			}
@@ -136,8 +89,8 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 					if ctx.Err() != nil {
 						return
 					}
-					results[idx] = extractSafely(items[idx].modName, items[idx].src)
-					items[idx].src = nil // parsing copies what it keeps
+					results[idx] = items[idx].extract()
+					items[idx].src, items[idx].stub = nil, nil // parsing copies what it keeps
 					if results[idx] != nil {
 						afterParse(results[idx])
 					}
@@ -158,6 +111,7 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 		parsed = append(parsed, pm)
 	}
 
+	r.settleStubDefinitions(parsed)
 	r.publishExports(parsed)
 
 	pkg := &model.Package{Name: name}
@@ -170,6 +124,135 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 		}
 	}
 	return pkg
+}
+
+// work is one module to extract: a .py, a .pyi, or both.
+type work struct {
+	modName string
+	// path is the file's path in the import tree, as a .py file.
+	path            string
+	src, stub       []byte
+	hasSrc, hasStub bool
+}
+
+// extract parses the module's files, each once, and merges them.
+func (w work) extract() *model.Module {
+	var base, stub *model.Module
+	if w.hasSrc {
+		base = extractSafely(w.modName, w.src)
+	}
+	if w.hasStub {
+		stub = extractSafely(w.modName, w.stub)
+	}
+	return safely(w.modName, func() *model.Module {
+		if stub == nil {
+			return base
+		}
+		extractor.MarkStubImports(stub)
+		if base == nil {
+			return stub
+		}
+		extractor.MergeStub(base, stub)
+		return base
+	})
+}
+
+// sourcePath returns the path a file has in the import tree, as a .py file:
+// "foo-stubs/bar.pyi" is "foo/bar.py". Every rule for module names, test code and
+// private modules reads this form, so it holds for stubs too.
+func sourcePath(path string) string {
+	if !strings.HasSuffix(path, ".pyi") {
+		return path
+	}
+	path = strings.TrimSuffix(path, "i")
+	if first, rest, ok := strings.Cut(path, "/"); ok {
+		return strings.TrimSuffix(first, "-stubs") + "/" + rest
+	}
+	return path
+}
+
+// collectWork picks the files to extract, sorted by module name so output is stable
+// and a package root ("pkg") precedes its submodules ("pkg.sub"). Private modules
+// are collected so re-exports can reach them, but they are never published.
+func collectWork(files map[string][]byte, topLevelPkgs []string) []work {
+	type candidate struct {
+		modName, path, raw string
+	}
+	var cands []candidate
+	testDirs := testFileDirs(files)
+	for _, pkgName := range topLevelPkgs {
+		dirPrefix := pkgName + "/"
+		hasDir := false
+		for raw := range files {
+			if strings.HasPrefix(raw, dirPrefix) {
+				hasDir = true
+				break
+			}
+		}
+		for raw := range files {
+			path := sourcePath(raw)
+			switch {
+			case strings.HasPrefix(path, dirPrefix):
+				if isTestModule(path, testDirs) {
+					continue
+				}
+			case hasDir || path != pkgName+".py":
+				// Only a single-file module distribution (six.py) lives outside
+				// its package directory.
+				continue
+			}
+			cands = append(cands, candidate{pathToModuleName(path), path, raw})
+		}
+	}
+
+	// If "foo.py" and "foo/__init__.py" both exist they share a module name: the
+	// package directory's file sorts first, which Python's import system prefers.
+	// "foo-stubs/x.pyi" sorts before "foo/x.pyi", and PEP 561 prefers it too.
+	isInit := func(path string) bool { return strings.HasSuffix(path, "/__init__.py") }
+	slices.SortFunc(cands, func(a, b candidate) int {
+		if c := strings.Compare(a.modName, b.modName); c != 0 {
+			return c
+		}
+		if aInit, bInit := isInit(a.path), isInit(b.path); aInit != bInit {
+			if aInit {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.raw, b.raw)
+	})
+
+	byName := map[string]*work{}
+	var mods []*work
+	for _, c := range cands {
+		if c.raw == c.path && byName[c.modName] == nil {
+			w := &work{modName: c.modName, path: c.path, src: files[c.raw], hasSrc: true}
+			byName[c.modName] = w
+			mods = append(mods, w)
+		}
+	}
+	for _, c := range cands {
+		if c.raw == c.path {
+			continue
+		}
+		w := byName[c.modName]
+		if w == nil {
+			w = &work{modName: c.modName, path: c.path}
+			byName[c.modName] = w
+			mods = append(mods, w)
+		}
+		// A relative import means something else in a package than in a module,
+		// so foo/__init__.pyi cannot describe foo.py.
+		if !w.hasStub && isInit(w.path) == isInit(c.path) {
+			w.stub, w.hasStub = files[c.raw], true
+		}
+	}
+	slices.SortFunc(mods, func(a, b *work) int { return strings.Compare(a.modName, b.modName) })
+	items := make([]work, len(mods))
+	for i, w := range mods {
+		items[i] = *w
+	}
+	return items
 }
 
 // maxImportDepth caps how many import hops one re-export may follow.
@@ -202,23 +285,28 @@ func (d definition) name() string {
 // includes copies, so one module's copies cannot change another's lookups.
 type parsedModule struct {
 	mod    *model.Module
+	path   string
 	isPkg  bool
 	public bool
 	// defs holds functions, classes and type aliases. attrs holds attributes
 	// whose name has no entry in defs.
 	defs  map[string]definition
 	attrs map[string]definition
-	// order lists the keys of defs and attrs in a stable order.
+	// stubOnly holds mod.StubOnly: names a lookup finds only if imports do not.
+	stubOnly map[string]definition
+	// order lists the keys of defs, attrs and stubOnly in a stable order.
 	order []string
 }
 
 func newParsedModule(mod *model.Module, path string) *parsedModule {
 	pm := &parsedModule{
-		mod:    mod,
-		isPkg:  strings.HasSuffix(path, "/__init__.py"),
-		public: !isPrivateModule(path),
-		defs:   map[string]definition{},
-		attrs:  map[string]definition{},
+		mod:      mod,
+		path:     path,
+		isPkg:    strings.HasSuffix(path, "/__init__.py"),
+		public:   !isPrivateModule(path),
+		defs:     map[string]definition{},
+		attrs:    map[string]definition{},
+		stubOnly: map[string]definition{},
 	}
 	addDef := func(name string, d definition) {
 		if _, ok := pm.defs[name]; !ok {
@@ -250,7 +338,85 @@ func newParsedModule(mod *model.Module, path string) *parsedModule {
 			}
 		}
 	}
+	for _, d := range stubDefinitions(mod) {
+		if !pm.definesDirectly(d.name()) {
+			pm.order = append(pm.order, d.name())
+		}
+		pm.stubOnly[d.name()] = d
+	}
 	return pm
+}
+
+// stubDefinitions lists mod.StubOnly in a stable order.
+func stubDefinitions(mod *model.Module) []definition {
+	var defs []definition
+	for _, f := range mod.StubOnly.Functions {
+		defs = append(defs, definition{module: mod.Name, fn: f})
+	}
+	for _, c := range mod.StubOnly.Classes {
+		defs = append(defs, definition{module: mod.Name, cls: c})
+	}
+	for _, t := range mod.StubOnly.TypeAliases {
+		defs = append(defs, definition{module: mod.Name, alias: t})
+	}
+	for _, a := range mod.StubOnly.Attributes {
+		defs = append(defs, definition{module: mod.Name, attr: a})
+	}
+	return defs
+}
+
+// settleStubDefinitions decides each name a .pyi defines and its .py may import.
+// If the import finds a definition, the stub's types go onto it, so the docstring
+// in the .py stays. If not, as with a compiled module, the stub's definition joins
+// the module. All lookups run before any change, so module order has no effect.
+func (r *resolver) settleStubDefinitions(parsed []*parsedModule) {
+	type fill struct{ target, stub definition }
+	var fills []fill
+	joins := map[*parsedModule]*model.Definitions{}
+	for _, pm := range parsed {
+		for _, stub := range stubDefinitions(pm.mod) {
+			if d, ok := r.lookup(pm.mod.Name, stub.name(), map[[2]string]bool{}, 0); ok && d.module != pm.mod.Name {
+				fills = append(fills, fill{d, stub})
+				continue
+			}
+			j := joins[pm]
+			if j == nil {
+				j = &model.Definitions{}
+				joins[pm] = j
+			}
+			switch {
+			case stub.fn != nil:
+				j.Functions = append(j.Functions, stub.fn)
+			case stub.cls != nil:
+				j.Classes = append(j.Classes, stub.cls)
+			case stub.attr != nil:
+				j.Attributes = append(j.Attributes, stub.attr)
+			default:
+				j.TypeAliases = append(j.TypeAliases, stub.alias)
+			}
+		}
+	}
+	for _, f := range fills {
+		switch {
+		case f.target.fn != nil && f.stub.fn != nil:
+			extractor.MergeFunction(f.target.fn, f.stub.fn)
+		case f.target.cls != nil && f.stub.cls != nil:
+			extractor.MergeClass(f.target.cls, f.stub.cls)
+		case f.target.attr != nil && f.stub.attr != nil:
+			extractor.MergeAttribute(f.target.attr, f.stub.attr)
+		}
+	}
+	for _, pm := range parsed {
+		if len(pm.stubOnly) == 0 {
+			continue
+		}
+		pm.mod.StubOnly = model.Definitions{}
+		if j := joins[pm]; j != nil {
+			extractor.AddStubDefinitions(pm.mod, *j)
+		}
+		*pm = *newParsedModule(pm.mod, pm.path)
+	}
+	r.stars = nil
 }
 
 func (pm *parsedModule) definesDirectly(name string) bool {
@@ -411,7 +577,7 @@ func (r *resolver) starNames(mod string, visited map[string]bool) []string {
 					names = appendUnique(names, seen, n)
 				}
 			}
-		case imp.Name != "":
+		case imp.Name != "" && !imp.NotExported:
 			if b := importBinding(imp); !strings.HasPrefix(b, "_") {
 				names = appendUnique(names, seen, b)
 			}
@@ -470,6 +636,9 @@ func (r *resolver) lookup(mod, name string, visited map[[2]string]bool, depth in
 			}
 		}
 	}
+	if d, ok := pm.stubOnly[name]; ok {
+		return d, true
+	}
 	d, ok := pm.attrs[name]
 	return d, ok
 }
@@ -492,7 +661,7 @@ func (r *resolver) exportList(pm *parsedModule) []string {
 		}
 	}
 	for _, imp := range pm.mod.ImportFroms {
-		if imp.Name == "" {
+		if imp.Name == "" || imp.NotExported {
 			continue
 		}
 		src := importSource(pm, imp)
@@ -539,7 +708,7 @@ func (r *resolver) settlePublic(pm *parsedModule) []string {
 	// An attribute that shares its name with a working import is a fallback, as
 	// in "try: from ._x import Y / except ImportError: Y = None". The import wins.
 	for _, imp := range m.ImportFroms {
-		if imp.Name == "" || imp.Name == "*" {
+		if imp.Name == "" || imp.Name == "*" || imp.NotExported {
 			continue
 		}
 		b := importBinding(imp)
@@ -696,21 +865,28 @@ func addCopy(m *model.Module, name string, d definition) {
 // extractModuleFn is the extraction call used by extractSafely. Tests replace it.
 var extractModuleFn = ExtractModule
 
-// extractSafely extracts one module and returns nil if extraction panics, so a
-// single bad module cannot stop a worker or lose other modules.
-func extractSafely(modName string, src []byte) (mod *model.Module) {
+// extractSafely extracts one module and returns nil if extraction panics.
+func extractSafely(modName string, src []byte) *model.Module {
+	return safely(modName, func() *model.Module {
+		mod, _ := extractModuleFn(modName, src)
+		return mod
+	})
+}
+
+// safely returns nil if fn panics, so a single bad module cannot stop a worker or
+// lose other modules.
+func safely(modName string, fn func() *model.Module) (mod *model.Module) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("goopy: extract panic on %s: %v\n%s", modName, r, debug.Stack())
 			mod = nil
 		}
 	}()
-	mod, _ = extractModuleFn(modName, src)
-	return mod
+	return fn()
 }
 
 func pathToModuleName(path string) string {
-	name := strings.TrimSuffix(path, ".py")
+	name := strings.TrimSuffix(sourcePath(path), ".py")
 	name = strings.TrimSuffix(name, "/__init__")
 	return strings.ReplaceAll(name, "/", ".")
 }
@@ -757,10 +933,11 @@ func extractWheel(ctx context.Context, fetcher wheel.Fetcher, name, version stri
 }
 
 // testFileDirs returns the directories that directly contain a test_*.py or
-// *_test.py file.
+// *_test.py file, or a stub of that name.
 func testFileDirs(files map[string][]byte) map[string]bool {
 	dirs := map[string]bool{}
 	for path := range files {
+		path = sourcePath(path)
 		i := strings.LastIndex(path, "/")
 		if i < 0 {
 			continue
