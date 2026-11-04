@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Fuse from "fuse.js";
-import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
 interface PaletteSection {
   label: string;
@@ -10,13 +10,13 @@ interface PaletteSection {
 }
 
 const props = defineProps<{
-  symbols: DocSymbol[];
+  symbols: DocEntry[];
   open: boolean;
   sections: PaletteSection[];
 }>();
 
 const emit = defineEmits<{
-  jump: [name: string];
+  jump: [id: string];
   close: [];
 }>();
 
@@ -26,7 +26,7 @@ const selectedIndex = ref(0);
 const fuse = computed(
   () =>
     new Fuse(props.symbols, {
-      keys: ["name", "kind"],
+      keys: ["name", "path", "kind"],
       threshold: 0.4,
       includeScore: true,
     }),
@@ -36,7 +36,7 @@ const MAX_PER_GROUP = 8;
 
 type PaletteResult =
   | { type: "section"; section: PaletteSection }
-  | { type: "symbol"; symbol: DocSymbol };
+  | { type: "symbol"; symbol: DocEntry };
 
 const results = computed<PaletteResult[]>(() => {
   const q = query.value.trim().toLowerCase();
@@ -45,7 +45,7 @@ const results = computed<PaletteResult[]>(() => {
   const matchedSections = props.sections.filter((s) => !q || s.label.toLowerCase().includes(q));
 
   // Symbols: fuse.js when query present, grouped by kind when empty
-  let matchedSymbols: DocSymbol[];
+  let matchedSymbols: DocEntry[];
   if (!q) {
     const functions = props.symbols.filter((s) => s.kind === "function").slice(0, MAX_PER_GROUP);
     const classes = props.symbols.filter((s) => s.kind === "class").slice(0, MAX_PER_GROUP);
@@ -69,7 +69,7 @@ function select(item: PaletteResult) {
   if (item.type === "section") {
     if (item.section.firstSymbol) emit("jump", item.section.firstSymbol);
   } else {
-    emit("jump", item.symbol.name);
+    emit("jump", item.symbol.id);
   }
   emit("close");
   query.value = "";
@@ -170,7 +170,7 @@ watch(
           </div>
           <template
             v-for="(item, i) in results"
-            :key="item.type === 'section' ? `sec-${item.section.kind}` : item.symbol.name"
+            :key="item.type === 'section' ? `sec-${item.section.kind}` : item.symbol.id"
           >
             <!-- Section item -->
             <button
@@ -213,6 +213,12 @@ watch(
                 >{{ item.symbol.kind }}</span
               >
               <span class="font-mono text-sm text-primary">{{ item.symbol.name }}</span>
+              <span
+                v-if="item.symbol.repeated"
+                data-testid="palette-result-module"
+                class="min-w-0 truncate font-mono text-[11px] text-muted"
+                >{{ item.symbol.module }}</span
+              >
             </button>
           </template>
         </div>

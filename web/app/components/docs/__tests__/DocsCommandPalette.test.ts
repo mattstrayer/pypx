@@ -3,9 +3,20 @@ import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { nextTick } from "vue";
 import DocsCommandPalette from "../DocsCommandPalette.vue";
 import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
-function makeSymbol(name: string, kind: DocSymbol["kind"] = "function"): DocSymbol {
+function makeSymbol(
+  name: string,
+  kind: DocSymbol["kind"] = "function",
+  module = "m",
+  repeated = false,
+): DocEntry {
+  const path = `${module}.${name}`;
   return {
+    module,
+    path,
+    id: path,
+    repeated,
     name,
     kind,
     signature: `def ${name}()`,
@@ -85,7 +96,7 @@ describe("DocsCommandPalette", () => {
     await nextTick();
     expect(wrapper.emitted("jump")).toBeTruthy();
     expect(wrapper.emitted("jump")![0]!).toHaveLength(1);
-    expect(wrapper.emitted("jump")![0]![0]).toBe("fit");
+    expect(wrapper.emitted("jump")![0]![0]).toBe("m.fit");
   });
 
   it("emits close when Escape is pressed", async () => {
@@ -123,6 +134,29 @@ describe("DocsCommandPalette", () => {
     expect(sectionEls.length).toBe(2);
     expect(document.body.textContent).toContain("Functions");
     expect(document.body.textContent).toContain("Classes");
+  });
+
+  it("finds a symbol by its module path and shows the module of a repeated name", async () => {
+    const wrapper = await mountSuspended(DocsCommandPalette, {
+      props: {
+        symbols: [
+          makeSymbol("Request", "class", "werkzeug.sansio.request", true),
+          makeSymbol("Request", "class", "werkzeug.wrappers.request", true),
+        ],
+        open: true,
+        sections: [],
+      },
+      attachTo: document.body,
+    });
+    const input = document.body.querySelector("input") as HTMLInputElement;
+    input.value = "wrappers.request.Request";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
+    const first = findInBody("palette-result") as HTMLElement;
+    expect(findInBody("palette-result-module")?.textContent).toContain("werkzeug.wrappers.request");
+    first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
+    expect(wrapper.emitted("jump")![0]![0]).toBe("werkzeug.wrappers.request.Request");
   });
 
   it("emits jump with firstSymbol when a section is clicked", async () => {

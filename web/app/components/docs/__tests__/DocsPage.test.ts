@@ -50,6 +50,29 @@ describe("docs page", () => {
     expect(headings[0]?.text()).toBe("pkg API documentation");
   });
 
+  it("shows every symbol with a repeated name, each with its own card", async () => {
+    const redis = (name: string) => ({
+      name: "Redis",
+      kind: "class" as const,
+      signature: `class Redis  # ${name}`,
+      docstring: "",
+      parameters: [],
+    });
+    fetchDocs.mockResolvedValue({
+      package: "pkg",
+      version: "1.0",
+      available: true,
+      modules: [
+        { name: "redis.asyncio.client", functions: [], classes: [redis("a")], exceptions: [] },
+        { name: "redis.client", functions: [], classes: [redis("b")], exceptions: [] },
+      ],
+    });
+    const page = await mountSuspended(DocsPage);
+    await flushPromises();
+    expect(page.find("[id='sym-redis.asyncio.client.Redis']").exists()).toBe(true);
+    expect(page.find("[id='sym-redis.client.Redis']").exists()).toBe(true);
+  });
+
   it("offers the symbol jump when docs exist", async () => {
     const available: DocsResponse = {
       package: "pkg",

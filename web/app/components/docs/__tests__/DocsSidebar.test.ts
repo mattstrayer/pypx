@@ -3,6 +3,7 @@ import { defineComponent, h } from "vue";
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import DocsSidebar from "../DocsSidebar.vue";
 import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
 vi.mock("vue-virtual-scroller", () => ({
   DynamicScroller: defineComponent({
@@ -25,8 +26,25 @@ vi.mock("vue-virtual-scroller", () => ({
   }),
 }));
 
-function makeSymbol(name: string, kind: DocSymbol["kind"] = "function"): DocSymbol {
-  return { name, kind, signature: "", docstring: "", parameters: [], raises: [] };
+function makeSymbol(
+  name: string,
+  kind: DocSymbol["kind"] = "function",
+  module = "m",
+  repeated = false,
+): DocEntry {
+  const path = `${module}.${name}`;
+  return {
+    name,
+    kind,
+    signature: "",
+    docstring: "",
+    parameters: [],
+    raises: [],
+    module,
+    path,
+    id: path,
+    repeated,
+  };
 }
 
 const functions = [makeSymbol("fit"), makeSymbol("predict"), makeSymbol("transform")];
@@ -54,6 +72,29 @@ describe("DocsSidebar", () => {
       props: { functions, classes, exceptions: [], activeSymbol: null },
     });
     expect(wrapper.text()).not.toContain("Exceptions");
+  });
+
+  it("shows the module only on names that repeat, and selects by id", async () => {
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: {
+        functions: [],
+        classes: [
+          makeSymbol("Redis", "class", "redis.asyncio.client", true),
+          makeSymbol("Redis", "class", "redis.client", true),
+          makeSymbol("Lock", "class", "redis.lock"),
+        ],
+        exceptions: [],
+        activeSymbol: "redis.client.Redis",
+      },
+    });
+    const rows = wrapper.findAll("[data-testid='symbol-row']");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.find("[data-testid='symbol-row-module']").text()).toBe("redis.asyncio.client");
+    expect(rows[2]!.find("[data-testid='symbol-row-module']").exists()).toBe(false);
+    expect(rows[0]!.attributes("aria-current")).toBeUndefined();
+    expect(rows[1]!.attributes("aria-current")).toBe("location");
+    await rows[1]!.trigger("click");
+    expect(wrapper.emitted("select")![0]![0]).toBe("redis.client.Redis");
   });
 
   it("emits select with symbol name when a row is clicked", async () => {

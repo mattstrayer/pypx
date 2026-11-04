@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DynamicScroller as RawDynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
-import type { DocSymbol } from "~/types/api";
+import type { DocEntry } from "~/utils/docSymbols";
 
 // vue-virtual-scroller ships no usable slot types; declare the default scoped
 // slot explicitly so vue-tsc can resolve `#default` (it resolves `$slots` on an
@@ -14,19 +14,19 @@ const DynamicScroller = RawDynamicScroller as unknown as new (...args: unknown[]
 };
 
 const props = defineProps<{
-  functions: DocSymbol[];
-  classes: DocSymbol[];
-  exceptions: DocSymbol[];
+  functions: DocEntry[];
+  classes: DocEntry[];
+  exceptions: DocEntry[];
   activeSymbol: string | null;
 }>();
 
 const emit = defineEmits<{
-  select: [name: string];
+  select: [id: string];
 }>();
 
 type SidebarItem =
   | { id: string; type: "header"; label: string; kind: string; count: number }
-  | { id: string; type: "symbol"; name: string; kind: string };
+  | { id: string; type: "symbol"; symbol: DocEntry; kind: string };
 
 const collapsed = ref(new Set<string>());
 
@@ -49,7 +49,7 @@ const items = computed<SidebarItem[]>(() => {
     });
     if (!collapsed.value.has("functions")) {
       for (const s of props.functions)
-        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+        list.push({ id: `s-${s.id}`, type: "symbol", symbol: s, kind: s.kind });
     }
   }
   if (props.classes.length) {
@@ -62,7 +62,7 @@ const items = computed<SidebarItem[]>(() => {
     });
     if (!collapsed.value.has("classes")) {
       for (const s of props.classes)
-        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+        list.push({ id: `s-${s.id}`, type: "symbol", symbol: s, kind: s.kind });
     }
   }
   if (props.exceptions.length) {
@@ -75,14 +75,14 @@ const items = computed<SidebarItem[]>(() => {
     });
     if (!collapsed.value.has("exceptions")) {
       for (const s of props.exceptions)
-        list.push({ id: `s-${s.name}`, type: "symbol", name: s.name, kind: s.kind });
+        list.push({ id: `s-${s.id}`, type: "symbol", symbol: s, kind: s.kind });
     }
   }
   return list;
 });
 
 const activeIndex = computed(() =>
-  items.value.findIndex((i) => i.type === "symbol" && i.name === props.activeSymbol),
+  items.value.findIndex((i) => i.type === "symbol" && i.symbol.id === props.activeSymbol),
 );
 
 const scrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null);
@@ -141,17 +141,24 @@ watch(activeIndex, (idx) => {
           <button
             v-else
             data-testid="symbol-row"
-            class="flex w-full items-center px-3 text-left font-mono text-[12px] transition-colors"
+            class="flex w-full items-baseline gap-1.5 overflow-hidden px-3 text-left font-mono text-[12px] leading-[28px] transition-colors"
             style="height: 28px"
+            :title="item.symbol.path"
             :class="
-              activeSymbol === item.name
+              activeSymbol === item.symbol.id
                 ? 'bg-[var(--color-brand-muted)] border-l-2 border-[var(--color-brand)] text-primary pl-2.5'
                 : 'text-muted hover:bg-raised hover:text-primary'
             "
-            :aria-current="activeSymbol === item.name ? 'location' : undefined"
-            @click="emit('select', item.name)"
+            :aria-current="activeSymbol === item.symbol.id ? 'location' : undefined"
+            @click="emit('select', item.symbol.id)"
           >
-            {{ item.name }}
+            <span class="min-w-0 truncate">{{ item.symbol.name }}</span>
+            <span
+              v-if="item.symbol.repeated"
+              data-testid="symbol-row-module"
+              class="min-w-[4ch] flex-shrink-[3] truncate text-[10px] text-muted"
+              >{{ item.symbol.module }}</span
+            >
           </button>
         </DynamicScrollerItem>
       </template>
