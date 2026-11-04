@@ -229,7 +229,10 @@ type BinOp struct {
 	EndPos   token.Pos
 	Left     Expr
 	Op       token.Type
-	Right    Expr
+	// Negated marks the second word of a two-word comparison: "not in" is IN with
+	// Negated set, and "is not" is IS with Negated set.
+	Negated bool
+	Right   Expr
 }
 
 func (b *BinOp) Pos() token.Pos { return b.Position }

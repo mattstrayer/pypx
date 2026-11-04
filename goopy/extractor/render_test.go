@@ -28,3 +28,17 @@ func TestExprToString_NewNodes(t *testing.T) {
 		}
 	}
 }
+
+func TestComparisonOperatorsKeepBothWords(t *testing.T) {
+	m := extract("def f(a=x is not y, b=x not in y, c=x is y, d=x in y, e=not x, g=not x in y): pass\n")
+	want := []string{"x is not y", "x not in y", "x is y", "x in y", "not x", "not x in y"}
+	params := m.Functions[0].Parameters
+	if len(params) != len(want) {
+		t.Fatalf("got %d params, want %d", len(params), len(want))
+	}
+	for i, w := range want {
+		if params[i].Default != w {
+			t.Errorf("param %s: got %q, want %q", params[i].Name, params[i].Default, w)
+		}
+	}
+}

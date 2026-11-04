@@ -29,6 +29,13 @@ func exprToString(expr ast.Expr) string {
 		return "lambda " + e.Args + ": " + exprToString(e.Body)
 	case *ast.BinOp:
 		op := operatorString(e.Op)
+		if e.Negated {
+			if e.Op == token.IN {
+				op = "not in"
+			} else {
+				op = "is not"
+			}
+		}
 		return exprToString(e.Left) + " " + op + " " + exprToString(e.Right)
 	case *ast.UnaryOp:
 		return operatorString(e.Op) + exprToString(e.Operand)
