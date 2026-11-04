@@ -516,6 +516,8 @@ func (p *Parser) parseAtom() ast.Expr {
 		}
 	case token.LAMBDA:
 		return p.parseLambda()
+	case token.YIELD:
+		return p.parseYield()
 	default:
 		// Unrecognized token: record an error and skip it, unless it is structural.
 		// The statement loops guarantee progress at structural tokens.
@@ -836,6 +838,24 @@ func (p *Parser) parseDictItems(pos token.Pos, firstKey, firstVal ast.Expr) ast.
 	endPos := p.tok.Pos
 	p.expect(token.RBRACE)
 	return &ast.Dict{Position: pos, EndPos: endPos, Keys: keys, Values: vals}
+}
+
+// parseYield parses 'yield', 'yield exprlist' or 'yield from expr'.
+func (p *Parser) parseYield() ast.Expr {
+	y := &ast.Yield{Position: p.tok.Pos, EndPos: p.tok.Pos}
+	p.next() // consume 'yield'
+	switch {
+	case p.tok.Type == token.FROM:
+		p.next()
+		y.From = true
+		y.Value = p.parseExpr()
+	case p.atLineEnd() || p.at(token.RPAREN, token.RBRACK, token.RBRACE, token.SEMI, token.ASSIGN, token.COLON, token.COMMA):
+		return y
+	default:
+		y.Value = p.parseExprList()
+	}
+	y.EndPos = y.Value.End()
+	return y
 }
 
 // parseLambda parses 'lambda params: expr'. We treat it as a passthrough

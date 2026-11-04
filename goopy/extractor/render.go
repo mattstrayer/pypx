@@ -63,6 +63,14 @@ func exprToString(expr ast.Expr) string {
 			s += ":" + exprToString(e.Step)
 		}
 		return s
+	case *ast.Yield:
+		switch {
+		case e.From:
+			return "yield from " + exprToString(e.Value)
+		case e.Value != nil:
+			return "yield " + exprToString(e.Value)
+		}
+		return "yield"
 	case *ast.NamedExpr:
 		return exprToString(e.Target) + " := " + exprToString(e.Value)
 	case *ast.Dict:

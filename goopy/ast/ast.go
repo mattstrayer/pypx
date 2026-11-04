@@ -343,6 +343,18 @@ func (i *IfExpr) Pos() token.Pos { return i.Position }
 func (i *IfExpr) End() token.Pos { return i.EndPos }
 func (i *IfExpr) exprNode()      {}
 
+// Yield is a yield expression (yield value, yield from value). Value can be nil.
+type Yield struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Value    Expr
+	From     bool
+}
+
+func (y *Yield) Pos() token.Pos { return y.Position }
+func (y *Yield) End() token.Pos { return y.EndPos }
+func (y *Yield) exprNode()      {}
+
 // NamedExpr is an assignment expression (target := value).
 type NamedExpr struct {
 	Position token.Pos

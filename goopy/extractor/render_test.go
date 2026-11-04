@@ -9,10 +9,15 @@ import (
 
 func TestExprToString_NewNodes(t *testing.T) {
 	cases := map[string]string{
-		"{**a, 'k': 1}": "{**a, 'k': 1}",
-		"(b := 1)":      "b := 1",
-		"y[1:2, ::3]":   "y[1:2, ::3]",
-		"y[:]":          "y[:]",
+		"{**a, 'k': 1}":  "{**a, 'k': 1}",
+		"(b := 1)":       "b := 1",
+		"y[1:2, ::3]":    "y[1:2, ::3]",
+		"y[:]":           "y[:]",
+		"(yield)":        "yield",
+		"(yield a)":      "yield a",
+		"(yield from a)": "yield from a",
+		"a @ b":          "a @ b",
+		"a in b":         "a in b",
 	}
 	for src, want := range cases {
 		mod := parser.New([]byte("x = " + src + "\n")).Parse()

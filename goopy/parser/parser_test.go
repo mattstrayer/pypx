@@ -1644,3 +1644,29 @@ func TestMatmul(t *testing.T) {
 		t.Error("expected a decorator on f")
 	}
 }
+
+func asYield(t *testing.T, expr ast.Expr) *ast.Yield {
+	t.Helper()
+	y, ok := expr.(*ast.Yield)
+	if !ok {
+		t.Fatalf("expected Yield, got %T", expr)
+	}
+	return y
+}
+
+func TestYieldExpressions(t *testing.T) {
+	if y := asYield(t, asAssign(t, parse(t, "x = yield\n").Body[0]).Value); y.Value != nil || y.From {
+		t.Errorf("got %#v", y)
+	}
+	y := asYield(t, asAssign(t, parse(t, "x = yield a, b\n").Body[0]).Value)
+	asTuple(t, y.Value, 2)
+	y = asYield(t, asAssign(t, parse(t, "x = yield from g()\n").Body[0]).Value)
+	if !y.From {
+		t.Errorf("got %#v", y)
+	}
+	asYield(t, asAssign(t, parse(t, "x += yield 1\n").Body[0]).Value)
+	asYield(t, asAnnAssign(t, parse(t, "x: int = yield\n").Body[0]).Value)
+	asYield(t, asCall(t, exprOf(t, "f((yield))")).Args[0])
+	asYield(t, exprOf(t, "(yield)"))
+	exprOf(t, "[(yield x), (yield)]")
+}
