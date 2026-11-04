@@ -102,6 +102,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 				break
 			}
 			results[i] = extractSafely(item.modName, item.src)
+			items[i].src = nil // parsing copies what it keeps
 		}
 	} else {
 		// Parallel extraction with bounded workers.
@@ -127,6 +128,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 						return
 					}
 					results[idx] = extractSafely(items[idx].modName, items[idx].src)
+					items[idx].src = nil // parsing copies what it keeps
 				}
 			}()
 		}
@@ -714,6 +716,10 @@ func WeighFromPyPI(ctx context.Context, name, version string) (int64, error) {
 
 // ExtractFromWheel downloads a package wheel using the given fetcher and extracts documentation.
 // Use this with a custom wheel.Fetcher for testing or non-PyPI sources.
+//
+// Nothing here uses contents after ExtractPackage starts, so each source can be
+// collected as soon as its module is parsed. The source of a large package would
+// otherwise stay in memory next to everything parsed from it.
 func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version string) (*model.Package, error) {
 	contents, err := fetcher.Fetch(ctx, name, version)
 	if err != nil {
