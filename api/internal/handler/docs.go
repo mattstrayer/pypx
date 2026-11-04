@@ -597,7 +597,7 @@ func writeReasonText(w http.ResponseWriter, resp DocsResponse) bool {
 	}
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "No API documentation for %s %s: %s.\n", resp.Package, resp.Version, why)
+	_, _ = fmt.Fprintf(w, "No API documentation for %s %s: %s.\n", resp.Package, resp.Version, why)
 	return true
 }
 
