@@ -537,6 +537,16 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 		sym.Returns = &DocReturn{Type: stubFn.Returns.Raw}
 	}
 
+	// Generators document Yields in place of Returns; show it as the return description.
+	if fn.Docstring != nil && fn.Docstring.Returns == nil && fn.Docstring.Yields != nil {
+		if sym.Returns == nil {
+			sym.Returns = &DocReturn{}
+		}
+		if sym.Returns.Description == "" {
+			sym.Returns.Description = fn.Docstring.Yields.Description
+		}
+	}
+
 	// Build signature after merge so stub-filled types appear in the displayed signature.
 	sym.Signature = buildMergedSignature(fn, sym.Parameters, sym.Returns)
 
@@ -631,22 +641,141 @@ func buildClassSignature(cls *model.Class) string {
 	return b.String()
 }
 
-// cleanDocstringText returns the prose summary from a parsed docstring,
-// stripping Sphinx field lists and Google section headers.
+// structuredSections lists the section names the API returns as structured
+// data (params, returns, raises, yields). cleanDocstringText removes them from
+// the prose. Every other section, such as Examples or Notes, stays.
+var structuredSections = map[string]bool{
+	"args": true, "arguments": true, "parameters": true, "params": true,
+	"other parameters": true, "returns": true, "return": true,
+	"raises": true, "raise": true, "yields": true, "yield": true,
+}
+
+// cleanDocstringText returns the docstring prose with the sections removed
+// that the API renders as structured data. All other text stays in order.
 func cleanDocstringText(ds *model.Docstring) string {
 	if ds == nil {
 		return ""
 	}
 	lines := strings.Split(ds.Text, "\n")
-	cutAt := len(lines)
+	var removed []bool
+	switch ds.Style {
+	case model.DocstringGoogle:
+		removed = markGoogleRemovals(lines)
+	case model.DocstringNumpy:
+		removed = markNumpyRemovals(lines)
+	case model.DocstringSphinx:
+		removed = markSphinxRemovals(lines)
+	default:
+		return strings.TrimSpace(ds.Text)
+	}
+
+	// Rebuild the text. A blank line that directly follows another blank line
+	// across a removal is dropped, so a removal never leaves 3+ newlines.
+	out := make([]string, 0, len(lines))
+	removedSinceEmit := false
 	for i, line := range lines {
-		if isDocstringFieldLine(line, ds.Style) {
-			cutAt = i
-			break
+		if removed[i] {
+			removedSinceEmit = true
+			continue
+		}
+		if removedSinceEmit && strings.TrimSpace(line) == "" &&
+			len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+			continue
+		}
+		removedSinceEmit = false
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+// unmarkTrailingBlanks keeps blank lines at the end of a removed span, so the
+// gap between the removed section and the next text survives.
+func unmarkTrailingBlanks(lines []string, removed []bool, start, end int) {
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	for k := start; k < end; k++ {
+		removed[k] = true
+	}
+}
+
+func isFlushLeft(line string) bool {
+	return line != "" && line[0] != ' ' && line[0] != '\t'
+}
+
+func isGoogleHeader(line string) bool {
+	return isFlushLeft(line) && strings.HasSuffix(line, ":") &&
+		isGoogleSection(strings.TrimSuffix(line, ":"))
+}
+
+// markGoogleRemovals marks structured sections. A section runs from its
+// flush-left header to the next flush-left header, or to the next flush-left
+// non-blank line that follows a blank line.
+func markGoogleRemovals(lines []string) []bool {
+	removed := make([]bool, len(lines))
+	for i := 0; i < len(lines); i++ {
+		t := strings.TrimRight(lines[i], " \t")
+		if !isGoogleHeader(t) || !structuredSections[strings.ToLower(strings.TrimSuffix(t, ":"))] {
+			continue
+		}
+		j := i + 1
+		sawBlank := false
+		for ; j < len(lines); j++ {
+			l := strings.TrimRight(lines[j], " \t")
+			if l == "" {
+				sawBlank = true
+				continue
+			}
+			if isFlushLeft(l) && (isGoogleHeader(l) || sawBlank) {
+				break
+			}
+		}
+		unmarkTrailingBlanks(lines, removed, i, j)
+		i = j - 1
+	}
+	return removed
+}
+
+func isNumpyUnderline(line string) bool {
+	t := strings.TrimSpace(line)
+	return len(t) >= 3 && strings.Trim(t, "-") == ""
+}
+
+// markNumpyRemovals marks structured sections. A section runs from a
+// name-plus-dashes pair to the next name-plus-dashes pair.
+func markNumpyRemovals(lines []string) []bool {
+	removed := make([]bool, len(lines))
+	isHeader := func(i int) bool {
+		return i+1 < len(lines) && strings.TrimSpace(lines[i]) != "" && isNumpyUnderline(lines[i+1])
+	}
+	for i := 0; i < len(lines); i++ {
+		if !isHeader(i) || !structuredSections[strings.ToLower(strings.TrimSpace(lines[i]))] {
+			continue
+		}
+		j := i + 2
+		for j < len(lines) && !isHeader(j) {
+			j++
+		}
+		unmarkTrailingBlanks(lines, removed, i, j)
+		i = j - 1
+	}
+	return removed
+}
+
+// markSphinxRemovals marks each field line and its indented continuation lines.
+func markSphinxRemovals(lines []string) []bool {
+	removed := make([]bool, len(lines))
+	for i := 0; i < len(lines); i++ {
+		if !sphinxFieldRe.MatchString(strings.TrimSpace(lines[i])) {
+			continue
+		}
+		removed[i] = true
+		for i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != "" && !isFlushLeft(lines[i+1]) {
+			i++
+			removed[i] = true
 		}
 	}
-	result := strings.Join(lines[:cutAt], "\n")
-	return strings.TrimSpace(result)
+	return removed
 }
 
 // sphinxFieldRe matches a Sphinx field list line such as ":param x:" or
@@ -655,36 +784,13 @@ var sphinxFieldRe = regexp.MustCompile(
 	`^:(param|parameter|arg|argument|key|keyword|type|returns?|rtype|raises?|except|exception|var|ivar|cvar|meta)\b[^:]*:`,
 )
 
-func isDocstringFieldLine(line string, style model.DocstringStyle) bool {
-	t := strings.TrimSpace(line)
-	switch style {
-	case model.DocstringSphinx:
-		// Matches known Sphinx field names only, so inline roles such as
-		// ":class:`Foo` does things" stay in the prose.
-		return sphinxFieldRe.MatchString(t)
-	case model.DocstringGoogle:
-		if line != t || !strings.HasSuffix(t, ":") {
-			return false
-		}
-		return isGoogleSection(strings.TrimSuffix(t, ":"))
-	case model.DocstringNumpy:
-		// NumPy section headers are flush-left lines matching known section names
-		// (the dashes underline follows on the next line, which we don't need to check).
-		if line != t {
-			return false // indented lines are content, not headers
-		}
-		return isGoogleSection(t)
-	}
-	return false
-}
-
 func isGoogleSection(word string) bool {
 	switch word {
-	case "Args", "Arguments", "Parameters", "Params",
+	case "Args", "Arguments", "Parameters", "Params", "Other Parameters",
 		"Returns", "Return", "Raises", "Raise",
 		"Note", "Notes", "Example", "Examples",
 		"Attributes", "Yields", "Yield", "Todo",
-		"References", "See Also":
+		"References", "See Also", "Warnings", "Warns":
 		return true
 	}
 	return false

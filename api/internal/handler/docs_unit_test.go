@@ -696,3 +696,68 @@ func TestCleanDocstringText_SphinxRoleLineKept(t *testing.T) {
 		t.Errorf("cleanDocstringText = %q, want %q", got, want)
 	}
 }
+
+func TestCleanDocstringText_KeepsExamplesAndNotesGoogle(t *testing.T) {
+	raw := "Fetch it.\n\n    Args:\n        pk: Primary key\n\n    Returns:\n        int: The value\n\n    Examples:\n        >>> fetch(1)\n        1\n\n    Note:\n        Be careful.\n    "
+	got := cleanDocstringText(docstring.Parse(raw))
+	want := "Fetch it.\n\nExamples:\n    >>> fetch(1)\n    1\n\nNote:\n    Be careful."
+	if got != want {
+		t.Errorf("got\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestCleanDocstringText_KeepsExamplesAndNotesNumpy(t *testing.T) {
+	raw := "Compute.\n\n    Parameters\n    ----------\n    x : int\n        Input.\n\n    Returns\n    -------\n    int\n        Output.\n\n    Examples\n    --------\n    >>> compute(1)\n    1\n\n    Notes\n    -----\n    Be careful.\n    "
+	got := cleanDocstringText(docstring.Parse(raw))
+	want := "Compute.\n\nExamples\n--------\n>>> compute(1)\n1\n\nNotes\n-----\nBe careful."
+	if got != want {
+		t.Errorf("got\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestCleanDocstringText_GoogleTrailingProse(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringGoogle,
+		Text:  "Summary.\n\nArgs:\n    x: Input.\n\nTrailing prose stays.",
+	}
+	got := cleanDocstringText(ds)
+	want := "Summary.\n\nTrailing prose stays."
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCleanDocstringText_SphinxFieldsBetweenProse(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringSphinx,
+		Text:  "First paragraph.\n\n:param x: The input,\n    continued here.\n:type x: int\n\nSecond paragraph.",
+	}
+	got := cleanDocstringText(ds)
+	want := "First paragraph.\n\nSecond paragraph."
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCleanDocstringText_NumpyProseReturnsWithoutDashes(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringNumpy,
+		Text:  "Summary.\n\nReturns\n\nthis line is prose.\n\nParameters\n----------\nx : int\n    Input.",
+	}
+	got := cleanDocstringText(ds)
+	want := "Summary.\n\nReturns\n\nthis line is prose."
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestConvertFunction_YieldsFillsReturnDescription(t *testing.T) {
+	fn := &model.Function{
+		Name:      "gen",
+		Docstring: &model.Docstring{Yields: &model.DocReturn{Type: "int", Description: "The next value."}},
+	}
+	sym := convertFunction(fn, nil)
+	if sym.Returns == nil || sym.Returns.Description != "The next value." {
+		t.Errorf("Returns = %+v", sym.Returns)
+	}
+}
