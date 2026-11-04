@@ -2,8 +2,10 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +72,51 @@ func TestSyncIndex_JSONFormat(t *testing.T) {
 		if len(results) == 0 {
 			t.Errorf("Search(%q): expected results, got none", name)
 		}
+	}
+}
+
+// TestSyncIndex_LargeBody streams a large generated body and checks that every
+// batch lands, including the final partial batch, and that other keys are skipped.
+func TestSyncIndex_LargeBody(t *testing.T) {
+	const n = 23456 // not a multiple of the 5000 batch size
+	mux := http.NewServeMux()
+	mux.HandleFunc("/simple/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.pypi.simple.v1+json")
+		var b strings.Builder
+		b.WriteString(`{"meta":{"api-version":"1.0"},"projects":[`)
+		for i := 0; i < n; i++ {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			fmt.Fprintf(&b, `{"name":"pkg-%d","_last-serial":%d}`, i, i)
+		}
+		b.WriteString(`]}`)
+		_, _ = w.Write([]byte(b.String()))
+	})
+	w, idx := newTestWorker(t, mux)
+	if err := w.SyncIndex(context.Background()); err != nil {
+		t.Fatalf("SyncIndex failed: %v", err)
+	}
+	if got, err := idx.Count(); err != nil || got != n {
+		t.Fatalf("Count() = %d, %v; want %d", got, err, n)
+	}
+	for _, i := range []int{0, 4999, 5000, 9999, 10000, 20000, n - 1} {
+		name := fmt.Sprintf("pkg-%d", i)
+		res, err := idx.Search(name, 1)
+		if err != nil || len(res) == 0 || res[0].Name != name {
+			t.Errorf("Search(%q) = %v, %v", name, res, err)
+		}
+	}
+}
+
+func TestSyncIndex_TruncatedBodyFails(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/simple/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"name":"a"},{"name":"b"`))
+	})
+	w, _ := newTestWorker(t, mux)
+	if err := w.SyncIndex(context.Background()); err == nil {
+		t.Fatal("expected decode error for truncated body")
 	}
 }
 

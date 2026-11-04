@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -74,45 +75,83 @@ func (w *Worker) SyncIndex(ctx context.Context) error {
 		return fmt.Errorf("worker: simple index returned status %d", resp.StatusCode)
 	}
 
-	var index struct {
-		Projects []struct {
-			Name string `json:"name"`
-		} `json:"projects"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
-		return fmt.Errorf("worker: decode simple index: %w", err)
-	}
-
 	const batchSize = 5000
 	batch := make([]search.PackageEntry, 0, batchSize)
 	count := 0
 
-	for _, p := range index.Projects {
-		batch = append(batch, search.PackageEntry{
-			Name:      p.Name,
-			Summary:   "",
-			Downloads: 0,
-		})
-		if len(batch) >= batchSize {
-			if err := w.index.UpsertBatch(batch); err != nil {
-				log.Printf("worker: batch upsert failed at %d: %v", count, err)
-			} else {
-				count += len(batch)
-			}
-			batch = batch[:0]
+	flush := func() {
+		if len(batch) == 0 {
+			return
 		}
-	}
-	// Flush remaining.
-	if len(batch) > 0 {
 		if err := w.index.UpsertBatch(batch); err != nil {
-			log.Printf("worker: final batch upsert failed: %v", err)
+			log.Printf("worker: batch upsert failed at %d: %v", count, err)
 		} else {
 			count += len(batch)
 		}
+		batch = batch[:0]
 	}
+
+	// Stream the response so only one batch of names is in memory at a time.
+	if err := decodeProjects(resp.Body, func(name string) {
+		batch = append(batch, search.PackageEntry{Name: name})
+		if len(batch) >= batchSize {
+			flush()
+		}
+	}); err != nil {
+		return fmt.Errorf("worker: decode simple index: %w", err)
+	}
+	flush()
 
 	log.Printf("worker: index sync complete, upserted %d packages", count)
 	return nil
+}
+
+// decodeProjects streams a PyPI simple index document and calls fn with the
+// name of each entry in its "projects" array. Other top-level keys are skipped.
+func decodeProjects(r io.Reader, fn func(name string)) error {
+	dec := json.NewDecoder(r)
+	if tok, err := dec.Token(); err != nil {
+		return err
+	} else if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return fmt.Errorf("expected object, got %v", tok)
+	}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if key, _ := tok.(string); key != "projects" {
+			var skip json.RawMessage
+			if err := dec.Decode(&skip); err != nil {
+				return err
+			}
+			continue
+		}
+		tok, err = dec.Token()
+		if err != nil {
+			return err
+		}
+		if tok == nil {
+			continue // "projects": null
+		}
+		if d, ok := tok.(json.Delim); !ok || d != '[' {
+			return fmt.Errorf("projects: expected array, got %v", tok)
+		}
+		for dec.More() {
+			var p struct {
+				Name string `json:"name"`
+			}
+			if err := dec.Decode(&p); err != nil {
+				return err
+			}
+			fn(p.Name)
+		}
+		if _, err := dec.Token(); err != nil { // closing ]
+			return err
+		}
+	}
+	_, err := dec.Token() // closing }
+	return err
 }
 
 // SyncDownloads fetches the top PyPI packages dataset and enriches the search
