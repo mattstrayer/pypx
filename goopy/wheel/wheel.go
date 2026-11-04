@@ -32,7 +32,8 @@ const (
 
 	// MaxDecompressedTotal caps the cumulative inflated size of all extracted
 	// .py and .pyi sources, guarding against zip bombs. Generous vs. real
-	// packages, well under the 512 MB container.
+	// packages. It does not protect a 512 MB container: parsing a package near this
+	// cap holds far more than its source, so the caller must limit extractions too.
 	MaxDecompressedTotal = 200 * 1024 * 1024 // 200 MB
 
 	// MaxDecompressedFile caps a single inflated .py or .pyi entry.
@@ -167,11 +168,6 @@ func (s *Source) fetchWhole(ctx context.Context, w WheelFile, name string) (*Whe
 		return nil, fmt.Errorf("download exceeds %d bytes: %w", s.MaxSize, ErrTooLarge)
 	}
 	return extractPyFiles(bytes.NewReader(data), int64(len(data)), name)
-}
-
-func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]WheelFile, error) {
-	wheels, _, _, err := s.fetchRelease(ctx, name, version)
-	return wheels, err
 }
 
 // fetchRelease lists the wheels and sdists of one release and returns the release

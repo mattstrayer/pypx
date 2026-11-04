@@ -53,6 +53,11 @@ func selectSdist(sdists []WheelFile) WheelFile {
 	})
 }
 
+// isReadableSdist reports whether fetchSdist reads this format.
+func isReadableSdist(filename string) bool {
+	return isTarGz(filename) || strings.HasSuffix(filename, ".zip")
+}
+
 func isTarGz(filename string) bool {
 	return strings.HasSuffix(filename, ".tar.gz") || strings.HasSuffix(filename, ".tgz")
 }

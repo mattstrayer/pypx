@@ -110,3 +110,26 @@ func TestWeigh_MissingPackageReturnsError(t *testing.T) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestWeigh_Sdist(t *testing.T) {
+	const size = 1024 * 1024
+	for _, tc := range []struct {
+		name     string
+		filename string
+		size     int64
+		want     int64
+	}{
+		{"tar.gz", "pkg-1.0.tar.gz", size, (unreadInflateRatio + 1) * size},
+		{"zip", "pkg-1.0.zip", size, (unreadInflateRatio + 1) * size},
+		{"too large for Fetch", "pkg-1.0.tar.gz", DefaultMaxSize + 1, 0},
+		{"unreadable format", "pkg-1.0.tar.bz2", size, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := sdistServer(t, tc.filename, nil, tc.size)
+			got, err := s.Weigh(context.Background(), "pkg", "1.0")
+			if err != nil || got != tc.want {
+				t.Errorf("Weigh = (%d, %v), want (%d, nil)", got, err, tc.want)
+			}
+		})
+	}
+}
