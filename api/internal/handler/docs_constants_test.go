@@ -158,15 +158,38 @@ func TestConvertToDocsResponse_OnlyConstantsAvailable(t *testing.T) {
 
 // A docstring is no reason to keep a module: the package would count as available
 // with nothing to show.
-func TestConvertToDocsResponse_OnlyDocstringDropped(t *testing.T) {
-	pkg := &model.Package{Modules: []*model.Module{
-		{Name: "pkg", Docstring: &model.Docstring{Text: "Summary."}},
-		{Name: "pkg.a", Docstring: &model.Docstring{Text: "Summary."}, Attributes: []*model.Attribute{{Name: "app", Value: "App()"}}},
-	}}
-	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
-	if resp.Available || len(resp.Modules) != 0 {
-		t.Errorf("resp = %+v, want not available", resp)
-	}
+func TestConvertToDocsResponse_DocstringOnlyModules(t *testing.T) {
+	doc := func(text string) *model.Docstring { return &model.Docstring{Text: text} }
+
+	t.Run("a top-level module stays and a submodule goes", func(t *testing.T) {
+		resp := convertToDocsResponse("pkg", "1", &model.Package{Modules: []*model.Module{
+			{Name: "pkg", Docstring: doc("About pkg.")},
+			{Name: "pkg.core", Functions: []*model.Function{{Name: "f"}}},
+			{Name: "pkg.notes", Docstring: doc("Only words.")},
+		}}, nil)
+		var names []string
+		for _, m := range resp.Modules {
+			names = append(names, m.Name)
+		}
+		if want := "pkg,pkg.core"; strings.Join(names, ",") != want {
+			t.Errorf("modules = %v, want %s", names, want)
+		}
+		if !resp.Available {
+			t.Error("Available = false, want true")
+		}
+	})
+
+	t.Run("a summary alone does not make a package available", func(t *testing.T) {
+		resp := convertToDocsResponse("pkg", "1", &model.Package{Modules: []*model.Module{
+			{Name: "pkg", Docstring: doc("About pkg.")},
+		}}, nil)
+		if resp.Available {
+			t.Error("Available = true, want false")
+		}
+		if len(resp.Modules) != 1 || resp.Modules[0].Docstring != "About pkg." {
+			t.Errorf("modules = %+v", resp.Modules)
+		}
+	})
 }
 
 func TestFlattenSymbols_Constants(t *testing.T) {

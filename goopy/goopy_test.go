@@ -402,6 +402,15 @@ func TestExtractPackageReexports(t *testing.T) {
 			want: map[string][]string{"pkg": nil, "pkg.pub": {"a"}, "pkg.pub2": {"b"}},
 		},
 		{
+			name: "explicit re-export from a public module is an alias",
+			files: map[string]string{
+				"pkg/__init__.py": "from .pub import a as a\nfrom .pub import b\nfrom .pub import c as d\nfrom .pub import _e as _e\n",
+				"pkg/pub.py":      "def a(): pass\ndef b(): pass\ndef c(): pass\ndef _e(): pass\n",
+			},
+			want:    map[string][]string{"pkg": nil, "pkg.pub": {"a", "b", "c"}},
+			aliases: map[string]string{"pkg.a": "pkg.pub.a"},
+		},
+		{
 			name: "direct definition wins",
 			files: map[string]string{
 				"pkg/__init__.py": "from ._x import a\n__all__ = [\"a\"]\ndef a(): pass\n",

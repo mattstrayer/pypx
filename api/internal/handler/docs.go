@@ -682,6 +682,18 @@ func resolveStubs(ctx context.Context, pypiClient *pypi.Client, pkgName, sourceV
 	return buildStubIndex(stubPkg), stubPkgName
 }
 
+// hasDocumentedNames reports whether a module has symbols or constants of its own.
+func hasDocumentedNames(dm DocModule) bool {
+	return len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 || len(dm.Constants) > 0
+}
+
+// isTopLevelSummary reports whether a module with nothing else stays for its
+// docstring. A package's top-level module describes the package, so docs.txt keeps
+// it. A submodule with only a docstring is mostly noise, such as docutils.languages.*.
+func isTopLevelSummary(dm DocModule) bool {
+	return dm.Docstring != "" && !strings.Contains(dm.Name, ".")
+}
+
 // convertToDocsResponse transforms goopy's model.Package into the API response
 // format expected by the frontend.
 func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubIndex) DocsResponse {
@@ -732,7 +744,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 
 		// A docstring alone does not keep a module, so a package with nothing else
 		// stays unavailable.
-		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 || len(dm.Constants) > 0 || len(mod.Aliases) > 0 {
+		if hasDocumentedNames(dm) || len(mod.Aliases) > 0 || isTopLevelSummary(dm) {
 			modules = append(modules, dm)
 			if len(mod.Aliases) > 0 {
 				aliases = append(aliases, moduleAliases{len(modules) - 1, mod.Aliases})
@@ -750,7 +762,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 	}
 	modules = slices.DeleteFunc(modules, func(dm DocModule) bool {
-		return len(dm.Functions) == 0 && len(dm.Classes) == 0 && len(dm.Exceptions) == 0 && len(dm.Constants) == 0 && len(dm.Aliases) == 0
+		return !hasDocumentedNames(dm) && len(dm.Aliases) == 0 && !isTopLevelSummary(dm)
 	})
 
 	if modules == nil {
@@ -760,7 +772,9 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 	return DocsResponse{
 		Package:   name,
 		Version:   version,
-		Available: len(modules) > 0,
+		Available: slices.ContainsFunc(modules, func(dm DocModule) bool {
+			return hasDocumentedNames(dm) || len(dm.Aliases) > 0
+		}),
 		Modules:   modules,
 	}
 }
