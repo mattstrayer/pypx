@@ -366,3 +366,63 @@ func TestDocsWork_GetStatusNotFound(t *testing.T) {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
 }
+
+func TestDocsWork_PanicInExtractionIsContained(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(_ context.Context, _, version string) (*model.Package, error) {
+		if version == "1" {
+			panic("boom")
+		}
+		return &model.Package{}, nil
+	})
+
+	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if !c.wrote(DocsErrKey("p", "1")) {
+		t.Error("error key not written after panic")
+	}
+	if c.wrote(DocsCacheKey("p", "1")) {
+		t.Error("docs key written after panic")
+	}
+	if len(h.sem) != 0 {
+		t.Errorf("%d extraction slots still held after panic", len(h.sem))
+	}
+
+	// Later extractions for other versions still run.
+	for _, v := range []string{"2", "3", "4"} {
+		if _, _, err := h.fetchDocsAtVersion(context.Background(), "p", v); err != nil {
+			t.Errorf("version %s after panic: %v", v, err)
+		}
+	}
+}
+
+func TestDocsWork_NameCaseSharesOneExtraction(t *testing.T) {
+	c := newTTLCache()
+	var calls atomic.Int32
+	release := make(chan struct{})
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls.Add(1)
+		<-release
+		return &model.Package{}, nil
+	})
+
+	var wg sync.WaitGroup
+	for _, name := range []string{"Flask", "flask", "FLASK", "flask"} {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+			if _, _, err := h.fetchDocsAtVersion(context.Background(), name, "1"); err != nil {
+				t.Errorf("%s: %v", name, err)
+			}
+		}(name)
+	}
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	if got := calls.Load(); got != 1 {
+		t.Errorf("extract ran %d times, want 1", got)
+	}
+}

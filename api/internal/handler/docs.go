@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -306,7 +307,7 @@ func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, d
 	// Concurrent misses for one (name, version) share one extraction. The shared
 	// work runs on its own context, so one caller leaving does not fail the
 	// others. A caller whose own context ends returns without writing anything.
-	ch := h.sf.DoChan(name+":"+version, func() (any, error) {
+	ch := h.sf.DoChan(strings.ToLower(name)+":"+version, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
 		defer cancel()
 		return h.extractAndCache(workCtx, name, version)
@@ -351,8 +352,18 @@ type docsResult struct {
 // extractAndCache runs one extraction under the concurrency cap and stores the
 // result. ctx is detached from any request, so only a real failure or the work
 // timeout writes the error key.
-func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (docsResult, error) {
+func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (out docsResult, err error) {
 	errKey := DocsErrKey(name, version)
+
+	// singleflight re-panics in a new goroutine that nothing can recover, so a
+	// panic here would end the process. Contain it and cache it as a failure.
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("docs: panic extracting %s==%s: %v\n%s", name, version, p, debug.Stack())
+			h.cache.Set(errKey, []byte(fmt.Sprintf("panic: %v", p)), docsErrTTL) //nolint:errcheck
+			out, err = docsResult{}, ErrDocsExtractionFailed
+		}
+	}()
 
 	select {
 	case h.sem <- struct{}{}:
