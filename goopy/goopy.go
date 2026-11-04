@@ -935,7 +935,11 @@ func extractWheel(ctx context.Context, fetcher wheel.Fetcher, name, version stri
 	if err != nil {
 		return nil, err
 	}
-	pkg := extractPackage(ctx, name, contents.Files, contents.TopLevelPkgs, afterParse)
+	// Take the sources out of contents, so reading other fields below does not keep
+	// them in memory for the whole parse.
+	files := contents.Files
+	contents.Files = nil
+	pkg := extractPackage(ctx, name, files, contents.TopLevelPkgs, afterParse)
 	pkg.Version = version
 	if contents.Version != "" {
 		pkg.Version = contents.Version
