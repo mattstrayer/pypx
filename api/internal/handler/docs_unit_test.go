@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
@@ -44,6 +45,79 @@ func TestConvertClass_Attributes(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("Attributes[%d] = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+func TestConvertClass_InstanceAttributesHaveNoDefault(t *testing.T) {
+	inst := &model.Attribute{Name: "app", Value: "app", Instance: true, Type: &model.TypeExpr{Raw: "App"}}
+	cls := &model.Class{Name: "C", Attributes: []*model.Attribute{inst, {Name: "limit", Value: "1"}}}
+	got := convertClass(cls, nil, "m").Attributes
+	if len(got) != 2 || got[0].Default != "" || got[0].Type != "App" || got[1].Default != "1" {
+		t.Errorf("Attributes = %+v", got)
+	}
+	if inst.Value != "app" {
+		t.Errorf("the model value changed to %q", inst.Value)
+	}
+}
+
+func TestConvertClass_HidesDunderAttributes(t *testing.T) {
+	cls := &model.Class{Name: "C", Attributes: []*model.Attribute{
+		{Name: "__slots__", Value: "()"},
+		{Name: "__module__", Value: "'x'"},
+		{Name: "__mangled", Value: "1"},
+		{Name: "public", Value: "2"},
+		{Name: "trailing__", Value: "3"},
+		{Name: "____", Value: "4"},
+	}}
+	names := []string{}
+	for _, a := range convertClass(cls, nil, "m").Attributes {
+		names = append(names, a.Name)
+	}
+	if got, want := strings.Join(names, ","), "__mangled,public,trailing__,____"; got != want {
+		t.Errorf("names = %s, want %s", got, want)
+	}
+}
+
+func TestTruncateDefault(t *testing.T) {
+	for name, tc := range map[string]struct{ in, want string }{
+		"short":                  {"abc", "abc"},
+		"empty":                  {"", ""},
+		"at the limit":           {strings.Repeat("a", 120), strings.Repeat("a", 120)},
+		"over":                   {strings.Repeat("a", 121), strings.Repeat("a", 119) + "…"},
+		"multibyte at the limit": {strings.Repeat("é", 120), strings.Repeat("é", 120)},
+		"multibyte over":         {strings.Repeat("é", 200), strings.Repeat("é", 119) + "…"},
+		"wide runes":             {strings.Repeat("日本", 100), strings.Repeat("日本", 59) + "日…"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := truncateDefault(tc.in)
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+			if !utf8.ValidString(got) || utf8.RuneCountInString(got) > 120 {
+				t.Errorf("invalid result: %q", got)
+			}
+		})
+	}
+	long := &model.Attribute{Name: "x", Value: strings.Repeat("v", 500)}
+	got := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{long}}, nil, "m").Attributes[0]
+	if utf8.RuneCountInString(got.Default) != 120 || len(long.Value) != 500 {
+		t.Errorf("Default has %d runes, model value has %d bytes", utf8.RuneCountInString(got.Default), len(long.Value))
+	}
+}
+
+func TestFlattenSymbols_InstanceValueChurn(t *testing.T) {
+	flatten := func(value string) map[string]string {
+		attrs := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
+			{Name: "x", Value: value, Instance: true},
+		}}, nil, "m").Attributes
+		return flattenSymbols(DocsResponse{Modules: []DocModule{{
+			Name:    "m",
+			Classes: []DocSymbol{{Name: "C", Attributes: attrs}},
+		}}})
+	}
+	before, after := flatten("old_expr"), flatten("new_expr")
+	if before["m.C.x"] != "x" || after["m.C.x"] != "x" {
+		t.Errorf("before = %q, after = %q, want both x", before["m.C.x"], after["m.C.x"])
 	}
 }
 

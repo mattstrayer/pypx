@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -682,12 +683,18 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 
 	sym.Attributes = make([]DocAttribute, 0, len(cls.Attributes))
 	for _, a := range cls.Attributes {
+		if isDunder(a.Name) {
+			continue
+		}
 		attr := DocAttribute{
 			Name:        a.Name,
-			Default:     a.Value,
 			Description: cleanDocstringText(a.Docstring),
 			IsProperty:  a.IsProperty,
 			Writable:    a.Writable,
+		}
+		// An __init__ assignment holds an expression, not a default.
+		if !a.Instance {
+			attr.Default = truncateDefault(a.Value)
 		}
 		if a.Type != nil {
 			attr.Type = a.Type.Raw
@@ -696,6 +703,22 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 	}
 
 	return sym
+}
+
+// isDunder reports whether name has the form __name__. A mangled __name is not one.
+func isDunder(name string) bool {
+	return len(name) > 4 && strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__")
+}
+
+// maxDefaultRunes caps an attribute default in API output, ellipsis included.
+const maxDefaultRunes = 120
+
+// truncateDefault shortens a long default on a rune boundary.
+func truncateDefault(s string) string {
+	if utf8.RuneCountInString(s) <= maxDefaultRunes {
+		return s
+	}
+	return string([]rune(s)[:maxDefaultRunes-1]) + "…"
 }
 
 // buildMergedSignature builds a function signature using the already-merged DocParam
