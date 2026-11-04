@@ -342,6 +342,8 @@ type parsedModule struct {
 	// order lists the keys of defs, attrs and stubOnly in a stable order, except
 	// a stub's type parameters, which a star import does not bind as API.
 	order []string
+	// importSources caches importSource for this module's imports.
+	importSources map[*model.Import]string
 }
 
 func newParsedModule(mod *model.Module, path string) *parsedModule {
@@ -497,7 +499,22 @@ func importBinding(imp *model.Import) string {
 
 // importSource returns the dotted module an import reads from. For a relative
 // import that climbs above the top of the wheel it returns "".
+//
+// The result is kept on pm, one string per import, because a resolver asks for the
+// same import many times and a package can hold hundreds of thousands of imports.
 func importSource(pm *parsedModule, imp *model.Import) string {
+	if src, ok := pm.importSources[imp]; ok {
+		return src
+	}
+	if pm.importSources == nil {
+		pm.importSources = make(map[*model.Import]string, len(pm.mod.ImportFroms))
+	}
+	src := resolveImportSource(pm, imp)
+	pm.importSources[imp] = src
+	return src
+}
+
+func resolveImportSource(pm *parsedModule, imp *model.Import) string {
 	if imp.Level == 0 {
 		return imp.Module
 	}
@@ -966,7 +983,7 @@ func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package,
 // only through its Raw text. Every other field of a TypeExpr except Kind is empty,
 // which lets a package with many annotations fit in much less memory.
 func ExtractDocsFromPyPI(ctx context.Context, name, version string) (*model.Package, error) {
-	return extractWheel(ctx, wheel.NewSource(), name, version, flattenTypes)
+	return extractWheel(ctx, wheel.NewSource(), name, version, newTypeFlattener().module)
 }
 
 // WeighFromPyPI estimates the bytes that ExtractFromPyPI holds in memory for this
