@@ -1819,3 +1819,25 @@ func TestOneLineBlockRejectsCompoundStatement(t *testing.T) {
 		t.Fatal("expected a parse error")
 	}
 }
+
+func TestSignatureSoftKeywordsAndTypeParams(t *testing.T) {
+	fn := asFuncDef(t, parse(t, "def f(type, *match, case=1, **type_): pass\n").Body[0])
+	if fn.Args.VarArg == nil || fn.Args.VarArg.Name != "match" || len(fn.Args.KwOnlyArgs) != 1 {
+		t.Errorf("got %#v", fn.Args)
+	}
+
+	fn = asFuncDef(t, parse(t, "def f[T: int = str, *Ts = *x, **P = [int], U = int](a: T): pass\n").Body[0])
+	if len(fn.TypeParams) != 4 {
+		t.Fatalf("expected 4 type params, got %d", len(fn.TypeParams))
+	}
+	for i, name := range []string{"T", "Ts", "P", "U"} {
+		if fn.TypeParams[i].Name != name || fn.TypeParams[i].Default == nil {
+			t.Errorf("type param %d: got %#v", i, fn.TypeParams[i])
+		}
+	}
+	if fn.TypeParams[0].Bound == nil {
+		t.Error("expected a bound on T")
+	}
+	asClassDef(t, parse(t, "class C[*Ts, **P]: pass\n").Body[0])
+	asTypeAlias(t, parse(t, "type A[*Ts] = int\n").Body[0])
+}

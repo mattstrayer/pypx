@@ -412,6 +412,7 @@ type TypeParam struct {
 	EndPos   token.Pos
 	Name     string
 	Bound    Expr
+	Default  Expr
 }
 
 func (t *TypeParam) Pos() token.Pos { return t.Position }

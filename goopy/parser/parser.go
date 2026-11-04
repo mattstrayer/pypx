@@ -1116,7 +1116,7 @@ func (p *Parser) parseParameters() *ast.Arguments {
 			p.next()
 			pi := paramInfo{isStar: true, pos: p.tok.Pos}
 			// Could be bare * (keyword-only separator) or *args.
-			if p.tok.Type == token.NAME {
+			if p.tok.Type == token.NAME || p.isSoftKeyword() {
 				pi.starName = p.expectName()
 				pi.pos = p.tok.Pos
 				if p.tok.Type == token.COLON {
@@ -1252,27 +1252,35 @@ func (p *Parser) parseParameters() *ast.Arguments {
 	return args
 }
 
-// parseTypeParams parses type parameters: '[' name (',' name)* ']'.
+// parseTypeParams parses type parameters: '[' param (',' param)* ']', where a param
+// is [*|**] name [':' bound] ['=' default].
 func (p *Parser) parseTypeParams() []*ast.TypeParam {
 	p.next() // consume '['
 	var params []*ast.TypeParam
 
 	for p.tok.Type != token.RBRACK && !p.atLineEnd() {
 		tp := &ast.TypeParam{Position: p.tok.Pos}
+		if p.at(token.STAR, token.DSTAR) {
+			p.next()
+		}
 		tp.Name = p.expectName()
 
-		// Optional bound: ': expr' or default via '=' (simplified).
 		if p.tok.Type == token.COLON {
 			p.next()
 			tp.Bound = p.parseExpr()
+		}
+		if p.tok.Type == token.ASSIGN {
+			p.next()
+			tp.Default = p.parseExpr()
 		}
 
 		tp.EndPos = p.tok.Pos
 		params = append(params, tp)
 
-		if p.tok.Type == token.COMMA {
-			p.next()
+		if p.tok.Type != token.COMMA {
+			break
 		}
+		p.next()
 	}
 
 	p.expect(token.RBRACK)

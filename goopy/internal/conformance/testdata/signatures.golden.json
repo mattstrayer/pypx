@@ -1,0 +1,62 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "Generic"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self",
+      "x"
+    ],
+    "q": "Generic.m"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": false,
+    "params": [
+      "*args",
+      "**kw"
+    ],
+    "q": "annotated"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "generic"
+  },
+  {
+    "doc": false,
+    "params": [
+      "type",
+      "match",
+      "*case",
+      "**_"
+    ],
+    "q": "soft"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a",
+      "*match",
+      "**type"
+    ],
+    "q": "star_match"
+  },
+  {
+    "doc": false,
+    "params": [
+      "*type",
+      "match"
+    ],
+    "q": "star_type"
+  }
+]
