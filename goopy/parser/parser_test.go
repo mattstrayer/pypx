@@ -1793,3 +1793,29 @@ func TestAwait(t *testing.T) {
 	exprOf(t, "[await a for a in b]")
 	parse(t, "if await a:\n    pass\n")
 }
+
+func TestOneLineBlockStatements(t *testing.T) {
+	for _, stmt := range []string{
+		"return", "return 1, 2", "raise E from e", "yield", "yield 1", "del a, b", "global a", "nonlocal a",
+		"assert a, b", "import a", "from a import b", "pass", "...", "break", "continue", "a = 1", "a: int = 1",
+		"type A = int", "x; return", "return; x",
+	} {
+		for _, head := range []string{"def f(): ", "class C: ", "if a: ", "for a in b: ", "while a: ", "with a: "} {
+			parse(t, head+stmt+"\nafter = 1\n")
+		}
+		parse(t, "if a: "+stmt+"\nelse: "+stmt+"\n")
+		parse(t, "try: "+stmt+"\nexcept E: "+stmt+"\nelse: "+stmt+"\nfinally: "+stmt+"\n")
+	}
+	body := asFuncDef(t, parse(t, "def f(): import a; return a\n").Body[0]).Body
+	if len(body) != 2 {
+		t.Fatalf("expected 2 statements, got %d", len(body))
+	}
+	asImport(t, body[0])
+}
+
+func TestOneLineBlockRejectsCompoundStatement(t *testing.T) {
+	src := strings.Repeat("if a: ", 200000) + "pass\n"
+	if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+		t.Fatal("expected a parse error")
+	}
+}

@@ -301,16 +301,8 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseAsync(nil)
 	case token.CLASS:
 		return p.parseClassDef(nil)
-	case token.IMPORT:
-		return p.parseImport()
-	case token.FROM:
-		return p.parseImportFrom()
-	case token.TYPE:
-		return p.parseTypeOrSimple()
 	case token.IF:
 		return p.parseIf()
-	case token.PASS:
-		return p.parsePass()
 	case token.MATCH:
 		if p.isMatchStmt() {
 			return p.parseMatch()
@@ -318,6 +310,24 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseSimpleStmt()
 	case token.FOR, token.WHILE, token.TRY, token.WITH:
 		return p.parsePassThrough()
+	default:
+		return p.parseSmallStmt()
+	}
+}
+
+// parseSmallStmt parses one statement that can share a line with others: anything
+// except a compound statement. A one-line block allows only these, so this path has
+// no recursion through blocks, and a long line cannot grow the stack.
+func (p *Parser) parseSmallStmt() ast.Stmt {
+	switch p.tok.Type {
+	case token.IMPORT:
+		return p.parseImport()
+	case token.FROM:
+		return p.parseImportFrom()
+	case token.TYPE:
+		return p.parseTypeOrSimple()
+	case token.PASS:
+		return p.parsePass()
 	case token.RETURN, token.RAISE, token.YIELD, token.DEL,
 		token.GLOBAL, token.NONLOCAL, token.ASSERT:
 		return p.parseSimpleKeywordStmt()
@@ -516,7 +526,7 @@ func (p *Parser) parseBlock() []ast.Stmt {
 	if p.tok.Type != token.NEWLINE {
 		var body []ast.Stmt
 		for {
-			if stmt := p.parseSimpleStmtInline(); stmt != nil {
+			if stmt := p.parseSmallStmt(); stmt != nil {
 				body = append(body, stmt)
 			}
 			// A ';' that endSimpleStmt consumed means this line has more statements.
@@ -554,14 +564,6 @@ func (p *Parser) parseIndentedBody() []ast.Stmt {
 	}
 
 	return body
-}
-
-// parseSimpleStmtInline parses a simple statement on the same line (e.g., pass, ..., expr).
-func (p *Parser) parseSimpleStmtInline() ast.Stmt {
-	if p.tok.Type == token.PASS {
-		return p.parsePass()
-	}
-	return p.parseSimpleStmt()
 }
 
 // endSimpleStmt consumes the end of a simple statement: a NEWLINE, or a ';' with
