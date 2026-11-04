@@ -97,6 +97,7 @@ const (
 	CARETEQ
 	RSHIFTEQ
 	LSHIFTEQ
+	ATEQ
 
 	// Delimiters
 	LPAREN

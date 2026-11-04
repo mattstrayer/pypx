@@ -240,7 +240,7 @@ func (p *Parser) parseArithExpr() ast.Expr {
 
 func (p *Parser) parseTerm() ast.Expr {
 	left := p.parseUnary()
-	for p.at(token.STAR, token.SLASH, token.DSLASH, token.PERCENT) {
+	for p.at(token.STAR, token.SLASH, token.DSLASH, token.PERCENT, token.AT) {
 		op := p.tok.Type
 		p.next()
 		right := p.parseUnary()

@@ -648,6 +648,12 @@ func (l *Lexer) lexOperator() token.Token {
 				l.col++
 				return token.Token{Type: token.GTE, Lit: ">=", Pos: pos}
 			}
+		case '@':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.ATEQ, Lit: "@=", Pos: pos}
+			}
 		case '.':
 			if next == '.' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {
 				l.pos += 2

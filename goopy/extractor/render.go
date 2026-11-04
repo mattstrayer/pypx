@@ -103,6 +103,12 @@ func operatorString(op token.Type) string {
 		return "/"
 	case token.DSLASH:
 		return "//"
+	case token.AT:
+		return "@"
+	case token.IN:
+		return "in"
+	case token.IS:
+		return "is"
 	case token.PERCENT:
 		return "%"
 	case token.AMPER:

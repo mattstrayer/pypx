@@ -952,7 +952,7 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 	case token.PLUSEQ, token.MINUSEQ, token.STAREQ, token.SLASHEQ,
 		token.DSLASHEQ, token.PERCENTEQ, token.DSTAREQ,
 		token.AMPEREQ, token.PIPEEQ, token.CARETEQ,
-		token.RSHIFTEQ, token.LSHIFTEQ:
+		token.RSHIFTEQ, token.LSHIFTEQ, token.ATEQ:
 		// Augmented assignment: target op= value
 		p.next()
 		value := p.parseExprList()

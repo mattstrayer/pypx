@@ -1625,3 +1625,22 @@ func TestLoopElse(t *testing.T) {
 		t.Errorf("async for: got %#v", body)
 	}
 }
+
+func TestMatmul(t *testing.T) {
+	op, ok := asAssign(t, parse(t, "x = a @ b * c\n").Body[0]).Value.(*ast.BinOp)
+	if !ok {
+		t.Fatal("expected BinOp value")
+	}
+	// @ and * have the same precedence and associate to the left.
+	if left, ok := op.Left.(*ast.BinOp); op.Op != token.STAR || !ok || left.Op != token.AT {
+		t.Errorf("got %#v", op)
+	}
+	if a := asAssign(t, parse(t, "x @= y\n").Body[0]); asName(t, a.Targets[0]).Name != "x" {
+		t.Errorf("got %#v", a)
+	}
+	mod := parse(t, "x = a @ b\n@dec\ndef f(): pass\n")
+	requireStmts(t, mod, 2)
+	if len(asFuncDef(t, mod.Body[1]).Decorators) != 1 {
+		t.Error("expected a decorator on f")
+	}
+}

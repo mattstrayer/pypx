@@ -92,6 +92,7 @@ func TestTypeString(t *testing.T) {
 		{CARETEQ, "CARETEQ"},
 		{RSHIFTEQ, "RSHIFTEQ"},
 		{LSHIFTEQ, "LSHIFTEQ"},
+		{ATEQ, "ATEQ"},
 		{LPAREN, "LPAREN"},
 		{RPAREN, "RPAREN"},
 		{LBRACK, "LBRACK"},

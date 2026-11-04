@@ -583,3 +583,16 @@ func equalTypes(a, b []token.Type) bool {
 	}
 	return true
 }
+
+func TestAtOperators(t *testing.T) {
+	got := types(collectTokens(lexer.New([]byte("a @ b @= c\n"))))
+	want := []token.Type{token.NAME, token.AT, token.NAME, token.ATEQ, token.NAME, token.NEWLINE, token.EOF}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("token %d: got %s, want %s", i, got[i], want[i])
+		}
+	}
+}
