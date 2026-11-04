@@ -1841,3 +1841,19 @@ func TestSignatureSoftKeywordsAndTypeParams(t *testing.T) {
 	asClassDef(t, parse(t, "class C[*Ts, **P]: pass\n").Body[0])
 	asTypeAlias(t, parse(t, "type A[*Ts] = int\n").Body[0])
 }
+
+func TestLazyImport(t *testing.T) {
+	mod := parse(t, "lazy import a\nlazy from b import c\nlazy = 1\nlazy(1)\n")
+	requireStmts(t, mod, 4)
+	asImport(t, mod.Body[0])
+	asImportFrom(t, mod.Body[1])
+	asAssign(t, mod.Body[2])
+}
+
+func TestUnpackingComprehensions(t *testing.T) {
+	exprOf(t, "[*a for a in b]")
+	exprOf(t, "{*a for a in b}")
+	exprOf(t, "{**a for a in b}")
+	exprOf(t, "(*a for a in b)")
+	exprOf(t, "f(*a for a in b)")
+}

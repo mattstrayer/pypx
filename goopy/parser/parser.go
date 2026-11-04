@@ -320,6 +320,19 @@ func (p *Parser) parseStmt() ast.Stmt {
 // no recursion through blocks, and a long line cannot grow the stack.
 func (p *Parser) parseSmallStmt() ast.Stmt {
 	switch p.tok.Type {
+	case token.NAME:
+		// 'lazy' is a soft keyword only directly before an import statement.
+		if p.tok.Lit == "lazy" {
+			switch p.lex.Clone().Next().Type {
+			case token.IMPORT:
+				p.next()
+				return p.parseImport()
+			case token.FROM:
+				p.next()
+				return p.parseImportFrom()
+			}
+		}
+		return p.parseSimpleStmt()
 	case token.IMPORT:
 		return p.parseImport()
 	case token.FROM:
