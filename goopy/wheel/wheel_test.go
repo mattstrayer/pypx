@@ -1087,3 +1087,39 @@ func TestFetch_WholeWheelCorruptEntrySkipped(t *testing.T) {
 		t.Errorf("Files = %d, want 2 (good ones)", len(contents.Files))
 	}
 }
+
+func TestFetch_EmptyVersionUsesLatest(t *testing.T) {
+	wheelData := buildTestWheel(map[string]string{
+		"testpkg/__init__.py":                   "def hello(): pass\n",
+		"testpkg-2.5.0.dist-info/top_level.txt": "testpkg\n",
+	})
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(wheelData)
+	}))
+	defer wheelSrv.Close()
+
+	var paths []string
+	pypiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path == "/pypi/testpkg/json" {
+			resp := fmt.Sprintf(`{"info":{"version":"2.5.0"},"urls":[{"filename":"testpkg-2.5.0-py3-none-any.whl","url":"%s/w.whl","size":%d,"packagetype":"bdist_wheel"}]}`,
+				wheelSrv.URL, len(wheelData))
+			w.Write([]byte(resp))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer pypiSrv.Close()
+
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: DefaultMaxSize, BaseURL: pypiSrv.URL}
+	contents, err := src.Fetch(context.Background(), "testpkg", "")
+	if err != nil {
+		t.Fatalf("Fetch: %v (paths %v)", err, paths)
+	}
+	if contents.Version != "2.5.0" {
+		t.Errorf("Version = %q, want 2.5.0", contents.Version)
+	}
+	if len(paths) != 1 || paths[0] != "/pypi/testpkg/json" {
+		t.Errorf("requested paths = %v, want [/pypi/testpkg/json]", paths)
+	}
+}
