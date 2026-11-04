@@ -73,3 +73,34 @@ func TestContainsGoogleSectionsProperHeader(t *testing.T) {
 		t.Errorf("containsGoogleSections() = false for proper Google docstring, want true")
 	}
 }
+
+func TestDetectMarkdownTableIsPlain(t *testing.T) {
+	raw := "Options\n\nName\n----\nvalue\n\n| a | b |\n---------\n"
+	if got := Detect(raw); got != model.DocstringPlain {
+		t.Errorf("Detect() = %q, want %q", got, model.DocstringPlain)
+	}
+}
+
+func TestParseGoogleYields(t *testing.T) {
+	doc := Parse("Gen.\n\nYields:\n    int: The next value.\n")
+	if doc.Yields == nil || doc.Yields.Type != "int" || doc.Yields.Description != "The next value." {
+		t.Errorf("Yields = %+v", doc.Yields)
+	}
+}
+
+func TestParseNumpyYields(t *testing.T) {
+	doc := Parse("Gen.\n\nYields\n------\nint\n    The next value.\n")
+	if doc.Style != model.DocstringNumpy {
+		t.Fatalf("Style = %q", doc.Style)
+	}
+	if doc.Yields == nil || doc.Yields.Type != "int" || doc.Yields.Description != "The next value." {
+		t.Errorf("Yields = %+v", doc.Yields)
+	}
+}
+
+func TestParseSphinxRoleKeptInProse(t *testing.T) {
+	doc := Parse("See :class:`Foo` for details.\n\n:param x: input")
+	if doc.Style != model.DocstringSphinx {
+		t.Fatalf("Style = %q", doc.Style)
+	}
+}

@@ -28,6 +28,8 @@ func parseNumPy(raw string) *model.Docstring {
 			doc.Params = parseNumpyParams(body)
 		case "returns", "return":
 			doc.Returns = parseNumpyReturn(body)
+		case "yields", "yield":
+			doc.Yields = parseNumpyReturn(body)
 		case "raises", "raise":
 			doc.Raises = parseNumpyRaises(body)
 		}
