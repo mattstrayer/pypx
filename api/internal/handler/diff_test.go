@@ -258,6 +258,63 @@ func TestDiffHandler_AliasRows(t *testing.T) {
 	}
 }
 
+func TestDiffHandler_NestedClassesAndOverloads(t *testing.T) {
+	mod := func(overload, nestedBase, nestedMethod string) string {
+		return `{"name":"pkg","exceptions":[],
+			"functions":[{"name":"f","kind":"function","signature":"def f(a)","overloads":["` + overload + `"]}],
+			"classes":[{"name":"Outer","kind":"class","signature":"class Outer","classes":[
+				{"name":"Inner","kind":"class","signature":"class Inner(` + nestedBase + `)","methods":[` + nestedMethod + `]}
+			]}]}`
+	}
+	method := func(name string) string {
+		return `{"name":"` + name + `","kind":"function","signature":"def ` + name + `()"}`
+	}
+	from := docsJSON("0.26.0", mod("def f(a: int)", "A", method("go")))
+
+	tests := []struct {
+		name   string
+		to     string
+		want   []string
+		reject []string
+	}{
+		{
+			name: "overload alone changed",
+			to:   docsJSON("0.28.1", mod("def f(a: str)", "A", method("go"))),
+			want: []string{"~ changed: pkg.f", "def f(a: int)", "def f(a: str)"},
+		},
+		{
+			name: "nested class changed",
+			to:   docsJSON("0.28.1", mod("def f(a: int)", "B", method("go"))),
+			want: []string{"~ changed: pkg.Outer.Inner ", "class Inner(A)", "class Inner(B)"},
+		},
+		{
+			name: "method of a nested class renamed",
+			to:   docsJSON("0.28.1", mod("def f(a: int)", "A", method("run"))),
+			want: []string{"+ added: pkg.Outer.Inner.run", "- removed: pkg.Outer.Inner.go"},
+		},
+		{
+			name:   "nothing changed",
+			to:     docsJSON("0.28.1", mod("def f(a: int)", "A", method("go"))),
+			reject: []string{"pkg.f", "pkg.Outer"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := apiDiffBody(t, from, tt.to)
+			for _, want := range tt.want {
+				if !strings.Contains(body, want) {
+					t.Errorf("missing %q:\n%s", want, body)
+				}
+			}
+			for _, reject := range tt.reject {
+				if strings.Contains(body, reject) {
+					t.Errorf("unexpected %q:\n%s", reject, body)
+				}
+			}
+		})
+	}
+}
+
 func TestDiffHandler_Get_BadInputs(t *testing.T) {
 	pypiURL, pypiSrv := newDiffTestServer(t)
 	defer pypiSrv.Close()

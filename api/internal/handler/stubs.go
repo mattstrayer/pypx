@@ -217,12 +217,16 @@ func buildStubIndex(pkg *model.Package) stubIndex {
 	}
 	classes := make(map[string]*model.Class)
 	// The extractor moves __init__ out of Methods, so a class's members are both.
-	addMembers := func(path string, cls *model.Class) {
+	var addMembers func(path string, cls *model.Class)
+	addMembers = func(path string, cls *model.Class) {
 		for _, m := range cls.Methods {
 			idx[path+"."+m.Name] = m
 		}
 		if cls.Constructor != nil {
 			idx[path+".__init__"] = cls.Constructor
+		}
+		for _, n := range cls.Classes {
+			addMembers(path+"."+n.Name, n)
 		}
 	}
 	for _, mod := range pkg.Modules {
