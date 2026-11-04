@@ -16,13 +16,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pypx/goopy"
+	"github.com/pypx/goopy/internal/conformance"
 	"github.com/pypx/goopy/model"
+	"github.com/pypx/goopy/wheel"
 )
 
 type packageEntry struct {
@@ -220,6 +223,208 @@ func TestParity(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestASTConformance compares goopy's parser with CPython's ast module on every
+// .py file in the pinned packages. Counts may not exceed the ratchet maxima and
+// must be lowered when they improve. Plan 002 lowers them to zero.
+//
+// Requires: python3 (standard library only).
+func TestASTConformance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping conformance tests in short mode")
+	}
+	if err := exec.Command("python3", "-c", "import ast").Run(); err != nil {
+		t.Skip("python3 not available")
+	}
+
+	// Ratchet maxima. Lower these when the parser improves.
+	const (
+		maxFilesWithErrors = 626
+		maxMissingDefs     = 2726
+		maxExtraDefs       = 2638
+		maxParamMismatches = 1
+	)
+
+	gen, err := filepath.Abs(filepath.Join("..", "conformance", "gen_golden.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list := loadPackages(t)
+	var (
+		filesWithErrors, missing, extra, paramMismatches int
+		compared, downloadFailures                       int
+	)
+	type fileStat struct {
+		path   string
+		errors int
+		diff   int
+	}
+	var worst []fileStat
+	firstErrors := map[string]int{}
+
+	for _, pkg := range list.Packages {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		contents, err := wheel.NewSource().Fetch(ctx, pkg.Name, pkg.Version)
+		cancel()
+		if err != nil {
+			downloadFailures++
+			t.Logf("download failed for %s==%s: %v", pkg.Name, pkg.Version, err)
+			continue
+		}
+
+		dir := t.TempDir()
+		for rel, data := range contents.Files {
+			if !strings.HasSuffix(rel, ".py") {
+				continue
+			}
+			clean := filepath.Clean(rel)
+			if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+				continue
+			}
+			dest := filepath.Join(dir, clean)
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dest, data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		cmd := exec.Command("python3", "-I", gen, "--tree", dir)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("gen_golden.py for %s: %v", pkg.Name, err)
+		}
+		var ref map[string][]conformance.Def
+		if err := json.Unmarshal(out, &ref); err != nil {
+			t.Fatalf("decoding gen_golden.py output for %s: %v", pkg.Name, err)
+		}
+
+		for rel, want := range ref {
+			src, ok := contents.Files[rel]
+			if !ok {
+				src, ok = contents.Files[filepath.ToSlash(rel)]
+			}
+			if !ok {
+				continue
+			}
+			compared++
+			got, errs := conformance.Parse(src)
+			st := fileStat{path: pkg.Name + "/" + rel}
+			if len(errs) > 0 {
+				filesWithErrors++
+				st.errors = len(errs)
+				firstErrors[trimErr(errs[0].Error())]++
+			}
+			m, e, pm := diffDefs(got, want)
+			missing += m
+			extra += e
+			paramMismatches += pm
+			st.diff = m + e + pm
+			if st.errors > 0 || st.diff > 0 {
+				worst = append(worst, st)
+			}
+		}
+	}
+
+	if downloadFailures > 3 {
+		t.Fatalf("%d package downloads failed (limit 3)", downloadFailures)
+	}
+
+	sort.Slice(worst, func(i, j int) bool {
+		if worst[i].diff != worst[j].diff {
+			return worst[i].diff > worst[j].diff
+		}
+		return worst[i].path < worst[j].path
+	})
+	t.Logf("=== AST CONFORMANCE (%d packages, %d files compared, %d downloads failed) ===",
+		len(list.Packages), compared, downloadFailures)
+	t.Logf("files with parse errors: %d", filesWithErrors)
+	t.Logf("missing defs:            %d", missing)
+	t.Logf("extra defs:              %d", extra)
+	t.Logf("param mismatches:        %d", paramMismatches)
+	t.Logf("--- 20 worst files ---")
+	for i, w := range worst {
+		if i >= 20 {
+			break
+		}
+		t.Logf("  %s: %d errors, %d def differences", w.path, w.errors, w.diff)
+	}
+	type kv struct {
+		msg string
+		n   int
+	}
+	var common []kv
+	for k, v := range firstErrors {
+		common = append(common, kv{k, v})
+	}
+	sort.Slice(common, func(i, j int) bool {
+		if common[i].n != common[j].n {
+			return common[i].n > common[j].n
+		}
+		return common[i].msg < common[j].msg
+	})
+	t.Logf("--- 15 most common first errors ---")
+	for i, c := range common {
+		if i >= 15 {
+			break
+		}
+		t.Logf("  %5d  %s", c.n, c.msg)
+	}
+
+	ratchet := func(name string, got, max int) {
+		switch {
+		case got > max:
+			t.Errorf("%s: %d exceeds ratchet %d", name, got, max)
+		case got < max:
+			t.Errorf("%s: %d is below ratchet %d: lower the ratchet to %d", name, got, max, got)
+		}
+	}
+	ratchet("files with errors", filesWithErrors, maxFilesWithErrors)
+	ratchet("missing defs", missing, maxMissingDefs)
+	ratchet("extra defs", extra, maxExtraDefs)
+	ratchet("param mismatches", paramMismatches, maxParamMismatches)
+}
+
+// trimErr removes the line:col prefix and quoted detail so errors group by kind.
+func trimErr(msg string) string {
+	if i := strings.Index(msg, " "); i > 0 && strings.Contains(msg[:i], ":") {
+		msg = msg[i+1:]
+	}
+	return msg
+}
+
+// diffDefs treats each side as a multiset keyed by Q. It returns the number of
+// defs missing from got, extra in got, and same-Q pairs whose params differ.
+func diffDefs(got, want []conformance.Def) (missing, extra, paramMismatch int) {
+	g := map[string][]conformance.Def{}
+	w := map[string][]conformance.Def{}
+	for _, d := range got {
+		g[d.Q] = append(g[d.Q], d)
+	}
+	for _, d := range want {
+		w[d.Q] = append(w[d.Q], d)
+	}
+	for q, wl := range w {
+		gl := g[q]
+		n := min(len(gl), len(wl))
+		if len(wl) > n {
+			missing += len(wl) - n
+		}
+		for i := 0; i < n; i++ {
+			if !paramsEqual(gl[i].Params, wl[i].Params) {
+				paramMismatch++
+			}
+		}
+	}
+	for q, gl := range g {
+		if n := len(gl) - len(w[q]); n > 0 {
+			extra += n
+		}
+	}
+	return
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,110 @@
+[
+  {
+    "doc": true,
+    "params": [],
+    "q": "Outer"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "Outer.Inner"
+  },
+  {
+    "doc": true,
+    "params": [
+      "self"
+    ],
+    "q": "Outer.Inner.deep"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self",
+      "x"
+    ],
+    "q": "Outer.method"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "Outer.prop"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a",
+      "b"
+    ],
+    "q": "Outer.static"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "always"
+  },
+  {
+    "doc": true,
+    "params": [
+      "x"
+    ],
+    "q": "checking_only"
+  },
+  {
+    "doc": true,
+    "params": [
+      "x"
+    ],
+    "q": "coro"
+  },
+  {
+    "doc": false,
+    "params": [
+      "x"
+    ],
+    "q": "decorated"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "fallback"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "in_with"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "on_success"
+  },
+  {
+    "doc": true,
+    "params": [
+      "a",
+      "b",
+      "*args",
+      "c",
+      "d",
+      "**kwargs"
+    ],
+    "q": "plain"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "q": "posonly"
+  }
+]

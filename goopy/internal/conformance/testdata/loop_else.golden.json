@@ -1,0 +1,46 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "C"
+  },
+  {
+    "doc": true,
+    "params": [
+      "self"
+    ],
+    "q": "C.after_m"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "C.m"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "_inner"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "after_c"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "after_function"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "after_module_level"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "in_function"
+  }
+]
