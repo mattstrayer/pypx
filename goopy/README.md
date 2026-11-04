@@ -16,12 +16,17 @@ import "github.com/pypx/goopy"
 - **Docstring parsing** — Google, NumPy, and Sphinx/reST styles, normalized into one structured form
 - **Wheel fetching** — downloads the best-matching wheel from PyPI's JSON API and extracts the Python source files from the zip
 - **Parallel extraction** — bounded worker pool sized to `GOMAXPROCS` for multi-module packages
+- **Re-export resolution** — follows imports through the wheel, so an API defined in `_private.py` and published by `__init__.py` is documented. Each definition is published once: a private definition is copied into the export location that sorts first, with `Origin` set, and every other re-export becomes a `Module.Aliases` entry that points at it
 - **Pure Go** — no CGo, no Python runtime, no external binaries
 
 ## What it does *not* do
 
 - Execute Python code (this is static analysis only)
 - Resolve dynamic attribute assignment, runtime metaclasses, or anything that depends on import-time effects
+- Follow runtime re-exports such as a module `__getattr__` or `lazy_import`. `attrs` publishes `__version__` this way, so names like that stay undocumented
+- Resolve names imported from another distribution. `from httpx import Timeout` in `openai` has no entry
+- Read compiled modules. A name that only exists in a `.so` file has no entry, such as `pandas.Timestamp`. `.pyi` files are not read during package extraction
+- Read an `__all__` that is built at runtime. Names it lists as literals still count, and the public-name rule covers the rest
 - Type-check the code — annotations are captured as strings
 - Replace tools like Sphinx for full documentation site generation
 
