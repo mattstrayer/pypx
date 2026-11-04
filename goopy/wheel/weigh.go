@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// unreadInflateRatio estimates inflated source per wheel byte when the central
+// unreadInflateRatio estimates inflated source per archive byte when the archive's
 // directory cannot be read. Pure-Python wheels reach about 4.2 (sympy, transformers).
 const unreadInflateRatio = 5
 
@@ -18,15 +18,21 @@ const unreadInflateRatio = 5
 // Wheel size alone does not predict this. pyarrow's wheel is 27.6 MiB with
 // 2.7 MiB of source, and sympy's is 6 MiB with 25 MiB of source.
 //
-// Weigh returns an error only if the metadata cannot be read. A wheel that Fetch
+// A release with no wheel is weighed from the size of its sdist, since only reading
+// the whole sdist would show its sources.
+//
+// Weigh returns an error only if the metadata cannot be read. A file that Fetch
 // would reject weighs nothing, because Fetch fails before it reads any data.
 func (s *Source) Weigh(ctx context.Context, name, version string) (int64, error) {
-	wheels, err := s.fetchWheelURLs(ctx, name, version)
+	wheels, sdists, _, err := s.fetchRelease(ctx, name, version)
 	if err != nil {
-		return 0, fmt.Errorf("fetching wheel URLs: %w", err)
+		return 0, fmt.Errorf("fetching file URLs: %w", err)
 	}
 	if len(wheels) == 0 {
-		return 0, nil
+		if len(sdists) == 0 {
+			return 0, nil
+		}
+		return s.weighSdist(selectSdist(sdists)), nil
 	}
 	w := selectWheel(wheels)
 	if w.Size <= rangeThreshold && w.Size > s.MaxSize {
@@ -62,6 +68,14 @@ func (s *Source) Weigh(ctx context.Context, name, version string) (int64, error)
 		return source + w.Size, nil
 	}
 	return source + compressed, nil
+}
+
+// weighSdist estimates what fetchSdist holds in memory for f.
+func (s *Source) weighSdist(f WheelFile) int64 {
+	if f.Size > s.MaxSize || !isReadableSdist(f.Filename) {
+		return 0
+	}
+	return unreadInflateRatio*f.Size + f.Size
 }
 
 // isSourceEntry reports whether a zip entry counts toward an extraction's weight.
