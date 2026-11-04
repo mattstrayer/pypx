@@ -61,7 +61,7 @@ func (p *Parser) depthError() ast.Expr {
 
 func (p *Parser) parseOrExpr() ast.Expr {
 	left := p.parseAndExpr()
-	for p.tok.Type == token.OR {
+	for chained := false; p.tok.Type == token.OR; chained = true {
 		op := p.tok.Type
 		p.next()
 		right := p.parseAndExpr()
@@ -71,6 +71,7 @@ func (p *Parser) parseOrExpr() ast.Expr {
 			Left:     left,
 			Op:       op,
 			Right:    right,
+			Chained:  chained,
 		}
 	}
 	return left
@@ -78,7 +79,7 @@ func (p *Parser) parseOrExpr() ast.Expr {
 
 func (p *Parser) parseAndExpr() ast.Expr {
 	left := p.parseNotExpr()
-	for p.tok.Type == token.AND {
+	for chained := false; p.tok.Type == token.AND; chained = true {
 		op := p.tok.Type
 		p.next()
 		right := p.parseNotExpr()
@@ -88,6 +89,7 @@ func (p *Parser) parseAndExpr() ast.Expr {
 			Left:     left,
 			Op:       op,
 			Right:    right,
+			Chained:  chained,
 		}
 	}
 	return left
@@ -115,7 +117,7 @@ func (p *Parser) parseNotExpr() ast.Expr {
 
 func (p *Parser) parseComparison() ast.Expr {
 	left := p.parseBitOrExpr()
-	for p.isCompOp() {
+	for chained := false; p.isCompOp(); chained = true {
 		op, negated := p.consumeCompOp()
 		right := p.parseBitOrExpr()
 		left = &ast.BinOp{
@@ -125,6 +127,7 @@ func (p *Parser) parseComparison() ast.Expr {
 			Op:       op,
 			Negated:  negated,
 			Right:    right,
+			Chained:  chained,
 		}
 	}
 	return left
@@ -378,8 +381,8 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 }
 
 // parseArgList parses the arguments of a call or a class definition, up to the
-// closing parenthesis. Each argument is a full expression, a keyword argument, or
-// a * or ** unpack. A generator expression argument is skimmed.
+// closing parenthesis. Each argument is a full expression, a keyword argument, a
+// * or ** unpack, or a generator expression, which holds the parentheses of the call.
 func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
 	var args []ast.Expr
 	var keywords []*ast.Keyword
@@ -409,8 +412,10 @@ func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
 			}
 		}
 
-		if p.at(token.FOR, token.ASYNC) {
-			p.skipUntil(token.RPAREN)
+		if p.at(token.FOR, token.ASYNC) && len(args) > 0 {
+			last := args[len(args)-1]
+			gens := p.parseComprehensions()
+			args[len(args)-1] = &ast.GeneratorExp{Position: last.Pos(), EndPos: p.tok.Pos, Elt: last, Generators: gens}
 			break
 		}
 		if p.tok.Type != token.COMMA {
@@ -420,6 +425,58 @@ func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
 	}
 
 	return args, keywords
+}
+
+// parseComprehensions parses the "for ... in ... if ..." clauses of a comprehension.
+// The caller stands at the first 'for' or 'async'.
+func (p *Parser) parseComprehensions() []*ast.Comprehension {
+	var gens []*ast.Comprehension
+	for p.at(token.FOR, token.ASYNC) {
+		c := &ast.Comprehension{IsAsync: p.tok.Type == token.ASYNC}
+		if c.IsAsync {
+			p.next()
+		}
+		p.expect(token.FOR)
+		c.Target = p.parseCompTarget()
+		p.expect(token.IN)
+		c.Iter = p.parseOrExpr()
+		for p.tok.Type == token.IF {
+			p.next()
+			c.Ifs = append(c.Ifs, p.parseOrExpr())
+		}
+		gens = append(gens, c)
+	}
+	return gens
+}
+
+// parseCompTarget parses the target of a comprehension clause, which stops before
+// 'in'. Several comma-separated targets become a Tuple.
+func (p *Parser) parseCompTarget() ast.Expr {
+	first := p.parseCompTargetItem()
+	if p.tok.Type != token.COMMA {
+		return first
+	}
+	elts := []ast.Expr{first}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.tok.Type == token.IN {
+			break
+		}
+		elts = append(elts, p.parseCompTargetItem())
+	}
+	return &ast.Tuple{Position: first.Pos(), EndPos: elts[len(elts)-1].End(), Elts: elts}
+}
+
+// parseCompTargetItem parses one target. It parses below comparisons, so 'in'
+// stays for the clause.
+func (p *Parser) parseCompTargetItem() ast.Expr {
+	if p.tok.Type != token.STAR {
+		return p.parseBitOrExpr()
+	}
+	pos := p.tok.Pos
+	p.next()
+	val := p.parseBitOrExpr()
+	return &ast.Starred{Position: pos, EndPos: val.End(), Value: val}
 }
 
 // parseNamedExpr parses expr [':=' expr].
@@ -717,10 +774,10 @@ func (p *Parser) parseParenExpr() ast.Expr {
 
 	// Generator expression: (expr for ...)
 	if p.at(token.FOR, token.ASYNC) {
-		p.skipUntil(token.RPAREN)
+		gens := p.parseComprehensions()
 		endPos := p.tok.Pos
 		p.expect(token.RPAREN)
-		return &ast.Tuple{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
+		return &ast.GeneratorExp{Position: pos, EndPos: endPos, Elt: first, Generators: gens}
 	}
 
 	// Check for tuple: (a, b, ...) or (a,)
@@ -763,10 +820,10 @@ func (p *Parser) parseListExpr() ast.Expr {
 
 	// List comprehension: [expr for ...]
 	if p.at(token.FOR, token.ASYNC) {
-		p.skipUntil(token.RBRACK)
+		gens := p.parseComprehensions()
 		endPos := p.tok.Pos
 		p.expect(token.RBRACK)
-		return &ast.List{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
+		return &ast.ListComp{Position: pos, EndPos: endPos, Elt: first, Generators: gens}
 	}
 
 	elts := []ast.Expr{first}
@@ -805,10 +862,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		p.next()
 		firstVal := p.parseExpr()
 		if p.at(token.FOR, token.ASYNC) {
-			p.skipUntil(token.RBRACE)
-			endPos := p.tok.Pos
-			p.expect(token.RBRACE)
-			return &ast.Dict{Position: pos, EndPos: endPos, Keys: []ast.Expr{nil}, Values: []ast.Expr{firstVal}}
+			return p.finishDictComp(pos, nil, firstVal)
 		}
 		return p.parseDictItems(pos, nil, firstVal)
 	}
@@ -822,15 +876,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 
 		// Dict comprehension: {k: v for ...}
 		if p.at(token.FOR, token.ASYNC) {
-			p.skipUntil(token.RBRACE)
-			endPos := p.tok.Pos
-			p.expect(token.RBRACE)
-			return &ast.Dict{
-				Position: pos,
-				EndPos:   endPos,
-				Keys:     []ast.Expr{first},
-				Values:   []ast.Expr{firstVal},
-			}
+			return p.finishDictComp(pos, first, firstVal)
 		}
 
 		return p.parseDictItems(pos, first, firstVal)
@@ -838,10 +884,10 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 
 	// Set comprehension: {expr for ...}
 	if p.at(token.FOR, token.ASYNC) {
-		p.skipUntil(token.RBRACE)
+		gens := p.parseComprehensions()
 		endPos := p.tok.Pos
 		p.expect(token.RBRACE)
-		return &ast.Set{Position: pos, EndPos: endPos, Elts: []ast.Expr{first}}
+		return &ast.SetComp{Position: pos, EndPos: endPos, Elt: first, Generators: gens}
 	}
 
 	// Set literal.
@@ -860,6 +906,14 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		EndPos:   endPos,
 		Elts:     elts,
 	}
+}
+
+// finishDictComp parses the clauses of a dict comprehension and its closing brace.
+func (p *Parser) finishDictComp(pos token.Pos, key, value ast.Expr) ast.Expr {
+	gens := p.parseComprehensions()
+	endPos := p.tok.Pos
+	p.expect(token.RBRACE)
+	return &ast.DictComp{Position: pos, EndPos: endPos, Key: key, Value: value, Generators: gens}
 }
 
 // parseDictItems parses the rest of a dict display after its first entry, up to
