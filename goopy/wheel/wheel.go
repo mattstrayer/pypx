@@ -3,6 +3,7 @@ package wheel
 import (
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"context"
 	"encoding/json"
 	"errors"
@@ -232,6 +233,16 @@ func (s *Source) download(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, s.MaxSize+1))
 }
 
+// isEntryCorrupt reports whether err means one zip entry holds bad data. Such
+// an entry is skipped. Any other error (network failure, timeout, a server
+// that stops honouring ranges) must abort extraction, or the caller would
+// cache a partial result.
+func isEntryCorrupt(err error) bool {
+	var flateErr flate.CorruptInputError
+	return errors.Is(err, zip.ErrFormat) || errors.Is(err, zip.ErrAlgorithm) ||
+		errors.Is(err, zip.ErrChecksum) || errors.As(err, &flateErr)
+}
+
 func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents, error) {
 	r, err := zip.NewReader(ra, size)
 	if err != nil {
@@ -258,11 +269,21 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 			// Vendored distributions (pkg/_vendor/x.dist-info/...) must not overwrite it.
 			if strings.Count(f.Name, "/") == 1 {
 				rc, err := f.Open()
-				if err == nil {
-					data, _ := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
-					_ = rc.Close()
-					declaredTopLevel = parseTopLevelTxt(string(data))
+				if err != nil {
+					if isEntryCorrupt(err) {
+						continue
+					}
+					return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 				}
+				data, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
+				_ = rc.Close()
+				if err != nil {
+					if isEntryCorrupt(err) {
+						continue
+					}
+					return nil, fmt.Errorf("reading %q: %w", f.Name, err)
+				}
+				declaredTopLevel = parseTopLevelTxt(string(data))
 			}
 			continue
 		}
@@ -270,13 +291,19 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 		if strings.HasSuffix(f.Name, ".py") {
 			rc, err := f.Open()
 			if err != nil {
-				continue
+				if isEntryCorrupt(err) {
+					continue
+				}
+				return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 			}
 			// Read one byte past the per-file cap to detect an over-limit entry.
 			src, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile+1))
 			_ = rc.Close()
 			if err != nil {
-				continue
+				if isEntryCorrupt(err) {
+					continue
+				}
+				return nil, fmt.Errorf("reading %q: %w", f.Name, err)
 			}
 			if int64(len(src)) > maxDecompressedFile {
 				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, maxDecompressedFile)

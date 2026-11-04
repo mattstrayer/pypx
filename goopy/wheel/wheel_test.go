@@ -561,7 +561,7 @@ func buildBigWheel(t *testing.T, files map[string]string, blobSize int) []byte {
 			t.Fatal(err)
 		}
 		_, _ = f.Write([]byte(files[name]))
-		if i == 0 {
+		if i == len(names)-1 {
 			blob := make([]byte, blobSize)
 			_, _ = rand.New(rand.NewSource(1)).Read(blob)
 			bf, err := w.CreateHeader(&zip.FileHeader{Name: "bigpkg/_native.so", Method: zip.Store})
@@ -597,15 +597,12 @@ func newRangeServer(t *testing.T, data []byte, honourRange bool) *rangeServer {
 			rs.other = append(rs.other, r.Method)
 		}
 		rs.mu.Unlock()
-		cw := &countWriter{ResponseWriter: w}
+		cw := &countWriter{ResponseWriter: w, rs: rs}
 		if honourRange {
 			http.ServeContent(cw, r, "x.whl", time.Time{}, bytes.NewReader(data))
 		} else {
 			_, _ = cw.Write(data)
 		}
-		rs.mu.Lock()
-		rs.bytes += cw.n
-		rs.mu.Unlock()
 	}))
 	t.Cleanup(rs.Close)
 	return rs
@@ -613,13 +610,22 @@ func newRangeServer(t *testing.T, data []byte, honourRange bool) *rangeServer {
 
 type countWriter struct {
 	http.ResponseWriter
-	n int64
+	rs *rangeServer
 }
 
 func (c *countWriter) Write(p []byte) (int, error) {
 	n, err := c.ResponseWriter.Write(p)
-	c.n += int64(n)
+	c.rs.mu.Lock()
+	c.rs.bytes += int64(n)
+	c.rs.mu.Unlock()
 	return n, err
+}
+
+// stats returns a consistent snapshot of the counters.
+func (rs *rangeServer) stats() (requests, ranged int, bytes int64, other []string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	return rs.requests, rs.ranged, rs.bytes, append([]string(nil), rs.other...)
 }
 
 func TestHTTPReaderAt_ReadsMatchBytes(t *testing.T) {
@@ -655,8 +661,8 @@ func TestHTTPReaderAt_ReadsMatchBytes(t *testing.T) {
 		t.Fatalf("read at size: %v", err)
 	}
 	maxBlocks := len(data)/rangeBlockSize + 2
-	if rs.requests > maxBlocks {
-		t.Errorf("requests = %d, want at most one per block (%d)", rs.requests, maxBlocks)
+	if reqs, _, _, _ := rs.stats(); reqs > maxBlocks {
+		t.Errorf("requests = %d, want at most one per block (%d)", reqs, maxBlocks)
 	}
 }
 
@@ -669,7 +675,7 @@ func TestHTTPReaderAt_SequentialReadsCoalesce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := rs.requests
+	before, _, _, _ := rs.stats()
 	buf := make([]byte, 4096)
 	for off := int64(0); off < 4*1024*1024; off += int64(len(buf)) {
 		if _, err := ra.ReadAt(buf, off); err != nil {
@@ -680,7 +686,8 @@ func TestHTTPReaderAt_SequentialReadsCoalesce(t *testing.T) {
 		}
 	}
 	// 4 MiB in 256 KiB blocks is 16 blocks; doubling readahead needs far fewer requests.
-	if got := rs.requests - before; got > 6 {
+	if after, _, _, _ := rs.stats(); after-before > 6 {
+		got := after - before
 		t.Errorf("sequential 4 MiB read took %d requests, want at most 6", got)
 	}
 }
@@ -757,14 +764,15 @@ func TestFetch_RangeLargeWheel(t *testing.T) {
 	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "bigpkg" {
 		t.Errorf("TopLevelPkgs = %v", contents.TopLevelPkgs)
 	}
-	if rs.ranged != rs.requests || len(rs.other) != 0 {
-		t.Errorf("wheel server saw non-range requests: %v", rs.other)
+	reqs, ranged, served, other := rs.stats()
+	if ranged != reqs || len(other) != 0 {
+		t.Errorf("wheel server saw non-range requests: %v", other)
 	}
-	if rs.bytes > int64(len(data))/2 {
-		t.Errorf("transferred %d of %d bytes, want well under half", rs.bytes, len(data))
+	if served > int64(len(data))/2 {
+		t.Errorf("transferred %d of %d bytes, want well under half", served, len(data))
 	}
-	if rs.requests > 6 {
-		t.Errorf("requests = %d, want a handful", rs.requests)
+	if reqs > 6 {
+		t.Errorf("requests = %d, want a handful", reqs)
 	}
 }
 
@@ -910,5 +918,169 @@ func TestRangeRealWheel(t *testing.T) {
 	}
 	if got*4 >= chosen.Size {
 		t.Errorf("transferred %d bytes, want under 25%% of %d", got, chosen.Size)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Mid-read failures must not produce partial results
+// ---------------------------------------------------------------------------
+
+// flakyWheelServer serves data with ServeContent. The first range request (the
+// tail prefetch) is honoured. Later range requests go to onLater, which may
+// write its own response and return true, or return false to serve normally.
+func flakyWheelServer(t *testing.T, data []byte, onLater func(w http.ResponseWriter, r *http.Request) bool) *httptest.Server {
+	t.Helper()
+	var mu sync.Mutex
+	n := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		n++
+		first := n == 1
+		mu.Unlock()
+		if !first && onLater(w, r) {
+			return
+		}
+		http.ServeContent(w, r, "x.whl", time.Time{}, bytes.NewReader(data))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func fetchFlaky(t *testing.T, ctx context.Context, data []byte, wheelURL string) (*WheelContents, error) {
+	t.Helper()
+	pypiSrv := newPyPIServer(t, "bigpkg", "1.0", wheelURL, int64(len(data)))
+	defer pypiSrv.Close()
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: DefaultMaxSize, MaxRangeSize: DefaultMaxRangeSize, BaseURL: pypiSrv.URL}
+	return src.Fetch(ctx, "bigpkg", "1.0")
+}
+
+func flakyWheel(t *testing.T) []byte {
+	t.Helper()
+	// Many py files after the blob so reads continue past the tail prefetch.
+	files := rangeTestFiles()
+	for i := 0; i < 20; i++ {
+		files[fmt.Sprintf("bigpkg/mod%02d.py", i)] = strings.Repeat("x = 1\n", 1000)
+	}
+	// The blob sits after the first sorted name, so most .py data lies beyond
+	// the last 1 MiB.
+	return buildBigWheel(t, files, 9*1024*1024)
+}
+
+func TestFetch_RangeServerErrorMidReadFails(t *testing.T) {
+	data := flakyWheel(t)
+	srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		http.Error(w, "boom", http.StatusInternalServerError)
+		return true
+	})
+	contents, err := fetchFlaky(t, context.Background(), data, srv.URL+"/w.whl")
+	if err == nil {
+		t.Fatalf("expected an error, got %d files", len(contents.Files))
+	}
+	if contents != nil {
+		t.Errorf("expected no contents on error")
+	}
+}
+
+func TestFetch_RangeDroppedConnectionMidReadFails(t *testing.T) {
+	data := flakyWheel(t)
+	t.Run("connection closed", func(t *testing.T) {
+		srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+			return true
+		})
+		contents, err := fetchFlaky(t, context.Background(), data, srv.URL+"/w.whl")
+		if err == nil {
+			t.Fatalf("expected an error, got %d files", len(contents.Files))
+		}
+	})
+	t.Run("short body", func(t *testing.T) {
+		srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+			var start, end int64
+			_, _ = fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-%d", &start, &end)
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, len(data)))
+			w.Header().Set("Content-Length", fmt.Sprint(end-start+1))
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = w.Write(data[start : start+10])
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+			return true
+		})
+		contents, err := fetchFlaky(t, context.Background(), data, srv.URL+"/w.whl")
+		if err == nil {
+			t.Fatalf("expected an error, got %d files", len(contents.Files))
+		}
+	})
+}
+
+func TestFetch_RangeUnsupportedMidReadFallsBack(t *testing.T) {
+	data := flakyWheel(t)
+	srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Range") == "" {
+			return false // the fallback whole download
+		}
+		_, _ = w.Write(data) // 200 instead of 206
+		return true
+	})
+	contents, err := fetchFlaky(t, context.Background(), data, srv.URL+"/w.whl")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if want := 3 + 20; len(contents.Files) != want {
+		t.Errorf("Files = %d, want %d", len(contents.Files), want)
+	}
+}
+
+func TestFetch_RangeContextCancelledMidRead(t *testing.T) {
+	data := flakyWheel(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		cancel()
+		return false
+	})
+	contents, err := fetchFlaky(t, ctx, data, srv.URL+"/w.whl")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v (files: %v)", err, contents != nil)
+	}
+}
+
+func TestFetch_WholeWheelCorruptEntrySkipped(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for _, name := range []string{"cpkg/__init__.py", "cpkg/bad.py", "cpkg/good.py"} {
+		f, _ := w.Create(name)
+		_, _ = f.Write([]byte("value = 'ok'\n" + strings.Repeat("# pad\n", 50)))
+	}
+	_ = w.Close()
+	data := buf.Bytes()
+	// Corrupt the stored CRC of bad.py in the central directory and local header.
+	idx := bytes.Index(data, []byte("cpkg/bad.py"))
+	if idx < 0 {
+		t.Fatal("entry name not found")
+	}
+	// Flip a byte in the compressed payload of bad.py: it follows the local
+	// header (30 bytes + name length). Local header starts 30 bytes before the name.
+	payload := idx + len("cpkg/bad.py")
+	data[payload+3] ^= 0xFF
+
+	wheelSrv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) { _, _ = rw.Write(data) }))
+	defer wheelSrv.Close()
+	pypiSrv := newPyPIServer(t, "cpkg", "1.0", wheelSrv.URL+"/c.whl", int64(len(data)))
+	defer pypiSrv.Close()
+	src := &Source{HTTPClient: pypiSrv.Client(), MaxSize: DefaultMaxSize, BaseURL: pypiSrv.URL}
+	contents, err := src.Fetch(context.Background(), "cpkg", "1.0")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if _, ok := contents.Files["cpkg/bad.py"]; ok {
+		t.Error("corrupt entry should be skipped")
+	}
+	if len(contents.Files) != 2 {
+		t.Errorf("Files = %d, want 2 (good ones)", len(contents.Files))
 	}
 }
