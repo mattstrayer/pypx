@@ -45,6 +45,14 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 		}
 		return k == kind
 	}
+	addAttributes := func(path string, sym DocSymbolInput) {
+		for _, a := range sym.Attributes {
+			ap := path + "." + a.Name
+			if matchesQ(ap) && matchesKind(a.Kind()) {
+				entries = append(entries, entry{ap, a.Kind(), a.Signature()})
+			}
+		}
+	}
 
 	for _, mod := range in.Modules {
 		for _, fn := range mod.Functions {
@@ -64,12 +72,14 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 					entries = append(entries, entry{mp, "method", m.Signature})
 				}
 			}
+			addAttributes(path, cls)
 		}
 		for _, exc := range mod.Exceptions {
 			path := mod.Name + "." + exc.Name
 			if matchesQ(path) && matchesKind("exception") {
 				entries = append(entries, entry{path, "exception", exc.Signature})
 			}
+			addAttributes(path, exc)
 		}
 		for _, a := range mod.Aliases {
 			path := mod.Name + "." + a.Name

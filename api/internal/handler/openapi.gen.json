@@ -425,6 +425,35 @@
         ],
         "type": "object"
       },
+      "DocAttribute": {
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_property": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "is_property",
+          "writable"
+        ],
+        "type": "object"
+      },
       "DocModule": {
         "properties": {
           "aliases": {
@@ -530,6 +559,12 @@
       },
       "DocSymbol": {
         "properties": {
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/DocAttribute"
+            },
+            "type": "array"
+          },
           "docstring": {
             "type": "string"
           },

@@ -336,10 +336,16 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 }
 
 // flattenSymbols walks a DocsResponse tree and returns a dotted-path → signature
-// map for all functions, classes, methods, and exceptions across all modules.
-// On dotted-path collisions across modules (rare in valid Python), last-write-wins.
+// map for all functions, classes, methods, attributes, and exceptions across all
+// modules. On dotted-path collisions across modules (rare in valid Python),
+// last-write-wins. A method beats an attribute with the same name in its class.
 func flattenSymbols(d DocsResponse) map[string]string {
 	out := make(map[string]string)
+	addAttributes := func(path string, attrs []DocAttribute) {
+		for _, a := range attrs {
+			out[path+"."+a.Name] = attributeInputFrom(a).Signature()
+		}
+	}
 	for _, mod := range d.Modules {
 		for _, fn := range mod.Functions {
 			out[mod.Name+"."+fn.Name] = fn.Signature
@@ -347,12 +353,15 @@ func flattenSymbols(d DocsResponse) map[string]string {
 		for _, cls := range mod.Classes {
 			path := mod.Name + "." + cls.Name
 			out[path] = cls.Signature
+			addAttributes(path, cls.Attributes)
 			for _, m := range cls.Methods {
 				out[path+"."+m.Name] = m.Signature
 			}
 		}
 		for _, exc := range mod.Exceptions {
-			out[mod.Name+"."+exc.Name] = exc.Signature
+			path := mod.Name + "." + exc.Name
+			out[path] = exc.Signature
+			addAttributes(path, exc.Attributes)
 		}
 	}
 	return out

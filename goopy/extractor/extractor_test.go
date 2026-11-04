@@ -1122,3 +1122,507 @@ if TYPE_CHECKING:
 		t.Errorf("Imports = %+v", m.Imports)
 	}
 }
+
+func findAttr(c *model.Class, name string) *model.Attribute {
+	for _, a := range c.Attributes {
+		if a.Name == name {
+			return a
+		}
+	}
+	return nil
+}
+
+func methodNames(c *model.Class) []string {
+	names := []string{}
+	for _, m := range c.Methods {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
+func funcParams(fn *model.Function) []string {
+	names := []string{}
+	for _, p := range fn.Parameters {
+		names = append(names, p.Name)
+	}
+	return names
+}
+
+func TestPropertyFamilyBecomesAttributes(t *testing.T) {
+	for _, dec := range []string{
+		"property",
+		"cached_property",
+		"functools.cached_property",
+		"abstractproperty",
+		"abc.abstractproperty",
+		"cached_property(ttl=5)",
+	} {
+		t.Run(dec, func(t *testing.T) {
+			m := extract("class C:\n    @" + dec + "\n    def x(self) -> int:\n        \"\"\"Doc.\"\"\"\n        return 1\n")
+			c := m.Classes[0]
+			if len(c.Methods) != 0 {
+				t.Errorf("Methods = %v", methodNames(c))
+			}
+			a := findAttr(c, "x")
+			if a == nil || !a.IsProperty || a.Writable {
+				t.Fatalf("attribute = %+v", a)
+			}
+			if a.Type == nil || a.Type.Name != "int" || a.Docstring == nil {
+				t.Errorf("attribute lost type or docstring: %+v", a)
+			}
+		})
+	}
+}
+
+func TestPropertyAccessors(t *testing.T) {
+	m := extract(`
+class C:
+    @property
+    def rw(self) -> int:
+        return 1
+    @rw.setter
+    def rw(self, v: int) -> None:
+        pass
+    @rw.deleter
+    def rw(self) -> None:
+        pass
+
+    @property
+    def ro(self) -> int:
+        return 1
+    @ro.getter
+    def ro(self) -> int:
+        return 2
+    @ro.deleter
+    def ro(self) -> None:
+        pass
+
+    x = property(lambda self: 1)
+    @x.setter
+    def x(self, v):
+        pass
+
+    @Base.inherited.setter
+    def inherited(self, v: int) -> None:
+        pass
+
+    @hybrid_property
+    def hybrid(self):
+        return 1
+    @hybrid.setter
+    def hybrid(self, v):
+        pass
+
+    def plain(self):
+        pass
+`)
+	c := m.Classes[0]
+	if got := methodNames(c); !slices.Equal(got, []string{"hybrid", "plain"}) {
+		t.Errorf("Methods = %v", got)
+	}
+	if len(c.Methods[0].Decorators) != 1 || c.Methods[0].Decorators[0] != "hybrid_property" {
+		t.Errorf("hybrid Decorators = %v", c.Methods[0].Decorators)
+	}
+	for name, writable := range map[string]bool{"rw": true, "ro": false, "x": true, "inherited": true} {
+		a := findAttr(c, name)
+		if a == nil || !a.IsProperty || a.Writable != writable {
+			t.Errorf("%s = %+v, want a property with Writable %v", name, a, writable)
+		}
+	}
+	if a := findAttr(c, "rw"); a.Type == nil || a.Type.Name != "int" {
+		t.Errorf("rw lost the getter type: %+v", a)
+	}
+	if a := findAttr(c, "inherited"); a.Type != nil {
+		t.Errorf("a setter's None return is not the property type: %+v", a.Type)
+	}
+}
+
+func TestPrivatePropertiesStayOut(t *testing.T) {
+	m := extract(`
+class C:
+    @property
+    def _a(self):
+        return 1
+    @_a.setter
+    def _a(self, v):
+        pass
+    @cached_property
+    def _b(self):
+        return 1
+`)
+	if c := m.Classes[0]; len(c.Attributes) != 0 || len(c.Methods) != 0 {
+		t.Errorf("Attributes = %+v, Methods = %v", c.Attributes, methodNames(c))
+	}
+}
+
+func TestClassBodyRecursion(t *testing.T) {
+	m := extract(`
+class C:
+    """Doc."""
+    if TYPE_CHECKING:
+        def checking(self): pass
+    if sys.version_info >= (3, 12):
+        def new(self): pass
+        class Inner: pass
+    else:
+        def old(self): pass
+        y: int = 1
+    try:
+        def tried(self): pass
+    except ImportError:
+        def fallback(self): pass
+    for _ in range(1):
+        def looped(self): pass
+    if X:
+        if Y:
+            def nested(self): pass
+    if Z:
+        @property
+        def prop(self): return 1
+    else:
+        def __init__(self, a): self.b = a
+`)
+	c := m.Classes[0]
+	want := []string{"checking", "new", "old", "tried", "fallback", "looped", "nested"}
+	if got := methodNames(c); !slices.Equal(got, want) {
+		t.Errorf("Methods = %v, want %v", got, want)
+	}
+	if len(c.Classes) != 1 || c.Classes[0].Name != "Inner" {
+		t.Errorf("Classes = %+v", c.Classes)
+	}
+	for _, name := range []string{"y", "prop", "b"} {
+		if findAttr(c, name) == nil {
+			t.Errorf("attribute %s is missing", name)
+		}
+	}
+	if c.Constructor == nil || !slices.Equal(funcParams(c.Constructor), []string{"a"}) {
+		t.Errorf("Constructor = %+v", c.Constructor)
+	}
+}
+
+func TestOverloadsWithImplementation(t *testing.T) {
+	m := extract(`
+from typing import overload
+import typing
+
+@overload
+def f(a: int) -> int: ...
+@typing.overload
+def f(a: str) -> str:
+    """From the overload.
+
+    Args:
+        a: The value.
+    """
+def f(a):
+    return a
+
+@overload
+def g(a: int) -> int:
+    """Overload doc."""
+def g(a):
+    """Implementation doc."""
+`)
+	if len(m.Functions) != 2 {
+		t.Fatalf("Functions = %d, want 2", len(m.Functions))
+	}
+	f := m.Functions[0]
+	if f.Name != "f" || len(f.Decorators) != 0 {
+		t.Errorf("primary = %+v, want the implementation", f)
+	}
+	if len(f.Overloads) != 2 || f.Overloads[0].Parameters[0].Type.Name != "int" || f.Overloads[1].Parameters[0].Type.Name != "str" {
+		t.Errorf("Overloads = %+v", f.Overloads)
+	}
+	if f.Docstring == nil || f.Docstring.Text == "" {
+		t.Fatal("the implementation should take the overload's docstring")
+	}
+	if f.Parameters[0].DocParam == nil || f.Parameters[0].DocParam.Description != "The value." {
+		t.Errorf("DocParam = %+v", f.Parameters[0].DocParam)
+	}
+	if g := m.Functions[1]; g.Docstring == nil || g.Docstring.Text != "Implementation doc." {
+		t.Errorf("g docstring = %+v", g.Docstring)
+	}
+}
+
+func TestOverloadsOnly(t *testing.T) {
+	m := extract(`
+class P(Protocol):
+    @overload
+    def f(self, a: int) -> int: ...
+    @overload
+    def f(self, a: str) -> str: ...
+    @overload
+    def f(self, a: bytes) -> bytes: ...
+`)
+	c := m.Classes[0]
+	if len(c.Methods) != 1 {
+		t.Fatalf("Methods = %v", methodNames(c))
+	}
+	f := c.Methods[0]
+	if f.Parameters[0].Type.Name != "int" || len(f.Overloads) != 2 || f.Overloads[0].Parameters[0].Type.Name != "str" {
+		t.Errorf("primary = %+v, Overloads = %+v", f, f.Overloads)
+	}
+}
+
+func TestDuplicatesWithoutOverloads(t *testing.T) {
+	m := extract(`
+if PY2:
+    def documented(a):
+        """Old doc."""
+    def later_doc(a):
+        pass
+    def none(a):
+        pass
+    class K:
+        """First."""
+    V = 1
+    W: int = 1
+else:
+    def documented(b):
+        """New doc."""
+    def later_doc(b):
+        pass
+    def none(b):
+        pass
+    class K:
+        pass
+    V = 2
+    W = 2
+
+if PY3:
+    def later_doc(c):
+        """Doc."""
+    def tail(c):
+        pass
+`)
+	want := map[string]string{"documented": "b", "later_doc": "c", "none": "b", "tail": "c"}
+	if len(m.Functions) != len(want) {
+		t.Fatalf("Functions = %d", len(m.Functions))
+	}
+	for _, f := range m.Functions {
+		if got := funcParams(f); !slices.Equal(got, []string{want[f.Name]}) {
+			t.Errorf("%s params = %v, want %s", f.Name, got, want[f.Name])
+		}
+	}
+	if len(m.Classes) != 1 || m.Classes[0].Docstring != nil {
+		t.Errorf("Classes = %+v, want the last K", m.Classes)
+	}
+	if len(m.Attributes) != 2 || m.Attributes[0].Value != "2" || m.Attributes[1].Value != "2" {
+		t.Errorf("Attributes = %+v", m.Attributes)
+	}
+	if a := m.Attributes[1]; a.Type == nil || a.Type.Name != "int" {
+		t.Errorf("W lost its type: %+v", a)
+	}
+}
+
+func TestDuplicateDocstringKeepsLastDocumented(t *testing.T) {
+	m := extract(`
+class C:
+    if A:
+        def f(self, a):
+            """Doc."""
+    else:
+        def f(self, b):
+            pass
+`)
+	if got := funcParams(m.Classes[0].Methods[0]); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("params = %v, want the definition with a docstring", got)
+	}
+}
+
+func TestPrivateDuplicatesCollapseInHidden(t *testing.T) {
+	m := extract(`
+if A:
+    def _f(a): pass
+else:
+    def _f(b): pass
+`)
+	if len(m.Hidden.Functions) != 1 || m.Hidden.Functions[0].Parameters[0].Name != "b" {
+		t.Errorf("Hidden.Functions = %+v", m.Hidden.Functions)
+	}
+}
+
+func TestConstructorOverloads(t *testing.T) {
+	m := extract(`
+class C:
+    """Doc.
+
+    Args:
+        a: From the class.
+    """
+    @overload
+    def __init__(self, a: int) -> None: ...
+    @overload
+    def __init__(self, a: str) -> None: ...
+    def __init__(self, a):
+        self.a = a
+`)
+	c := m.Classes[0]
+	if len(c.Methods) != 0 {
+		t.Errorf("Methods = %v", methodNames(c))
+	}
+	ctor := c.Constructor
+	if ctor == nil || len(ctor.Decorators) != 0 || len(ctor.Overloads) != 2 {
+		t.Fatalf("Constructor = %+v", ctor)
+	}
+	if ctor.Parameters[0].DocParam == nil {
+		t.Error("the class docstring should still fill constructor parameters")
+	}
+	if findAttr(c, "a") == nil {
+		t.Error("attributes from __init__ are missing")
+	}
+}
+
+func TestDataclassConstructorUnchanged(t *testing.T) {
+	m := extract(`
+@dataclass
+class C:
+    a: int
+    b: str = "x"
+    def m(self): pass
+`)
+	if c := m.Classes[0].Constructor; c == nil || !slices.Equal(funcParams(c), []string{"a", "b"}) {
+		t.Errorf("Constructor = %+v", c)
+	}
+}
+
+func TestFirstParameter(t *testing.T) {
+	m := extract(`
+class C:
+    def a(self, x): pass
+    def b(this, x): pass
+    def c(klass, x): pass
+    @classmethod
+    def d(cls, x): pass
+    @classmethod
+    def e(mcs, x): pass
+    @staticmethod
+    def f(x, y): pass
+    @staticmethod
+    def g(self, y): pass
+    @abc.staticmethod
+    def h(x): pass
+    def i(*args, **kwargs): pass
+    def j(*, x): pass
+    def k(self, /, x): pass
+    def l(): pass
+    def __new__(cls, x): pass
+`)
+	want := map[string][]string{
+		"a": {"x"}, "b": {"x"}, "c": {"x"}, "d": {"x"}, "e": {"x"},
+		"f": {"x", "y"}, "g": {"self", "y"}, "h": {"x"},
+		"i": {"args", "kwargs"}, "j": {"x"}, "k": {"x"}, "l": {}, "__new__": {"x"},
+	}
+	methods := m.Classes[0].Methods
+	if len(methods) != len(want) {
+		t.Fatalf("Methods = %d", len(methods))
+	}
+	for _, fn := range methods {
+		if got := funcParams(fn); !slices.Equal(got, want[fn.Name]) {
+			t.Errorf("%s params = %v, want %v", fn.Name, got, want[fn.Name])
+		}
+	}
+	// Module functions keep every parameter.
+	m = extract("def f(self, x): pass\n")
+	if got := funcParams(m.Functions[0]); !slices.Equal(got, []string{"self", "x"}) {
+		t.Errorf("function params = %v", got)
+	}
+}
+
+func TestInstanceAttributes(t *testing.T) {
+	m := extract(`
+class C:
+    default = 1
+    typed: int
+    both: int = 2
+    def __init__(self, a, b):
+        self.a = a
+        self.b: int = b
+        self.bare: str
+        self.default = a
+        self.typed = a
+        self.both = a
+        self.twice = a
+        self.twice = b
+        self.later = a
+        self.annotated: float = a
+        self.prop = a
+        self.via_base = a
+    later = 3
+    annotated = 4
+    @property
+    def prop(self):
+        return 1
+    @Base.via_base.setter
+    def via_base(self, v):
+        pass
+`)
+	c := m.Classes[0]
+	for name, want := range map[string]struct {
+		instance bool
+		value    string
+		typ      string
+	}{
+		"a":         {true, "a", ""},
+		"b":         {true, "b", "int"},
+		"bare":      {true, "", "str"},
+		"twice":     {true, "b", ""},
+		"default":   {false, "1", ""},
+		"typed":     {false, "", "int"},
+		"both":      {false, "2", "int"},
+		"later":     {false, "3", ""},
+		"annotated": {false, "4", "float"},
+		"prop":      {false, "", ""},
+		"via_base":  {false, "", ""},
+	} {
+		a := findAttr(c, name)
+		if a == nil {
+			t.Errorf("%s is missing", name)
+			continue
+		}
+		typ := ""
+		if a.Type != nil {
+			typ = a.Type.Name
+		}
+		if a.Instance != want.instance || a.Value != want.value || typ != want.typ {
+			t.Errorf("%s = {Instance:%v Value:%q Type:%q}, want %+v", name, a.Instance, a.Value, typ, want)
+		}
+	}
+	for _, name := range []string{"prop", "via_base"} {
+		if !findAttr(c, name).IsProperty {
+			t.Errorf("%s should be a property", name)
+		}
+	}
+}
+
+func TestLambdaDefaults(t *testing.T) {
+	for src, want := range map[string]string{
+		"lambda x: x":                    "lambda x: x",
+		"lambda: 0":                      "lambda: 0",
+		"lambda  x , y=1 : x":            "lambda x , y=1: x",
+		"lambda *a, **k: a":              "lambda *a, **k: a",
+		"lambda x=a[1:2]: x":             "lambda x=a[1:2]: x",
+		"lambda x={1: 2}: x":             "lambda x={1: 2}: x",
+		"lambda x=lambda y: y: x":        "lambda x=lambda y: y: x",
+		"lambda x='a:  b': x":            "lambda x='a:  b': x",
+		"lambda x: lambda y: x":          "lambda x: lambda y: x",
+		"(lambda x: x)(1)":               "(lambda x: x)(1)",
+		"(lambda: a).b":                  "(lambda: a).b",
+		"[lambda: 0, 1]":                 "[lambda: 0, 1]",
+		"(lambda a,  # first\n  b: a)":   "lambda a, b: a",
+		"(lambda a='#',  # c\n  b=1: a)": "lambda a='#', b=1: a",
+	} {
+		t.Run(src, func(t *testing.T) {
+			m := extract("def f(key=" + src + ", after=1): pass\n")
+			if len(m.Functions) != 1 || len(m.Functions[0].Parameters) != 2 {
+				t.Fatalf("Functions = %+v", m.Functions)
+			}
+			if got := m.Functions[0].Parameters[0].Default; got != want {
+				t.Errorf("Default = %q, want %q", got, want)
+			}
+			if got := m.Functions[0].Parameters[1].Default; got != "1" {
+				t.Errorf("next parameter Default = %q", got)
+			}
+		})
+	}
+}

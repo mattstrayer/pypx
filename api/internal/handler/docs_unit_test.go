@@ -9,11 +9,298 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
 	"golang.org/x/sync/semaphore"
 )
+
+func testClass(name string, bases ...string) *model.Class {
+	c := &model.Class{Name: name}
+	for _, b := range bases {
+		c.BaseClasses = append(c.BaseClasses, &model.TypeRef{Name: b})
+	}
+	return c
+}
+
+func TestConvertClass_Attributes(t *testing.T) {
+	cls := &model.Class{
+		Name: "C",
+		Attributes: []*model.Attribute{
+			{Name: "plain", Type: &model.TypeExpr{Raw: "int"}, Value: "1"},
+			{Name: "ro", IsProperty: true, Docstring: &model.Docstring{Text: "A property."}},
+			{Name: "rw", IsProperty: true, Writable: true},
+		},
+	}
+	got := convertClass(cls, nil, "m").Attributes
+	want := []DocAttribute{
+		{Name: "plain", Type: "int", Default: "1"},
+		{Name: "ro", Description: "A property.", IsProperty: true},
+		{Name: "rw", IsProperty: true, Writable: true},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Attributes = %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("Attributes[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestConvertClass_InstanceAttributesHaveNoDefault(t *testing.T) {
+	inst := &model.Attribute{Name: "app", Value: "app", Instance: true, Type: &model.TypeExpr{Raw: "App"}}
+	cls := &model.Class{Name: "C", Attributes: []*model.Attribute{inst, {Name: "limit", Value: "1"}}}
+	got := convertClass(cls, nil, "m").Attributes
+	if len(got) != 2 || got[0].Default != "" || got[0].Type != "App" || got[1].Default != "1" {
+		t.Errorf("Attributes = %+v", got)
+	}
+	if inst.Value != "app" {
+		t.Errorf("the model value changed to %q", inst.Value)
+	}
+}
+
+func TestConvertClass_HidesDunderAttributes(t *testing.T) {
+	cls := &model.Class{Name: "C", Attributes: []*model.Attribute{
+		{Name: "__slots__", Value: "()"},
+		{Name: "__module__", Value: "'x'"},
+		{Name: "__mangled", Value: "1"},
+		{Name: "public", Value: "2"},
+		{Name: "trailing__", Value: "3"},
+		{Name: "____", Value: "4"},
+	}}
+	names := []string{}
+	for _, a := range convertClass(cls, nil, "m").Attributes {
+		names = append(names, a.Name)
+	}
+	if got, want := strings.Join(names, ","), "__mangled,public,trailing__,____"; got != want {
+		t.Errorf("names = %s, want %s", got, want)
+	}
+}
+
+func TestTruncateDefault(t *testing.T) {
+	for name, tc := range map[string]struct{ in, want string }{
+		"short":                  {"abc", "abc"},
+		"empty":                  {"", ""},
+		"at the limit":           {strings.Repeat("a", 120), strings.Repeat("a", 120)},
+		"over":                   {strings.Repeat("a", 121), strings.Repeat("a", 119) + "…"},
+		"multibyte at the limit": {strings.Repeat("é", 120), strings.Repeat("é", 120)},
+		"multibyte over":         {strings.Repeat("é", 200), strings.Repeat("é", 119) + "…"},
+		"wide runes":             {strings.Repeat("日本", 100), strings.Repeat("日本", 59) + "日…"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := truncateDefault(tc.in)
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+			if !utf8.ValidString(got) || utf8.RuneCountInString(got) > 120 {
+				t.Errorf("invalid result: %q", got)
+			}
+		})
+	}
+	long := &model.Attribute{Name: "x", Value: strings.Repeat("v", 500)}
+	got := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{long}}, nil, "m").Attributes[0]
+	if utf8.RuneCountInString(got.Default) != 120 || len(long.Value) != 500 {
+		t.Errorf("Default has %d runes, model value has %d bytes", utf8.RuneCountInString(got.Default), len(long.Value))
+	}
+}
+
+func TestFlattenSymbols_InstanceValueChurn(t *testing.T) {
+	flatten := func(value string) map[string]string {
+		attrs := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
+			{Name: "x", Value: value, Instance: true},
+		}}, nil, "m").Attributes
+		return flattenSymbols(DocsResponse{Modules: []DocModule{{
+			Name:    "m",
+			Classes: []DocSymbol{{Name: "C", Attributes: attrs}},
+		}}})
+	}
+	before, after := flatten("old_expr"), flatten("new_expr")
+	if before["m.C.x"] != "x" || after["m.C.x"] != "x" {
+		t.Errorf("before = %q, after = %q, want both x", before["m.C.x"], after["m.C.x"])
+	}
+}
+
+func TestDocSymbolJSON_AttributesKey(t *testing.T) {
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:      "m",
+		Functions: []*model.Function{{Name: "f"}},
+		Classes:   []*model.Class{testClass("Plain"), testClass("Bad", "ValueError")},
+	}}}
+	resp := convertToDocsResponse("p", "1", pkg, nil)
+	raw := func(sym DocSymbol) map[string]json.RawMessage {
+		data, err := json.Marshal(sym)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	dm := resp.Modules[0]
+	if _, ok := raw(dm.Functions[0])["attributes"]; ok {
+		t.Error("a function must not have attributes")
+	}
+	if got := string(raw(dm.Classes[0])["attributes"]); got != "[]" {
+		t.Errorf("class attributes = %q, want []", got)
+	}
+	if got := string(raw(dm.Exceptions[0])["attributes"]); got != "[]" {
+		t.Errorf("exception attributes = %q, want []", got)
+	}
+}
+
+func TestFlattenSymbols_Attributes(t *testing.T) {
+	sym := func(attrs ...DocAttribute) DocsResponse {
+		return DocsResponse{Modules: []DocModule{{
+			Name:       "m",
+			Classes:    []DocSymbol{{Name: "C", Signature: "class C", Attributes: attrs, Methods: []DocSymbol{{Name: "both", Signature: "def both()"}}}},
+			Exceptions: []DocSymbol{{Name: "E", Signature: "class E(Exception)", Attributes: []DocAttribute{{Name: "code", Type: "int"}}}},
+		}}}
+	}
+	got := flattenSymbols(sym(
+		DocAttribute{Name: "size", Type: "int", IsProperty: true},
+		DocAttribute{Name: "both"},
+	))
+	for path, want := range map[string]string{
+		"m.C.size": "property size: int [read-only]",
+		"m.C.both": "def both()",
+		"m.E.code": "code: int",
+	} {
+		if got[path] != want {
+			t.Errorf("%s = %q, want %q", path, got[path], want)
+		}
+	}
+	// A removed property leaves the map, and a new setter changes the signature.
+	if _, ok := flattenSymbols(sym())["m.C.size"]; ok {
+		t.Error("a removed property must not stay in the map")
+	}
+	if w := flattenSymbols(sym(DocAttribute{Name: "size", Type: "int", IsProperty: true, Writable: true})); w["m.C.size"] == got["m.C.size"] {
+		t.Error("gaining a setter must change the signature")
+	}
+}
+
+func TestExceptionClasses_Names(t *testing.T) {
+	for base, want := range map[string]bool{
+		"Exception":          true,
+		"BaseException":      true,
+		"ValueError":         true,
+		"errors.CustomError": true,
+		"UserWarning":        true,
+		"SystemExit":         true,
+		"Generic[Error]":     false,
+		"MyError[T]":         true,
+		"ExceptionGroup":     true,
+		"ExceptionGroup[E]":  true,
+		"BaseExceptionGroup": true,
+		"KeyboardInterrupt":  true,
+		"StopIteration":      true,
+		"StopAsyncIteration": true,
+		"ErrorHandler":       false,
+		"ExceptionMixin":     false,
+		"WarningFilter":      false,
+		"errors.Base":        false,
+		"Error.Inner":        false,
+		"object":             false,
+		"Terror":             false,
+	} {
+		cls := testClass("C", base)
+		pkg := &model.Package{Modules: []*model.Module{{Name: "m", Classes: []*model.Class{cls}}}}
+		if got := exceptionClasses(pkg)[cls]; got != want {
+			t.Errorf("base %q: exception = %v, want %v", base, got, want)
+		}
+	}
+}
+
+func TestExceptionClasses_SameModule(t *testing.T) {
+	// The order is deliberate: a subclass may come before its base in the list.
+	grandchild := testClass("C", "B")
+	child := testClass("B", "A")
+	root := testClass("A", "ValueError")
+	other := testClass("D", "E")
+	mixed := testClass("F", "Mixin", "A")
+	pkg := &model.Package{Modules: []*model.Module{{Name: "m", Classes: []*model.Class{grandchild, child, root, other, mixed}}}}
+	got := exceptionClasses(pkg)
+	for _, c := range []*model.Class{grandchild, child, root, mixed} {
+		if !got[c] {
+			t.Errorf("%s should be an exception", c.Name)
+		}
+	}
+	if got[other] {
+		t.Error("D has no exception base")
+	}
+}
+
+func TestExceptionClasses_SameNameInOtherModule(t *testing.T) {
+	base := testClass("Base", "Exception")
+	c := testClass("C", "Base")
+	pkg := &model.Package{Modules: []*model.Module{
+		{Name: "a", Classes: []*model.Class{base}},
+		{Name: "b", Classes: []*model.Class{c}},
+	}}
+	if exceptionClasses(pkg)[c] {
+		t.Error("b.Base is not known, so a.Base must not decide")
+	}
+}
+
+func TestExceptionClasses_CopiedClasses(t *testing.T) {
+	// pkg re-exports from the private pkg._errors, so both copies carry an Origin.
+	root := testClass("Root", "Exception")
+	root.Origin = "pkg._errors"
+	child := testClass("Child", "Root")
+	child.Origin = "pkg._errors"
+	renamedBase := testClass("Public", "Exception")
+	renamedBase.Origin, renamedBase.OriginName = "pkg._errors", "Hidden"
+	viaRename := testClass("ViaRename", "Hidden")
+	viaRename.Origin = "pkg._errors"
+	unknown := testClass("Unknown", "NotInOutput")
+	unknown.Origin = "pkg._errors"
+	wrongScope := testClass("WrongScope", "Local")
+	wrongScope.Origin = "pkg._other"
+	local := testClass("Local", "Exception")
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:    "pkg",
+		Classes: []*model.Class{child, root, viaRename, renamedBase, unknown, wrongScope, local},
+	}}}
+	got := exceptionClasses(pkg)
+	for _, c := range []*model.Class{root, child, viaRename, renamedBase, local} {
+		if !got[c] {
+			t.Errorf("%s should be an exception", c.Name)
+		}
+	}
+	if got[unknown] {
+		t.Error("a base not in the output must not count")
+	}
+	if got[wrongScope] {
+		t.Error("the base must be looked up in the class's Origin, not where the copy lives")
+	}
+}
+
+func TestExceptionClasses_FollowsAlias(t *testing.T) {
+	root := testClass("Root", "Exception")
+	child := testClass("Child", "Root")
+	pkg := &model.Package{Modules: []*model.Module{
+		{Name: "pkg", Classes: []*model.Class{child}, Aliases: []*model.Alias{{Name: "Root", Target: "pkg.errors.Root"}}},
+		{Name: "pkg.errors", Classes: []*model.Class{root}},
+	}}
+	if !exceptionClasses(pkg)[child] {
+		t.Error("Child's base is an alias of an exception")
+	}
+}
+
+func TestConvertToDocsResponse_GroupsDerivedExceptions(t *testing.T) {
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:    "m",
+		Classes: []*model.Class{testClass("B", "A"), testClass("A", "Exception"), testClass("Plain")},
+	}}}
+	resp := convertToDocsResponse("p", "1", pkg, nil)
+	dm := resp.Modules[0]
+	if len(dm.Exceptions) != 2 || len(dm.Classes) != 1 || dm.Classes[0].Name != "Plain" {
+		t.Errorf("Exceptions = %+v, Classes = %+v", dm.Exceptions, dm.Classes)
+	}
+}
 
 func TestCleanDocstringText_Sphinx(t *testing.T) {
 	ds := &model.Docstring{

@@ -18,7 +18,7 @@ import (
 
 // ExtractorVersion identifies the output of this extractor. Bump it in any change
 // that alters extraction output, so cached results are regenerated.
-const ExtractorVersion = 1
+const ExtractorVersion = 2
 
 // parallelThreshold is the minimum number of files needed to use goroutine
 // parallelism. Below this threshold, serial extraction avoids goroutine overhead.

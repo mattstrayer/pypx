@@ -185,6 +185,15 @@ export interface ExtrasResponse {
   repo_info?: RepoInfo | null;
 }
 
+export interface DocAttribute {
+  name: string;
+  type?: string;
+  default?: string;
+  description: string;
+  is_property: boolean;
+  writable: boolean;
+}
+
 export interface DocParam {
   name: string;
   type?: string;
@@ -212,6 +221,7 @@ export interface DocSymbol {
   returns?: DocReturn | null;
   raises?: DocRaise[];
   methods?: DocSymbol[];
+  attributes?: DocAttribute[];
   origin?: string;
 }
 

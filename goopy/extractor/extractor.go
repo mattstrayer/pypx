@@ -43,7 +43,19 @@ func (e *Extractor) ExtractModule(name string, mod *ast.Module) *model.Module {
 
 	e.extractStmts(mod.Body, m, exports)
 
+	// The resolver indexes these lists, so one name must be one definition here.
+	collapseDefinitions(&m.Functions, &m.Classes, &m.Attributes, &m.TypeAliases)
+	collapseDefinitions(&m.Hidden.Functions, &m.Hidden.Classes, &m.Hidden.Attributes, &m.Hidden.TypeAliases)
+
 	return m
+}
+
+// collapseDefinitions leaves one definition per name in each list.
+func collapseDefinitions(fns *[]*model.Function, classes *[]*model.Class, attrs *[]*model.Attribute, aliases *[]*model.TypeAlias) {
+	*fns = collapseFunctions(*fns)
+	*classes = collapseLast(*classes, func(c *model.Class) string { return c.Name })
+	*attrs = collapseAttributes(*attrs)
+	*aliases = collapseLast(*aliases, func(t *model.TypeAlias) string { return t.Name })
 }
 
 // extractStmts walks a slice of statements, populating m with any definitions
@@ -179,10 +191,10 @@ func (e *Extractor) extractFunction(fd *ast.FunctionDef, isMethod bool) *model.F
 	// Parameters.
 	if fd.Args != nil {
 		fn.Parameters = extractParameters(fd.Args)
-		// If this is a method, strip 'self' or 'cls' from the first parameter.
-		if isMethod && len(fn.Parameters) > 0 {
-			first := fn.Parameters[0].Name
-			if first == "self" || first == "cls" {
+		// A method's first parameter is the bound object, whatever its name. In
+		// def f(*args) or def f(*, a) no parameter holds only that object.
+		if isMethod && !hasDecorator(fd.Decorators, "staticmethod") && len(fn.Parameters) > 0 {
+			if k := fn.Parameters[0].Kind; k == model.ParamPositionalOnly || k == model.ParamPositionalOrKeyword {
 				fn.Parameters = fn.Parameters[1:]
 			}
 		}
@@ -233,59 +245,18 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 	}
 
 	// Walk class body for methods and attributes.
-	for _, stmt := range cd.Body {
-		switch s := stmt.(type) {
-		case *ast.FunctionDef:
-			// Check for @property decorator.
-			if hasDecorator(s.Decorators, "property") {
-				attr := e.extractPropertyAttribute(s)
-				cls.Attributes = append(cls.Attributes, attr)
-				continue
-			}
+	e.extractClassStmts(cd.Body, cls, moduleExports)
 
-			// Skip __init__ and private methods from the methods list.
-			if s.Name == "__init__" {
-				// But extract attributes from __init__ body.
-				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
-				cls.Constructor = e.extractFunction(s, true)
-				continue
-			}
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
-				continue
-			}
-			// Also skip private dunder methods that aren't public API,
-			// but keep standard dunders like __len__, __repr__, etc.
-
-			fn := e.extractFunction(s, true)
-			cls.Methods = append(cls.Methods, fn)
-
-		case *ast.AnnAssign:
-			attr := e.extractAttribute(s)
-			if attr != nil {
-				cls.Attributes = append(cls.Attributes, attr)
-			}
-
-		case *ast.Assign:
-			for _, target := range s.Targets {
-				if n, ok := target.(*ast.Name); ok {
-					if strings.HasPrefix(n.Name, "_") && !strings.HasPrefix(n.Name, "__") {
-						continue
-					}
-					attr := &model.Attribute{
-						Name:  n.Name,
-						Value: exprToString(s.Value),
-					}
-					cls.Attributes = append(cls.Attributes, attr)
-				}
-			}
-
-		case *ast.ClassDef:
-			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
-			// Same privacy rule as methods: skip _Name but keep dunder-style names.
-			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
-				continue
-			}
-			cls.Classes = append(cls.Classes, e.extractClass(s, moduleExports))
+	// One name is one member. __init__ goes through the same collapse, so the
+	// constructor is the implementation with its overloads attached.
+	cls.Methods = collapseFunctions(cls.Methods)
+	cls.Attributes = collapseAttributes(cls.Attributes)
+	cls.Classes = collapseLast(cls.Classes, func(c *model.Class) string { return c.Name })
+	for i, m := range cls.Methods {
+		if m.Name == "__init__" {
+			cls.Constructor = m
+			cls.Methods = slices.Delete(cls.Methods, i, i+1)
+			break
 		}
 	}
 
@@ -308,6 +279,221 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 	}
 
 	return cls
+}
+
+// extractClassStmts walks statements of a class body, populating cls. It recurses
+// into If and PassThrough bodies like extractStmts. __init__ lands in cls.Methods
+// until extractClass moves it to cls.Constructor.
+func (e *Extractor) extractClassStmts(stmts []ast.Stmt, cls *model.Class, moduleExports map[string]struct{}) {
+	for _, stmt := range stmts {
+		switch s := stmt.(type) {
+		case *ast.FunctionDef:
+			if isPrivateMember(s.Name) {
+				continue
+			}
+			if accessor, ok := propertyAccessor(s.Decorators); ok {
+				e.applyPropertyAccessor(cls, s, accessor)
+				continue
+			}
+			if slices.ContainsFunc(propertyDecorators, func(name string) bool { return hasDecorator(s.Decorators, name) }) {
+				cls.Attributes = append(cls.Attributes, e.extractPropertyAttribute(s))
+				continue
+			}
+			if s.Name == "__init__" {
+				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
+			}
+			cls.Methods = append(cls.Methods, e.extractFunction(s, true))
+
+		case *ast.AnnAssign:
+			attr := e.extractAttribute(s)
+			if attr != nil {
+				cls.Attributes = append(cls.Attributes, attr)
+			}
+
+		case *ast.Assign:
+			for _, target := range s.Targets {
+				if n, ok := target.(*ast.Name); ok {
+					if isPrivateMember(n.Name) {
+						continue
+					}
+					attr := &model.Attribute{
+						Name:  n.Name,
+						Value: exprToString(s.Value),
+					}
+					cls.Attributes = append(cls.Attributes, attr)
+				}
+			}
+
+		case *ast.ClassDef:
+			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
+			// Same privacy rule as methods: skip _Name but keep dunder-style names.
+			if isPrivateMember(s.Name) {
+				continue
+			}
+			cls.Classes = append(cls.Classes, e.extractClass(s, moduleExports))
+
+		case *ast.PassThrough:
+			e.extractClassStmts(s.Body, cls, moduleExports)
+
+		case *ast.If:
+			e.extractClassStmts(s.Body, cls, moduleExports)
+			e.extractClassStmts(s.Orelse, cls, moduleExports)
+		}
+	}
+}
+
+// isPrivateMember reports whether a class member is private: _name, but not a
+// dunder-style name.
+func isPrivateMember(name string) bool {
+	return strings.HasPrefix(name, "_") && !strings.HasPrefix(name, "__")
+}
+
+// propertyDecorators lists the decorators that turn a method into an attribute.
+var propertyDecorators = []string{"property", "cached_property", "abstractproperty"}
+
+// propertyAccessor returns the accessor kind ("setter", "getter", "deleter") of
+// a @x.setter style decorator.
+func propertyAccessor(decorators []ast.Expr) (string, bool) {
+	for _, dec := range decorators {
+		if a, ok := dec.(*ast.Attribute); ok {
+			switch a.Attr {
+			case "setter", "getter", "deleter":
+				return a.Attr, true
+			}
+		}
+	}
+	return "", false
+}
+
+// applyPropertyAccessor records a @x.setter style method on cls. It never adds a
+// method: the accessor belongs to the attribute of the same name.
+func (e *Extractor) applyPropertyAccessor(cls *model.Class, fd *ast.FunctionDef, accessor string) {
+	for _, attr := range slices.Backward(cls.Attributes) {
+		if attr.Name == fd.Name {
+			attr.IsProperty = true
+			attr.Writable = attr.Writable || accessor == "setter"
+			// The accessor is a class-level definition, and __init__ only sets it.
+			if attr.Instance {
+				attr.Instance, attr.Value = false, ""
+			}
+			return
+		}
+	}
+	// A custom descriptor such as @hybrid_property stays where it is, as a method.
+	if slices.ContainsFunc(cls.Methods, func(m *model.Function) bool { return m.Name == fd.Name }) {
+		return
+	}
+	// The property is not in this body, as in @Base.x.setter. The method still
+	// binds a property of its own name.
+	attr := e.extractPropertyAttribute(fd)
+	attr.Writable = accessor == "setter"
+	if accessor != "getter" {
+		attr.Type = nil
+	}
+	cls.Attributes = append(cls.Attributes, attr)
+}
+
+// isOverload reports whether fn is decorated with overload or typing.overload.
+func isOverload(fn *model.Function) bool {
+	return slices.ContainsFunc(fn.Decorators, func(d string) bool {
+		return d == "overload" || strings.HasSuffix(d, ".overload")
+	})
+}
+
+// collapseFunctions leaves one function per name, at the position of the name's
+// first definition. The primary is the implementation, or the first overload if
+// there is no implementation. Among several implementations (version branches)
+// it is the last with a docstring, otherwise the last.
+func collapseFunctions(fns []*model.Function) []*model.Function {
+	type group struct{ impls, overloads []*model.Function }
+	groups := make(map[string]*group, len(fns))
+	var names []string
+	for _, fn := range fns {
+		g, ok := groups[fn.Name]
+		if !ok {
+			g = &group{}
+			groups[fn.Name] = g
+			names = append(names, fn.Name)
+		}
+		if isOverload(fn) {
+			g.overloads = append(g.overloads, fn)
+		} else {
+			g.impls = append(g.impls, fn)
+		}
+	}
+	out := fns[:0:0]
+	for _, name := range names {
+		g := groups[name]
+		var primary *model.Function
+		if len(g.impls) > 0 {
+			primary = g.impls[len(g.impls)-1]
+			for _, fn := range slices.Backward(g.impls) {
+				if hasDocstring(fn) {
+					primary = fn
+					break
+				}
+			}
+		} else {
+			primary, g.overloads = g.overloads[0], g.overloads[1:]
+		}
+		primary.Overloads = g.overloads
+		if primary.Docstring == nil {
+			if i := slices.IndexFunc(g.overloads, hasDocstring); i >= 0 {
+				primary.Docstring = g.overloads[i].Docstring
+				attachDocParams(primary.Parameters, primary.Docstring.Params)
+			}
+		}
+		out = append(out, primary)
+	}
+	return out
+}
+
+func hasDocstring(fn *model.Function) bool { return fn.Docstring != nil }
+
+// collapseLast leaves one item per name: the last, at the position of the name's
+// first definition.
+func collapseLast[T any](items []T, name func(T) string) []T {
+	index := make(map[string]int, len(items))
+	out := items[:0:0]
+	for _, it := range items {
+		if i, ok := index[name(it)]; ok {
+			out[i] = it
+			continue
+		}
+		index[name(it)] = len(out)
+		out = append(out, it)
+	}
+	return out
+}
+
+// collapseAttributes leaves one attribute per name. The last definition wins, but
+// definitions of a name describe one attribute: "x: int" and a later "self.x = x"
+// keep the type, and "self.x = x" does not stop a property from being a property.
+// A class-level definition beats __init__ in either source order, because its value
+// is the real default. The result is Instance only if every definition is.
+func collapseAttributes(attrs []*model.Attribute) []*model.Attribute {
+	index := make(map[string]int, len(attrs))
+	out := attrs[:0:0]
+	for _, a := range attrs {
+		i, ok := index[a.Name]
+		if !ok {
+			index[a.Name] = len(out)
+			out = append(out, a)
+			continue
+		}
+		winner, other := a, out[i]
+		if (other.IsProperty && !a.IsProperty) || (a.Instance && !other.Instance) {
+			winner, other = other, a
+		}
+		if winner.Type == nil {
+			winner.Type = other.Type
+		}
+		if winner.Docstring == nil {
+			winner.Docstring = other.Docstring
+		}
+		out[i] = winner
+	}
+	return out
 }
 
 // dataclassConstructor synthesizes a constructor for a @dataclass class
@@ -479,8 +665,9 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 							continue
 						}
 						attrs = append(attrs, &model.Attribute{
-							Name:  a.Attr,
-							Value: exprToString(s.Value),
+							Name:     a.Attr,
+							Value:    exprToString(s.Value),
+							Instance: true,
 						})
 					}
 				}
@@ -492,8 +679,9 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 						continue
 					}
 					attr := &model.Attribute{
-						Name: a.Attr,
-						Type: exprToTypeExpr(s.Annotation),
+						Name:     a.Attr,
+						Type:     exprToTypeExpr(s.Annotation),
+						Instance: true,
 					}
 					if s.Value != nil {
 						attr.Value = exprToString(s.Value)
@@ -869,4 +1057,3 @@ func hasDecorator(decorators []ast.Expr, name string) bool {
 	}
 	return false
 }
-

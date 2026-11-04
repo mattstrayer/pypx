@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pypx/api/internal/cache"
@@ -62,8 +63,21 @@ type DocSymbol struct {
 	Returns    *DocReturn  `json:"returns,omitempty"`
 	Raises     []DocRaise  `json:"raises,omitempty"`
 	Methods    []DocSymbol `json:"methods,omitempty"`
+	// Attributes is set on classes and exceptions, as an empty list if they have
+	// none. omitzero keeps an empty list and drops the nil list of other kinds.
+	Attributes []DocAttribute `json:"attributes,omitzero"`
 	// Origin is the dotted module that defines a re-exported symbol.
 	Origin string `json:"origin,omitempty"`
+}
+
+// DocAttribute is a class attribute or property.
+type DocAttribute struct {
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Default     string `json:"default,omitempty"`
+	Description string `json:"description"`
+	IsProperty  bool   `json:"is_property"`
+	Writable    bool   `json:"writable"`
 }
 
 // DocParam is a function parameter.
@@ -565,6 +579,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		aliases []*model.Alias
 	}
 	var aliases []moduleAliases
+	exceptions := exceptionClasses(pkg)
 
 	for _, mod := range pkg.Modules {
 		dm := DocModule{
@@ -580,7 +595,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 
 		for _, cls := range mod.Classes {
 			sym := convertClass(cls, stubs, mod.Name)
-			if isException(cls) {
+			if exceptions[cls] {
 				sym.Kind = "exception"
 				dm.Exceptions = append(dm.Exceptions, sym)
 			} else {
@@ -769,7 +784,44 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		}
 	}
 
+	sym.Attributes = make([]DocAttribute, 0, len(cls.Attributes))
+	for _, a := range cls.Attributes {
+		if isDunder(a.Name) {
+			continue
+		}
+		attr := DocAttribute{
+			Name:        a.Name,
+			Description: cleanDocstringText(a.Docstring),
+			IsProperty:  a.IsProperty,
+			Writable:    a.Writable,
+		}
+		// An __init__ assignment holds an expression, not a default.
+		if !a.Instance {
+			attr.Default = truncateDefault(a.Value)
+		}
+		if a.Type != nil {
+			attr.Type = a.Type.Raw
+		}
+		sym.Attributes = append(sym.Attributes, attr)
+	}
+
 	return sym
+}
+
+// isDunder reports whether name has the form __name__. A mangled __name is not one.
+func isDunder(name string) bool {
+	return len(name) > 4 && strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__")
+}
+
+// maxDefaultRunes caps an attribute default in API output, ellipsis included.
+const maxDefaultRunes = 120
+
+// truncateDefault shortens a long default on a rune boundary.
+func truncateDefault(s string) string {
+	if utf8.RuneCountInString(s) <= maxDefaultRunes {
+		return s
+	}
+	return string([]rune(s)[:maxDefaultRunes-1]) + "…"
 }
 
 // buildMergedSignature builds a function signature using the already-merged DocParam
@@ -978,16 +1030,83 @@ func isGoogleSection(word string) bool {
 	return false
 }
 
-// isException returns true if the class inherits from an exception base.
-func isException(cls *model.Class) bool {
-	for _, base := range cls.BaseClasses {
-		name := base.Name
-		if strings.Contains(name, "Exception") || strings.Contains(name, "Error") ||
-			strings.Contains(name, "Warning") || name == "BaseException" {
-			return true
+// baseSegment returns the last dotted segment of a base class, without type
+// arguments: "errors.Base[T]" gives "Base".
+func baseSegment(base string) string {
+	base, _, _ = strings.Cut(base, "[")
+	return base[strings.LastIndex(base, ".")+1:]
+}
+
+// isExceptionName reports whether a base class name is an exception by its name.
+// The builtins in the switch are the ones that do not follow the suffix rule.
+func isExceptionName(base string) bool {
+	segment := baseSegment(base)
+	switch segment {
+	case "BaseExceptionGroup", "ExceptionGroup", "KeyboardInterrupt", "StopIteration", "StopAsyncIteration":
+		return true
+	}
+	return strings.HasSuffix(segment, "Error") || strings.HasSuffix(segment, "Exception") ||
+		strings.HasSuffix(segment, "Warning") || strings.HasSuffix(segment, "Exit")
+}
+
+// exceptionClasses returns the classes of pkg that inherit from an exception. A
+// plain base name is looked up in the module that defines the class, which for a
+// copied class is its Origin. A base that is not in the output stays unknown: its
+// class is an exception only if the base's own name says so.
+func exceptionClasses(pkg *model.Package) map[*model.Class]bool {
+	byPath := map[string]*model.Class{}
+	aliases := map[string]string{}
+	for _, mod := range pkg.Modules {
+		for _, cls := range mod.Classes {
+			byPath[mod.Name+"."+cls.Name] = cls
+			if key := originKey(cls.Origin, cls.OriginName, cls.Name); key != "" {
+				byPath[key] = cls
+			}
+		}
+		for _, a := range mod.Aliases {
+			aliases[mod.Name+"."+a.Name] = a.Target
 		}
 	}
-	return false
+
+	// bases holds the classes in the output that each class inherits from.
+	bases := map[*model.Class][]*model.Class{}
+	exceptions := map[*model.Class]bool{}
+	for _, mod := range pkg.Modules {
+		for _, cls := range mod.Classes {
+			scope := mod.Name
+			if cls.Origin != "" {
+				scope = cls.Origin
+			}
+			for _, base := range cls.BaseClasses {
+				if isExceptionName(base.Name) {
+					exceptions[cls] = true
+				}
+				// A dotted base names another module, which this data cannot resolve.
+				name, _, _ := strings.Cut(base.Name, "[")
+				if strings.Contains(name, ".") {
+					continue
+				}
+				path := scope + "." + name
+				if target, ok := aliases[path]; ok {
+					path = target
+				}
+				if parent := byPath[path]; parent != nil {
+					bases[cls] = append(bases[cls], parent)
+				}
+			}
+		}
+	}
+
+	for changed := true; changed; {
+		changed = false
+		for cls, parents := range bases {
+			if !exceptions[cls] && slices.ContainsFunc(parents, func(p *model.Class) bool { return exceptions[p] }) {
+				exceptions[cls] = true
+				changed = true
+			}
+		}
+	}
+	return exceptions
 }
 
 // GetText handles GET /api/packages/{name}/docs.txt[?prefix=].
@@ -1065,7 +1184,17 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 	for _, m := range s.Methods {
 		out.Methods = append(out.Methods, docSymbolFrom(m))
 	}
+	for _, a := range s.Attributes {
+		out.Attributes = append(out.Attributes, attributeInputFrom(a))
+	}
 	return out
+}
+
+func attributeInputFrom(a DocAttribute) textfmt.DocAttributeInput {
+	return textfmt.DocAttributeInput{
+		Name: a.Name, Type: a.Type, Default: a.Default, Description: a.Description,
+		IsProperty: a.IsProperty, Writable: a.Writable,
+	}
 }
 
 // GetSymbol handles GET /api/packages/{name}/docs/{symbol}.txt.

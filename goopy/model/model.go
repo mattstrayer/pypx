@@ -97,6 +97,8 @@ type Function struct {
 	IsAsync    bool         `json:"is_async"`
 	IsMethod   bool         `json:"is_method"`
 	Decorators []string     `json:"decorators,omitempty"`
+	// Overloads lists the @overload signatures of this function.
+	Overloads []*Function `json:"overloads,omitempty"`
 	// Origin is the dotted module that defines this function, set on a re-export.
 	Origin string `json:"origin,omitempty"`
 	// OriginName is the name in Origin, set if the re-export renames the function.
@@ -135,6 +137,11 @@ type Attribute struct {
 	Value      string     `json:"value,omitempty"`
 	Docstring  *Docstring `json:"docstring,omitempty"`
 	IsProperty bool       `json:"is_property"`
+	// Writable is true for a property that has a setter.
+	Writable bool `json:"writable,omitempty"`
+	// Instance is true for an attribute assigned only in __init__. Its Value is
+	// the assigned expression, not a default.
+	Instance bool `json:"instance,omitempty"`
 	// Origin is the dotted module that defines this attribute, set on a re-export.
 	Origin string `json:"origin,omitempty"`
 }
