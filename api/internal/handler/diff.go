@@ -137,7 +137,7 @@ func (h *DiffHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cacheKey := "diff:" + strings.ToLower(name) + ":" + from + ":" + to
+	cacheKey := DiffTextKey(name, from, to)
 	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -174,7 +174,7 @@ func (h *DiffHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cacheKey := "diffjson:" + strings.ToLower(name) + ":" + from + ":" + to
+	cacheKey := DiffJSONKey(name, from, to)
 	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Content-Type", "application/json")

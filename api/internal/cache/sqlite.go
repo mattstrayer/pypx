@@ -2,6 +2,7 @@ package cache
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -109,6 +110,29 @@ func (c *Cache) Get(key string, ttl time.Duration) (data []byte, fresh bool, err
 func (c *Cache) Delete(key string) error {
 	_, err := c.db.Exec(`DELETE FROM cache WHERE key = ?`, key)
 	return err
+}
+
+// PurgeDocsBefore deletes cached docs, docs errors and diffs written under any
+// extractor version other than the given one. Keys of other families are kept.
+func (c *Cache) PurgeDocsBefore(version int) (int64, error) {
+	var total int64
+	for _, family := range []string{"docs", "docs-err", "diff", "diffjson"} {
+		family := family + ":"
+		current := fmt.Sprintf("%sv%d:", family, version)
+		res, err := c.db.Exec(
+			`DELETE FROM cache WHERE substr(key, 1, ?) = ? AND substr(key, 1, ?) != ?`,
+			len(family), family, len(current), current,
+		)
+		if err != nil {
+			return total, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return total, err
+		}
+		total += n
+	}
+	return total, nil
 }
 
 // Close releases the underlying database connection.

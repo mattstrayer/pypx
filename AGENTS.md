@@ -103,8 +103,8 @@ raw:{name}              Raw PyPI JSON response
 pkg:{name}              Enriched package response
 stats:{name}:{period}   Download stats (period: 4w, 3m, 6m)
 changelog:{name}        Rendered changelog HTML
-docs:{name}:{version}   API docs (indefinite TTL)
-docs-err:{name}:{version}  Docs extraction error (5 min TTL)
+docs:v{ExtractorVersion}:{name}:{version}   API docs (indefinite TTL; bump goopy.ExtractorVersion when extraction output changes)
+docs-err:v{ExtractorVersion}:{name}:{version}  Docs extraction error (5 min TTL)
 ```
 
 ### Handler structure

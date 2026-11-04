@@ -93,3 +93,40 @@ func TestCacheBusyTimeout(t *testing.T) {
 		t.Errorf("busy_timeout = %d, want 5000", timeout)
 	}
 }
+
+func TestPurgeDocsBefore(t *testing.T) {
+	c := newTestCache(t)
+	keys := []string{
+		"docs:httpx:1", "docs-err:httpx:1", "diff:httpx:1:2", "diffjson:httpx:1:2",
+		"docs:v1:httpx:1", "docs-err:v1:httpx:1", "diff:v1:httpx:1:2", "diffjson:v1:httpx:1:2",
+		"docs:v0:httpx:1", "pkg:httpx", "raw:httpx",
+	}
+	for _, k := range keys {
+		if err := c.Set(k, []byte("x"), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := c.PurgeDocsBefore(1)
+	if err != nil {
+		t.Fatalf("PurgeDocsBefore: %v", err)
+	}
+	if n != 5 {
+		t.Errorf("deleted %d rows, want 5", n)
+	}
+	gone := map[string]bool{
+		"docs:httpx:1": true, "docs-err:httpx:1": true, "diff:httpx:1:2": true,
+		"diffjson:httpx:1:2": true, "docs:v0:httpx:1": true,
+	}
+	for _, k := range keys {
+		data, _, err := c.Get(k, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gone[k] && data != nil {
+			t.Errorf("%s should be purged", k)
+		}
+		if !gone[k] && data == nil {
+			t.Errorf("%s should be kept", k)
+		}
+	}
+}

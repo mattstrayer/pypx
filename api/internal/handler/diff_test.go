@@ -57,10 +57,10 @@ func setupDiffHandler(t *testing.T, pypiURL string) (*chi.Mux, *handler.DiffHand
 	// Pre-seed docs cache so api-changes section is populated without hitting goopy.
 	docsFrom := []byte(`{"package":"httpx","version":"0.26.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"send_singlerequest","kind":"function","signature":"def send_singlerequest(req)"}],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request)"}]}],"exceptions":[]}]}`)
 	docsTo := []byte(`{"package":"httpx","version":"0.28.1","available":true,"modules":[{"name":"httpx","functions":[],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request, *, stream=False)"}]},{"name":"AsyncClient","kind":"class","signature":"class AsyncClient","methods":[{"name":"aclose","kind":"method","signature":"def aclose()"}]}],"exceptions":[]}]}`)
-	if err := memCache.Set("docs:httpx:0.26.0", docsFrom, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.26.0"), docsFrom, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := memCache.Set("docs:httpx:0.28.1", docsTo, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.28.1"), docsTo, 0); err != nil {
 		t.Fatal(err)
 	}
 

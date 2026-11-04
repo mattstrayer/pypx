@@ -12,7 +12,28 @@ import (
 	"github.com/pypx/api/internal/cache"
 	"github.com/pypx/api/internal/handler"
 	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/goopy"
 )
+
+func TestDocsCacheKeyIncludesExtractorVersion(t *testing.T) {
+	v := goopy.ExtractorVersion
+	if got, want := handler.DocsCacheKey("HTTPX", "0.27.0"), fmt.Sprintf("docs:v%d:httpx:0.27.0", v); got != want {
+		t.Errorf("DocsCacheKey = %q, want %q", got, want)
+	}
+	if got, want := handler.DocsErrKey("HTTPX", "0.27.0"), fmt.Sprintf("docs-err:v%d:httpx:0.27.0", v); got != want {
+		t.Errorf("DocsErrKey = %q, want %q", got, want)
+	}
+	if got, want := handler.DiffTextKey("HTTPX", "1", "2"), fmt.Sprintf("diff:v%d:httpx:1:2", v); got != want {
+		t.Errorf("DiffTextKey = %q, want %q", got, want)
+	}
+	if got, want := handler.DiffJSONKey("HTTPX", "1", "2"), fmt.Sprintf("diffjson:v%d:httpx:1:2", v); got != want {
+		t.Errorf("DiffJSONKey = %q, want %q", got, want)
+	}
+	// An unversioned row written by an older build is never read.
+	if handler.DocsCacheKey("httpx", "0.27.0") == "docs:httpx:0.27.0" {
+		t.Error("docs key must differ from the unversioned key")
+	}
+}
 
 func TestDocsHandlerGet(t *testing.T) {
 	if testing.Short() {
@@ -222,7 +243,7 @@ func TestDocsHandlerGetText(t *testing.T) {
 
 	// Seed the docs cache with a known DocsResponse so the handler skips goopy.
 	docsJSON := []byte(`{"package":"httpx","version":"0.27.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"get","kind":"function","signature":"def get(url: str) -> Response","docstring":"Send a GET request.","parameters":[{"name":"url","type":"str","description":"URL"}],"returns":{"type":"Response"}}],"classes":[{"name":"Client","kind":"class","signature":"class Client","docstring":"An HTTP client.","methods":[{"name":"get","kind":"method","signature":"def get(self, url: str) -> Response","docstring":"Send a GET from this client.","parameters":[{"name":"self"},{"name":"url","type":"str"}],"returns":{"type":"Response"}}]}],"exceptions":[]}]}`)
-	if err := memCache.Set("docs:httpx:0.27.0", docsJSON, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.27.0"), docsJSON, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -286,7 +307,7 @@ func TestDocsHandlerGetSymbol(t *testing.T) {
 	memCache := cache.NewMemoryCache(c, 100)
 
 	docsJSON := []byte(`{"package":"httpx","version":"0.27.0","available":true,"modules":[{"name":"httpx","functions":[],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"get","kind":"method","signature":"def get(self) -> Response","docstring":"Send GET."}]}],"exceptions":[]}]}`)
-	if err := memCache.Set("docs:httpx:0.27.0", docsJSON, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.27.0"), docsJSON, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -335,7 +356,7 @@ func TestDocsHandlerGetSymbols(t *testing.T) {
 	memCache := cache.NewMemoryCache(c, 100)
 
 	docsJSON := []byte(`{"package":"httpx","version":"0.27.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"get","kind":"function","signature":"def get(url) -> Response"}],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"get","kind":"method","signature":"def get(self) -> Response"}]}],"exceptions":[]}]}`)
-	if err := memCache.Set("docs:httpx:0.27.0", docsJSON, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.27.0"), docsJSON, 0); err != nil {
 		t.Fatal(err)
 	}
 
