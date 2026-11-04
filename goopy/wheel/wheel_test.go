@@ -499,8 +499,8 @@ func TestExtractPyFiles_DecompressionBudget(t *testing.T) {
 	_ = w.Close()
 
 	_, err := extractBytes(buf.Bytes(), "bomb")
-	if err == nil {
-		t.Fatal("expected an error when a .py entry exceeds the decompression budget")
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("err = %v, want ErrTooLarge when a .py entry exceeds the decompression budget", err)
 	}
 }
 

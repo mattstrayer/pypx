@@ -52,7 +52,8 @@ var (
 	// ErrNoArtifact means the release exists but has no extractable artifact
 	// (e.g. sdist-only release, or no files at all).
 	ErrNoArtifact = errors.New("wheel: no extractable artifact")
-	// ErrTooLarge means the selected artifact exceeds MaxSize (or MaxRangeSize for ranged reads).
+	// ErrTooLarge means the selected artifact exceeds MaxSize (MaxRangeSize for ranged
+	// reads) or a cap on its inflated contents.
 	ErrTooLarge = errors.New("wheel: artifact exceeds size limit")
 )
 
@@ -291,7 +292,7 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 		}
 
 		if len(contents.Files) >= maxFileCount {
-			return nil, fmt.Errorf("wheel has too many files (max %d)", maxFileCount)
+			return nil, fmt.Errorf("wheel has too many files (max %d): %w", maxFileCount, ErrTooLarge)
 		}
 
 		if strings.HasSuffix(f.Name, ".dist-info/top_level.txt") {
@@ -336,11 +337,11 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 				return nil, fmt.Errorf("reading %q: %w", f.Name, err)
 			}
 			if int64(len(src)) > MaxDecompressedFile {
-				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, MaxDecompressedFile)
+				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes): %w", f.Name, MaxDecompressedFile, ErrTooLarge)
 			}
 			totalDecompressed += int64(len(src))
 			if totalDecompressed > MaxDecompressedTotal {
-				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes)", MaxDecompressedTotal)
+				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes): %w", MaxDecompressedTotal, ErrTooLarge)
 			}
 			contents.Files[f.Name] = src
 		}

@@ -637,6 +637,9 @@
           "package": {
             "type": "string"
           },
+          "reason": {
+            "type": "string"
+          },
           "stub_package": {
             "type": "string"
           },

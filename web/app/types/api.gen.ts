@@ -237,6 +237,7 @@ export interface DocsResponse {
   package: string;
   version: string;
   available: boolean;
+  reason?: string;
   stub_package?: string;
   modules: DocModule[];
 }
