@@ -327,7 +327,7 @@ func (p *Parser) parseDecorated() ast.Stmt {
 
 	for p.tok.Type == token.AT {
 		p.next() // consume '@'
-		dec := p.parseExpr()
+		dec := p.parseNamedExpr()
 		decorators = append(decorators, dec)
 		// Consume the NEWLINE after the decorator.
 		if p.tok.Type == token.NEWLINE {
@@ -747,7 +747,7 @@ func (p *Parser) parseIf() ast.Stmt {
 	pos := p.tok.Pos
 	p.next() // consume 'if'
 
-	test := p.parseExpr()
+	test := p.parseNamedExpr()
 	p.expectColon()
 	body := p.parseBlock()
 
@@ -787,7 +787,7 @@ func (p *Parser) parseElif() ast.Stmt {
 	pos := p.tok.Pos
 	p.next() // consume 'elif'
 
-	test := p.parseExpr()
+	test := p.parseNamedExpr()
 	p.expectColon()
 	body := p.parseBlock()
 

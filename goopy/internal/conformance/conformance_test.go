@@ -19,7 +19,6 @@ var knownFailures = map[string]string{
 	"matmul.py":           "@ and @= operators",
 	"semicolons.py":       "semicolon-separated statements in a one-line block",
 	"subscripts.py":       "slices and tuple subscripts",
-	"walrus.py":           "assignment expressions in if headers",
 	"yield_expr.py":       "yield used as an expression",
 }
 

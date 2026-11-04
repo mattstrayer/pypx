@@ -329,6 +329,18 @@ func (i *IfExpr) Pos() token.Pos { return i.Position }
 func (i *IfExpr) End() token.Pos { return i.EndPos }
 func (i *IfExpr) exprNode()      {}
 
+// NamedExpr is an assignment expression (target := value).
+type NamedExpr struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Target   Expr
+	Value    Expr
+}
+
+func (n *NamedExpr) Pos() token.Pos { return n.Position }
+func (n *NamedExpr) End() token.Pos { return n.EndPos }
+func (n *NamedExpr) exprNode()      {}
+
 // =======================
 // Supporting Types
 // =======================

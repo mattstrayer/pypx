@@ -57,6 +57,8 @@ func exprToString(expr ast.Expr) string {
 		return "*" + exprToString(e.Value)
 	case *ast.IfExpr:
 		return exprToString(e.Body) + " if " + exprToString(e.Test) + " else " + exprToString(e.Orelse)
+	case *ast.NamedExpr:
+		return exprToString(e.Target) + " := " + exprToString(e.Value)
 	case *ast.Dict:
 		var parts []string
 		for i := range e.Keys {

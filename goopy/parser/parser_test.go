@@ -1457,3 +1457,47 @@ func TestImportFrom_RelativeLevels(t *testing.T) {
 		}
 	}
 }
+
+func asNamedExpr(t *testing.T, expr ast.Expr) *ast.NamedExpr {
+	t.Helper()
+	n, ok := expr.(*ast.NamedExpr)
+	if !ok {
+		t.Fatalf("expected NamedExpr, got %T", expr)
+	}
+	return n
+}
+
+func TestWalrus(t *testing.T) {
+	ifStmt, ok := parse(t, "if (n := f()) > 1:\n    pass\nelif m := g():\n    pass\n").Body[0].(*ast.If)
+	if !ok {
+		t.Fatal("expected If")
+	}
+	cmp, ok := ifStmt.Test.(*ast.BinOp)
+	if !ok {
+		t.Fatalf("expected BinOp test, got %T", ifStmt.Test)
+	}
+	n := asNamedExpr(t, cmp.Left)
+	if asName(t, n.Target).Name != "n" {
+		t.Errorf("target: got %#v", n.Target)
+	}
+	if _, ok := n.Value.(*ast.Call); !ok {
+		t.Errorf("value: got %T, want Call", n.Value)
+	}
+
+	elif, ok := ifStmt.Orelse[0].(*ast.If)
+	if !ok {
+		t.Fatalf("expected elif If, got %T", ifStmt.Orelse[0])
+	}
+	if asName(t, asNamedExpr(t, elif.Test).Target).Name != "m" {
+		t.Errorf("elif target: got %#v", elif.Test)
+	}
+
+	c := asCall(t, exprOf(t, "f(a := 1, b)"))
+	asNamedExpr(t, c.Args[0])
+	asNamedExpr(t, exprOf(t, "[a := 1, 2]").(*ast.List).Elts[0])
+	asNamedExpr(t, exprOf(t, "{a := 1, 2}").(*ast.Set).Elts[0])
+	asNamedExpr(t, exprOf(t, "(a := 1, 2)").(*ast.Tuple).Elts[0])
+	asNamedExpr(t, exprOf(t, "(a := 1)"))
+	asNamedExpr(t, exprOf(t, "x[a := 1]").(*ast.Subscript).Slice)
+	exprOf(t, "[(a := x) for x in y]")
+}

@@ -371,7 +371,7 @@ func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
 			val := p.parseExpr()
 			args = append(args, &ast.Starred{Position: pos, EndPos: val.End(), Value: val})
 		default:
-			arg := p.parseExpr()
+			arg := p.parseNamedExpr()
 			if n, ok := arg.(*ast.Name); ok && p.tok.Type == token.ASSIGN {
 				p.next()
 				keywords = append(keywords, &ast.Keyword{Arg: n.Name, Value: p.parseExpr()})
@@ -410,7 +410,7 @@ func (p *Parser) parseSubscriptContents() ast.Expr {
 		}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	// Slice with start: [start:end] or [start:end:step]
 	if p.tok.Type == token.COLON {
@@ -437,6 +437,17 @@ func (p *Parser) parseSubscriptContents() ast.Expr {
 		EndPos:   elts[len(elts)-1].End(),
 		Elts:     elts,
 	}
+}
+
+// parseNamedExpr parses expr [':=' expr].
+func (p *Parser) parseNamedExpr() ast.Expr {
+	x := p.parseExpr()
+	if p.tok.Type != token.WALRUS {
+		return x
+	}
+	p.next()
+	value := p.parseExpr()
+	return &ast.NamedExpr{Position: x.Pos(), EndPos: value.End(), Target: x, Value: value}
 }
 
 // parseExprList parses an unparenthesised tuple: expr (',' expr)* [','].
@@ -644,10 +655,10 @@ func (p *Parser) parseParenExpr() ast.Expr {
 		}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	// Generator expression: (expr for ...)
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RPAREN)
 		endPos := p.tok.Pos
 		p.expect(token.RPAREN)
@@ -662,7 +673,7 @@ func (p *Parser) parseParenExpr() ast.Expr {
 			if p.tok.Type == token.RPAREN {
 				break
 			}
-			elts = append(elts, p.parseExpr())
+			elts = append(elts, p.parseNamedExpr())
 		}
 		endPos := p.tok.Pos
 		p.expect(token.RPAREN)
@@ -690,10 +701,10 @@ func (p *Parser) parseListExpr() ast.Expr {
 		return &ast.List{Position: pos, EndPos: endPos}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	// List comprehension: [expr for ...]
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RBRACK)
 		endPos := p.tok.Pos
 		p.expect(token.RBRACK)
@@ -706,7 +717,7 @@ func (p *Parser) parseListExpr() ast.Expr {
 		if p.tok.Type == token.RBRACK {
 			break
 		}
-		elts = append(elts, p.parseExpr())
+		elts = append(elts, p.parseNamedExpr())
 	}
 
 	endPos := p.tok.Pos
@@ -731,7 +742,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		return &ast.Dict{Position: pos, EndPos: endPos}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	if p.tok.Type == token.COLON {
 		// Dict literal or dict comprehension.
@@ -739,7 +750,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		firstVal := p.parseExpr()
 
 		// Dict comprehension: {k: v for ...}
-		if p.tok.Type == token.FOR {
+		if p.at(token.FOR, token.ASYNC) {
 			p.skipUntil(token.RBRACE)
 			endPos := p.tok.Pos
 			p.expect(token.RBRACE)
@@ -775,7 +786,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 	}
 
 	// Set comprehension: {expr for ...}
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RBRACE)
 		endPos := p.tok.Pos
 		p.expect(token.RBRACE)
@@ -789,7 +800,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		if p.tok.Type == token.RBRACE {
 			break
 		}
-		elts = append(elts, p.parseExpr())
+		elts = append(elts, p.parseNamedExpr())
 	}
 	endPos := p.tok.Pos
 	p.expect(token.RBRACE)
