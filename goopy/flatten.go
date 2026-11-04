@@ -13,6 +13,7 @@ func flattenTypes(mod *model.Module) {
 		TypeAliases: mod.TypeAliases,
 	})
 	flattenDefinitions(mod.Hidden)
+	flattenDefinitions(mod.StubOnly)
 	for _, ref := range mod.Imports {
 		flattenType(ref.Type)
 	}
@@ -41,6 +42,9 @@ func flattenFunction(f *model.Function) {
 		flattenType(p.Type)
 	}
 	flattenType(f.Returns)
+	for _, o := range f.Overloads {
+		flattenFunction(o)
+	}
 }
 
 func flattenClass(c *model.Class) {

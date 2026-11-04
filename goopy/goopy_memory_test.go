@@ -105,6 +105,13 @@ class Base(Dict[str, int]):
 
 def _private(s: List[int]) -> List[int]:
     pass
+
+@overload
+def g(t: List[int]) -> Dict[str, int]: ...
+@overload
+def g(t: List[str]) -> Dict[str, str]: ...
+def g(t):
+    pass
 `)
 	mod, errs := ExtractModule("m", src)
 	if len(errs) != 0 {
@@ -157,5 +164,22 @@ def _private(s: List[int]) -> List[int]:
 	walkTop(decodedAfter)
 	if !slices.Equal(beforeRaws, want) || len(want) < 8 {
 		t.Errorf("outer Raw values changed:\nbefore %v\nafter  %v", beforeRaws, want)
+	}
+}
+
+func TestFlattenTypes_CoversStubOnly(t *testing.T) {
+	mod, errs := ExtractModule("m", []byte("def f(a: List[int]) -> Dict[str, int]: ...\n"))
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	f := mod.Functions[0]
+	mod.Functions = nil
+	mod.StubOnly.Functions = []*model.Function{f}
+	flattenTypes(mod)
+	if got := f.Parameters[0].Type; got.Raw != "List[int]" || got.Args != nil {
+		t.Errorf("parameter type = %+v, want only Kind and Raw", got)
+	}
+	if got := f.Returns; got.Raw != "Dict[str, int]" || got.Args != nil {
+		t.Errorf("return type = %+v, want only Kind and Raw", got)
 	}
 }
