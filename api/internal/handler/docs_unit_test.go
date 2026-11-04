@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -626,5 +627,46 @@ func TestDocsCache_CancelledContextAfterExtractionLeavesDocsKeyUnwritten(t *test
 	}
 	if c.wrote(DocsCacheKey("p", "1")) {
 		t.Error("docs key was written after cancellation")
+	}
+}
+
+func TestDocsCache_ErrorKeyWriteByCause(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	cases := []struct {
+		name      string
+		ctx       context.Context
+		extract   func(context.Context, string, string) (*model.Package, error)
+		wantWrite bool
+	}{
+		{"client cancel error", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, fmt.Errorf("download: %w", context.Canceled)
+			}, false},
+		{"client cancel with partial package", cancelled,
+			func(context.Context, string, string) (*model.Package, error) {
+				return &model.Package{}, nil
+			}, false},
+		{"deadline exceeded", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, fmt.Errorf("download: %w", context.DeadlineExceeded)
+			}, true},
+		{"generic error", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, errors.New("bad wheel")
+			}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTTLCache()
+			h := docsCacheHandler(c, tc.extract)
+			_, _, err := h.fetchDocsAtVersion(tc.ctx, "p", "1")
+			if !errors.Is(err, ErrDocsExtractionFailed) {
+				t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+			}
+			if got := c.wrote(DocsErrKey("p", "1")); got != tc.wantWrite {
+				t.Errorf("error key written = %v, want %v", got, tc.wantWrite)
+			}
+		})
 	}
 }

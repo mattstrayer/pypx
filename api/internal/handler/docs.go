@@ -157,6 +157,14 @@ const (
 	docsEmptyTTL = 24 * time.Hour
 )
 
+// isClientCancel reports whether a failure came from the caller cancelling the
+// request (for example a closed browser tab). That says nothing about the
+// package, so it must not write the shared error key. Deadline expiry does not
+// count: a package that always times out should stay cached as failed.
+func isClientCancel(ctx context.Context, err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled)
+}
+
 // fetchDocsAtVersion returns the cached or freshly-extracted DocsResponse for
 // a specific (name, version) pair. Cache key is "docs:v{ExtractorVersion}:{name}:{version}",
 // indefinite TTL. Used by both fetchDocs (latest) and the diff handler
@@ -171,7 +179,7 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 		if uerr := json.Unmarshal(data, &resp); uerr == nil && (resp.Available || fresh) {
 			return resp, data, nil
 		}
-		// Corrupt cache entry; fall through to live extraction.
+		// Corrupt entry or expired empty result; fall through to live extraction.
 	}
 
 	if data, fresh, cerr := h.cache.Get(errKey, docsErrTTL); cerr == nil && data != nil && fresh {
@@ -180,11 +188,17 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 
 	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
+		if isClientCancel(ctx, gerr) {
+			return DocsResponse{}, nil, ErrDocsExtractionFailed
+		}
 		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 	if ctx.Err() != nil {
+		if isClientCancel(ctx, nil) {
+			return DocsResponse{}, nil, ErrDocsExtractionFailed
+		}
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), docsErrTTL) //nolint:errcheck
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
