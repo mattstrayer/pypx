@@ -63,7 +63,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		for path, src := range files {
 			switch {
 			case strings.HasPrefix(path, dirPrefix):
-				if !isPrivateModule(path) {
+				if !isPrivateModule(path) && !isTestModule(path) {
 					items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
 				}
 			case !hasDir && path == pkgName+".py":
@@ -181,6 +181,32 @@ func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version 
 	pkg := ExtractPackage(ctx, name, contents.Files, contents.TopLevelPkgs)
 	pkg.Version = version
 	return pkg, nil
+}
+
+// isTestModule returns true for test code: any path segment after the first
+// named tests or test, or a file named test_*.py, *_test.py, or conftest.py.
+// The first segment (the top-level package) is exempt. A "testing" package
+// stays public because it is often documented API (e.g. numpy.testing).
+func isTestModule(path string) bool {
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if i == 0 {
+			continue
+		}
+		if i < len(parts)-1 {
+			if part == "tests" || part == "test" {
+				return true
+			}
+			continue
+		}
+		switch {
+		case part == "tests.py", part == "test.py", part == "conftest.py",
+			strings.HasPrefix(part, "test_") && strings.HasSuffix(part, ".py"),
+			strings.HasSuffix(part, "_test.py"):
+			return true
+		}
+	}
+	return false
 }
 
 // isPrivateModule returns true if any path component (other than __init__.py)

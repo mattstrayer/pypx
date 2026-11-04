@@ -217,6 +217,7 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 	}
 
 	var totalDecompressed int64
+	var declaredTopLevel []string
 	for _, f := range r.File {
 		if strings.Contains(f.Name, "__pycache__") {
 			continue
@@ -227,11 +228,15 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 		}
 
 		if strings.HasSuffix(f.Name, ".dist-info/top_level.txt") {
-			rc, err := f.Open()
-			if err == nil {
-				data, _ := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
-				_ = rc.Close()
-				contents.TopLevelPkgs = parseTopLevelTxt(string(data))
+			// Only the wheel's own metadata counts: exactly {name}.dist-info/top_level.txt.
+			// Vendored distributions (pkg/_vendor/x.dist-info/...) must not overwrite it.
+			if strings.Count(f.Name, "/") == 1 {
+				rc, err := f.Open()
+				if err == nil {
+					data, _ := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
+					_ = rc.Close()
+					declaredTopLevel = parseTopLevelTxt(string(data))
+				}
 			}
 			continue
 		}
@@ -258,11 +263,32 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 		}
 	}
 
+	// Keep only declared names that match a package directory or a module file.
+	for _, name := range declaredTopLevel {
+		if hasTopLevelFiles(contents.Files, name) {
+			contents.TopLevelPkgs = append(contents.TopLevelPkgs, name)
+		}
+	}
+	sort.Strings(contents.TopLevelPkgs)
+
 	if len(contents.TopLevelPkgs) == 0 {
 		contents.TopLevelPkgs = inferTopLevel(contents.Files, pkgName)
 	}
 
 	return contents, nil
+}
+
+func hasTopLevelFiles(files map[string][]byte, name string) bool {
+	if _, ok := files[name+".py"]; ok {
+		return true
+	}
+	prefix := name + "/"
+	for path := range files {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseTopLevelTxt(content string) []string {
