@@ -13,6 +13,7 @@ import (
 
 	"github.com/pypx/api/internal/circuitbreaker"
 	"github.com/pypx/api/internal/safeurl"
+	"github.com/pypx/goopy/wheel"
 )
 
 // ErrNotFound is returned by FetchPackage when the package does not exist on PyPI.
@@ -145,7 +146,8 @@ func NewClient(opts ...Option) *Client {
 	c := &Client{
 		baseURL: "https://pypi.org",
 		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout:   15 * time.Second,
+			Transport: wheel.Transport(),
 		},
 		breaker: circuitbreaker.New(5, 30*time.Second),
 	}
