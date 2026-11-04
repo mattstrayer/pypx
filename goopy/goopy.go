@@ -44,6 +44,12 @@ func ExtractModule(name string, src []byte) (*model.Module, []error) {
 // files maps relative paths (e.g., "mypackage/module.py") to source bytes.
 // Module extraction is parallelized across available CPUs.
 func ExtractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string) *model.Package {
+	return extractPackage(ctx, name, files, topLevelPkgs, func(*model.Module) {})
+}
+
+// extractPackage is ExtractPackage with a step that runs on each module once it is
+// parsed, before modules can reference each other.
+func extractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string, afterParse func(*model.Module)) *model.Package {
 	// Collect eligible files. Private modules are parsed so re-exports can reach
 	// them, but they are never published.
 	type work struct {
@@ -102,6 +108,10 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 				break
 			}
 			results[i] = extractSafely(item.modName, item.src)
+			items[i].src = nil // parsing copies what it keeps
+			if results[i] != nil {
+				afterParse(results[i])
+			}
 		}
 	} else {
 		// Parallel extraction with bounded workers.
@@ -127,6 +137,10 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 						return
 					}
 					results[idx] = extractSafely(items[idx].modName, items[idx].src)
+					items[idx].src = nil // parsing copies what it keeps
+					if results[idx] != nil {
+						afterParse(results[idx])
+					}
 				}
 			}()
 		}
@@ -706,14 +720,35 @@ func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package,
 	return ExtractFromWheel(ctx, wheel.NewSource(), name, version)
 }
 
+// ExtractDocsFromPyPI is ExtractFromPyPI for a caller that reads a type expression
+// only through its Raw text. Every other field of a TypeExpr except Kind is empty,
+// which lets a package with many annotations fit in much less memory.
+func ExtractDocsFromPyPI(ctx context.Context, name, version string) (*model.Package, error) {
+	return extractWheel(ctx, wheel.NewSource(), name, version, flattenTypes)
+}
+
+// WeighFromPyPI estimates the bytes that ExtractFromPyPI holds in memory for this
+// package, without downloading its sources. See wheel.Source.Weigh.
+func WeighFromPyPI(ctx context.Context, name, version string) (int64, error) {
+	return wheel.NewSource().Weigh(ctx, name, version)
+}
+
 // ExtractFromWheel downloads a package wheel using the given fetcher and extracts documentation.
 // Use this with a custom wheel.Fetcher for testing or non-PyPI sources.
+//
+// Nothing here uses contents after ExtractPackage starts, so each source can be
+// collected as soon as its module is parsed. The source of a large package would
+// otherwise stay in memory next to everything parsed from it.
 func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version string) (*model.Package, error) {
+	return extractWheel(ctx, fetcher, name, version, func(*model.Module) {})
+}
+
+func extractWheel(ctx context.Context, fetcher wheel.Fetcher, name, version string, afterParse func(*model.Module)) (*model.Package, error) {
 	contents, err := fetcher.Fetch(ctx, name, version)
 	if err != nil {
 		return nil, err
 	}
-	pkg := ExtractPackage(ctx, name, contents.Files, contents.TopLevelPkgs)
+	pkg := extractPackage(ctx, name, contents.Files, contents.TopLevelPkgs, afterParse)
 	pkg.Version = version
 	return pkg, nil
 }

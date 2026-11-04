@@ -1,10 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -77,14 +81,15 @@ func TestDocsWork_ExtractionsAreCapped(t *testing.T) {
 			}
 		}(v)
 	}
-	time.Sleep(150 * time.Millisecond) // the first two fill the slots, the rest wait
-	if got := running.Load(); got != maxConcurrentExtractions {
-		t.Errorf("running = %d, want %d", got, maxConcurrentExtractions)
+	time.Sleep(150 * time.Millisecond) // the first two fill the budget, the rest wait
+	const want = extractionBudget / unweighedExtractionCost
+	if got := running.Load(); got != want {
+		t.Errorf("running = %d, want %d", got, want)
 	}
 	close(release)
 	wg.Wait()
-	if got := peak.Load(); got != maxConcurrentExtractions {
-		t.Errorf("peak concurrency = %d, want %d", got, maxConcurrentExtractions)
+	if got := peak.Load(); got != want {
+		t.Errorf("peak concurrency = %d, want %d", got, want)
 	}
 }
 
@@ -168,12 +173,248 @@ func TestDocsWork_SlotWaitCountsAgainstTimeout(t *testing.T) {
 		return &model.Package{}, nil
 	})
 	h.workTimeout = 50 * time.Millisecond
-	for i := 0; i < maxConcurrentExtractions; i++ {
-		h.sem <- struct{}{} // occupy every slot
+	if !h.budget.TryAcquire(extractionBudget) { // occupy the whole budget
+		t.Fatal("budget not free")
 	}
 	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
 	if !errors.Is(err, ErrDocsExtractionFailed) {
 		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+}
+
+// trackRunning returns an extract function that blocks until release closes, and
+// reports which packages run.
+func trackRunning(release <-chan struct{}) (func(context.Context, string, string) (*model.Package, error), func() []string) {
+	var mu sync.Mutex
+	running := map[string]bool{}
+	return func(_ context.Context, name, _ string) (*model.Package, error) {
+			mu.Lock()
+			running[name] = true
+			mu.Unlock()
+			<-release
+			mu.Lock()
+			delete(running, name)
+			mu.Unlock()
+			return &model.Package{}, nil
+		}, func() []string {
+			mu.Lock()
+			defer mu.Unlock()
+			out := make([]string, 0, len(running))
+			for name := range running {
+				out = append(out, name)
+			}
+			slices.Sort(out)
+			return out
+		}
+}
+
+func TestDocsWork_LargeExtractionsDoNotOverlapButSmallOnesFit(t *testing.T) {
+	weights := map[string]int64{
+		"huge-a":  extractionBudget - 1<<20,
+		"huge-b":  extractionBudget - 1<<20,
+		"small-a": 1 << 20,
+		"small-b": 1 << 20,
+	}
+	release := make(chan struct{})
+	extract, running := trackRunning(release)
+	h := docsCacheHandler(newTTLCache(), extract)
+	h.weigh = func(_ context.Context, name, _ string) (int64, error) { return weights[name], nil }
+
+	var wg sync.WaitGroup
+	start := func(name string) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := h.fetchDocsAtVersion(context.Background(), name, "1"); err != nil {
+				t.Errorf("%s: %v", name, err)
+			}
+		}()
+		time.Sleep(50 * time.Millisecond) // arrive in this order
+	}
+	// small-a and small-b fit beside each other. huge-a then waits for them,
+	// and huge-b waits behind huge-a.
+	start("small-a")
+	start("small-b")
+	start("huge-a")
+	start("huge-b")
+	if got := running(); !slices.Equal(got, []string{"small-a", "small-b"}) {
+		t.Errorf("running = %v, want the two small packages", got)
+	}
+	close(release)
+	wg.Wait()
+}
+
+func TestDocsWork_ExtractionAboveBudgetRunsAlone(t *testing.T) {
+	release := make(chan struct{})
+	extract, running := trackRunning(release)
+	h := docsCacheHandler(newTTLCache(), extract)
+	h.weigh = func(_ context.Context, name, _ string) (int64, error) {
+		if name == "enormous" {
+			return 10 * extractionBudget, nil
+		}
+		return 1, nil
+	}
+
+	var wg sync.WaitGroup
+	for _, name := range []string{"enormous", "tiny"} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := h.fetchDocsAtVersion(context.Background(), name, "1"); err != nil {
+				t.Errorf("%s: %v", name, err)
+			}
+		}()
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := running(); !slices.Equal(got, []string{"enormous"}) {
+		t.Errorf("running = %v, want only the enormous package", got)
+	}
+	close(release)
+	wg.Wait()
+}
+
+func TestDocsWork_WeighFailureFallsThroughToExtraction(t *testing.T) {
+	extractErr := errors.New("real failure")
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return nil, extractErr
+	})
+	h.weigh = func(context.Context, string, string) (int64, error) {
+		return 0, errors.New("metadata unavailable")
+	}
+	if _, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1"); !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if !c.wrote(DocsErrKey("p", "1")) {
+		t.Error("extraction did not run after the weigh failed")
+	}
+	if !h.budget.TryAcquire(extractionBudget) {
+		t.Error("budget still held")
+	}
+}
+
+func TestDocsWork_MissDecodesLikeAHit(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{Modules: []*model.Module{{
+			Name:      "p",
+			Functions: []*model.Function{{Name: "f"}},
+		}}}, nil
+	})
+
+	missResp, missBytes, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !missResp.Available || len(missResp.Modules) != 1 {
+		t.Fatalf("miss response = %+v", missResp)
+	}
+	hitResp, hitBytes, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(missResp, hitResp) {
+		t.Errorf("miss = %+v, hit = %+v", missResp, hitResp)
+	}
+	if !bytes.Equal(missBytes, hitBytes) {
+		t.Error("miss and hit returned different bytes")
+	}
+
+	rawResp, rawBytes, err := h.docsAtVersion(context.Background(), "p", "2", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawResp.Package != "" || len(rawBytes) == 0 {
+		t.Errorf("decode=false returned resp %+v and %d bytes", rawResp, len(rawBytes))
+	}
+}
+
+func TestEncodeDocs_MatchesMarshal(t *testing.T) {
+	module := func(name string) DocModule {
+		return DocModule{
+			Name: name,
+			Functions: []DocSymbol{{
+				Name:       "f",
+				Kind:       "function",
+				Signature:  "def f(a: List[int] = <x>) -> A & B",
+				Docstring:  "Escapes <html> & \"quotes\"   and é.",
+				Parameters: []DocParam{{Name: "a", Type: "List[int]", Default: "<x>"}},
+				Returns:    &DocReturn{Type: "A & B"},
+				Raises:     []DocRaise{{Type: "ValueError", Description: "bad"}},
+				Origin:     "pkg._private",
+			}},
+			Classes:    []DocSymbol{{Name: "C", Kind: "class", Parameters: []DocParam{}, Methods: []DocSymbol{{Name: "m"}}}},
+			Exceptions: []DocSymbol{},
+			Aliases:    []DocAlias{{Name: "g", Target: "pkg.f"}},
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		mods []DocModule
+		stub string
+	}{
+		{"none", []DocModule{}, ""},
+		{"one", []DocModule{module("a")}, ""},
+		{"many with stubs", []DocModule{module("a"), module("b"), module("c")}, "pkg-stubs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := DocsResponse{Package: "p<&>", Version: "1", Available: len(tc.mods) > 0, StubPackage: tc.stub, Modules: tc.mods}
+			want, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := encodeDocs(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("encodeDocs:\n%s\njson.Marshal:\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestEncodeDocs_RespectsSizeLimit(t *testing.T) {
+	response := func() DocsResponse {
+		return DocsResponse{Package: "p", Version: "1", Available: true, Modules: []DocModule{
+			{Name: "a", Functions: []DocSymbol{}, Classes: []DocSymbol{}, Exceptions: []DocSymbol{}},
+			{Name: "b", Functions: []DocSymbol{}, Classes: []DocSymbol{}, Exceptions: []DocSymbol{}},
+		}}
+	}
+	want, err := json.Marshal(response())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The size reserves one comma per module, one more than the output has.
+	reserved := len(want) + 1
+	got, err := encodeDocsWithin(response(), reserved)
+	if err != nil {
+		t.Fatalf("at the limit: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("at the limit:\n%s\nwant:\n%s", got, want)
+	}
+
+	// One byte less fails on a module, and a tiny limit fails on the head.
+	for _, limit := range []int{reserved - 1, 1} {
+		if _, err := encodeDocsWithin(response(), limit); !errors.Is(err, errEncodedDocsTooLarge) {
+			t.Errorf("limit %d: err = %v, want errEncodedDocsTooLarge", limit, err)
+		}
+	}
+}
+
+func TestDocsWork_PanicInWeighReleasesBudget(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{}, nil
+	})
+	h.weigh = func(context.Context, string, string) (int64, error) { panic("boom") }
+	if _, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1"); !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if !h.budget.TryAcquire(extractionBudget) {
+		t.Error("budget still held after a panic in weigh")
 	}
 }
 
@@ -386,8 +627,10 @@ func TestDocsWork_PanicInExtractionIsContained(t *testing.T) {
 	if c.wrote(DocsCacheKey("p", "1")) {
 		t.Error("docs key written after panic")
 	}
-	if len(h.sem) != 0 {
-		t.Errorf("%d extraction slots still held after panic", len(h.sem))
+	if !h.budget.TryAcquire(extractionBudget) {
+		t.Error("extraction budget still held after panic")
+	} else {
+		h.budget.Release(extractionBudget)
 	}
 
 	// Later extractions for other versions still run.

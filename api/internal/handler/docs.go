@@ -21,6 +21,7 @@ import (
 	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -86,10 +87,18 @@ type DocRaise struct {
 	Description string `json:"description"`
 }
 
-// maxConcurrentExtractions caps how many wheel downloads and parses run at
-// once. One extraction can hold a 50 MB wheel plus up to 200 MB of source, and
-// the API container has 512 MB.
-const maxConcurrentExtractions = 2
+const (
+	// extractionBudget caps the weight of the extractions running at once. The
+	// weight is goopy.WeighFromPyPI: source plus compressed bytes. Live memory
+	// reaches several times that once the source is parsed. Two large packages
+	// such as transformers and torch never fit together, and small ones still do.
+	extractionBudget = 64 << 20
+	// minExtractionCost is the least an extraction is charged. It bounds how many
+	// run at once when all are small, and it pays for weighing one.
+	minExtractionCost = 4 << 20
+	// unweighedExtractionCost is charged when the weight is unknown.
+	unweighedExtractionCost = extractionBudget / 2
+)
 
 const (
 	// docsExtractTimeout bounds one shared extraction, including the wait for a
@@ -105,10 +114,12 @@ type DocsHandler struct {
 	cache cache.Cacher
 	// extract downloads and parses a distribution. Tests replace it.
 	extract func(ctx context.Context, name, version string) (*model.Package, error)
+	// weigh estimates the memory one extraction holds. Nil means unknown.
+	weigh func(ctx context.Context, name, version string) (int64, error)
 	// sf collapses concurrent extractions of one (name, version) into one.
 	sf singleflight.Group
-	// sem limits concurrent extractions to maxConcurrentExtractions.
-	sem chan struct{}
+	// budget limits the weight of concurrent extractions to extractionBudget.
+	budget *semaphore.Weighted
 	// workTimeout bounds one shared extraction. Tests shorten it.
 	workTimeout time.Duration
 }
@@ -118,8 +129,9 @@ func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 	return &DocsHandler{
 		pypi:        pypiClient,
 		cache:       c,
-		extract:     goopy.ExtractFromPyPI,
-		sem:         make(chan struct{}, maxConcurrentExtractions),
+		extract:     goopy.ExtractDocsFromPyPI,
+		weigh:       goopy.WeighFromPyPI,
+		budget:      semaphore.NewWeighted(extractionBudget),
 		workTimeout: docsExtractTimeout,
 	}
 }
@@ -302,8 +314,7 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 }
 
 // docsAtVersion is fetchDocsAtVersion with a choice about decoding. With
-// decode false, a cache hit returns only the bytes and the DocsResponse is
-// zero. A miss always returns both.
+// decode false, it returns only the bytes and the DocsResponse is zero.
 func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, decode bool) (DocsResponse, []byte, error) {
 	if resp, data, ok := h.cachedDocs(name, version, decode); ok {
 		return resp, data, nil
@@ -331,8 +342,15 @@ func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, d
 		if res.Err != nil {
 			return DocsResponse{}, nil, res.Err
 		}
-		out := res.Val.(docsResult)
-		return out.resp, out.encoded, nil
+		encoded := res.Val.([]byte)
+		if !decode {
+			return DocsResponse{}, encoded, nil
+		}
+		var resp DocsResponse
+		if err := json.Unmarshal(encoded, &resp); err != nil {
+			return DocsResponse{}, nil, ErrDocsExtractionFailed
+		}
+		return resp, encoded, nil
 	case <-ctx.Done():
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
@@ -358,15 +376,43 @@ func (h *DocsHandler) cachedDocs(name, version string, decode bool) (DocsRespons
 	return DocsResponse{}, nil, false
 }
 
-type docsResult struct {
-	resp    DocsResponse
-	encoded []byte
+// admit waits until the extraction's weight fits in the budget, and returns the
+// amount to release. A weight above the budget is charged as the whole budget, so
+// that extraction runs alone. The wait ends when ctx ends.
+func (h *DocsHandler) admit(ctx context.Context, name, version string) (int64, error) {
+	cost, err := h.extractionCost(ctx, name, version)
+	if err != nil {
+		return 0, err
+	}
+	if err := h.budget.Acquire(ctx, cost); err != nil {
+		return 0, err
+	}
+	return cost, nil
 }
 
-// extractAndCache runs one extraction under the concurrency cap and stores the
+// extractionCost weighs an extraction while holding minExtractionCost, so a burst
+// of cold packages cannot read many central directories at once. A failure to
+// weigh is not an error here: the extraction itself reports the real failure.
+func (h *DocsHandler) extractionCost(ctx context.Context, name, version string) (int64, error) {
+	if h.weigh == nil {
+		return unweighedExtractionCost, nil
+	}
+	if err := h.budget.Acquire(ctx, minExtractionCost); err != nil {
+		return 0, err
+	}
+	defer h.budget.Release(minExtractionCost)
+
+	weight, err := h.weigh(ctx, name, version)
+	if err != nil {
+		return unweighedExtractionCost, nil
+	}
+	return min(max(weight, minExtractionCost), extractionBudget), nil
+}
+
+// extractAndCache runs one extraction within the memory budget and stores the
 // result. ctx is detached from any request, so only a real failure or the work
 // timeout writes the error key.
-func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (out docsResult, err error) {
+func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (encoded []byte, err error) {
 	errKey := DocsErrKey(name, version)
 
 	// singleflight re-panics in a new goroutine that nothing can recover, so a
@@ -375,32 +421,31 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		if p := recover(); p != nil {
 			log.Printf("docs: panic extracting %s==%s: %v\n%s", name, version, p, debug.Stack())
 			h.cache.Set(errKey, []byte(fmt.Sprintf("panic: %v", p)), docsErrTTL) //nolint:errcheck
-			out, err = docsResult{}, ErrDocsExtractionFailed
+			encoded, err = nil, ErrDocsExtractionFailed
 		}
 	}()
 
-	select {
-	case h.sem <- struct{}{}:
-		defer func() { <-h.sem }()
-	case <-ctx.Done():
-		return docsResult{}, ErrDocsExtractionFailed
+	cost, aerr := h.admit(ctx, name, version)
+	if aerr != nil {
+		return nil, ErrDocsExtractionFailed
 	}
+	defer h.budget.Release(cost)
 
 	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
 		if isClientCancel(ctx, gerr) {
-			return docsResult{}, ErrDocsExtractionFailed
+			return nil, ErrDocsExtractionFailed
 		}
 		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 	if ctx.Err() != nil {
 		if isClientCancel(ctx, nil) {
-			return docsResult{}, ErrDocsExtractionFailed
+			return nil, ErrDocsExtractionFailed
 		}
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), docsErrTTL) //nolint:errcheck
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 
 	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
@@ -410,16 +455,74 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 	// resolveStubs swallows its errors, so a timeout during stub resolution
 	// would otherwise cache an incomplete result.
 	if ctx.Err() != nil {
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 
-	encoded, merr := json.Marshal(docsResp)
+	// The caller gets the bytes only, so the decoded form is not held next to them.
+	encoded, merr := encodeDocs(docsResp)
 	if merr != nil {
-		return docsResult{}, fmt.Errorf("encode docs: %w", merr)
+		return nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
 	h.cache.Set(DocsCacheKey(name, version), encoded, 0) //nolint:errcheck
-	return docsResult{resp: docsResp, encoded: encoded}, nil
+	return encoded, nil
+}
+
+// maxEncodedDocs caps the encoded docs of one package. Sources are capped at 200 MB,
+// so real packages stay far below it. It also keeps the size sum from overflowing.
+const maxEncodedDocs = 1 << 30
+
+// errEncodedDocsTooLarge means a package's encoded docs exceed maxEncodedDocs.
+var errEncodedDocsTooLarge = errors.New("docs: encoded docs exceed size limit")
+
+// encodeDocs returns the same bytes as json.Marshal(resp), one module at a time.
+// json.Marshal holds the whole response and a buffer that grows by doubling, then
+// copies that buffer. For a package with 60 MiB of docs that exceeds the live
+// memory of the rest of the extraction. Here each module is released once encoded.
+func encodeDocs(resp DocsResponse) ([]byte, error) {
+	return encodeDocsWithin(resp, maxEncodedDocs)
+}
+
+// encodeDocsWithin is encodeDocs with the size limit as a parameter, so a test can
+// reach it without a gigabyte of input.
+func encodeDocsWithin(resp DocsResponse, limit int) ([]byte, error) {
+	modules := resp.Modules
+	resp.Modules = []DocModule{}
+	head, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	// Modules is the last field, so head ends with its empty array and the brace.
+	head = head[:len(head)-len("]}")]
+
+	if len(head) > limit-len(modules)-len("]}") {
+		return nil, errEncodedDocsTooLarge
+	}
+	chunks := make([][]byte, len(modules))
+	size := len(head) + len(modules) + len("]}")
+	for i := range modules {
+		chunk, err := json.Marshal(&modules[i])
+		if err != nil {
+			return nil, err
+		}
+		if len(chunk) > limit-size {
+			return nil, errEncodedDocsTooLarge
+		}
+		chunks[i] = chunk
+		size += len(chunk)
+		modules[i] = DocModule{}
+	}
+
+	out := make([]byte, 0, size)
+	out = append(out, head...)
+	for i, chunk := range chunks {
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, chunk...)
+		chunks[i] = nil
+	}
+	return append(out, "]}"...), nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.

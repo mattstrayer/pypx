@@ -12,6 +12,7 @@ import (
 
 	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
+	"golang.org/x/sync/semaphore"
 )
 
 func TestCleanDocstringText_Sphinx(t *testing.T) {
@@ -545,7 +546,7 @@ func docsCacheHandler(c *ttlCache, ex func(context.Context, string, string) (*mo
 	return &DocsHandler{
 		cache:       c,
 		extract:     ex,
-		sem:         make(chan struct{}, maxConcurrentExtractions),
+		budget:      semaphore.NewWeighted(extractionBudget),
 		workTimeout: docsExtractTimeout,
 	}
 }

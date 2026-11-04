@@ -28,8 +28,10 @@ services:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
       # Soft heap limit below the 512M container limit, so the GC works harder
-      # before the kernel kills the process.
-      - GOMEMLIMIT=450MiB
+      # before the kernel kills the process. SQLite allocates outside the Go heap
+      # and this limit does not see it: about 50 MiB at rest and over 130 MiB while
+      # it stores a large docs entry. At 450MiB the sum reached 512M.
+      - GOMEMLIMIT=300MiB
     volumes:
       - api_data:/data
     expose:
