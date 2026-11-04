@@ -212,6 +212,37 @@ func TestDocAttribute_DigestOnlyWhenTruncated(t *testing.T) {
 	}
 }
 
+func TestConvertClass_MethodKind(t *testing.T) {
+	method := func(name string, decorators ...string) *model.Function {
+		return &model.Function{Name: name, IsMethod: true, Decorators: decorators}
+	}
+	sym := convertClass(&model.Class{Name: "C", Methods: []*model.Function{
+		method("plain"),
+		method("cm", "classmethod"),
+		method("cm_stacked", "abc.abstractmethod", "classmethod"),
+		method("cm_abstract", "abc.abstractclassmethod"),
+		method("sm", "staticmethod"),
+		method("sm_abstract", "abstractstaticmethod"),
+		method("other", "mymod.classmethod_like", "lru_cache(1)"),
+	}}, nil, "m")
+	want := map[string]string{
+		"plain": "", "cm": "classmethod", "cm_stacked": "classmethod", "cm_abstract": "classmethod",
+		"sm": "staticmethod", "sm_abstract": "staticmethod", "other": "",
+	}
+	for _, m := range sym.Methods {
+		if m.MethodKind != want[m.Name] {
+			t.Errorf("%s: MethodKind = %q, want %q", m.Name, m.MethodKind, want[m.Name])
+		}
+	}
+}
+
+func TestConvertFunction_NoMethodKindOnFunctions(t *testing.T) {
+	sym := convertFunction(&model.Function{Name: "f", Decorators: []string{"classmethod"}}, nil)
+	if sym.MethodKind != "" {
+		t.Errorf("MethodKind = %q", sym.MethodKind)
+	}
+}
+
 func TestFlattenSymbols_ExceptionMethods(t *testing.T) {
 	got := flattenSymbols(DocsResponse{Modules: []DocModule{{
 		Name:       "m",

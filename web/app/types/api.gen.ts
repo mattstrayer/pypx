@@ -224,6 +224,7 @@ export interface DocSymbol {
   methods?: DocSymbol[];
   attributes?: DocAttribute[];
   origin?: string;
+  method_kind?: string;
 }
 
 export interface DocModule {

@@ -80,6 +80,10 @@ type DocSymbol struct {
 	Attributes []DocAttribute `json:"attributes,omitzero"`
 	// Origin is the dotted module that defines a re-exported symbol.
 	Origin string `json:"origin,omitempty"`
+	// MethodKind is "classmethod" or "staticmethod" on a method bound that way, and
+	// empty on any other symbol. The parameter list leaves out cls, so it cannot
+	// show this.
+	MethodKind string `json:"method_kind,omitempty"`
 }
 
 // DocAttribute is a class attribute or property.
@@ -744,6 +748,7 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 		Origin:     fn.Origin,
+		MethodKind: methodKind(fn),
 	}
 	// Note: Signature is set after the parameter loop so stub-filled types appear.
 
@@ -815,6 +820,23 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	}
 
 	return sym
+}
+
+// methodKind reads how a method is bound from its decorators. A decorator keeps its
+// module prefix in the model, as in abc.abstractclassmethod.
+func methodKind(fn *model.Function) string {
+	if !fn.IsMethod {
+		return ""
+	}
+	for _, dec := range fn.Decorators {
+		switch dec[strings.LastIndex(dec, ".")+1:] {
+		case "classmethod", "abstractclassmethod":
+			return "classmethod"
+		case "staticmethod", "abstractstaticmethod":
+			return "staticmethod"
+		}
+	}
+	return ""
 }
 
 func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {

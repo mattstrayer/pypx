@@ -160,6 +160,11 @@ function toggleExpand() {
               class="rounded border border-blue-500/20 bg-blue-950/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-blue-300"
               >method</span
             >
+            <span
+              v-if="method.method_kind"
+              class="rounded border border-subtle px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted"
+              >{{ method.method_kind }}</span
+            >
           </div>
 
           <DocsPySignature :symbol="method" class="mb-2" />

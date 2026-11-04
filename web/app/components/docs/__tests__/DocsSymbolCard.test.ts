@@ -61,6 +61,27 @@ describe("DocsSymbolCard", () => {
     expect(wrapper.text()).not.toMatch(/methods/i);
   });
 
+  it("labels classmethods and staticmethods on method rows", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Pipeline",
+          kind: "class",
+          methods: [
+            makeSymbol({ name: "from_steps", method_kind: "classmethod" }),
+            makeSymbol({ name: "helper", method_kind: "staticmethod" }),
+            makeSymbol({ name: "fit" }),
+          ],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button").trigger("click");
+    expect(wrapper.text()).toContain("from_stepsmethodclassmethod");
+    expect(wrapper.text()).toContain("helpermethodstaticmethod");
+    expect(wrapper.text()).toMatch(/fitmethod(?!classmethod|staticmethod)/);
+  });
+
   it("shows methods for exceptions", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: {
