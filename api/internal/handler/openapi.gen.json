@@ -457,6 +457,26 @@
         ],
         "type": "object"
       },
+      "DocConstant": {
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "default_digest": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "DocModule": {
         "properties": {
           "aliases": {
@@ -482,6 +502,15 @@
               "$ref": "#/components/schemas/DocSymbol"
             },
             "type": "array"
+          },
+          "constants": {
+            "items": {
+              "$ref": "#/components/schemas/DocConstant"
+            },
+            "type": "array"
+          },
+          "docstring": {
+            "type": "string"
           },
           "exceptions": {
             "items": {
@@ -3350,7 +3379,12 @@
               "enum": [
                 "function",
                 "class",
-                "exception"
+                "exception",
+                "method",
+                "attribute",
+                "property",
+                "constant",
+                "alias"
               ],
               "type": "string"
             }

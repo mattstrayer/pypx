@@ -271,7 +271,7 @@ var routes = []routeDef{
 			{Name: "q", In: "query", Type: "string", Description: "Substring filter on the symbol path."},
 			{
 				Name: "kind", In: "query", Type: "string",
-				Enum:        []string{"function", "class", "exception"},
+				Enum:        []string{"function", "class", "exception", "method", "attribute", "property", "constant", "alias"},
 				Description: "Restrict to one symbol kind.",
 			},
 			{Name: "limit", In: "query", Type: "integer", Description: "Maximum symbols, 1-500. Defaults to 100."},

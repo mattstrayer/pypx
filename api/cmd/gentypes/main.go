@@ -52,6 +52,7 @@ var contract = []any{
 	conda.CondaForgeInfo{},
 	handler.ExtrasResponse{},
 	handler.DocAttribute{},
+	handler.DocConstant{},
 	handler.DocParam{},
 	handler.DocReturn{},
 	handler.DocRaise{},
