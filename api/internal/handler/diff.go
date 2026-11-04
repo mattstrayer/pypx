@@ -349,10 +349,11 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 }
 
 // flattenSymbols walks a DocsResponse tree and returns a dotted-path → signature
-// map for all functions, classes, methods, attributes, exceptions and constants
-// across all modules. On dotted-path collisions across modules (rare in valid
-// Python), last-write-wins. A method beats an attribute with the same name in its
-// class, and a function or class beats a constant with the same name in its module.
+// map for all functions, classes, nested classes, methods, attributes, exceptions and
+// constants across all modules. On dotted-path collisions across modules (rare in
+// valid Python), last-write-wins. In a class, a method beats a nested class with the
+// same name and a nested class beats an attribute. A function or class beats a
+// constant with the same name in its module.
 //
 // An alias path counts as a path of its target, with the target's signature and
 // members. Which module holds the definition is then not part of the comparison:
@@ -371,9 +372,19 @@ func flattenSymbols(d DocsResponse) map[string]string {
 		}
 		members[path][suffix] = sig
 	}
-	addAttributes := func(path string, attrs []DocAttribute) {
-		for _, a := range attrs {
-			add(path, "."+a.Name, withDigest(attributeInputFrom(a).Signature(), a.DefaultDigest))
+	// addClass adds a class and its members. A nested class counts as a member of the
+	// top-level class, so an alias of that class gets the nested rows too.
+	var addClass func(path, suffix string, cls DocSymbol)
+	addClass = func(path, suffix string, cls DocSymbol) {
+		add(path, suffix, withOverloads(cls))
+		for _, a := range cls.Attributes {
+			add(path, suffix+"."+a.Name, withDigest(attributeInputFrom(a).Signature(), a.DefaultDigest))
+		}
+		for _, n := range cls.Classes {
+			addClass(path, suffix+"."+n.Name, n)
+		}
+		for _, m := range cls.Methods {
+			add(path, suffix+"."+m.Name, withOverloads(m))
 		}
 	}
 	for _, mod := range d.Modules {
@@ -381,15 +392,10 @@ func flattenSymbols(d DocsResponse) map[string]string {
 			add(mod.Name+"."+c.Name, "", withDigest(constantInputFrom(c).Signature(), c.DefaultDigest))
 		}
 		for _, fn := range mod.Functions {
-			add(mod.Name+"."+fn.Name, "", fn.Signature)
+			add(mod.Name+"."+fn.Name, "", withOverloads(fn))
 		}
 		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
-			path := mod.Name + "." + cls.Name
-			add(path, "", cls.Signature)
-			addAttributes(path, cls.Attributes)
-			for _, m := range cls.Methods {
-				add(path, "."+m.Name, m.Signature)
-			}
+			addClass(mod.Name+"."+cls.Name, "", cls)
 		}
 	}
 	for _, mod := range d.Modules {
@@ -409,6 +415,15 @@ func flattenSymbols(d DocsResponse) map[string]string {
 		}
 	}
 	return out
+}
+
+// withOverloads returns the signature a diff compares: the main signature joined
+// with the overloads, so a change to an overload alone changes the row.
+func withOverloads(sym DocSymbol) string {
+	if len(sym.Overloads) == 0 {
+		return sym.Signature
+	}
+	return sym.Signature + " [overloads: " + strings.Join(sym.Overloads, "; ") + "]"
 }
 
 // withDigest adds the digest of a cut value to a signature, so that a change past

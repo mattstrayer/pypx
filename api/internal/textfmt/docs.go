@@ -42,8 +42,28 @@ type DocSymbolInput struct {
 	Returns    *DocReturnInput
 	Raises     []DocRaiseInput
 	Methods    []DocSymbolInput
+	Classes    []DocSymbolInput // Classes nested in a class.
 	Attributes []DocAttributeInput
-	Origin     string // Dotted module that defines a re-exported symbol.
+	Origin     string   // Dotted module that defines a re-exported symbol.
+	MethodKind string   // "classmethod" | "staticmethod" | ""
+	Decorators []string // Served decorator names, such as "abstractmethod".
+	Overloads  []string // Signature of each @overload.
+}
+
+// badgeWords returns the words printed in brackets after the signature, as the page
+// shows them beside the name.
+func (s DocSymbolInput) badgeWords() []string {
+	var words []string
+	if s.MethodKind != "" {
+		words = append(words, s.MethodKind)
+	}
+	for _, d := range s.Decorators {
+		if d == "abstractmethod" {
+			d = "abstract"
+		}
+		words = append(words, d)
+	}
+	return words
 }
 
 // DocAttributeInput is a class attribute or property.
@@ -125,10 +145,14 @@ type DocRaiseInput struct {
 //	Aliases:
 //	  <name> -> <target>
 //
-//	### <module>.<symbol> — <signature>
+//	### <module>.<symbol> — <signature> [<badges>]
 //	Defined in: <origin>
+//	Overload: <signature>
 //	<docstring>
 //	(parameters, returns, raises blocks if present)
+//
+// A class's methods and nested classes follow it, each with its own block under its
+// dotted path, such as <module>.<class>.<nested>.<method>.
 func FormatDocs(in *DocsInput, prefix string) string {
 	var b strings.Builder
 	direct := writeMatchingSymbols(&b, in, prefix)
@@ -233,37 +257,44 @@ func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool
 		}
 
 		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
-			path := mod.Name + "." + cls.Name
-			classMatches := matchesPrefix(path, prefix)
-			anyMethodMatches := false
-			for _, m := range cls.Methods {
-				if matchesPrefix(path+"."+m.Name, prefix) {
-					anyMethodMatches = true
-					break
-				}
-			}
-			if !classMatches && !anyMethodMatches && !anyAttributeMatches(path, cls, prefix) {
-				continue
-			}
-			writeModuleHeader()
-			if classMatches {
-				writeSymbolBlock(b, path, cls)
-				matched = true
-			}
-			for _, m := range cls.Methods {
-				mp := path + "." + m.Name
-				if matchesPrefix(mp, prefix) {
-					writeSymbolBlock(b, mp, m)
-					matched = true
-				}
-			}
-			if !classMatches && writeMatchingAttributes(b, path, cls, prefix) {
+			if writeMatchingClass(b, mod.Name+"."+cls.Name, cls, prefix, writeModuleHeader) {
 				matched = true
 			}
 		}
 	}
 
 	return matched
+}
+
+// writeMatchingClass writes the blocks of cls and its members that match prefix,
+// then does the same for its nested classes. beforeFirst runs before each block, and
+// it reports whether it wrote any.
+func writeMatchingClass(b *strings.Builder, path string, cls DocSymbolInput, prefix string, beforeFirst func()) bool {
+	wrote := false
+	classMatches := matchesPrefix(path, prefix)
+	if classMatches {
+		beforeFirst()
+		writeSymbolBlock(b, path, cls)
+		wrote = true
+	}
+	for _, m := range cls.Methods {
+		if mp := path + "." + m.Name; matchesPrefix(mp, prefix) {
+			beforeFirst()
+			writeSymbolBlock(b, mp, m)
+			wrote = true
+		}
+	}
+	if !classMatches && anyAttributeMatches(path, cls, prefix) {
+		beforeFirst()
+		writeMatchingAttributes(b, path, cls, prefix)
+		wrote = true
+	}
+	for _, n := range cls.Classes {
+		if writeMatchingClass(b, path+"."+n.Name, n, prefix, beforeFirst) {
+			wrote = true
+		}
+	}
+	return wrote
 }
 
 // matchesPrefix returns true if prefix is empty, equals path, or path starts
@@ -287,17 +318,13 @@ func anyAttributeMatches(path string, sym DocSymbolInput, prefix string) bool {
 	return false
 }
 
-// writeMatchingAttributes writes a block for each attribute that matches prefix,
-// and reports whether it wrote any.
-func writeMatchingAttributes(b *strings.Builder, path string, sym DocSymbolInput, prefix string) bool {
-	wrote := false
+// writeMatchingAttributes writes a block for each attribute that matches prefix.
+func writeMatchingAttributes(b *strings.Builder, path string, sym DocSymbolInput, prefix string) {
 	for _, a := range sym.Attributes {
 		if ap := path + "." + a.Name; matchesPrefix(ap, prefix) {
 			writeAttributeBlock(b, ap, a)
-			wrote = true
 		}
 	}
-	return wrote
 }
 
 // writeAttributeBlock renders one attribute as a symbol of its own.
@@ -312,13 +339,20 @@ func writeAttributeBlock(b *strings.Builder, dottedPath string, a DocAttributeIn
 
 // writeSymbolBlock renders a single symbol's heading + body to b.
 func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput) {
+	badges := ""
+	if words := sym.badgeWords(); len(words) > 0 {
+		badges = " [" + strings.Join(words, ", ") + "]"
+	}
 	if sym.Signature != "" {
-		fmt.Fprintf(b, "### %s — %s\n", dottedPath, sym.Signature)
+		fmt.Fprintf(b, "### %s — %s%s\n", dottedPath, sym.Signature, badges)
 	} else {
-		fmt.Fprintf(b, "### %s\n", dottedPath)
+		fmt.Fprintf(b, "### %s%s\n", dottedPath, badges)
 	}
 	if sym.Origin != "" {
 		fmt.Fprintf(b, "Defined in: %s\n", sym.Origin)
+	}
+	for _, o := range sym.Overloads {
+		fmt.Fprintf(b, "Overload: %s\n", lineBreaks.Replace(o))
 	}
 	if sym.Docstring != "" {
 		b.WriteString(sym.Docstring)
@@ -398,11 +432,12 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //   - Method: "module.Class.method"
 //   - Attribute: "module.Class.attr" or "module.ExceptionClass.attr"
 //   - Exception: "module.ExceptionClass", with methods as for a class
+//   - Nested class: "module.Class.Nested", with members as for a class
 //   - Constant: "module.CONSTANT"
 //
 // A class lookup returns only the class block, not its methods. Methods are
-// addressed individually by their dotted path. A method wins over an attribute
-// with the same name.
+// addressed individually by their dotted path. A method wins over a nested class
+// with the same name, and both win over an attribute.
 //
 // A path that starts with an alias resolves to the alias target, and the block
 // shows the target's path.
@@ -471,24 +506,8 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 
 		// Class, exception, or one of their members under this module?
 		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
-			if rest == cls.Name {
-				var b strings.Builder
-				writeSymbolBlock(&b, dotted, cls)
-				return b.String(), true
-			}
-			methodPrefix := cls.Name + "."
-			if strings.HasPrefix(rest, methodPrefix) {
-				methodName := strings.TrimPrefix(rest, methodPrefix)
-				for _, m := range cls.Methods {
-					if methodName == m.Name {
-						var b strings.Builder
-						writeSymbolBlock(&b, dotted, m)
-						return b.String(), true
-					}
-				}
-				if out, ok := formatAttribute(cls, methodName, dotted); ok {
-					return out, true
-				}
+			if out, ok := formatClassPath(cls, rest, dotted); ok {
+				return out, true
 			}
 		}
 
@@ -498,4 +517,31 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// formatClassPath renders what rest names, relative to the scope that holds cls:
+// cls itself, or one of its members at any depth of nested classes.
+func formatClassPath(cls DocSymbolInput, rest, dotted string) (string, bool) {
+	if rest == cls.Name {
+		var b strings.Builder
+		writeSymbolBlock(&b, dotted, cls)
+		return b.String(), true
+	}
+	member, ok := strings.CutPrefix(rest, cls.Name+".")
+	if !ok {
+		return "", false
+	}
+	for _, m := range cls.Methods {
+		if member == m.Name {
+			var b strings.Builder
+			writeSymbolBlock(&b, dotted, m)
+			return b.String(), true
+		}
+	}
+	for _, n := range cls.Classes {
+		if out, ok := formatClassPath(n, member, dotted); ok {
+			return out, true
+		}
+	}
+	return formatAttribute(cls, member, dotted)
 }

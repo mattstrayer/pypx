@@ -597,6 +597,18 @@
             },
             "type": "array"
           },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/DocSymbol"
+            },
+            "type": "array"
+          },
+          "decorators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "docstring": {
             "type": "string"
           },
@@ -622,6 +634,12 @@
           },
           "origin": {
             "type": "string"
+          },
+          "overloads": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "parameters": {
             "items": {

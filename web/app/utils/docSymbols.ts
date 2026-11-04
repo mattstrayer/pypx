@@ -1,5 +1,14 @@
 import type { DocConstant, DocModule, DocSymbol } from "~/types/api";
 
+/**
+ * The words shown beside a symbol's name, one per fact, as in `/docs.txt`.
+ * `method_kind` alone carries classmethod and staticmethod.
+ */
+export function docBadges(symbol: Pick<DocSymbol, "method_kind" | "decorators">): string[] {
+  const words = (symbol.decorators ?? []).map((d) => (d === "abstractmethod" ? "abstract" : d));
+  return symbol.method_kind ? [symbol.method_kind, ...words] : words;
+}
+
 /** A symbol on the docs page, with where it lives in the package. */
 export interface DocEntry extends DocSymbol {
   module: string;

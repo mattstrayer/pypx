@@ -61,8 +61,8 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 				entries = append(entries, entry{path, "function", fn.Signature})
 			}
 		}
-		addClass := func(symKind string, cls DocSymbolInput) {
-			path := mod.Name + "." + cls.Name
+		var addClass func(path, symKind string, cls DocSymbolInput)
+		addClass = func(path, symKind string, cls DocSymbolInput) {
 			if matchesQ(path) && matchesKind(symKind) {
 				entries = append(entries, entry{path, symKind, cls.Signature})
 			}
@@ -73,12 +73,15 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 				}
 			}
 			addAttributes(path, cls)
+			for _, n := range cls.Classes {
+				addClass(path+"."+n.Name, "class", n)
+			}
 		}
 		for _, cls := range mod.Classes {
-			addClass("class", cls)
+			addClass(mod.Name+"."+cls.Name, "class", cls)
 		}
 		for _, exc := range mod.Exceptions {
-			addClass("exception", exc)
+			addClass(mod.Name+"."+exc.Name, "exception", exc)
 		}
 		for _, c := range mod.Constants {
 			path := mod.Name + "." + c.Name
