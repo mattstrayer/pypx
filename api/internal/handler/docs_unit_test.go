@@ -182,6 +182,36 @@ func TestFlattenSymbols_Attributes(t *testing.T) {
 	}
 }
 
+func TestFlattenSymbols_ChangePastTruncatedDefault(t *testing.T) {
+	flat := func(value string) map[string]string {
+		sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{{Name: "x", Value: value}}}, nil, "m")
+		return flattenSymbols(DocsResponse{Modules: []DocModule{{Name: "m", Classes: []DocSymbol{sym}}}})
+	}
+	long := strings.Repeat("a", 200)
+	if flat(long+"1")["m.C.x"] == flat(long+"2")["m.C.x"] {
+		t.Error("a change past the cut must change the row")
+	}
+	if flat(long)["m.C.x"] != flat(long)["m.C.x"] {
+		t.Error("the same value must give the same row")
+	}
+	if got := flat("short")["m.C.x"]; got != "x = short" {
+		t.Errorf("short value row = %q", got)
+	}
+}
+
+func TestDocAttribute_DigestOnlyWhenTruncated(t *testing.T) {
+	sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
+		{Name: "long", Value: strings.Repeat("a", 200)},
+		{Name: "short", Value: "1"},
+	}}, nil, "m")
+	if sym.Attributes[0].DefaultDigest == "" {
+		t.Error("a truncated default needs a digest")
+	}
+	if sym.Attributes[1].DefaultDigest != "" {
+		t.Errorf("short default digest = %q", sym.Attributes[1].DefaultDigest)
+	}
+}
+
 func TestFlattenSymbols_ExceptionMethods(t *testing.T) {
 	got := flattenSymbols(DocsResponse{Modules: []DocModule{{
 		Name:       "m",

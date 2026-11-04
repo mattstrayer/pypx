@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,9 +87,12 @@ type DocAttribute struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
 	Default     string `json:"default,omitempty"`
-	Description string `json:"description"`
-	IsProperty  bool   `json:"is_property"`
-	Writable    bool   `json:"writable"`
+	// DefaultDigest identifies the full value when Default is truncated, so a diff
+	// sees a change past the cut.
+	DefaultDigest string `json:"default_digest,omitempty"`
+	Description   string `json:"description"`
+	IsProperty    bool   `json:"is_property"`
+	Writable      bool   `json:"writable"`
 }
 
 // DocParam is a function parameter.
@@ -861,6 +866,10 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		// An __init__ assignment holds an expression, not a default.
 		if !a.Instance {
 			attr.Default = truncateDefault(a.Value)
+			if attr.Default != a.Value {
+				sum := sha256.Sum256([]byte(a.Value))
+				attr.DefaultDigest = hex.EncodeToString(sum[:8])
+			}
 		}
 		if a.Type != nil {
 			attr.Type = a.Type.Raw

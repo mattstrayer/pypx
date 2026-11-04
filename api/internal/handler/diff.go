@@ -358,7 +358,11 @@ func flattenSymbols(d DocsResponse) map[string]string {
 	}
 	addAttributes := func(path string, attrs []DocAttribute) {
 		for _, a := range attrs {
-			add(path, "."+a.Name, attributeInputFrom(a).Signature())
+			sig := attributeInputFrom(a).Signature()
+			if a.DefaultDigest != "" {
+				sig += " [default digest " + a.DefaultDigest + "]"
+			}
+			add(path, "."+a.Name, sig)
 		}
 	}
 	for _, mod := range d.Modules {

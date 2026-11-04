@@ -189,6 +189,7 @@ export interface DocAttribute {
   name: string;
   type?: string;
   default?: string;
+  default_digest?: string;
   description: string;
   is_property: boolean;
   writable: boolean;

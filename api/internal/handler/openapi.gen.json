@@ -430,6 +430,9 @@
           "default": {
             "type": "string"
           },
+          "default_digest": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
