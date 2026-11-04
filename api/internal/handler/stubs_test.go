@@ -1,10 +1,19 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/goopy/model"
+	"github.com/pypx/goopy/wheel"
 )
 
 func TestResolveStubVersion(t *testing.T) {
@@ -174,6 +183,86 @@ func TestStubConstructorFillsSourceTypes(t *testing.T) {
 		if len(sym.Parameters) != 1 || sym.Parameters[0].Type != "int" {
 			t.Errorf("%s: constructor parameters = %+v, want size: int", modName, sym.Parameters)
 		}
+	}
+}
+
+// serveStubWheel serves a zip with one entry per name, each of the given size,
+// and returns releases that point at it. One repeated byte compresses well, so a
+// large entry costs little to send.
+func serveStubWheel(t *testing.T, sizes map[string]int64) map[string][]pypi.ReleaseFile {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, size := range sizes {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.CopyN(w, blankLines{}, size); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(buf.Bytes()) //nolint:errcheck
+	}))
+	t.Cleanup(srv.Close)
+	return map[string][]pypi.ReleaseFile{"1.0": {{Filename: "stubs-1.0-py3-none-any.whl", URL: srv.URL + "/stubs.whl"}}}
+}
+
+// blankLines reads as an endless run of newlines: valid Python with no content.
+type blankLines struct{}
+
+func (blankLines) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = '\n'
+	}
+	return len(p), nil
+}
+
+func TestFetchStubPackage_FileAtCapIsRead(t *testing.T) {
+	releases := serveStubWheel(t, map[string]int64{"pkg/big.pyi": wheel.MaxDecompressedFile})
+	pkg, err := fetchStubPackage(context.Background(), "stubs", releases, "1.0")
+	if err != nil {
+		t.Fatalf("a file at the cap must be read: %v", err)
+	}
+	if pkg == nil {
+		t.Fatal("no package")
+	}
+}
+
+func TestFetchStubPackage_FileOverCap(t *testing.T) {
+	releases := serveStubWheel(t, map[string]int64{"pkg/big.pyi": wheel.MaxDecompressedFile + 1})
+	_, err := fetchStubPackage(context.Background(), "stubs", releases, "1.0")
+	if err == nil || !strings.Contains(err.Error(), "per-file decompression cap") {
+		t.Fatalf("err = %v, want the per-file cap", err)
+	}
+}
+
+func TestFetchStubPackage_TotalOverCap(t *testing.T) {
+	sizes := map[string]int64{}
+	var total int64
+	for i := 0; total <= wheel.MaxDecompressedTotal; i++ {
+		sizes[fmt.Sprintf("pkg/m%d.pyi", i)] = wheel.MaxDecompressedFile
+		total += wheel.MaxDecompressedFile
+	}
+	releases := serveStubWheel(t, sizes)
+	_, err := fetchStubPackage(context.Background(), "stubs", releases, "1.0")
+	if err == nil || !strings.Contains(err.Error(), "total decompression budget") {
+		t.Fatalf("err = %v, want the total cap", err)
+	}
+}
+
+// Only .pyi files count, so other data in a wheel cannot use up the budget.
+func TestFetchStubPackage_OtherFilesDoNotCount(t *testing.T) {
+	releases := serveStubWheel(t, map[string]int64{
+		"pkg/data.bin":  wheel.MaxDecompressedFile + 1,
+		"pkg/small.pyi": 0,
+	})
+	if _, err := fetchStubPackage(context.Background(), "stubs", releases, "1.0"); err != nil {
+		t.Fatalf("err = %v", err)
 	}
 }
 
