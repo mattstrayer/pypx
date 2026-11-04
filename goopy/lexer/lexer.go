@@ -4,6 +4,7 @@
 package lexer
 
 import (
+	"bytes"
 	"unicode"
 	"unicode/utf8"
 
@@ -24,6 +25,8 @@ type Lexer struct {
 
 // New returns a new Lexer for the given source bytes.
 func New(src []byte) *Lexer {
+	// A byte order mark at the start of a file is not part of the source.
+	src = bytes.TrimPrefix(src, []byte("\xef\xbb\xbf"))
 	return &Lexer{
 		src:         src,
 		line:        1,
@@ -94,8 +97,8 @@ func (l *Lexer) Next() token.Token {
 
 		ch := l.src[l.pos]
 
-		// Skip spaces and tabs (not at line start — those were handled above).
-		if ch == ' ' || ch == '\t' {
+		// Skip spaces, tabs and form feeds (not at line start — those were handled above).
+		if ch == ' ' || ch == '\t' || ch == '\f' {
 			l.pos++
 			l.col++
 			continue
@@ -155,7 +158,7 @@ func (l *Lexer) Next() token.Token {
 			// For multi-byte starts, verify the decoded rune is actually a letter.
 			if ch >= 0x80 {
 				r, _ := utf8.DecodeRune(l.src[l.pos:])
-				if r == utf8.RuneError || !unicode.IsLetter(r) {
+				if !isIdentStartRune(r) {
 					return l.lexOperator()
 				}
 			}
@@ -190,7 +193,7 @@ func (l *Lexer) eofTokens() token.Token {
 // whitespace and optionally a comment, followed by a newline or EOF.
 func (l *Lexer) isBlankOrCommentLine() bool {
 	i := l.pos
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t' || l.src[i] == '\f') {
 		i++
 	}
 	if i >= len(l.src) {
@@ -227,6 +230,10 @@ func (l *Lexer) measureIndent() (spaces int, bytes int) {
 			i++
 		} else if l.src[i] == '\t' {
 			col += 8 - (col % 8)
+			i++
+		} else if l.src[i] == '\f' {
+			// As in CPython, a form feed resets the indent count.
+			col = 0
 			i++
 		} else {
 			break
@@ -267,7 +274,8 @@ func (l *Lexer) isStringStart() bool {
 
 func isStringPrefix(ch byte) bool {
 	return ch == 'r' || ch == 'R' || ch == 'b' || ch == 'B' ||
-		ch == 'f' || ch == 'F' || ch == 'u' || ch == 'U'
+		ch == 'f' || ch == 'F' || ch == 'u' || ch == 'U' ||
+		ch == 't' || ch == 'T'
 }
 
 // lexString lexes a string literal (with optional prefix).
@@ -279,7 +287,7 @@ func (l *Lexer) lexString() token.Token {
 	isFStr := false
 	for l.pos < len(l.src) && isStringPrefix(l.src[l.pos]) {
 		ch := l.src[l.pos]
-		if ch == 'f' || ch == 'F' {
+		if ch == 'f' || ch == 'F' || ch == 't' || ch == 'T' {
 			isFStr = true
 		}
 		l.pos++
@@ -325,7 +333,7 @@ func (l *Lexer) lexString() token.Token {
 		}
 
 		if ch == '\n' || ch == '\r' {
-			if !triple {
+			if !triple && braceDepth == 0 {
 				// Unterminated single-line string — stop here.
 				break
 			}
@@ -417,9 +425,9 @@ func (l *Lexer) lexIdent() token.Token {
 			l.pos++
 			l.col++
 		} else {
-			// Multi-byte UTF-8: decode a full rune and check if it's a letter or digit.
+			// Multi-byte UTF-8: decode a full rune and check it.
 			r, size := utf8.DecodeRune(l.src[l.pos:])
-			if r == utf8.RuneError || (!unicode.IsLetter(r) && !unicode.IsDigit(r)) {
+			if !isIdentContinueRune(r) {
 				break
 			}
 			l.pos += size
@@ -491,24 +499,35 @@ func (l *Lexer) lexNumber() token.Token {
 		}
 	}
 
-	// Exponent part.
-	if l.pos < len(l.src) && (l.src[l.pos] == 'e' || l.src[l.pos] == 'E') {
-		l.pos++
-		l.col++
-		if l.pos < len(l.src) && (l.src[l.pos] == '+' || l.src[l.pos] == '-') {
-			l.pos++
-			l.col++
-		}
-		for l.pos < len(l.src) && isDigit(l.src[l.pos]) {
-			l.pos++
-			l.col++
-		}
+	// Exponent part. Only digits make it an exponent: 1else starts a keyword.
+	if n := l.exponentLen(); n > 0 {
+		l.pos += n
+		l.col += n
 	}
 
 	// Complex suffix.
 	l.consumeComplexSuffix()
 
 	return token.Token{Type: token.NUMBER, Lit: string(l.src[start:l.pos]), Pos: pos}
+}
+
+// exponentLen returns the length of the exponent at the current position, or 0.
+func (l *Lexer) exponentLen() int {
+	i := l.pos
+	if i >= len(l.src) || (l.src[i] != 'e' && l.src[i] != 'E') {
+		return 0
+	}
+	i++
+	if i < len(l.src) && (l.src[i] == '+' || l.src[i] == '-') {
+		i++
+	}
+	if i >= len(l.src) || !isDigit(l.src[i]) {
+		return 0
+	}
+	for i < len(l.src) && (isDigit(l.src[i]) || l.src[i] == '_') {
+		i++
+	}
+	return i - l.pos
 }
 
 func (l *Lexer) consumeComplexSuffix() {
@@ -746,6 +765,16 @@ func isIdentStart(ch byte) bool {
 
 func isIdentContinue(ch byte) bool {
 	return isIdentStart(ch) || isDigit(ch)
+}
+
+// isIdentStartRune approximates the XID_Start property for a non-ASCII rune.
+func isIdentStartRune(r rune) bool {
+	return r != utf8.RuneError && (unicode.IsLetter(r) || unicode.Is(unicode.Nl, r) || unicode.Is(unicode.Other_ID_Start, r))
+}
+
+// isIdentContinueRune approximates the XID_Continue property for a non-ASCII rune.
+func isIdentContinueRune(r rune) bool {
+	return isIdentStartRune(r) || unicode.In(r, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc, unicode.Other_ID_Continue)
 }
 
 func isDigit(ch byte) bool {

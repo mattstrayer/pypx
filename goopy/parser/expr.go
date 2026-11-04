@@ -619,7 +619,8 @@ func stripQuotes(s string) string {
 
 func isStringPrefixChar(c byte) bool {
 	return c == 'r' || c == 'R' || c == 'b' || c == 'B' ||
-		c == 'f' || c == 'F' || c == 'u' || c == 'U'
+		c == 'f' || c == 'F' || c == 'u' || c == 'U' ||
+		c == 't' || c == 'T'
 }
 
 func (p *Parser) parseNone() ast.Expr {
