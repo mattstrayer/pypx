@@ -73,6 +73,129 @@ describe("docs page", () => {
     expect(page.find("[id='sym-redis.client.Redis']").exists()).toBe(true);
   });
 
+  describe("re-exports", () => {
+    const fn = (name: string) => ({
+      name,
+      kind: "function" as const,
+      signature: `def ${name}()`,
+      docstring: "",
+      parameters: [],
+    });
+
+    it("lists every alias by module, as plain text, after the cards", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "numpy",
+        version: "1.0",
+        available: true,
+        modules: [
+          { name: "numpy.char", functions: [fn("capitalize")], classes: [], exceptions: [] },
+          {
+            name: "numpy.strings",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            aliases: [
+              { name: "capitalize", target: "numpy.char.capitalize" },
+              { name: "isalnum", target: "numpy.char.isalnum" },
+            ],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      const section = page.find("[data-testid='re-exports']");
+      expect(section.find("h2").text()).toBe("Re-exports");
+      expect(section.find("h3").text()).toBe("numpy.strings");
+      expect(section.findAll("li").map((li) => li.text().replace(/\s+/g, " "))).toEqual([
+        "capitalize -> numpy.char.capitalize",
+        "isalnum -> numpy.char.isalnum",
+      ]);
+      expect(section.find("a").exists()).toBe(false);
+
+      // An alias with a card also has the card line. One with no card has no card.
+      expect(page.find("[data-testid='symbol-aliases']").text()).toContain(
+        "numpy.strings.capitalize",
+      );
+      expect(page.text()).not.toContain("numpy.strings.isalnum");
+      const cards = page.find("[id='sym-numpy.char.capitalize']").element;
+      expect(cards.compareDocumentPosition(section.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it("has no section when the package has no aliases", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [{ name: "pkg", functions: [fn("f")], classes: [], exceptions: [] }],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      expect(page.find("[data-testid='re-exports']").exists()).toBe(false);
+    });
+
+    it("shows the section for a package with aliases and no cards", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [
+          {
+            name: "pkg",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            aliases: [{ name: "add", target: "pkg.core.add" }],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      expect(page.find("[data-testid='re-exports']").text()).toContain("add -> pkg.core.add");
+    });
+
+    it("gives no two page elements one id", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [
+          // One path twice, as a function and a class.
+          {
+            name: "pkg.a",
+            functions: [fn("x")],
+            classes: [{ ...fn("x"), kind: "class" }],
+            exceptions: [],
+          },
+          { name: "pkg.b", functions: [fn("x")], classes: [], exceptions: [] },
+          // Aliases that share a name with each other and with a card.
+          {
+            name: "pkg",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            aliases: [{ name: "x", target: "pkg.a.x" }],
+          },
+          {
+            name: "pkg.c",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            aliases: [
+              { name: "x", target: "pkg.a.x" },
+              { name: "y", target: "pkg.attrs.y" },
+            ],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      const ids = page.findAll("[id]").map((el) => el.attributes("id"));
+      expect(ids.filter((id) => id?.startsWith("sym-"))).toHaveLength(3);
+      expect(ids).toContain("re-exports");
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
   it("offers the symbol jump when docs exist", async () => {
     const available: DocsResponse = {
       package: "pkg",

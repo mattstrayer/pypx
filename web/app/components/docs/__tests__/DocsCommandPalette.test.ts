@@ -17,6 +17,7 @@ function makeSymbol(
     path,
     id: path,
     repeated,
+    importableAs: [],
     name,
     kind,
     signature: `def ${name}()`,
@@ -97,6 +98,48 @@ describe("DocsCommandPalette", () => {
     expect(wrapper.emitted("jump")).toBeTruthy();
     expect(wrapper.emitted("jump")![0]!).toHaveLength(1);
     expect(wrapper.emitted("jump")![0]![0]).toBe("m.fit");
+  });
+
+  describe("alias rows", () => {
+    const aliases = [
+      { name: "fit_alias", module: "n.sub", path: "n.sub.fit_alias", targetId: "m.fit" },
+    ];
+
+    async function search(query: string) {
+      const wrapper = await mountSuspended(DocsCommandPalette, {
+        props: { symbols, aliases, open: true, sections: [] },
+        attachTo: document.body,
+      });
+      const input = findInBody("palette-input") as HTMLInputElement;
+      input.value = query;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await nextTick();
+      await nextTick();
+      return wrapper;
+    }
+
+    it("are not listed before a search", async () => {
+      await mountSuspended(DocsCommandPalette, {
+        props: { symbols, aliases, open: true, sections: [] },
+        attachTo: document.body,
+      });
+      expect(findInBody("palette-alias")).toBeNull();
+    });
+
+    it("show the alias name and module, and jump to the target card", async () => {
+      const wrapper = await search("fit_alias");
+      const row = findInBody("palette-alias") as HTMLElement;
+      expect(row.textContent).toContain("fit_alias");
+      expect(row.textContent).toContain("n.sub");
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await nextTick();
+      expect(wrapper.emitted("jump")![0]![0]).toBe("m.fit");
+    });
+
+    it("match on the dotted path", async () => {
+      await search("n.sub.fit");
+      expect(findInBody("palette-alias")).not.toBeNull();
+    });
   });
 
   it("emits close when Escape is pressed", async () => {

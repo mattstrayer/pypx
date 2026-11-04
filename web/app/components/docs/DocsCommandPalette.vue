@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Fuse from "fuse.js";
-import type { DocEntry } from "~/utils/docSymbols";
+import type { DocAliasEntry, DocEntry } from "~/utils/docSymbols";
 
 interface PaletteSection {
   label: string;
@@ -11,6 +11,7 @@ interface PaletteSection {
 
 const props = defineProps<{
   symbols: DocEntry[];
+  aliases?: DocAliasEntry[];
   open: boolean;
   sections: PaletteSection[];
 }>();
@@ -25,7 +26,7 @@ const selectedIndex = ref(0);
 
 const fuse = computed(
   () =>
-    new Fuse(props.symbols, {
+    new Fuse<DocEntry | DocAliasEntry>([...props.symbols, ...(props.aliases ?? [])], {
       keys: ["name", "path", "kind"],
       threshold: 0.4,
       includeScore: true,
@@ -36,7 +37,8 @@ const MAX_PER_GROUP = 8;
 
 type PaletteResult =
   | { type: "section"; section: PaletteSection }
-  | { type: "symbol"; symbol: DocEntry };
+  | { type: "symbol"; symbol: DocEntry }
+  | { type: "alias"; alias: DocAliasEntry };
 
 const results = computed<PaletteResult[]>(() => {
   const q = query.value.trim().toLowerCase();
@@ -44,8 +46,9 @@ const results = computed<PaletteResult[]>(() => {
   // Sections: simple label match
   const matchedSections = props.sections.filter((s) => !q || s.label.toLowerCase().includes(q));
 
-  // Symbols: fuse.js when query present, grouped by kind when empty
-  let matchedSymbols: DocEntry[];
+  // Symbols: fuse.js when query present, grouped by kind when empty. Aliases only
+  // appear as search results.
+  let matchedSymbols: (DocEntry | DocAliasEntry)[];
   if (!q) {
     const functions = props.symbols.filter((s) => s.kind === "function").slice(0, MAX_PER_GROUP);
     const classes = props.symbols.filter((s) => s.kind === "class").slice(0, MAX_PER_GROUP);
@@ -57,7 +60,11 @@ const results = computed<PaletteResult[]>(() => {
 
   return [
     ...matchedSections.map((s) => ({ type: "section" as const, section: s })),
-    ...matchedSymbols.map((s) => ({ type: "symbol" as const, symbol: s })),
+    ...matchedSymbols.map((s) =>
+      "targetId" in s
+        ? { type: "alias" as const, alias: s }
+        : { type: "symbol" as const, symbol: s },
+    ),
   ];
 });
 
@@ -65,9 +72,16 @@ watch(query, () => {
   selectedIndex.value = 0;
 });
 
+function resultKey(item: PaletteResult) {
+  if (item.type === "section") return `sec-${item.section.kind}`;
+  return item.type === "alias" ? `alias-${item.alias.path}` : item.symbol.id;
+}
+
 function select(item: PaletteResult) {
   if (item.type === "section") {
     if (item.section.firstSymbol) emit("jump", item.section.firstSymbol);
+  } else if (item.type === "alias") {
+    emit("jump", item.alias.targetId);
   } else {
     emit("jump", item.symbol.id);
   }
@@ -168,10 +182,7 @@ watch(
           <div v-if="results.length === 0" class="px-4 py-6 text-center text-sm text-muted">
             No symbols found
           </div>
-          <template
-            v-for="(item, i) in results"
-            :key="item.type === 'section' ? `sec-${item.section.kind}` : item.symbol.id"
-          >
+          <template v-for="(item, i) in results" :key="resultKey(item)">
             <!-- Section item -->
             <button
               v-if="item.type === 'section'"
@@ -190,6 +201,27 @@ watch(
               >
               <span class="font-mono text-sm text-primary">{{ item.section.label }}</span>
               <span class="ml-auto text-[10px] text-muted">{{ item.section.count }}</span>
+            </button>
+            <!-- Alias item -->
+            <button
+              v-else-if="item.type === 'alias'"
+              :id="`palette-opt-${i}`"
+              role="option"
+              :aria-selected="i === selectedIndex"
+              data-testid="palette-alias"
+              class="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
+              :class="i === selectedIndex ? 'bg-raised' : 'hover:bg-raised/50'"
+              @click="select(item)"
+              @mouseover="selectedIndex = i"
+            >
+              <span
+                class="flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-raised text-muted"
+                >alias</span
+              >
+              <span class="font-mono text-sm text-primary">{{ item.alias.name }}</span>
+              <span class="min-w-0 truncate font-mono text-[11px] text-muted">{{
+                item.alias.module
+              }}</span>
             </button>
             <!-- Symbol item -->
             <button

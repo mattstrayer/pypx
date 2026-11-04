@@ -44,6 +44,7 @@ function makeSymbol(
     path,
     id: path,
     repeated,
+    importableAs: [],
   };
 }
 

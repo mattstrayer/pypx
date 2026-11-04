@@ -49,6 +49,45 @@ describe("docEntries", () => {
   });
 
   it("handles no modules", () => {
-    expect(docEntries([])).toEqual({ functions: [], classes: [], exceptions: [] });
+    expect(docEntries([])).toEqual({ functions: [], classes: [], exceptions: [], aliases: [] });
+  });
+
+  it("lists the aliases of a symbol on its entry", () => {
+    const e = docEntries([
+      mod("numpy", { aliases: [{ name: "cap", target: "numpy.char.capitalize" }] }),
+      mod("numpy.char", { functions: [sym("capitalize"), sym("lower")] }),
+      mod("numpy.strings", { aliases: [{ name: "capitalize", target: "numpy.char.capitalize" }] }),
+    ]);
+    expect(e.functions[0]!.importableAs).toEqual(["numpy.cap", "numpy.strings.capitalize"]);
+    expect(e.functions[1]!.importableAs).toEqual([]);
+  });
+
+  it("keeps only the aliases with a card as jump targets", () => {
+    const e = docEntries([
+      mod("numpy.char", { functions: [sym("capitalize")] }),
+      mod("numpy.strings", {
+        aliases: [
+          { name: "capitalize", target: "numpy.char.capitalize" },
+          { name: "isalnum", target: "numpy.char.isalnum" },
+        ],
+      }),
+    ]);
+    expect(e.aliases).toEqual([
+      {
+        name: "capitalize",
+        module: "numpy.strings",
+        path: "numpy.strings.capitalize",
+        targetId: "numpy.char.capitalize",
+      },
+    ]);
+  });
+
+  it("jumps an alias to the first of two symbols with one path", () => {
+    const e = docEntries([
+      mod("m", { functions: [sym("x")], classes: [sym("x", "class")] }),
+      mod("n", { aliases: [{ name: "x", target: "m.x" }] }),
+    ]);
+    expect(e.aliases[0]!.targetId).toBe(e.functions[0]!.id);
+    expect(e.classes[0]!.importableAs).toEqual(["n.x"]);
   });
 });
