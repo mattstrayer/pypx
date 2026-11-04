@@ -307,24 +307,25 @@ if (pkg.value) {
 
     <div v-else-if="pkg">
       <h1 class="sr-only">{{ pkg.name }} API documentation</h1>
-      <!-- Docs context bar -->
-      <div class="-mx-4 mb-0 border-b border-subtle bg-base/90 backdrop-blur-sm sm:-mx-6 lg:-mx-8">
+      <!-- Docs context bar. The bleed matches the layout: main pads 1rem, and it has
+           side margins to spare only once the viewport passes its 72rem width + 2rem. -->
+      <div class="-mx-4 mb-0 border-b border-subtle bg-base/90 backdrop-blur-sm min-[74rem]:-mx-8">
         <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2">
           <NuxtLink
             :to="`/packages/${pkg.name}`"
-            class="flex items-center gap-1 text-sm font-medium text-[var(--color-brand)] transition-colors hover:text-[var(--color-brand-light)]"
+            class="flex min-w-0 items-center gap-1 text-sm font-medium text-[var(--color-brand)] transition-colors hover:text-[var(--color-brand-light)]"
           >
             <span>←</span>
-            <span>{{ pkg.name }}</span>
+            <span class="truncate">{{ pkg.name }}</span>
           </NuxtLink>
           <span class="text-muted">·</span>
-          <span class="font-mono text-xs text-muted">v{{ pkg.version }}</span>
+          <span class="shrink-0 font-mono text-xs text-muted">v{{ pkg.version }}</span>
           <span v-if="pkg.summary" class="hidden truncate text-xs text-muted sm:block">
             {{ pkg.summary }}
           </span>
           <button
             v-if="docs?.available"
-            class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] px-2.5 py-1.5 text-[11px] text-[var(--color-brand)] transition-colors hover:bg-[rgba(74,222,128,0.16)]"
+            class="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] px-2.5 py-1.5 text-[11px] text-[var(--color-brand)] transition-colors hover:bg-[rgba(74,222,128,0.16)]"
             @click="paletteOpen = true"
           >
             <svg
@@ -370,7 +371,7 @@ if (pkg.value) {
         </div>
 
         <!-- Docs content -->
-        <div v-else class="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8">
+        <div v-else class="flex gap-0 -mx-4 min-[74rem]:-mx-8">
           <!-- Virtual sidebar -->
           <DocsSidebar
             :functions="allFunctions"
@@ -382,8 +383,9 @@ if (pkg.value) {
             @select="jumpToSymbol"
           />
 
-          <!-- Main content -->
-          <div class="flex-1 min-w-0 px-6 py-5">
+          <!-- Main content. Below lg a long name or type breaks where it would widen the
+               page. It inherits to every card, and code blocks stay on their lines. -->
+          <div class="flex-1 min-w-0 px-6 py-5 max-lg:[overflow-wrap:anywhere]">
             <!-- Stub attribution -->
             <div
               v-if="docs?.stub_package"

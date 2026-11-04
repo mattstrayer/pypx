@@ -84,61 +84,7 @@ const shownAliases = computed(() =>
     <!-- Docstring -->
     <DocsPyDocstring v-if="symbol.docstring" :text="symbol.docstring" class="mb-4" />
 
-    <!-- Parameters -->
-    <div v-if="symbol.parameters && symbol.parameters.length" class="mb-4">
-      <p class="section-label">Parameters</p>
-      <div class="space-y-1.5">
-        <div
-          v-for="param in symbol.parameters?.filter((p) => p.name !== 'self' && p.name !== 'cls')"
-          :key="param.name"
-          class="flex items-baseline gap-2 rounded-md border-l-2 border-subtle bg-raised px-3 py-1.5"
-        >
-          <span class="font-mono text-[12px] text-sky-400">{{ param.name }}</span>
-          <span v-if="param.type" class="font-mono text-[11px] text-muted">{{ param.type }}</span>
-          <DocsPyInlineMarkup
-            v-if="param.description"
-            :text="param.description"
-            class="ml-1 text-[11.5px] text-muted"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Returns -->
-    <div v-if="symbol.returns" class="mb-4">
-      <p class="section-label">Returns</p>
-      <div
-        class="flex items-baseline gap-2 rounded-md border-l-2 border-[rgba(74,222,128,0.4)] bg-raised px-3 py-1.5"
-      >
-        <span v-if="symbol.returns.type" class="font-mono text-[12px] text-sky-400">{{
-          symbol.returns.type
-        }}</span>
-        <DocsPyInlineMarkup
-          v-if="symbol.returns.description"
-          :text="symbol.returns.description"
-          class="text-[11.5px] text-muted"
-        />
-      </div>
-    </div>
-
-    <!-- Raises -->
-    <div v-if="symbol.raises && symbol.raises.length" class="mb-4">
-      <p class="section-label">Raises</p>
-      <div class="space-y-1.5">
-        <div
-          v-for="r in symbol.raises"
-          :key="r.type"
-          class="flex items-baseline gap-2 rounded-md border-l-2 border-red-500/30 bg-raised px-3 py-1.5"
-        >
-          <span class="font-mono text-[12px] text-red-400">{{ r.type }}</span>
-          <DocsPyInlineMarkup
-            v-if="r.description"
-            :text="r.description"
-            class="text-[11.5px] text-muted"
-          />
-        </div>
-      </div>
-    </div>
+    <DocsSymbolFields :symbol="symbol" />
 
     <!-- Attributes -->
     <div v-if="hasMembers && symbol.attributes && symbol.attributes.length" class="mb-4">

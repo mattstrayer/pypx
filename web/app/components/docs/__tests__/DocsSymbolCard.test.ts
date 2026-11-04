@@ -428,4 +428,52 @@ describe("DocsSymbolCard", () => {
     });
     expect(wrapper.text()).not.toContain("Attributes");
   });
+
+  it("lets parameter, return and raise rows wrap at phone width", async () => {
+    const fields = {
+      parameters: [
+        { name: "X", type: "array", description: "Data.", kind: "positional_or_keyword" },
+      ],
+      returns: { type: "self", description: "Done." },
+      raises: [{ type: "ValueError", description: "Bad." }],
+    };
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          kind: "class",
+          ...fields,
+          methods: [{ ...makeSymbol(), ...fields }],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button[aria-expanded='false']").trigger("click");
+
+    const rows = wrapper.findAll("[data-testid='field-row']");
+    expect(rows).toHaveLength(6);
+    for (const row of rows) expect(row.classes()).toContain("flex-wrap");
+  });
+
+  it("shows no Parameters label when self or cls is the only parameter", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          parameters: [{ name: "self", type: "", description: "", kind: "positional_or_keyword" }],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.text()).not.toContain("Parameters");
+  });
+
+  it("keeps an overload's text and does not split its arrow across lines", async () => {
+    const signature = "def f(x: int) -> str";
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ overloads: [signature] }), isActive: false },
+    });
+    await wrapper.find("[data-testid='symbol-overloads-toggle']").trigger("click");
+    const row = wrapper.find("[data-testid='symbol-overload']");
+    expect(row.text()).toBe(signature);
+    expect(row.find(".whitespace-nowrap").text()).toBe("->");
+  });
 });
