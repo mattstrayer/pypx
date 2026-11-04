@@ -121,9 +121,11 @@ function toggleExpand() {
             class="rounded border border-subtle px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted"
             >read-only</span
           >
-          <span v-if="attr.description" class="ml-1 text-[11.5px] text-muted">{{
-            attr.description
-          }}</span>
+          <DocsPyDocstring
+            v-if="attr.description"
+            :text="attr.description"
+            class="basis-full text-[11.5px]! [&_p:last-child]:mb-0!"
+          />
         </div>
       </div>
     </div>

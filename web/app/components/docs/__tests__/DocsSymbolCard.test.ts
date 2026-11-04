@@ -107,6 +107,47 @@ describe("DocsSymbolCard", () => {
     expect(text).not.toContain("property");
   });
 
+  it("renders an attribute description as a docstring", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Thing",
+          kind: "class",
+          docstring: "",
+          attributes: [
+            {
+              name: "logger",
+              description: "A :class:`Logger` for ``app``.\n\nSecond paragraph.",
+              is_property: true,
+              writable: false,
+            },
+          ],
+        }),
+        isActive: false,
+      },
+    });
+    const doc = wrapper.find(".docstring-content");
+    expect(doc.exists()).toBe(true);
+    expect(doc.findAll("code").map((c) => c.text())).toEqual(["Logger", "app"]);
+    expect(doc.findAll("p").length).toBe(2);
+    expect(doc.text()).not.toContain(":class:");
+  });
+
+  it("renders no docstring block for an attribute without a description", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Thing",
+          kind: "class",
+          docstring: "",
+          attributes: [{ name: "x", description: "", is_property: false, writable: false }],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.find(".docstring-content").exists()).toBe(false);
+  });
+
   it("labels a read-only property", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: {
