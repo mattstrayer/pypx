@@ -1,0 +1,368 @@
+package handler
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/pypx/api/internal/pypi"
+	"github.com/pypx/goopy/model"
+)
+
+func TestDocsWork_ConcurrentCallersShareOneExtraction(t *testing.T) {
+	c := newTTLCache()
+	var calls atomic.Int32
+	release := make(chan struct{})
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls.Add(1)
+		<-release
+		return &model.Package{}, nil
+	})
+
+	const callers = 20
+	var wg sync.WaitGroup
+	errs := make([]error, callers)
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, _, errs[i] = h.fetchDocsAtVersion(context.Background(), "p", "1")
+		}(i)
+	}
+	time.Sleep(100 * time.Millisecond) // let every caller reach the shared call
+	close(release)
+	wg.Wait()
+
+	if got := calls.Load(); got != 1 {
+		t.Errorf("extract ran %d times, want 1", got)
+	}
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("caller %d: %v", i, err)
+		}
+	}
+}
+
+func TestDocsWork_ExtractionsAreCapped(t *testing.T) {
+	c := newTTLCache()
+	var running, peak atomic.Int32
+	release := make(chan struct{})
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		n := running.Add(1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		<-release
+		running.Add(-1)
+		return &model.Package{}, nil
+	})
+
+	var wg sync.WaitGroup
+	for _, v := range []string{"1", "2", "3", "4", "5", "6"} {
+		wg.Add(1)
+		go func(v string) {
+			defer wg.Done()
+			if _, _, err := h.fetchDocsAtVersion(context.Background(), "p", v); err != nil {
+				t.Errorf("version %s: %v", v, err)
+			}
+		}(v)
+	}
+	time.Sleep(150 * time.Millisecond) // the first two fill the slots, the rest wait
+	if got := running.Load(); got != maxConcurrentExtractions {
+		t.Errorf("running = %d, want %d", got, maxConcurrentExtractions)
+	}
+	close(release)
+	wg.Wait()
+	if got := peak.Load(); got != maxConcurrentExtractions {
+		t.Errorf("peak concurrency = %d, want %d", got, maxConcurrentExtractions)
+	}
+}
+
+func TestDocsWork_WaitingCallerCancelWritesNothingAndOthersSucceed(t *testing.T) {
+	c := newTTLCache()
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	var workCtxErr atomic.Value
+	h := docsCacheHandler(c, func(ctx context.Context, _, _ string) (*model.Package, error) {
+		started <- struct{}{}
+		<-release
+		workCtxErr.Store(ctx.Err() == nil)
+		return &model.Package{}, nil
+	})
+
+	// Caller A starts the shared work and then leaves.
+	ctxA, cancelA := context.WithCancel(context.Background())
+	aDone := make(chan error, 1)
+	go func() {
+		_, _, err := h.fetchDocsAtVersion(ctxA, "p", "1")
+		aDone <- err
+	}()
+	<-started
+
+	// Caller B joins the same work.
+	bDone := make(chan error, 1)
+	go func() {
+		_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+		bDone <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	cancelA()
+	if err := <-aDone; !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("caller A err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if c.wrote(DocsErrKey("p", "1")) {
+		t.Error("cancelled waiter wrote the error key")
+	}
+
+	close(release)
+	if err := <-bDone; err != nil {
+		t.Fatalf("caller B err = %v, want nil", err)
+	}
+	if ok, _ := workCtxErr.Load().(bool); !ok {
+		t.Error("shared work context was cancelled by caller A")
+	}
+	if c.wrote(DocsErrKey("p", "1")) {
+		t.Error("error key written although extraction succeeded")
+	}
+	if !c.wrote(DocsCacheKey("p", "1")) {
+		t.Error("docs key not written")
+	}
+}
+
+func TestDocsWork_TimeoutWritesErrorKeyNotDocsKey(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(ctx context.Context, _, _ string) (*model.Package, error) {
+		<-ctx.Done() // the shared work context reaches its deadline
+		return &model.Package{}, nil
+	})
+	h.workTimeout = 20 * time.Millisecond
+	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if c.wrote(DocsCacheKey("p", "1")) {
+		t.Error("docs key written after timeout")
+	}
+	if !c.wrote(DocsErrKey("p", "1")) {
+		t.Error("error key not written after timeout")
+	}
+}
+
+func TestDocsWork_SlotWaitCountsAgainstTimeout(t *testing.T) {
+	c := newTTLCache()
+	release := make(chan struct{})
+	defer close(release)
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		<-release
+		return &model.Package{}, nil
+	})
+	h.workTimeout = 50 * time.Millisecond
+	for i := 0; i < maxConcurrentExtractions; i++ {
+		h.sem <- struct{}{} // occupy every slot
+	}
+	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+}
+
+func TestDocsAvailable(t *testing.T) {
+	cases := []struct {
+		name      string
+		in        string
+		available bool
+		ok        bool
+	}{
+		{"true", `{"package":"p","version":"1","available":true,"modules":[{"name":"m"}]}`, true, true},
+		{"false", `{"package":"p","version":"1","available":false,"modules":[]}`, false, true},
+		{"after modules", `{"modules":[{"a":1}],"available":true}`, true, true},
+		{"string containing key text", `{"package":"\"available\":true","available":false}`, false, true},
+		{"missing", `{"package":"p"}`, false, false},
+		{"truncated", `{"package":"p","avail`, false, false},
+		{"not an object", `[1,2]`, false, false},
+		{"empty", ``, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, ok := docsAvailable([]byte(tc.in))
+			if a != tc.available || ok != tc.ok {
+				t.Errorf("docsAvailable = (%v, %v), want (%v, %v)", a, ok, tc.available, tc.ok)
+			}
+		})
+	}
+}
+
+// fakePyPI serves {"info":{"version":v}} for every package and counts requests.
+func fakePyPI(t *testing.T, version string, status int) (*pypi.Client, *atomic.Int32) {
+	t.Helper()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if status != http.StatusOK {
+			http.Error(w, "nope", status)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"info":{"name":"p","version":"` + version + `"},"urls":[],"releases":{}}`)) //nolint:errcheck
+	}))
+	t.Cleanup(srv.Close)
+	return pypi.NewClient(pypi.WithBaseURL(srv.URL)), &hits
+}
+
+func TestDocsWork_FetchDocsBytesReturnsCachedBytesUnchanged(t *testing.T) {
+	client, _ := fakePyPI(t, "1.0", http.StatusOK)
+	c := newTTLCache()
+	// Spacing and key order that json.Marshal would not reproduce.
+	raw := []byte("{ \"available\" : true ,\n \"package\":\"p\", \"version\":\"1.0\", \"modules\":[] }")
+	c.put(DocsCacheKey("p", "1.0"), raw, time.Hour)
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		t.Fatal("extract must not run")
+		return nil, nil
+	})
+	h.pypi = client
+
+	got, err := h.fetchDocsBytes(context.Background(), "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(raw) {
+		t.Errorf("bytes changed:\n got %q\nwant %q", got, raw)
+	}
+}
+
+func TestDocsWork_FetchDocsBytesTreatsCorruptEntryAsMiss(t *testing.T) {
+	client, _ := fakePyPI(t, "1.0", http.StatusOK)
+	c := newTTLCache()
+	c.put(DocsCacheKey("p", "1.0"), []byte(`{"package":`), time.Hour)
+	var calls atomic.Int32
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls.Add(1)
+		return &model.Package{}, nil
+	})
+	h.pypi = client
+	if _, err := h.fetchDocsBytes(context.Background(), "p"); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("extract ran %d times, want 1", calls.Load())
+	}
+}
+
+func TestDocsWork_LatestVersionIsCached(t *testing.T) {
+	client, hits := fakePyPI(t, "2.0", http.StatusOK)
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{}, nil
+	})
+	h.pypi = client
+
+	for i := 0; i < 2; i++ {
+		if _, err := h.fetchDocsBytes(context.Background(), "P"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := hits.Load(); got != 1 {
+		t.Errorf("PyPI called %d times, want 1", got)
+	}
+	if _, fresh, _ := c.Get("docs-latest:p", docsLatestTTL); !fresh {
+		t.Error("docs-latest:p not cached under the lower-case name")
+	}
+}
+
+func TestDocsWork_LatestVersionServesStaleWhenPyPIFails(t *testing.T) {
+	client, hits := fakePyPI(t, "", http.StatusInternalServerError)
+	c := newTTLCache()
+	c.put("docs-latest:p", []byte("1.5"), time.Hour) // past the 5 minute TTL
+	h := docsCacheHandler(c, nil)
+	h.pypi = client
+
+	got, err := h.latestVersion(context.Background(), "p")
+	if err != nil || got != "1.5" {
+		t.Fatalf("latestVersion = %q, %v; want 1.5, nil", got, err)
+	}
+	if hits.Load() == 0 {
+		t.Error("PyPI was not tried before serving the stale value")
+	}
+}
+
+func TestDocsWork_LatestVersionNotFoundStays404(t *testing.T) {
+	client, _ := fakePyPI(t, "", http.StatusNotFound)
+	c := newTTLCache()
+	c.put("docs-latest:p", []byte("1.5"), time.Hour)
+	h := docsCacheHandler(c, nil)
+	h.pypi = client
+
+	_, err := h.latestVersion(context.Background(), "p")
+	if !errors.Is(err, ErrDocsPackageNotFound) {
+		t.Fatalf("err = %v, want ErrDocsPackageNotFound", err)
+	}
+}
+
+func TestDocsWork_LatestVersionUpstreamFailureWithoutStale(t *testing.T) {
+	client, _ := fakePyPI(t, "", http.StatusInternalServerError)
+	h := docsCacheHandler(newTTLCache(), nil)
+	h.pypi = client
+	_, err := h.latestVersion(context.Background(), "p")
+	if !errors.Is(err, ErrDocsUpstreamFailed) {
+		t.Fatalf("err = %v, want ErrDocsUpstreamFailed", err)
+	}
+}
+
+func TestDocsWork_GetStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		payload  string
+		wantBody string
+	}{
+		{"available", `{"package":"p","version":"1.0","available":true,"modules":[]}`, `{"available":true}`},
+		{"unavailable", `{"package":"p","version":"1.0","available":false,"modules":[]}`, `{"available":false}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _ := fakePyPI(t, "1.0", http.StatusOK)
+			c := newTTLCache()
+			c.put(DocsCacheKey("p", "1.0"), []byte(tc.payload), time.Minute)
+			h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+				t.Fatal("extract must not run")
+				return nil, nil
+			})
+			h.pypi = client
+
+			r := chi.NewRouter()
+			r.Get("/api/packages/{name}/docs/status", h.GetStatus)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/packages/p/docs/status", nil))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != tc.wantBody {
+				t.Errorf("body = %s, want %s", got, tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestDocsWork_GetStatusNotFound(t *testing.T) {
+	client, _ := fakePyPI(t, "", http.StatusNotFound)
+	h := docsCacheHandler(newTTLCache(), nil)
+	h.pypi = client
+	r := chi.NewRouter()
+	r.Get("/api/packages/{name}/docs/status", h.GetStatus)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/packages/nope/docs/status", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
