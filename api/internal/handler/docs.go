@@ -155,6 +155,8 @@ type DocsHandler struct {
 	budget *semaphore.Weighted
 	// workTimeout bounds one shared extraction. Tests shorten it.
 	workTimeout time.Duration
+	// stubs replaces resolveStubs in tests.
+	stubs func(ctx context.Context, name, version string) (stubIndex, string)
 }
 
 // NewDocsHandler creates a new DocsHandler.
@@ -464,6 +466,10 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		}
 	}()
 
+	// Stubs come first, outside the budget. A slow stub download then delays only
+	// this package, and other extractions can run while it waits.
+	stubs, stubPkgName := h.findStubs(ctx, name, version)
+
 	cost, aerr := h.admit(ctx, name, version)
 	if aerr != nil {
 		return nil, ErrDocsExtractionFailed
@@ -498,7 +504,6 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		return nil, ErrDocsExtractionFailed
 	}
 
-	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
 	docsResp := convertToDocsResponse(name, version, result, stubs)
 	docsResp.StubPackage = stubPkgName
 
@@ -609,6 +614,14 @@ func writeReasonText(w http.ResponseWriter, resp DocsResponse) bool {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = fmt.Fprintf(w, "No API documentation for %s %s: %s.\n", resp.Package, resp.Version, why)
 	return true
+}
+
+// findStubs returns the stub index for a package. Tests replace it through h.stubs.
+func (h *DocsHandler) findStubs(ctx context.Context, name, version string) (stubIndex, string) {
+	if h.stubs != nil {
+		return h.stubs(ctx, name, version)
+	}
+	return resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.
