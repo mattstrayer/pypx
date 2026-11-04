@@ -766,83 +766,47 @@ func (p *Parser) parseTypeOrSimple() ast.Stmt {
 	}
 }
 
-// parseIf parses 'if expr: block (elif expr: block)* (else: block)?'.
+// parseIf parses 'if expr: block (elif expr: block)* (else: block)?'. Each elif is a
+// nested If in the Orelse of the branch before it. A loop builds the chain, because
+// a chain has no nesting in the source and its length must not grow the stack.
 func (p *Parser) parseIf() ast.Stmt {
-	pos := p.tok.Pos
-	p.next() // consume 'if'
-
-	test := p.parseNamedExpr()
-	p.expectColon()
-	body := p.parseBlock()
-
-	var orelse []ast.Stmt
+	first := p.parseIfBranch()
+	last := first
 	p.skipNewlines()
-
-	if p.tok.Type == token.ELIF {
-		// elif is parsed as a nested if in the orelse.
-		elifStmt := p.parseElif()
-		if elifStmt != nil {
-			orelse = []ast.Stmt{elifStmt}
-		}
-	} else if p.tok.Type == token.ELSE {
+	for p.tok.Type == token.ELIF {
+		branch := p.parseIfBranch()
+		last.Orelse = []ast.Stmt{branch}
+		last = branch
+		p.skipNewlines()
+	}
+	if p.tok.Type == token.ELSE {
 		p.next() // consume 'else'
 		p.expectColon()
-		orelse = p.parseBlock()
+		last.Orelse = p.parseBlock()
+		if len(last.Orelse) > 0 {
+			last.EndPos = last.Orelse[len(last.Orelse)-1].End()
+		}
 	}
-
-	endPos := pos
-	if len(orelse) > 0 {
-		endPos = orelse[len(orelse)-1].End()
-	} else if len(body) > 0 {
-		endPos = body[len(body)-1].End()
+	for n := first; n != last; n = n.Orelse[0].(*ast.If) {
+		n.EndPos = last.EndPos
 	}
-
-	return &ast.If{
-		Position: pos,
-		EndPos:   endPos,
-		Test:     test,
-		Body:     body,
-		Orelse:   orelse,
-	}
+	return first
 }
 
-// parseElif parses 'elif expr: block ...' as a nested If node.
-func (p *Parser) parseElif() ast.Stmt {
+// parseIfBranch parses the 'if expr: block' or 'elif expr: block' at the current token.
+func (p *Parser) parseIfBranch() *ast.If {
 	pos := p.tok.Pos
-	p.next() // consume 'elif'
+	p.next() // consume 'if' or 'elif'
 
 	test := p.parseNamedExpr()
 	p.expectColon()
 	body := p.parseBlock()
 
-	var orelse []ast.Stmt
-	p.skipNewlines()
-
-	if p.tok.Type == token.ELIF {
-		elifStmt := p.parseElif()
-		if elifStmt != nil {
-			orelse = []ast.Stmt{elifStmt}
-		}
-	} else if p.tok.Type == token.ELSE {
-		p.next()
-		p.expectColon()
-		orelse = p.parseBlock()
-	}
-
 	endPos := pos
-	if len(orelse) > 0 {
-		endPos = orelse[len(orelse)-1].End()
-	} else if len(body) > 0 {
+	if len(body) > 0 {
 		endPos = body[len(body)-1].End()
 	}
-
-	return &ast.If{
-		Position: pos,
-		EndPos:   endPos,
-		Test:     test,
-		Body:     body,
-		Orelse:   orelse,
-	}
+	return &ast.If{Position: pos, EndPos: endPos, Test: test, Body: body}
 }
 
 // parsePassThrough handles compound statements we don't deeply model:

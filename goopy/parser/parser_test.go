@@ -18,6 +18,44 @@ func TestParseDeeplyNestedDoesNotOverflow(t *testing.T) {
 	}
 }
 
+// Operators recurse without going through parseExpr, so they need the cap too.
+// Without it, these inputs overflow the goroutine stack, which is a fatal error.
+func TestParseDeepOperatorsDoNotOverflow(t *testing.T) {
+	const n = 8_000_000
+	for name, src := range map[string]string{
+		"unary": "x = " + strings.Repeat("-", n) + "a\n",
+		"not":   "x = " + strings.Repeat("not ", n) + "a\n",
+		"power": "x = a" + strings.Repeat("**a", n) + "\n",
+	} {
+		if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+			t.Errorf("%s: expected a parse error from the depth cap, got none", name)
+		}
+	}
+}
+
+// An elif chain has no nesting in the source, so its length must not grow the stack.
+func TestLongElifChain(t *testing.T) {
+	src := "if a:\n    pass\n" + strings.Repeat("elif a:\n    pass\n", 5_000_000) + "else:\n    def f(): pass\n"
+	mod := parse(t, src)
+	requireStmts(t, mod, 1)
+	depth := 0
+	node := mod.Body[0].(*ast.If)
+	for len(node.Orelse) == 1 {
+		next, ok := node.Orelse[0].(*ast.If)
+		if !ok {
+			break
+		}
+		node = next
+		depth++
+	}
+	if depth != 5_000_000 {
+		t.Errorf("got %d elif branches, want 5000000", depth)
+	}
+	if fn := asFuncDef(t, node.Orelse[0]); fn.Name != "f" {
+		t.Errorf("got %q, want f", fn.Name)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

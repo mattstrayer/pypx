@@ -20,16 +20,7 @@ func (p *Parser) parseExpr() ast.Expr {
 	p.depth++
 	defer func() { p.depth-- }()
 	if p.depth > maxExprDepth {
-		p.errorf("expression nesting too deep (max %d)", maxExprDepth)
-		p.syncStmt()
-		pos := p.tok.Pos
-		return &ast.Constant{
-			Position: pos,
-			EndPos:   pos,
-			Value:    "?",
-			Kind:     "error",
-			Lit:      "?",
-		}
+		return p.depthError()
 	}
 	expr := p.parseOrExpr()
 	if expr == nil {
@@ -52,6 +43,20 @@ func (p *Parser) parseExpr() ast.Expr {
 	}
 
 	return expr
+}
+
+// depthError records that an expression nests too deep and drops the line.
+func (p *Parser) depthError() ast.Expr {
+	p.errorf("expression nesting too deep (max %d)", maxExprDepth)
+	p.syncStmt()
+	pos := p.tok.Pos
+	return &ast.Constant{
+		Position: pos,
+		EndPos:   pos,
+		Value:    "?",
+		Kind:     "error",
+		Lit:      "?",
+	}
 }
 
 func (p *Parser) parseOrExpr() ast.Expr {
@@ -90,6 +95,11 @@ func (p *Parser) parseAndExpr() ast.Expr {
 
 func (p *Parser) parseNotExpr() ast.Expr {
 	if p.tok.Type == token.NOT {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		pos := p.tok.Pos
 		p.next()
 		operand := p.parseNotExpr()
@@ -257,6 +267,11 @@ func (p *Parser) parseTerm() ast.Expr {
 
 func (p *Parser) parseUnary() ast.Expr {
 	if p.at(token.PLUS, token.MINUS, token.TILDE) {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		pos := p.tok.Pos
 		op := p.tok.Type
 		p.next()
@@ -282,6 +297,11 @@ func (p *Parser) parsePower() ast.Expr {
 		base = p.parseAtomExpr()
 	}
 	if p.tok.Type == token.DSTAR {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		op := p.tok.Type
 		p.next()
 		exp := p.parseUnary()
