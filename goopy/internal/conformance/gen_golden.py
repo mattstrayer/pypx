@@ -2,8 +2,9 @@
 
 Usage:
   gen_golden.py --fixtures DIR   write X.golden.json beside each X.py
-  gen_golden.py --tree DIR       print {relative_path: [defs]} JSON to stdout;
-                                 unparseable files are listed on stderr
+  gen_golden.py --tree DIR       print {relative_path: [defs]} JSON to stdout for
+                                 .py and .pyi files; unparseable files are listed
+                                 on stderr
 """
 import argparse
 import ast
@@ -80,7 +81,7 @@ def main():
     result = {}
     for root, _, files in os.walk(args.tree):
         for name in files:
-            if not name.endswith(".py"):
+            if not name.endswith((".py", ".pyi")):
                 continue
             p = os.path.join(root, name)
             rel = os.path.relpath(p, args.tree)
