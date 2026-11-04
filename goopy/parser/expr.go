@@ -393,52 +393,6 @@ func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
 	return args, keywords
 }
 
-// parseSubscriptContents parses the contents inside [...].
-// For comma-separated items (e.g., dict[str, int]), returns a Tuple.
-// For slice syntax (e.g., value[:end]), skips to ] since we don't deeply
-// model slice expressions for doc extraction.
-func (p *Parser) parseSubscriptContents() ast.Expr {
-	// Slice with no start: [:end] or [::step]
-	if p.tok.Type == token.COLON {
-		p.skipUntil(token.RBRACK)
-		return &ast.Constant{
-			Position: p.tok.Pos,
-			EndPos:   p.tok.Pos,
-			Value:    "...",
-			Kind:     "ellipsis",
-			Lit:      "...",
-		}
-	}
-
-	first := p.parseNamedExpr()
-
-	// Slice with start: [start:end] or [start:end:step]
-	if p.tok.Type == token.COLON {
-		p.skipUntil(token.RBRACK)
-		return first
-	}
-
-	if p.tok.Type != token.COMMA {
-		return first
-	}
-
-	// Multiple items — build a Tuple.
-	elts := []ast.Expr{first}
-	for p.tok.Type == token.COMMA {
-		p.next()
-		if p.tok.Type == token.RBRACK {
-			break
-		}
-		elts = append(elts, p.parseExpr())
-	}
-
-	return &ast.Tuple{
-		Position: first.Pos(),
-		EndPos:   elts[len(elts)-1].End(),
-		Elts:     elts,
-	}
-}
-
 // parseNamedExpr parses expr [':=' expr].
 func (p *Parser) parseNamedExpr() ast.Expr {
 	x := p.parseExpr()
@@ -466,6 +420,60 @@ func (p *Parser) parseExprList() ast.Expr {
 		elts = append(elts, p.parseExpr())
 	}
 	return &ast.Tuple{Position: first.Pos(), EndPos: elts[len(elts)-1].End(), Elts: elts}
+}
+
+// parseSubscriptContents parses the contents inside [...]. Several comma-separated
+// items, such as dict[str, int] or y[1, :], become a Tuple.
+func (p *Parser) parseSubscriptContents() ast.Expr {
+	first := p.parseSliceItem()
+	if p.tok.Type != token.COMMA {
+		return first
+	}
+
+	elts := []ast.Expr{first}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.tok.Type == token.RBRACK {
+			break
+		}
+		elts = append(elts, p.parseSliceItem())
+	}
+
+	return &ast.Tuple{
+		Position: first.Pos(),
+		EndPos:   elts[len(elts)-1].End(),
+		Elts:     elts,
+	}
+}
+
+// parseSliceItem parses one subscript item: a named expression or a slice.
+func (p *Parser) parseSliceItem() ast.Expr {
+	pos := p.tok.Pos
+	var lower ast.Expr
+	if p.tok.Type != token.COLON {
+		lower = p.parseNamedExpr()
+		if p.tok.Type != token.COLON {
+			return lower
+		}
+	}
+	s := &ast.Slice{Position: pos, Lower: lower}
+	p.next() // consume ':'
+	if !p.atSliceItemEnd() && p.tok.Type != token.COLON {
+		s.Upper = p.parseExpr()
+	}
+	if p.tok.Type == token.COLON {
+		p.next()
+		if !p.atSliceItemEnd() {
+			s.Step = p.parseExpr()
+		}
+	}
+	s.EndPos = p.tok.Pos
+	return s
+}
+
+// atSliceItemEnd returns true at a token that ends a subscript item.
+func (p *Parser) atSliceItemEnd() bool {
+	return p.at(token.COMMA, token.RBRACK) || p.atLineEnd()
 }
 
 // ---------------------------------------------------------------------------

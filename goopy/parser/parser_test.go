@@ -1568,3 +1568,46 @@ func TestLambdaColons(t *testing.T) {
 		asAssign(t, parse(t, src+"\n").Body[0])
 	}
 }
+
+func asSubscriptSlice(t *testing.T, src string) ast.Expr {
+	t.Helper()
+	sub, ok := exprOf(t, src).(*ast.Subscript)
+	if !ok {
+		t.Fatalf("%s: expected Subscript", src)
+	}
+	return sub.Slice
+}
+
+func TestSubscripts(t *testing.T) {
+	check := func(expr ast.Expr, lower, upper, step bool) {
+		t.Helper()
+		s, ok := expr.(*ast.Slice)
+		if !ok {
+			t.Fatalf("expected Slice, got %T", expr)
+		}
+		if (s.Lower != nil) != lower || (s.Upper != nil) != upper || (s.Step != nil) != step {
+			t.Errorf("got %#v, want lower=%v upper=%v step=%v", s, lower, upper, step)
+		}
+	}
+	check(asSubscriptSlice(t, "y[:]"), false, false, false)
+	check(asSubscriptSlice(t, "y[::]"), false, false, false)
+	check(asSubscriptSlice(t, "y[1:]"), true, false, false)
+	check(asSubscriptSlice(t, "y[:2]"), false, true, false)
+	check(asSubscriptSlice(t, "y[::3]"), false, false, true)
+	check(asSubscriptSlice(t, "y[1:2:3]"), true, true, true)
+
+	// Elements parsed before and after a slice stay in the tuple.
+	tup := asTuple(t, asSubscriptSlice(t, "y[1, :, 2:3, ...]"), 4)
+	asConstant(t, tup.Elts[0])
+	check(tup.Elts[1], false, false, false)
+	check(tup.Elts[2], true, true, false)
+	asConstant(t, tup.Elts[3])
+
+	tup = asTuple(t, asSubscriptSlice(t, "y[:, 1,]"), 2)
+	check(tup.Elts[0], false, false, false)
+
+	tup = asTuple(t, asSubscriptSlice(t, "y[*a, b]"), 2)
+	if _, ok := tup.Elts[0].(*ast.Starred); !ok {
+		t.Errorf("got %T, want Starred", tup.Elts[0])
+	}
+}

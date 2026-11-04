@@ -57,6 +57,12 @@ func exprToString(expr ast.Expr) string {
 		return "*" + exprToString(e.Value)
 	case *ast.IfExpr:
 		return exprToString(e.Body) + " if " + exprToString(e.Test) + " else " + exprToString(e.Orelse)
+	case *ast.Slice:
+		s := exprToString(e.Lower) + ":" + exprToString(e.Upper)
+		if e.Step != nil {
+			s += ":" + exprToString(e.Step)
+		}
+		return s
 	case *ast.NamedExpr:
 		return exprToString(e.Target) + " := " + exprToString(e.Value)
 	case *ast.Dict:

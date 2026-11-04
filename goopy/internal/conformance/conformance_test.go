@@ -16,7 +16,6 @@ var knownFailures = map[string]string{
 	"match_guard.py":      "match case with star pattern and guard",
 	"matmul.py":           "@ and @= operators",
 	"semicolons.py":       "semicolon-separated statements in a one-line block",
-	"subscripts.py":       "slices and tuple subscripts",
 	"yield_expr.py":       "yield used as an expression",
 }
 

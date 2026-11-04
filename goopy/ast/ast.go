@@ -207,6 +207,19 @@ func (s *Subscript) Pos() token.Pos { return s.Position }
 func (s *Subscript) End() token.Pos { return s.EndPos }
 func (s *Subscript) exprNode()      {}
 
+// Slice is a slice inside a subscript (lower:upper:step). Any part can be nil.
+type Slice struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Lower    Expr
+	Upper    Expr
+	Step     Expr
+}
+
+func (s *Slice) Pos() token.Pos { return s.Position }
+func (s *Slice) End() token.Pos { return s.EndPos }
+func (s *Slice) exprNode()      {}
+
 // BinOp is a binary operation (left op right).
 type BinOp struct {
 	Position token.Pos
