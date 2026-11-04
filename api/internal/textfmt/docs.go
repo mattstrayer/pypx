@@ -2,6 +2,7 @@ package textfmt
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -106,6 +107,9 @@ type DocRaiseInput struct {
 // it). Empty prefix means full dump. If prefix is non-empty and no symbol
 // matches, returns a single "# no symbols matching prefix=..." line.
 //
+// A prefix also follows aliases. The block for an alias's target shows the target's
+// path, as FormatSymbol does.
+//
 // Output structure:
 //
 //	## <module> (module)
@@ -115,6 +119,45 @@ type DocRaiseInput struct {
 //	(parameters, returns, raises blocks if present)
 func FormatDocs(in *DocsInput, prefix string) string {
 	var b strings.Builder
+	matched := writeMatchingSymbols(&b, in, prefix)
+
+	if prefix != "" {
+		direct := matched
+		seen := map[string]bool{}
+		for _, mod := range in.Modules {
+			for _, a := range mod.Aliases {
+				path := mod.Name + "." + a.Name
+				var target string
+				switch {
+				case direct && path == prefix:
+					continue // A definition beats an alias with the same path.
+				case matchesPrefix(path, prefix):
+					target = a.Target
+				case strings.HasPrefix(prefix, path+"."):
+					target = a.Target + strings.TrimPrefix(prefix, path)
+				default:
+					continue
+				}
+				if matchesPrefix(target, prefix) || seen[target] {
+					continue
+				}
+				seen[target] = true
+				if writeMatchingSymbols(&b, in, target) {
+					matched = true
+				}
+			}
+		}
+	}
+
+	if !matched && prefix != "" {
+		return fmt.Sprintf("# no symbols matching prefix=%s\n", prefix)
+	}
+	return b.String()
+}
+
+// writeMatchingSymbols writes the block of each symbol that matches prefix, under
+// its module header, and reports whether it wrote any.
+func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool {
 	matched := false
 
 	for _, mod := range in.Modules {
@@ -124,7 +167,7 @@ func FormatDocs(in *DocsInput, prefix string) string {
 				if b.Len() > 0 {
 					b.WriteByte('\n')
 				}
-				fmt.Fprintf(&b, "## %s (module)\n\n", mod.Name)
+				fmt.Fprintf(b, "## %s (module)\n\n", mod.Name)
 				modHeaderWritten = true
 			}
 		}
@@ -135,11 +178,11 @@ func FormatDocs(in *DocsInput, prefix string) string {
 				continue
 			}
 			writeModuleHeader()
-			writeSymbolBlock(&b, path, fn)
+			writeSymbolBlock(b, path, fn)
 			matched = true
 		}
 
-		for _, cls := range mod.Classes {
+		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
 			path := mod.Name + "." + cls.Name
 			classMatches := matchesPrefix(path, prefix)
 			anyMethodMatches := false
@@ -154,41 +197,23 @@ func FormatDocs(in *DocsInput, prefix string) string {
 			}
 			writeModuleHeader()
 			if classMatches {
-				writeSymbolBlock(&b, path, cls)
+				writeSymbolBlock(b, path, cls)
 				matched = true
 			}
 			for _, m := range cls.Methods {
 				mp := path + "." + m.Name
 				if matchesPrefix(mp, prefix) {
-					writeSymbolBlock(&b, mp, m)
+					writeSymbolBlock(b, mp, m)
 					matched = true
 				}
 			}
-			if !classMatches && writeMatchingAttributes(&b, path, cls, prefix) {
+			if !classMatches && writeMatchingAttributes(b, path, cls, prefix) {
 				matched = true
 			}
 		}
-
-		for _, exc := range mod.Exceptions {
-			path := mod.Name + "." + exc.Name
-			excMatches := matchesPrefix(path, prefix)
-			if !excMatches && !anyAttributeMatches(path, exc, prefix) {
-				continue
-			}
-			writeModuleHeader()
-			if excMatches {
-				writeSymbolBlock(&b, path, exc)
-			} else {
-				writeMatchingAttributes(&b, path, exc, prefix)
-			}
-			matched = true
-		}
 	}
 
-	if !matched && prefix != "" {
-		return fmt.Sprintf("# no symbols matching prefix=%s\n", prefix)
-	}
-	return b.String()
+	return matched
 }
 
 // matchesPrefix returns true if prefix is empty, equals path, or path starts
@@ -319,7 +344,7 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //   - Class: "module.Class"
 //   - Method: "module.Class.method"
 //   - Attribute: "module.Class.attr" or "module.ExceptionClass.attr"
-//   - Exception: "module.ExceptionClass"
+//   - Exception: "module.ExceptionClass", with methods as for a class
 //
 // A class lookup returns only the class block, not its methods. Methods are
 // addressed individually by their dotted path. A method wins over an attribute
@@ -377,8 +402,8 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 			}
 		}
 
-		// Class or class.method under this module?
-		for _, cls := range mod.Classes {
+		// Class, exception, or one of their members under this module?
+		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
 			if rest == cls.Name {
 				var b strings.Builder
 				writeSymbolBlock(&b, dotted, cls)
@@ -395,20 +420,6 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 					}
 				}
 				if out, ok := formatAttribute(cls, methodName, dotted); ok {
-					return out, true
-				}
-			}
-		}
-
-		// Exception or exception.attribute under this module?
-		for _, exc := range mod.Exceptions {
-			if rest == exc.Name {
-				var b strings.Builder
-				writeSymbolBlock(&b, dotted, exc)
-				return b.String(), true
-			}
-			if attr, ok := strings.CutPrefix(rest, exc.Name+"."); ok {
-				if out, ok := formatAttribute(exc, attr, dotted); ok {
 					return out, true
 				}
 			}

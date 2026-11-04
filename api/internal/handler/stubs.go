@@ -216,15 +216,22 @@ func buildStubIndex(pkg *model.Package) stubIndex {
 		return idx
 	}
 	classes := make(map[string]*model.Class)
+	// The extractor moves __init__ out of Methods, so a class's members are both.
+	addMembers := func(path string, cls *model.Class) {
+		for _, m := range cls.Methods {
+			idx[path+"."+m.Name] = m
+		}
+		if cls.Constructor != nil {
+			idx[path+".__init__"] = cls.Constructor
+		}
+	}
 	for _, mod := range pkg.Modules {
 		for _, fn := range mod.Functions {
 			idx[mod.Name+"."+fn.Name] = fn
 		}
 		for _, cls := range mod.Classes {
 			classes[mod.Name+"."+cls.Name] = cls
-			for _, m := range cls.Methods {
-				idx[mod.Name+"."+cls.Name+"."+m.Name] = m
-			}
+			addMembers(mod.Name+"."+cls.Name, cls)
 		}
 	}
 	// A stub's alias answers for its target, so a source symbol published under
@@ -236,9 +243,7 @@ func buildStubIndex(pkg *model.Package) stubIndex {
 				idx[path] = fn
 			}
 			if cls, ok := classes[a.Target]; ok {
-				for _, m := range cls.Methods {
-					idx[path+"."+m.Name] = m
-				}
+				addMembers(path, cls)
 			}
 		}
 	}

@@ -238,6 +238,7 @@ func TestASTConformance(t *testing.T) {
 		maxMissingDefs     = 0
 		maxExtraDefs       = 0
 		maxParamMismatches = 0
+		maxDocMismatches   = 0
 	)
 
 	gen, err := filepath.Abs(filepath.Join("..", "conformance", "gen_golden.py"))
@@ -247,8 +248,8 @@ func TestASTConformance(t *testing.T) {
 
 	list := loadPackages(t)
 	var (
-		filesWithErrors, missing, extra, paramMismatches int
-		compared, comparedStubs, downloadFailures        int
+		filesWithErrors, missing, extra, paramMismatches, docMismatches int
+		compared, comparedStubs, downloadFailures                       int
 	)
 	type fileStat struct {
 		path   string
@@ -317,11 +318,12 @@ func TestASTConformance(t *testing.T) {
 				st.errors = len(errs)
 				firstErrors[trimErr(errs[0].Error())]++
 			}
-			m, e, pm := diffDefs(got, want)
+			m, e, pm, dm := diffDefs(got, want)
 			missing += m
 			extra += e
 			paramMismatches += pm
-			st.diff = m + e + pm
+			docMismatches += dm
+			st.diff = m + e + pm + dm
 			if st.errors > 0 || st.diff > 0 {
 				worst = append(worst, st)
 			}
@@ -344,6 +346,7 @@ func TestASTConformance(t *testing.T) {
 	t.Logf("missing defs:            %d", missing)
 	t.Logf("extra defs:              %d", extra)
 	t.Logf("param mismatches:        %d", paramMismatches)
+	t.Logf("doc mismatches:          %d", docMismatches)
 	t.Logf("--- 20 worst files ---")
 	for i, w := range worst {
 		if i >= 20 {
@@ -385,6 +388,7 @@ func TestASTConformance(t *testing.T) {
 	ratchet("missing defs", missing, maxMissingDefs)
 	ratchet("extra defs", extra, maxExtraDefs)
 	ratchet("param mismatches", paramMismatches, maxParamMismatches)
+	ratchet("doc mismatches", docMismatches, maxDocMismatches)
 }
 
 // publicNamesScript reads top-level __init__.py files with CPython's ast module,
@@ -923,8 +927,9 @@ func trimErr(msg string) string {
 }
 
 // diffDefs treats each side as a multiset keyed by Q. It returns the number of
-// defs missing from got, extra in got, and same-Q pairs whose params differ.
-func diffDefs(got, want []conformance.Def) (missing, extra, paramMismatch int) {
+// defs missing from got, extra in got, and same-Q pairs whose params or docstring
+// presence differ.
+func diffDefs(got, want []conformance.Def) (missing, extra, paramMismatch, docMismatch int) {
 	g := map[string][]conformance.Def{}
 	w := map[string][]conformance.Def{}
 	for _, d := range got {
@@ -942,6 +947,9 @@ func diffDefs(got, want []conformance.Def) (missing, extra, paramMismatch int) {
 		for i := 0; i < n; i++ {
 			if !paramsEqual(gl[i].Params, wl[i].Params) {
 				paramMismatch++
+			}
+			if gl[i].Doc != wl[i].Doc {
+				docMismatch++
 			}
 		}
 	}

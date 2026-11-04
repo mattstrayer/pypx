@@ -61,6 +61,49 @@ describe("DocsSymbolCard", () => {
     expect(wrapper.text()).not.toMatch(/methods/i);
   });
 
+  it("renders inline markup in structured descriptions, and escapes them", async () => {
+    const markup = "Uses :attr:`~a.limit` and **care**. <img src=x>";
+    const entry = {
+      parameters: [{ name: "x", description: markup, kind: "positional_or_keyword" }],
+      returns: { type: "int", description: markup },
+      raises: [{ type: "ValueError", description: markup }],
+    };
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({ kind: "class", ...entry, methods: [makeSymbol(entry)] }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button").trigger("click");
+    const html = wrapper.html();
+    // Three on the card and three on the method.
+    expect(html.match(/<code>limit<\/code>/g)).toHaveLength(6);
+    expect(html.match(/<strong>care<\/strong>/g)).toHaveLength(6);
+    expect(html).not.toContain(":attr:");
+    expect(html).not.toContain("<img");
+  });
+
+  it("labels classmethods and staticmethods on method rows", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Pipeline",
+          kind: "class",
+          methods: [
+            makeSymbol({ name: "from_steps", method_kind: "classmethod" }),
+            makeSymbol({ name: "helper", method_kind: "staticmethod" }),
+            makeSymbol({ name: "fit" }),
+          ],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button").trigger("click");
+    expect(wrapper.text()).toContain("from_stepsmethodclassmethod");
+    expect(wrapper.text()).toContain("helpermethodstaticmethod");
+    expect(wrapper.text()).toMatch(/fitmethod(?!classmethod|staticmethod)/);
+  });
+
   it("shows methods for exceptions", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: {

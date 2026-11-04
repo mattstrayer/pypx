@@ -1,0 +1,82 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "BytesClass"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "FstringClass"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "PlainClass"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "bytes_literal"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "concatenated"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "empty"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "fstring"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "fstring_then_str"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "fstring_upper"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "parenthesized"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "plain"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "raw"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "raw_bytes"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "raw_fstring"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "str_then_fstring"
+  },
+  {
+    "doc": true,
+    "params": [],
+    "q": "unicode_prefix"
+  }
+]

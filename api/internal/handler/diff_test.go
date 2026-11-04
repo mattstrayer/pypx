@@ -40,6 +40,15 @@ func newDiffTestServer(t *testing.T) (string, *httptest.Server) {
 
 func setupDiffHandler(t *testing.T, pypiURL string) (*chi.Mux, *handler.DiffHandler, func()) {
 	t.Helper()
+	// Pre-seed docs cache so api-changes section is populated without hitting goopy.
+	docsFrom := `{"package":"httpx","version":"0.26.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"send_singlerequest","kind":"function","signature":"def send_singlerequest(req)"}],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request)"}]}],"exceptions":[]}]}`
+	docsTo := `{"package":"httpx","version":"0.28.1","available":true,"modules":[{"name":"httpx","functions":[],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request, *, stream=False)"}]},{"name":"AsyncClient","kind":"class","signature":"class AsyncClient","methods":[{"name":"aclose","kind":"method","signature":"def aclose()"}]}],"exceptions":[]}]}`
+	return setupDiffHandlerWithDocs(t, pypiURL, docsFrom, docsTo)
+}
+
+// setupDiffHandlerWithDocs seeds the docs of httpx 0.26.0 and 0.28.1.
+func setupDiffHandlerWithDocs(t *testing.T, pypiURL, docsFrom, docsTo string) (*chi.Mux, *handler.DiffHandler, func()) {
+	t.Helper()
 	c, err := cache.New(":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -54,13 +63,10 @@ func setupDiffHandler(t *testing.T, pypiURL string) (*chi.Mux, *handler.DiffHand
 	glClient := gitlab.NewClient()
 	clHandler := handler.NewChangelogHandler(ghClient, glClient, memCache, pkgHandler)
 
-	// Pre-seed docs cache so api-changes section is populated without hitting goopy.
-	docsFrom := []byte(`{"package":"httpx","version":"0.26.0","available":true,"modules":[{"name":"httpx","functions":[{"name":"send_singlerequest","kind":"function","signature":"def send_singlerequest(req)"}],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request)"}]}],"exceptions":[]}]}`)
-	docsTo := []byte(`{"package":"httpx","version":"0.28.1","available":true,"modules":[{"name":"httpx","functions":[],"classes":[{"name":"Client","kind":"class","signature":"class Client","methods":[{"name":"send","kind":"method","signature":"def send(request, *, stream=False)"}]},{"name":"AsyncClient","kind":"class","signature":"class AsyncClient","methods":[{"name":"aclose","kind":"method","signature":"def aclose()"}]}],"exceptions":[]}]}`)
-	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.26.0"), docsFrom, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.26.0"), []byte(docsFrom), 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.28.1"), docsTo, 0); err != nil {
+	if err := memCache.Set(handler.DocsCacheKey("httpx", "0.28.1"), []byte(docsTo), 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -105,6 +111,86 @@ func TestDiffHandler_Get_HappyPath(t *testing.T) {
 			t.Errorf("body missing %q:\n%s", want, body)
 		}
 	}
+}
+
+// apiDiffBody returns the api changes section of diff.txt for the two seeded docs.
+func apiDiffBody(t *testing.T, docsFrom, docsTo string) string {
+	t.Helper()
+	pypiURL, pypiSrv := newDiffTestServer(t)
+	t.Cleanup(pypiSrv.Close)
+	r, _, cleanup := setupDiffHandlerWithDocs(t, pypiURL, docsFrom, docsTo)
+	t.Cleanup(cleanup)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/api/packages/httpx/diff.txt?from=0.26.0&to=0.28.1", nil))
+	if w.Code != 200 {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	_, section, _ := strings.Cut(w.Body.String(), "## api changes")
+	return section
+}
+
+func docsJSON(version, modules string) string {
+	return `{"package":"httpx","version":"` + version + `","available":true,"modules":[` + modules + `]}`
+}
+
+func TestDiffHandler_FollowsAliases(t *testing.T) {
+	foo := func(sig string) string { return `{"name":"foo","kind":"function","signature":"` + sig + `"}` }
+	cli := `{"name":"Cli","kind":"class","signature":"class Cli","methods":[{"name":"get","kind":"method","signature":"def get()"}]}`
+
+	// Version one defines the API in a public module, and the root re-exports it.
+	public := docsJSON("0.26.0", `{"name":"pkg","functions":[],"classes":[],"exceptions":[],"aliases":[{"name":"foo","target":"pkg.core.foo"},{"name":"Cli","target":"pkg.core.Cli"}]},
+		{"name":"pkg.core","functions":[`+foo("def foo()")+`],"classes":[`+cli+`],"exceptions":[]}`)
+	// Version two moves the code to a private module, so the root holds the copies.
+	private := func(fooSig string) string {
+		return docsJSON("0.28.1", `{"name":"pkg","functions":[`+strings.Replace(foo(fooSig), `{"name"`, `{"origin":"pkg._core","name"`, 1)+`],"classes":[`+strings.Replace(cli, `{"name":"Cli"`, `{"origin":"pkg._core","name":"Cli"`, 1)+`],"exceptions":[]}`)
+	}
+
+	t.Run("moved to a private module", func(t *testing.T) {
+		body := apiDiffBody(t, public, private("def foo()"))
+		for _, reject := range []string{"added: pkg.foo", "added: pkg.Cli", "changed: pkg.foo", "changed: pkg.Cli"} {
+			if strings.Contains(body, reject) {
+				t.Errorf("unexpected %q:\n%s", reject, body)
+			}
+		}
+		// The old public path can no longer be imported, so that part is a removal.
+		for _, want := range []string{"removed: pkg.core.foo", "removed: pkg.core.Cli"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("missing %q:\n%s", want, body)
+			}
+		}
+	})
+
+	t.Run("signature change through an alias", func(t *testing.T) {
+		body := apiDiffBody(t, public, private("def foo(a)"))
+		if !strings.Contains(body, "changed: pkg.foo") {
+			t.Errorf("missing change:\n%s", body)
+		}
+	})
+
+	t.Run("alias removed", func(t *testing.T) {
+		kept := docsJSON("0.28.1", `{"name":"pkg.core","functions":[`+foo("def foo()")+`],"classes":[`+cli+`],"exceptions":[]}`)
+		body := apiDiffBody(t, public, kept)
+		for _, want := range []string{"removed: pkg.foo", "removed: pkg.Cli", "removed: pkg.Cli.get"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("missing %q:\n%s", want, body)
+			}
+		}
+		if strings.Contains(body, "removed: pkg.core") {
+			t.Errorf("target stayed, but shows as removed:\n%s", body)
+		}
+	})
+
+	t.Run("moved between private modules", func(t *testing.T) {
+		from := private("def foo()")
+		to := strings.ReplaceAll(from, "pkg._core", "pkg._impl")
+		body := apiDiffBody(t, from, to)
+		for _, reject := range []string{"pkg.foo", "pkg.Cli"} {
+			if strings.Contains(body, reject) {
+				t.Errorf("unexpected %q:\n%s", reject, body)
+			}
+		}
+	})
 }
 
 func TestDiffHandler_Get_BadInputs(t *testing.T) {

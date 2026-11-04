@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDocstring, renderDocstring } from "../useDocstringFormat";
+import { formatDocstring, formatInline, renderDocstring } from "../useDocstringFormat";
 
 describe("formatDocstring", () => {
   describe("docstrings whose first line has no indent", () => {
@@ -99,6 +99,132 @@ describe("formatDocstring", () => {
     const result = formatDocstring(".. versionchanged:: 2.0\n   The default changed.");
     expect(result).toContain("versionchanged");
     expect(result).not.toContain(".. version");
+  });
+
+  describe("NumPy section headings", () => {
+    // Shape of numpy.add's docstring after the API removes structured sections.
+    const numpyStyle = [
+      "Add arguments element-wise.",
+      "",
+      "Notes",
+      "-----",
+      "Equivalent to `x1` + `x2` in terms of array broadcasting.",
+      "",
+      "Examples",
+      "--------",
+      ">>> np.add(1.0, 4.0)",
+      "5.0",
+      "",
+      ">>> x1 = np.arange(9.0)",
+      "",
+      "See Also",
+      "--------",
+      "subtract : The opposite.",
+    ].join("\n");
+
+    it("renders the title as a heading without the dashes", () => {
+      const result = formatDocstring(numpyStyle);
+      expect(result).toContain(">Notes</h4>");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).toContain(">See Also</h4>");
+      expect(result).not.toContain("---");
+    });
+
+    it("keeps the example as code, without the title in the block", async () => {
+      const seen: string[] = [];
+      await renderDocstring(numpyStyle, async (code) => {
+        seen.push(code);
+        return "";
+      });
+      expect(seen).toEqual([">>> np.add(1.0, 4.0)\n5.0", ">>> x1 = np.arange(9.0)"]);
+    });
+
+    it("keeps text under a heading as a paragraph with inline markup", () => {
+      const result = formatDocstring(numpyStyle);
+      expect(result).toContain("<p>Equivalent to <code>x1</code> + <code>x2</code>");
+    });
+
+    it("handles a heading with a blank line before its body", () => {
+      const result = formatDocstring("Examples\n--------\n\n>>> a");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).toContain("<pre><code");
+    });
+
+    it("finds a section name indented past the margin, as in numpy repack_fields", () => {
+      const result = formatDocstring("Summary.\n\n    Examples\n    --------\n    >>> a\n\nMore.");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).not.toContain("---");
+      expect(result).toContain("<pre><code");
+      expect(result).toContain("&gt;&gt;&gt; a");
+    });
+
+    it("leaves dashes in doctest output alone", () => {
+      const result = formatDocstring(">>> show()\nname\n----\nvalue");
+      expect(result).not.toContain("<h4");
+      expect(result).toContain("name\n----\nvalue");
+    });
+
+    it("leaves dashes in an indented block alone", () => {
+      const result = formatDocstring("Table::\n\n    name\n    ----\n    value");
+      expect(result).not.toContain("<h4");
+      expect(result).toContain("name\n----\nvalue");
+    });
+
+    it("escapes the title", () => {
+      const result = formatDocstring("<b>x</b>\n--------\ntext");
+      expect(result).toContain("&lt;b&gt;x&lt;/b&gt;</h4>");
+      expect(result).not.toContain("<b>");
+    });
+
+    it("needs at least three dashes", () => {
+      expect(formatDocstring("Title\n--\ntext")).not.toContain("<h4");
+    });
+  });
+
+  describe("inline markup", () => {
+    it.each([
+      ["**bold**", "<strong>bold</strong>"],
+      ["a **two words** b", "a <strong>two words</strong> b"],
+      [":class:`~logging.Logger`", "<code>Logger</code>"],
+      ["`~logging.Logger`", "<code>Logger</code>"],
+      [":py:class:`~a.b.C`", "<code>C</code>"],
+      [":func:`a.b`", "<code>a.b</code>"],
+      [":func:`!a.b`", "<code>a.b</code>"],
+      [":class:`Title <a.b.C>`", "<code>Title</code>"],
+      [":attr:`x`", "<code>x</code>"],
+      ["``~a.b``", "<code>~a.b</code>"],
+      ["``a**b**c``", "<code>a**b**c</code>"],
+      ["2 ** 3 ** 4", "2 ** 3 ** 4"],
+      ["f(*args, **kwargs)", "f(*args, **kwargs)"],
+    ])("formats %s", (input, want) => {
+      expect(formatInline(input)).toBe(want);
+    });
+
+    it("escapes before formatting", () => {
+      expect(formatInline("<script>**x**</script>")).toBe(
+        "&lt;script&gt;<strong>x</strong>&lt;/script&gt;",
+      );
+      expect(formatInline("`<img src=x>`")).toBe("<code>&lt;img src=x&gt;</code>");
+    });
+
+    it("applies in paragraphs", () => {
+      expect(formatDocstring("**bold** and :class:`~a.B`.")).toBe(
+        "<p><strong>bold</strong> and <code>B</code>.</p>",
+      );
+    });
+
+    it("applies in directives", () => {
+      const result = formatDocstring(
+        ".. versionchanged:: 2.0\n   The :class:`~a.B` default is ``x``.",
+      );
+      expect(result).toContain("<code>B</code>");
+      expect(result).toContain("<code>x</code>");
+      expect(result).not.toContain(":class:");
+    });
+
+    it("escapes directives", () => {
+      expect(formatDocstring(".. note:: <b>x</b>")).toContain("&lt;b&gt;x&lt;/b&gt;");
+    });
   });
 
   it("handles real click.echo docstring", () => {

@@ -182,6 +182,78 @@ func TestFlattenSymbols_Attributes(t *testing.T) {
 	}
 }
 
+func TestFlattenSymbols_ChangePastTruncatedDefault(t *testing.T) {
+	flat := func(value string) map[string]string {
+		sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{{Name: "x", Value: value}}}, nil, "m")
+		return flattenSymbols(DocsResponse{Modules: []DocModule{{Name: "m", Classes: []DocSymbol{sym}}}})
+	}
+	long := strings.Repeat("a", 200)
+	if flat(long+"1")["m.C.x"] == flat(long+"2")["m.C.x"] {
+		t.Error("a change past the cut must change the row")
+	}
+	first, second := flat(long), flat(long)
+	if first["m.C.x"] != second["m.C.x"] {
+		t.Error("the same value must give the same row")
+	}
+	if got := flat("short")["m.C.x"]; got != "x = short" {
+		t.Errorf("short value row = %q", got)
+	}
+}
+
+func TestDocAttribute_DigestOnlyWhenTruncated(t *testing.T) {
+	sym := convertClass(&model.Class{Name: "C", Attributes: []*model.Attribute{
+		{Name: "long", Value: strings.Repeat("a", 200)},
+		{Name: "short", Value: "1"},
+	}}, nil, "m")
+	if sym.Attributes[0].DefaultDigest == "" {
+		t.Error("a truncated default needs a digest")
+	}
+	if sym.Attributes[1].DefaultDigest != "" {
+		t.Errorf("short default digest = %q", sym.Attributes[1].DefaultDigest)
+	}
+}
+
+func TestConvertClass_MethodKind(t *testing.T) {
+	method := func(name string, decorators ...string) *model.Function {
+		return &model.Function{Name: name, IsMethod: true, Decorators: decorators}
+	}
+	sym := convertClass(&model.Class{Name: "C", Methods: []*model.Function{
+		method("plain"),
+		method("cm", "classmethod"),
+		method("cm_stacked", "abc.abstractmethod", "classmethod"),
+		method("cm_abstract", "abc.abstractclassmethod"),
+		method("sm", "staticmethod"),
+		method("sm_abstract", "abstractstaticmethod"),
+		method("other", "mymod.classmethod_like", "lru_cache(1)"),
+	}}, nil, "m")
+	want := map[string]string{
+		"plain": "", "cm": "classmethod", "cm_stacked": "classmethod", "cm_abstract": "classmethod",
+		"sm": "staticmethod", "sm_abstract": "staticmethod", "other": "",
+	}
+	for _, m := range sym.Methods {
+		if m.MethodKind != want[m.Name] {
+			t.Errorf("%s: MethodKind = %q, want %q", m.Name, m.MethodKind, want[m.Name])
+		}
+	}
+}
+
+func TestConvertFunction_NoMethodKindOnFunctions(t *testing.T) {
+	sym := convertFunction(&model.Function{Name: "f", Decorators: []string{"classmethod"}}, nil)
+	if sym.MethodKind != "" {
+		t.Errorf("MethodKind = %q", sym.MethodKind)
+	}
+}
+
+func TestFlattenSymbols_ExceptionMethods(t *testing.T) {
+	got := flattenSymbols(DocsResponse{Modules: []DocModule{{
+		Name:       "m",
+		Exceptions: []DocSymbol{{Name: "E", Signature: "class E(Exception)", Methods: []DocSymbol{{Name: "retry", Signature: "def retry()"}}}},
+	}}})
+	if got["m.E.retry"] != "def retry()" {
+		t.Errorf("m.E.retry = %q", got["m.E.retry"])
+	}
+}
+
 func TestExceptionClasses_Names(t *testing.T) {
 	for base, want := range map[string]bool{
 		"Exception":          true,

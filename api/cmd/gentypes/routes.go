@@ -232,7 +232,7 @@ var routes = []routeDef{
 	{
 		Path:        "/api/packages/{name}/docs",
 		Summary:     "Extracted API documentation",
-		Description: "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest wheel.",
+		Description: "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest release: its wheel, or its sdist if it has no wheel.",
 		Params:      []paramDef{nameParam},
 		TwinParams: []paramDef{
 			{Name: "prefix", In: "query", Type: "string", Description: "Only render symbols under this dotted path prefix."},

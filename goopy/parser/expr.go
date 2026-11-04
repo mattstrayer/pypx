@@ -116,13 +116,14 @@ func (p *Parser) parseNotExpr() ast.Expr {
 func (p *Parser) parseComparison() ast.Expr {
 	left := p.parseBitOrExpr()
 	for p.isCompOp() {
-		op := p.consumeCompOp()
+		op, negated := p.consumeCompOp()
 		right := p.parseBitOrExpr()
 		left = &ast.BinOp{
 			Position: left.Pos(),
 			EndPos:   right.End(),
 			Left:     left,
 			Op:       op,
+			Negated:  negated,
 			Right:    right,
 		}
 	}
@@ -141,25 +142,25 @@ func (p *Parser) isCompOp() bool {
 	return false
 }
 
-// consumeCompOp consumes a comparison operator and returns its token type.
-// Handles composite operators like 'not in' and 'is not'.
-func (p *Parser) consumeCompOp() token.Type {
+// consumeCompOp consumes a comparison operator and returns its token type. For
+// 'not in' and 'is not' it returns IN and IS, with negated set.
+func (p *Parser) consumeCompOp() (op token.Type, negated bool) {
 	switch p.tok.Type {
 	case token.NOT:
 		p.next() // consume 'not'
 		p.expect(token.IN)
-		return token.NOT // represent 'not in' as NOT
+		return token.IN, true
 	case token.IS:
 		p.next()
 		if p.tok.Type == token.NOT {
 			p.next()
-			return token.IS // represent 'is not' as IS (simplified)
+			return token.IS, true
 		}
-		return token.IS
+		return token.IS, false
 	default:
 		op := p.tok.Type
 		p.next()
-		return op
+		return op, false
 	}
 }
 
@@ -601,11 +602,16 @@ func (p *Parser) parseString() ast.Expr {
 
 	lit := t.Lit
 	value := stripQuotes(lit)
+	kind := stringKind(lit)
 
-	// Concatenate adjacent strings.
+	// Concatenate adjacent strings. One f-string makes the whole expression an
+	// f-string, as in CPython.
 	for p.tok.Type == token.STRING {
 		lit += " " + p.tok.Lit
 		value += stripQuotes(p.tok.Lit)
+		if k := stringKind(p.tok.Lit); k == "fstr" {
+			kind = k
+		}
 		p.next()
 	}
 
@@ -613,9 +619,22 @@ func (p *Parser) parseString() ast.Expr {
 		Position: t.Pos,
 		EndPos:   token.Pos{Line: t.Pos.Line, Col: t.Pos.Col + len(lit), Offset: t.Pos.Offset + len(lit)},
 		Value:    value,
-		Kind:     "str",
+		Kind:     kind,
 		Lit:      lit,
 	}
+}
+
+// stringKind returns the Constant kind of one string literal, from its prefix.
+func stringKind(lit string) string {
+	for i := 0; i < len(lit) && isStringPrefixChar(lit[i]); i++ {
+		switch lit[i] {
+		case 'f', 'F', 't', 'T':
+			return "fstr"
+		case 'b', 'B':
+			return "bytes"
+		}
+	}
+	return "str"
 }
 
 // stripQuotes removes the quote delimiters and optional prefix from a string literal.

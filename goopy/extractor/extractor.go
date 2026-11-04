@@ -260,8 +260,17 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		}
 	}
 
-	if cls.Constructor == nil {
-		cls.Constructor = dataclassConstructor(cd)
+	cls.Dataclass = extractDataclass(cd)
+	if d := cls.Dataclass; d != nil {
+		if cls.Docstring != nil {
+			for _, f := range d.Fields {
+				attachClassDocParam(f.Param, cls.Docstring)
+			}
+		}
+		// A real base may add fields, and only the package resolver can see it.
+		if cls.Constructor == nil && d.Init && !slices.ContainsFunc(cd.Bases, func(b ast.Expr) bool { return !IsInertBase(exprToString(b)) }) {
+			cls.Constructor = DataclassConstructor(d.Fields)
+		}
 	}
 	if cls.Constructor != nil && cls.Docstring != nil {
 		attachClassDocParams(cls)
@@ -274,15 +283,34 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 // parameters. The __init__ docstring wins.
 func attachClassDocParams(cls *model.Class) {
 	for _, p := range cls.Constructor.Parameters {
-		if p.DocParam != nil {
-			continue
+		attachClassDocParam(p, cls.Docstring)
+	}
+}
+
+func attachClassDocParam(p *model.Parameter, doc *model.Docstring) {
+	if p.DocParam != nil {
+		return
+	}
+	for _, dp := range doc.Params {
+		if dp.Name == p.Name {
+			p.DocParam = dp
+			return
 		}
-		for _, dp := range cls.Docstring.Params {
-			if dp.Name == p.Name {
-				p.DocParam = dp
-				break
-			}
-		}
+	}
+}
+
+// InheritConstructor gives cls its own copy of ctor, the constructor Python would
+// run for it, so documenting cls does not change the class that defines ctor.
+func InheritConstructor(cls *model.Class, ctor *model.Function) {
+	c := *ctor
+	c.Parameters = make([]*model.Parameter, len(ctor.Parameters))
+	for i, p := range ctor.Parameters {
+		cp := *p
+		c.Parameters[i] = &cp
+	}
+	cls.Constructor = &c
+	if cls.Docstring != nil {
+		attachClassDocParams(cls)
 	}
 }
 
@@ -311,7 +339,7 @@ func (e *Extractor) extractClassStmts(stmts []ast.Stmt, cls *model.Class, module
 
 		case *ast.AnnAssign:
 			attr := e.extractAttribute(s)
-			if attr != nil {
+			if attr != nil && !isPrivateMember(attr.Name) {
 				cls.Attributes = append(cls.Attributes, attr)
 			}
 
@@ -501,9 +529,27 @@ func collapseAttributes(attrs []*model.Attribute) []*model.Attribute {
 	return out
 }
 
-// dataclassConstructor synthesizes a constructor for a @dataclass class
-// without an explicit __init__. Returns nil for other classes.
-func dataclassConstructor(cd *ast.ClassDef) *model.Function {
+// DataclassConstructor builds the __init__ that @dataclass generates from fields,
+// inherited fields first. Python places keyword-only fields after all others.
+func DataclassConstructor(fields []*model.DataclassField) *model.Function {
+	fn := &model.Function{Name: "__init__", IsMethod: true}
+	var kwOnly []*model.Parameter
+	for _, f := range fields {
+		switch {
+		case !f.Init:
+		case f.Param.Kind == model.ParamKeywordOnly:
+			kwOnly = append(kwOnly, f.Param)
+		default:
+			fn.Parameters = append(fn.Parameters, f.Param)
+		}
+	}
+	fn.Parameters = append(fn.Parameters, kwOnly...)
+	return fn
+}
+
+// extractDataclass reads the decorator and fields of a @dataclass class. Returns
+// nil for other classes.
+func extractDataclass(cd *ast.ClassDef) *model.Dataclass {
 	var dec ast.Expr
 	for _, d := range cd.Decorators {
 		target := d
@@ -524,26 +570,17 @@ func dataclassConstructor(cd *ast.ClassDef) *model.Function {
 	if dec == nil {
 		return nil
 	}
-	// Inherited fields are part of the real signature, and this code cannot
-	// see the base class. Showing a partial signature is worse than none.
-	// Deferred follow-up: resolve inherited constructors across classes.
-	for _, b := range cd.Bases {
-		if !isInertBase(b) {
-			return nil
-		}
-	}
+	dc := &model.Dataclass{Init: true}
 	decKind := model.ParamPositionalOrKeyword
 	if c, ok := dec.(*ast.Call); ok {
 		if v := callKeyword(c, "init"); v != nil && exprToString(v) == "False" {
-			return nil
+			dc.Init = false
 		}
 		if v := callKeyword(c, "kw_only"); v != nil && exprToString(v) == "True" {
 			decKind = model.ParamKeywordOnly
 		}
 	}
 
-	fn := &model.Function{Name: "__init__", IsMethod: true}
-	var kwOnly []*model.Parameter
 	afterSentinel := false
 	for _, stmt := range cd.Body {
 		s, ok := stmt.(*ast.AnnAssign)
@@ -568,11 +605,12 @@ func dataclassConstructor(cd *ast.ClassDef) *model.Function {
 			kind = model.ParamKeywordOnly
 		}
 		p := &model.Parameter{Name: n.Name}
+		init := true
 		if s.Value != nil {
 			p.Default = exprToString(s.Value)
 			if c, ok := s.Value.(*ast.Call); ok && isFieldCall(c) {
 				if v := callKeyword(c, "init"); v != nil && exprToString(v) == "False" {
-					continue
+					init = false
 				}
 				if v := callKeyword(c, "kw_only"); v != nil {
 					if exprToString(v) == "True" {
@@ -592,15 +630,9 @@ func dataclassConstructor(cd *ast.ClassDef) *model.Function {
 			}
 		}
 
-		if kind == model.ParamKeywordOnly {
-			kwOnly = append(kwOnly, p)
-		} else {
-			fn.Parameters = append(fn.Parameters, p)
-		}
+		dc.Fields = append(dc.Fields, &model.DataclassField{Param: p, Init: init})
 	}
-	// Python places keyword-only fields after all others in __init__.
-	fn.Parameters = append(fn.Parameters, kwOnly...)
-	return fn
+	return dc
 }
 
 // callKeyword returns the value of keyword argument name in call c, or nil.
@@ -624,10 +656,10 @@ func isFieldCall(c *ast.Call) bool {
 	return false
 }
 
-// isInertBase reports whether a base class adds no dataclass fields:
-// object, ABC, Protocol and Generic[...], with optional module prefixes.
-func isInertBase(b ast.Expr) bool {
-	s := exprToString(b)
+// IsInertBase reports whether a base class adds neither dataclass fields nor a
+// constructor: object, ABC, Protocol and Generic[...], with optional module
+// prefixes. s is the base as written in the source.
+func IsInertBase(s string) bool {
 	if i := strings.Index(s, "["); i >= 0 {
 		s = s[:i]
 	}

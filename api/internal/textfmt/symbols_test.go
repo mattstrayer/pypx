@@ -1,6 +1,7 @@
 package textfmt_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,74 @@ func TestFormatSymbolsKindFilter(t *testing.T) {
 	}
 	if strings.Contains(got, "\tclass\t") || strings.Contains(got, "\tmethod\t") {
 		t.Errorf("expected only functions, got:\n%s", got)
+	}
+}
+
+// duplicatePathDocs has many paths that hold both a method and an attribute, and
+// two modules that repeat a path of the same kind.
+func duplicatePathDocs() *textfmt.DocsInput {
+	cls := textfmt.DocSymbolInput{Name: "C", Kind: "class", Signature: "class C"}
+	for i := range 200 {
+		name := fmt.Sprintf("m%03d", (i*37)%200)
+		cls.Methods = append(cls.Methods, textfmt.DocSymbolInput{Name: name, Kind: "method", Signature: "def " + name + "()"})
+		cls.Attributes = append(cls.Attributes, textfmt.DocAttributeInput{Name: name})
+	}
+	return &textfmt.DocsInput{Modules: []textfmt.DocModuleInput{
+		{Name: "p", Classes: []textfmt.DocSymbolInput{cls}, Functions: []textfmt.DocSymbolInput{{Name: "f", Kind: "function", Signature: "def first()"}}},
+		{Name: "p", Functions: []textfmt.DocSymbolInput{{Name: "f", Kind: "function", Signature: "def second()"}}},
+	}}
+}
+
+func TestFormatSymbolsDuplicatePaths(t *testing.T) {
+	first := textfmt.FormatSymbols(duplicatePathDocs(), "", "", 1000)
+	for range 20 {
+		if got := textfmt.FormatSymbols(duplicatePathDocs(), "", "", 1000); got != first {
+			t.Fatal("output differs between runs")
+		}
+	}
+
+	// Equal paths order by kind, and equal kinds keep their source order.
+	lines := strings.Split(strings.TrimSpace(first), "\n")[1:]
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		a, b := strings.Split(lines[i-1], "\t"), strings.Split(line, "\t")
+		if a[0] > b[0] || (a[0] == b[0] && a[1] > b[1]) {
+			t.Fatalf("out of order at line %d: %q then %q", i, lines[i-1], line)
+		}
+	}
+	if !strings.Contains(first, "p.f\tfunction\tdef first()\np.f\tfunction\tdef second()\n") {
+		t.Errorf("equal path and kind lost source order:\n%s", first)
+	}
+}
+
+func exceptionMethodDocs() *textfmt.DocsInput {
+	return &textfmt.DocsInput{Modules: []textfmt.DocModuleInput{{
+		Name: "p",
+		Exceptions: []textfmt.DocSymbolInput{{
+			Name: "E", Kind: "exception", Signature: "class E(Exception)",
+			Methods: []textfmt.DocSymbolInput{{Name: "retry", Kind: "method", Signature: "def retry()", Docstring: "Retry it."}},
+		}},
+	}}}
+}
+
+func TestExceptionMethods(t *testing.T) {
+	const block = "### p.E.retry — def retry()\nRetry it."
+	if got := textfmt.FormatDocs(exceptionMethodDocs(), ""); !strings.Contains(got, block) {
+		t.Errorf("FormatDocs:\n%s", got)
+	}
+	if got := textfmt.FormatDocs(exceptionMethodDocs(), "p.E.retry"); !strings.Contains(got, block) || strings.Contains(got, "class E") {
+		t.Errorf("FormatDocs with method prefix:\n%s", got)
+	}
+	if got, ok := textfmt.FormatSymbol(exceptionMethodDocs(), "p.E.retry"); !ok || !strings.Contains(got, block) {
+		t.Errorf("FormatSymbol = %q, %v", got, ok)
+	}
+	if got := textfmt.FormatSymbols(exceptionMethodDocs(), "", "", 10); !strings.Contains(got, "p.E.retry\tmethod\tdef retry()\n") {
+		t.Errorf("FormatSymbols:\n%s", got)
+	}
+	if got := textfmt.FormatSymbols(exceptionMethodDocs(), "", "method", 10); !strings.Contains(got, "p.E.retry\t") {
+		t.Errorf("FormatSymbols with kind filter:\n%s", got)
 	}
 }
 

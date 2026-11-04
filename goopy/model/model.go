@@ -147,6 +147,23 @@ type Class struct {
 	Origin string `json:"origin,omitempty"`
 	// OriginName is the name in Origin, set if the re-export renames the class.
 	OriginName string `json:"-"`
+	// Dataclass is set on a @dataclass class. The package resolver reads it to
+	// build the constructor of a subclass.
+	Dataclass *Dataclass `json:"-"`
+}
+
+// Dataclass is what a @dataclass decorator and class body declare.
+type Dataclass struct {
+	// Init is false for @dataclass(init=False), which generates no __init__.
+	Init   bool
+	Fields []*DataclassField
+}
+
+// DataclassField is one field a dataclass declares. A subclass that redeclares
+// the field keeps its position, so a field with init=False stays in the list.
+type DataclassField struct {
+	Param *Parameter
+	Init  bool
 }
 
 // Parameter represents a function parameter.

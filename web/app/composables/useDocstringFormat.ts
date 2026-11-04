@@ -10,14 +10,30 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function applyInlineFormatting(text: string): string {
-  // Strip rst role prefixes like :func:`name` → <code>name</code>
-  text = text.replace(/:[a-z]+:`([^`]+)`/g, "<code>$1</code>");
-  // Double backticks → <code>
-  text = text.replace(/``([^`]+?)``/g, "<code>$1</code>");
-  // Single backticks → <code>
-  text = text.replace(/`([^`]+?)`/g, "<code>$1</code>");
-  return text;
+// What Sphinx displays for an escaped role or default-role target: the title of
+// "Title <a.b>", the last part of "~a.b", and "!a.b" without its "!".
+function roleDisplayText(target: string): string {
+  const titled = target.match(/^(.+?)\s*&lt;.*&gt;$/);
+  if (titled) return titled[1] ?? target;
+  if (target.startsWith("~")) return target.split(".").at(-1)?.replace(/^~/, "") ?? target;
+  return target.replace(/^!/, "");
+}
+
+// One pass, so markup inside a code span stays as written. Bold needs text that
+// touches both pairs of stars, so "2 ** 3 ** 4" and "**kwargs" are left alone.
+const INLINE_MARKUP =
+  /(?::[a-zA-Z]+)+:`([^`]+)`|``([^`]+?)``|`([^`]+?)`|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*/g;
+
+/** Escapes one piece of docstring text and renders its reST inline markup as HTML. */
+export function formatInline(text: string): string {
+  return escapeHtml(text).replace(
+    INLINE_MARKUP,
+    (_, role?: string, literal?: string, single?: string, bold?: string) => {
+      if (literal !== undefined) return `<code>${literal}</code>`;
+      if (bold !== undefined) return `<strong>${bold}</strong>`;
+      return `<code>${roleDisplayText(role ?? single ?? "")}</code>`;
+    },
+  );
 }
 
 // Same rule as Python's inspect.cleandoc: a docstring's first line starts right after
@@ -43,16 +59,46 @@ function plainCodeBlock(code: string): string {
   return `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
 }
 
-type BlockType = "paragraph" | "code" | "directive" | "hidden";
+type BlockType = "paragraph" | "code" | "directive" | "hidden" | "heading";
 
 interface Block {
   type: BlockType;
   lines: string[];
 }
 
+const NUMPY_SECTIONS = new Set([
+  "Attributes",
+  "Examples",
+  "Methods",
+  "Notes",
+  "References",
+  "See Also",
+  "Warnings",
+  "Warns",
+]);
+
+// A title with a line of 3+ dashes under it, as NumPy writes "Examples" and "Notes".
+// The title sits at the margin, because an indented pair is usually a table in a
+// code block. A NumPy section name counts at any indent: numpy.lib.recfunctions
+// has docstrings that indent their sections past the margin.
+function isSectionHeading(title: string | undefined, underline: string | undefined): boolean {
+  return (
+    title !== undefined &&
+    underline !== undefined &&
+    (/^\S/.test(title) || NUMPY_SECTIONS.has(title.trim())) &&
+    !title.startsWith(">>>") &&
+    /^\s*-{3,}\s*$/.test(underline)
+  );
+}
+
 function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Block[] {
   return rawBlocks.map((lines, i) => {
     const firstLine = lines[0] ?? "";
+
+    const prevLine = prevBlockLines[i]?.at(-1)?.trimEnd() ?? "";
+    if (lines.length === 2 && !prevLine.endsWith("::") && isSectionHeading(lines[0], lines[1])) {
+      return { type: "heading", lines };
+    }
 
     // RST directive: starts with ".. word::" (possibly indented)
     if (/^\s*\.\.\s+\w+::/.test(firstLine)) {
@@ -104,6 +150,10 @@ function renderBlock(block: Block): DocstringPart | null {
     return null;
   }
 
+  if (block.type === "heading") {
+    return html(`<h4 class="section-label">${escapeHtml((block.lines[0] ?? "").trim())}</h4>`);
+  }
+
   if (block.type === "code") {
     // Dedent the code block content
     const nonEmpty = block.lines.filter((l) => l.trim().length > 0);
@@ -130,7 +180,7 @@ function renderBlock(block: Block): DocstringPart | null {
       const rest = [directiveMatch[2] ?? "", ...block.lines.slice(1).map((l) => l.trim())]
         .filter(Boolean)
         .join(" ");
-      const content = escapeHtml(rest);
+      const content = formatInline(rest);
       const label = content ? `${directiveType}: ${content}` : directiveType;
       return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${label}</p>`);
     }
@@ -139,11 +189,8 @@ function renderBlock(block: Block): DocstringPart | null {
     return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${content}</p>`);
   }
 
-  // Paragraph: join lines, escape, then apply inline formatting
-  const text = block.lines.join(" ").trim();
-  const escaped = escapeHtml(text);
-  const formatted = applyInlineFormatting(escaped);
-  return html(`<p>${formatted}</p>`);
+  // Paragraph: join lines, then apply inline formatting
+  return html(`<p>${formatInline(block.lines.join(" ").trim())}</p>`);
 }
 
 function parseDocstring(raw: string): DocstringPart[] {
@@ -155,16 +202,27 @@ function parseDocstring(raw: string): DocstringPart[] {
   // Split into lines and dedent
   const lines = dedent(normalized.split("\n"));
 
-  // Split into raw blocks by blank lines
+  // Split into raw blocks by blank lines. A section heading is a block of its own,
+  // even with no blank line after it. It must start a block, and not the literal
+  // block after a "::", so dashes in code stay in the code.
   const rawBlocks: string[][] = [];
   let current: string[] = [];
+  const afterLiteralMarker = () => rawBlocks.at(-1)?.at(-1)?.trimEnd().endsWith("::") ?? false;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
     if (line.trim() === "") {
       if (current.length > 0) {
         rawBlocks.push(current);
         current = [];
       }
+    } else if (
+      current.length === 0 &&
+      !afterLiteralMarker() &&
+      isSectionHeading(line, lines[i + 1])
+    ) {
+      rawBlocks.push([line, lines[i + 1] ?? ""]);
+      i++;
     } else {
       current.push(line);
     }

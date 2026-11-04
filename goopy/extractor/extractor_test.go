@@ -1255,6 +1255,41 @@ class C:
 	}
 }
 
+func TestPrivateAnnotatedAttributesStayOut(t *testing.T) {
+	m := extract(`
+class C:
+    _hidden: int = 1
+    _bare: str
+    __mangled: int = 2
+    __dunder__: int = 3
+    public: int = 4
+`)
+	var got []string
+	for _, a := range m.Classes[0].Attributes {
+		got = append(got, a.Name)
+	}
+	if want := []string{"__mangled", "__dunder__", "public"}; !slices.Equal(got, want) {
+		t.Errorf("Attributes = %v, want %v", got, want)
+	}
+}
+
+// A _-prefixed dataclass field is a real __init__ parameter.
+func TestDataclassKeepsPrivateFieldsInConstructor(t *testing.T) {
+	m := extract(`
+@dataclass
+class C:
+    _x: int
+    y: int = 0
+`)
+	c := m.Classes[0]
+	if c.Constructor == nil || len(c.Constructor.Parameters) != 2 || c.Constructor.Parameters[0].Name != "_x" {
+		t.Fatalf("Constructor = %+v", c.Constructor)
+	}
+	if len(c.Attributes) != 1 || c.Attributes[0].Name != "y" {
+		t.Errorf("Attributes = %+v, want only y", c.Attributes)
+	}
+}
+
 func TestClassBodyRecursion(t *testing.T) {
 	m := extract(`
 class C:
@@ -1624,5 +1659,37 @@ func TestLambdaDefaults(t *testing.T) {
 				t.Errorf("next parameter Default = %q", got)
 			}
 		})
+	}
+}
+
+func TestOnlyPlainStringsAreDocstrings(t *testing.T) {
+	for body, want := range map[string]string{
+		`"doc"`:    "doc",
+		`r"doc"`:   "doc",
+		`"a" "b"`:  "ab",
+		`f"x"`:     "",
+		`b"x"`:     "",
+		`rb"x"`:    "",
+		`"a" f"b"`: "",
+		`f"a" "b"`: "",
+		`F"""x"""`: "",
+	} {
+		t.Run(body, func(t *testing.T) {
+			m := extract("def f():\n    " + body + "\n")
+			got := ""
+			if d := m.Functions[0].Docstring; d != nil {
+				got = d.Text
+			}
+			if got != want {
+				t.Errorf("docstring = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestFStringInAllIsDynamic(t *testing.T) {
+	m := extract("__all__ = [\"a\", f\"b\"]\n")
+	if m.Exports == nil || !m.Exports.Dynamic {
+		t.Errorf("Exports = %+v, want Dynamic", m.Exports)
 	}
 }

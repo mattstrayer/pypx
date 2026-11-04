@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,6 +80,10 @@ type DocSymbol struct {
 	Attributes []DocAttribute `json:"attributes,omitzero"`
 	// Origin is the dotted module that defines a re-exported symbol.
 	Origin string `json:"origin,omitempty"`
+	// MethodKind is "classmethod" or "staticmethod" on a method bound that way, and
+	// empty on any other symbol. The parameter list leaves out cls, so it cannot
+	// show this.
+	MethodKind string `json:"method_kind,omitempty"`
 }
 
 // DocAttribute is a class attribute or property.
@@ -85,9 +91,12 @@ type DocAttribute struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
 	Default     string `json:"default,omitempty"`
-	Description string `json:"description"`
-	IsProperty  bool   `json:"is_property"`
-	Writable    bool   `json:"writable"`
+	// DefaultDigest identifies the full value when Default is truncated, so a diff
+	// sees a change past the cut.
+	DefaultDigest string `json:"default_digest,omitempty"`
+	Description   string `json:"description"`
+	IsProperty    bool   `json:"is_property"`
+	Writable      bool   `json:"writable"`
 }
 
 // DocParam is a function parameter.
@@ -739,6 +748,7 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 		Docstring:  cleanDocstringText(fn.Docstring),
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 		Origin:     fn.Origin,
+		MethodKind: methodKind(fn),
 	}
 	// Note: Signature is set after the parameter loop so stub-filled types appear.
 
@@ -812,6 +822,23 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 	return sym
 }
 
+// methodKind reads how a method is bound from its decorators. A decorator keeps its
+// module prefix in the model, as in abc.abstractclassmethod.
+func methodKind(fn *model.Function) string {
+	if !fn.IsMethod {
+		return ""
+	}
+	for _, dec := range fn.Decorators {
+		switch dec[strings.LastIndex(dec, ".")+1:] {
+		case "classmethod", "abstractclassmethod":
+			return "classmethod"
+		case "staticmethod", "abstractstaticmethod":
+			return "staticmethod"
+		}
+	}
+	return ""
+}
+
 func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 	sym := DocSymbol{
 		Name:      cls.Name,
@@ -861,6 +888,10 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		// An __init__ assignment holds an expression, not a default.
 		if !a.Instance {
 			attr.Default = truncateDefault(a.Value)
+			if attr.Default != a.Value {
+				sum := sha256.Sum256([]byte(a.Value))
+				attr.DefaultDigest = hex.EncodeToString(sum[:8])
+			}
 		}
 		if a.Type != nil {
 			attr.Type = a.Type.Raw

@@ -194,6 +194,9 @@ func MergeClass(cls, stub *model.Class) {
 	if len(cls.BaseClasses) == 0 {
 		cls.BaseClasses = stub.BaseClasses
 	}
+	if cls.Dataclass == nil {
+		cls.Dataclass = stub.Dataclass
+	}
 	switch {
 	case stub.Constructor == nil:
 	case cls.Constructor == nil:

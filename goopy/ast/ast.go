@@ -229,7 +229,10 @@ type BinOp struct {
 	EndPos   token.Pos
 	Left     Expr
 	Op       token.Type
-	Right    Expr
+	// Negated marks the second word of a two-word comparison: "not in" is IN with
+	// Negated set, and "is not" is IS with Negated set.
+	Negated bool
+	Right   Expr
 }
 
 func (b *BinOp) Pos() token.Pos { return b.Position }
@@ -301,7 +304,7 @@ type Constant struct {
 	Position token.Pos
 	EndPos   token.Pos
 	Value    string // string representation: "42", "hello", "True"
-	Kind     string // "str", "int", "float", "bool", "none", "ellipsis"
+	Kind     string // "str", "bytes", "fstr", "int", "float", "bool", "none", "ellipsis"
 	Lit      string // raw source literal text (preserves quotes for strings)
 }
 

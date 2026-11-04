@@ -199,6 +199,31 @@ func TestExtractPackageReexports(t *testing.T) {
 			aliases: map[string]string{"pkg.sub.Y": "pkg.Z"},
 		},
 		{
+			name: "copy goes to the shortest module path, not the first in sort order",
+			files: map[string]string{
+				"pkg/__init__.py":      "",
+				"pkg/core/__init__.py": "",
+				"pkg/core/records.py":  "from .._x import Y\n",
+				"pkg/rec.py":           "from ._x import Y\n",
+				"pkg/_x.py":            "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg.core.records": nil, "pkg.rec": {"Y"}},
+			origins: map[string]string{"pkg.rec.Y": "pkg._x"},
+			aliases: map[string]string{"pkg.core.records.Y": "pkg.rec.Y"},
+		},
+		{
+			name: "modules of equal length fall back to sort order",
+			files: map[string]string{
+				"pkg/__init__.py": "",
+				"pkg/zz.py":       "from ._x import Y\n",
+				"pkg/aaaa.py":     "from ._x import Y\n",
+				"pkg/_x.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg.aaaa": {"Y"}, "pkg.zz": nil},
+			origins: map[string]string{"pkg.aaaa.Y": "pkg._x"},
+			aliases: map[string]string{"pkg.zz.Y": "pkg.aaaa.Y"},
+		},
+		{
 			name: "public definition stays in place",
 			files: map[string]string{
 				"pkg/__init__.py": "from .pub import a\n__all__ = [\"a\"]\n",

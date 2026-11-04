@@ -307,6 +307,21 @@ func TestFetch_SdistDeclaredTopLevelUnderSrc(t *testing.T) {
 	}
 }
 
+// configparser2 has this shape. Its setup.py passes py_modules only on Python 2, so
+// its top_level.txt is right: on Python 3 "import configparser2" fails, and the
+// unlisted module is not part of the API.
+func TestFetch_SdistDeclaredTopLevelLeavesUnlistedModuleOut(t *testing.T) {
+	c := mustFetchTarGz(t,
+		reg("p-1/src/pkg.egg-info/top_level.txt", "backports\n"),
+		reg("p-1/src/backports/__init__.py", ""),
+		reg("p-1/src/backports/mod/__init__.py", ""),
+		reg("p-1/src/solo.py", ""),
+	)
+	if want := []string{"backports"}; !reflect.DeepEqual(c.TopLevelPkgs, want) {
+		t.Errorf("top = %v, want %v", c.TopLevelPkgs, want)
+	}
+}
+
 func TestFetch_SdistWithoutWrapperDirectory(t *testing.T) {
 	c := mustFetchTarGz(t, reg("setup.py", ""), reg("pkg/__init__.py", ""), reg("pkg/a.py", ""))
 	wantContents(t, c, []string{"pkg/__init__.py", "pkg/a.py"}, []string{"pkg"})
