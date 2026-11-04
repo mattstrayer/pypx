@@ -3,6 +3,7 @@ package cache
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -63,11 +64,15 @@ func New(dsn string) (*Cache, error) {
 
 // Set stores value under key with the current timestamp. Any existing entry for the same key is replaced.
 // The ttl parameter is accepted for interface compatibility but ignored; TTL is enforced
-// only during Get calls.
+// only during Get calls. A large value is stored compressed: see compressThreshold.
 func (c *Cache) Set(key string, value []byte, _ time.Duration) error {
-	_, err := c.db.Exec(
+	row, err := encodeRow(value)
+	if err != nil {
+		return err
+	}
+	_, err = c.db.Exec(
 		`INSERT OR REPLACE INTO cache (key, value, created_at) VALUES (?, ?, ?)`,
-		key, value, time.Now().Unix(),
+		key, row, time.Now().Unix(),
 	)
 	return err
 }
@@ -89,6 +94,12 @@ func (c *Cache) getWithTime(key string, ttl time.Duration) (data []byte, fresh b
 		return nil, false, time.Time{}, err
 	}
 
+	value, err = decodeRow(value)
+	if err != nil {
+		// A miss, so the caller builds the value again and replaces the row.
+		log.Printf("cache: ignoring unreadable row %s: %v", key, err)
+		return nil, false, time.Time{}, nil
+	}
 	t := time.Unix(tsUnix, 0)
 	age := time.Since(t)
 	return value, age < ttl, t, nil
