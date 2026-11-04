@@ -339,7 +339,7 @@ func (e *Extractor) extractClassStmts(stmts []ast.Stmt, cls *model.Class, module
 
 		case *ast.AnnAssign:
 			attr := e.extractAttribute(s)
-			if attr != nil {
+			if attr != nil && !isPrivateMember(attr.Name) {
 				cls.Attributes = append(cls.Attributes, attr)
 			}
 
