@@ -314,8 +314,7 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 }
 
 // docsAtVersion is fetchDocsAtVersion with a choice about decoding. With
-// decode false, a cache hit returns only the bytes and the DocsResponse is
-// zero. A miss always returns both.
+// decode false, it returns only the bytes and the DocsResponse is zero.
 func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, decode bool) (DocsResponse, []byte, error) {
 	if resp, data, ok := h.cachedDocs(name, version, decode); ok {
 		return resp, data, nil
@@ -343,8 +342,15 @@ func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, d
 		if res.Err != nil {
 			return DocsResponse{}, nil, res.Err
 		}
-		out := res.Val.(docsResult)
-		return out.resp, out.encoded, nil
+		encoded := res.Val.([]byte)
+		if !decode {
+			return DocsResponse{}, encoded, nil
+		}
+		var resp DocsResponse
+		if err := json.Unmarshal(encoded, &resp); err != nil {
+			return DocsResponse{}, nil, ErrDocsExtractionFailed
+		}
+		return resp, encoded, nil
 	case <-ctx.Done():
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
@@ -368,11 +374,6 @@ func (h *DocsHandler) cachedDocs(name, version string, decode bool) (DocsRespons
 		return DocsResponse{}, data, true
 	}
 	return DocsResponse{}, nil, false
-}
-
-type docsResult struct {
-	resp    DocsResponse
-	encoded []byte
 }
 
 // admit waits until the extraction's weight fits in the budget, and returns the
@@ -411,7 +412,7 @@ func (h *DocsHandler) extractionCost(ctx context.Context, name, version string) 
 // extractAndCache runs one extraction within the memory budget and stores the
 // result. ctx is detached from any request, so only a real failure or the work
 // timeout writes the error key.
-func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (out docsResult, err error) {
+func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (encoded []byte, err error) {
 	errKey := DocsErrKey(name, version)
 
 	// singleflight re-panics in a new goroutine that nothing can recover, so a
@@ -420,31 +421,31 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		if p := recover(); p != nil {
 			log.Printf("docs: panic extracting %s==%s: %v\n%s", name, version, p, debug.Stack())
 			h.cache.Set(errKey, []byte(fmt.Sprintf("panic: %v", p)), docsErrTTL) //nolint:errcheck
-			out, err = docsResult{}, ErrDocsExtractionFailed
+			encoded, err = nil, ErrDocsExtractionFailed
 		}
 	}()
 
 	cost, aerr := h.admit(ctx, name, version)
 	if aerr != nil {
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 	defer h.budget.Release(cost)
 
 	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
 		if isClientCancel(ctx, gerr) {
-			return docsResult{}, ErrDocsExtractionFailed
+			return nil, ErrDocsExtractionFailed
 		}
 		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 	if ctx.Err() != nil {
 		if isClientCancel(ctx, nil) {
-			return docsResult{}, ErrDocsExtractionFailed
+			return nil, ErrDocsExtractionFailed
 		}
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), docsErrTTL) //nolint:errcheck
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 
 	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
@@ -454,16 +455,17 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 	// resolveStubs swallows its errors, so a timeout during stub resolution
 	// would otherwise cache an incomplete result.
 	if ctx.Err() != nil {
-		return docsResult{}, ErrDocsExtractionFailed
+		return nil, ErrDocsExtractionFailed
 	}
 
+	// The caller gets the bytes only, so the decoded form is not held next to them.
 	encoded, merr := json.Marshal(docsResp)
 	if merr != nil {
-		return docsResult{}, fmt.Errorf("encode docs: %w", merr)
+		return nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
 	h.cache.Set(DocsCacheKey(name, version), encoded, 0) //nolint:errcheck
-	return docsResult{resp: docsResp, encoded: encoded}, nil
+	return encoded, nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.

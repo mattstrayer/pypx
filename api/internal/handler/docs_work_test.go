@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -287,6 +289,42 @@ func TestDocsWork_WeighFailureFallsThroughToExtraction(t *testing.T) {
 	}
 	if !h.budget.TryAcquire(extractionBudget) {
 		t.Error("budget still held")
+	}
+}
+
+func TestDocsWork_MissDecodesLikeAHit(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{Modules: []*model.Module{{
+			Name:      "p",
+			Functions: []*model.Function{{Name: "f"}},
+		}}}, nil
+	})
+
+	missResp, missBytes, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !missResp.Available || len(missResp.Modules) != 1 {
+		t.Fatalf("miss response = %+v", missResp)
+	}
+	hitResp, hitBytes, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(missResp, hitResp) {
+		t.Errorf("miss = %+v, hit = %+v", missResp, hitResp)
+	}
+	if !bytes.Equal(missBytes, hitBytes) {
+		t.Error("miss and hit returned different bytes")
+	}
+
+	rawResp, rawBytes, err := h.docsAtVersion(context.Background(), "p", "2", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawResp.Package != "" || len(rawBytes) == 0 {
+		t.Errorf("decode=false returned resp %+v and %d bytes", rawResp, len(rawBytes))
 	}
 }
 
