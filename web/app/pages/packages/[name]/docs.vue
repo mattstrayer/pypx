@@ -24,6 +24,17 @@ const { data: docs, status: docsStatus } = useAsyncData(
   { server: false, default: () => null, watch: [name] },
 );
 
+const unavailableDetail = computed(() => {
+  switch (docs.value?.reason) {
+    case "no_artifact":
+      return "This release has no wheel, and pypx found no readable Python source in its files.";
+    case "too_large":
+      return "This release is too large for pypx to read.";
+    default:
+      return "This package may be binary-only or could not be parsed.";
+  }
+});
+
 function dedup(symbols: DocSymbol[]): DocSymbol[] {
   const seen = new Set<string>();
   return symbols.filter((s) => {
@@ -280,9 +291,7 @@ if (pkg.value) {
         <!-- Docs unavailable -->
         <div v-else-if="!docs?.available" class="py-16 text-center">
           <p class="text-muted">API documentation is not available for this package.</p>
-          <p class="mt-1 text-sm text-muted">
-            This package may be binary-only or could not be parsed.
-          </p>
+          <p class="mt-1 text-sm text-muted">{{ unavailableDetail }}</p>
           <a
             v-if="pkg.doc_url"
             :href="pkg.doc_url"

@@ -22,18 +22,28 @@ import (
 	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
+	"github.com/pypx/goopy/wheel"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 )
 
 // DocsResponse is the response for GET /api/packages/{name}/docs.
 type DocsResponse struct {
-	Package     string      `json:"package"`
-	Version     string      `json:"version"`
-	Available   bool        `json:"available"`
+	Package   string `json:"package"`
+	Version   string `json:"version"`
+	Available bool   `json:"available"`
+	// Reason says why Available is false when the cause is known: see the
+	// docsReason constants. Empty for a package that parsed but has no public API.
+	Reason      string      `json:"reason,omitempty"`
 	StubPackage string      `json:"stub_package,omitempty"`
 	Modules     []DocModule `json:"modules"`
 }
+
+// Values of DocsResponse.Reason.
+const (
+	docsReasonNoArtifact = "no_artifact"
+	docsReasonTooLarge   = "too_large"
+)
 
 // DocModule is a Python module in the documentation.
 type DocModule struct {
@@ -209,13 +219,13 @@ var (
 )
 
 // fetchDocs returns the cached or freshly-extracted DocsResponse for a package's
-// LATEST version. Wraps fetchDocsAtVersion after resolving via PyPI.
+// LATEST version, after resolving it via PyPI.
 func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
 	version, err := h.latestVersion(ctx, name)
 	if err != nil {
 		return DocsResponse{}, nil, err
 	}
-	return h.fetchDocsAtVersion(ctx, name, version)
+	return h.docsAtVersion(ctx, name, version, true)
 }
 
 // fetchDocsBytes returns the encoded docs JSON for a package's latest version.
@@ -320,11 +330,17 @@ func isClientCancel(ctx context.Context, err error) bool {
 
 // fetchDocsAtVersion returns the cached or freshly-extracted DocsResponse for
 // a specific (name, version) pair. Cache key is "docs:v{ExtractorVersion}:{name}:{version}",
-// indefinite TTL. Used by both fetchDocs (latest) and the diff handler
-// (arbitrary historical versions). On cache hit returns the original cached
-// bytes (no re-marshal).
+// indefinite TTL. The diff handler uses it for arbitrary historical versions. On
+// cache hit returns the original cached bytes (no re-marshal).
+//
+// A version with a Reason returns ErrDocsExtractionFailed: its empty module list
+// says nothing about its API, so a diff must not read it as "everything removed".
 func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version string) (DocsResponse, []byte, error) {
-	return h.docsAtVersion(ctx, name, version, true)
+	resp, data, err := h.docsAtVersion(ctx, name, version, true)
+	if err == nil && resp.Reason != "" {
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
+	}
+	return resp, data, err
 }
 
 // docsAtVersion is fetchDocsAtVersion with a choice about decoding. With
@@ -450,6 +466,16 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		if isClientCancel(ctx, gerr) {
 			return nil, ErrDocsExtractionFailed
 		}
+		// PyPI answered 404 for this version. No key is written, so the next request
+		// asks PyPI again and also gets a 404.
+		if errors.Is(gerr, wheel.ErrNotFound) {
+			return nil, ErrDocsPackageNotFound
+		}
+		if reason := docsFailureReason(gerr); reason != "" {
+			return h.storeDocs(name, version, DocsResponse{
+				Package: name, Version: version, Reason: reason, Modules: []DocModule{},
+			})
+		}
 		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
 		return nil, ErrDocsExtractionFailed
@@ -472,12 +498,17 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		return nil, ErrDocsExtractionFailed
 	}
 
-	// The caller gets the bytes only, so the decoded form is not held next to them.
-	encoded, merr := encodeDocs(docsResp)
-	if merr != nil {
-		return nil, fmt.Errorf("encode docs: %w", merr)
-	}
+	return h.storeDocs(name, version, docsResp)
+}
 
+// storeDocs encodes and caches one result. An Available:false row is extracted
+// again after docsEmptyTTL. The caller gets the bytes only, so the decoded form is
+// not held next to them.
+func (h *DocsHandler) storeDocs(name, version string, resp DocsResponse) ([]byte, error) {
+	encoded, err := encodeDocs(resp)
+	if err != nil {
+		return nil, fmt.Errorf("encode docs: %w", err)
+	}
 	h.cache.Set(DocsCacheKey(name, version), encoded, 0) //nolint:errcheck
 	return encoded, nil
 }
@@ -537,6 +568,37 @@ func encodeDocsWithin(resp DocsResponse, limit int) ([]byte, error) {
 		chunks[i] = nil
 	}
 	return append(out, "]}"...), nil
+}
+
+// docsFailureReason returns the Reason for an extraction failure that will repeat
+// for this release, or "" for any other failure.
+func docsFailureReason(err error) string {
+	switch {
+	case errors.Is(err, wheel.ErrNoArtifact):
+		return docsReasonNoArtifact
+	case errors.Is(err, wheel.ErrTooLarge):
+		return docsReasonTooLarge
+	}
+	return ""
+}
+
+// writeReasonText sends the plain-text answer for a release with a Reason. It
+// reports false, and writes nothing, if resp has none. The answer can change with
+// the next release, so it does not get the immutable header of real docs.
+func writeReasonText(w http.ResponseWriter, resp DocsResponse) bool {
+	var why string
+	switch resp.Reason {
+	case "":
+		return false
+	case docsReasonTooLarge:
+		why = "this release is too large to read"
+	default:
+		why = "this release has no wheel and no readable Python source"
+	}
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = fmt.Fprintf(w, "No API documentation for %s %s: %s.\n", resp.Package, resp.Version, why)
+	return true
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.
@@ -1127,6 +1189,10 @@ func (h *DocsHandler) GetText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if writeReasonText(w, resp) {
+		return
+	}
+
 	prefix := r.URL.Query().Get("prefix")
 	body := textfmt.FormatDocs(docsInputFrom(resp), prefix)
 
@@ -1273,6 +1339,10 @@ func (h *DocsHandler) GetSymbols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if writeReasonText(w, resp) {
+		return
+	}
+
 	q := r.URL.Query().Get("q")
 	kind := r.URL.Query().Get("kind")
 	limit := 100
@@ -1294,4 +1364,3 @@ func (h *DocsHandler) GetSymbols(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(body)) //nolint:errcheck
 }
-

@@ -49,21 +49,23 @@ const (
 var (
 	// ErrNotFound means PyPI has no such package/version (HTTP 404).
 	ErrNotFound = errors.New("wheel: package version not found")
-	// ErrNoArtifact means the release exists but has no extractable artifact
-	// (e.g. sdist-only release, or no files at all).
+	// ErrNoArtifact means the release exists but has no extractable artifact: it
+	// has no files, or an sdist with no Python sources, an unsupported format or
+	// an unsafe path.
 	ErrNoArtifact = errors.New("wheel: no extractable artifact")
-	// ErrTooLarge means the selected artifact exceeds MaxSize (or MaxRangeSize for ranged reads).
+	// ErrTooLarge means the selected artifact exceeds MaxSize (MaxRangeSize for ranged
+	// reads) or a cap on its inflated contents.
 	ErrTooLarge = errors.New("wheel: artifact exceeds size limit")
 )
 
-// WheelFile represents a wheel distribution file from PyPI.
+// WheelFile represents a distribution file from PyPI: a wheel or an sdist.
 type WheelFile struct {
 	Filename string
 	URL      string
 	Size     int64
 }
 
-// WheelContents holds the extracted .py and .pyi files from a wheel.
+// WheelContents holds the extracted .py and .pyi files from a wheel or sdist.
 type WheelContents struct {
 	Files map[string][]byte // relative path -> source bytes
 	// TopLevelPkgs lists import names. A stub directory "foo-stubs" counts as "foo".
@@ -73,12 +75,13 @@ type WheelContents struct {
 	Version string
 }
 
-// Fetcher downloads and extracts Python source and stub files from a package wheel.
+// Fetcher downloads and extracts Python source and stub files from a package
+// distribution.
 type Fetcher interface {
 	Fetch(ctx context.Context, name, version string) (*WheelContents, error)
 }
 
-// Source is the default Fetcher that downloads wheels from PyPI.
+// Source is the default Fetcher that downloads distributions from PyPI.
 type Source struct {
 	HTTPClient *http.Client
 	MaxSize    int64
@@ -100,17 +103,22 @@ func NewSource() *Source {
 // Compile-time check that Source implements Fetcher.
 var _ Fetcher = (*Source)(nil)
 
-// Fetch downloads a wheel for the given package and version, returning its .py and .pyi file contents.
+// Fetch returns the .py and .pyi file contents of the given package and version. It
+// reads a wheel, or the sdist if the release has no wheel.
 func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContents, error) {
-	wheels, resolved, err := s.fetchRelease(ctx, name, version)
+	wheels, sdists, resolved, err := s.fetchRelease(ctx, name, version)
 	if err != nil {
-		return nil, fmt.Errorf("fetching wheel URLs: %w", err)
+		return nil, fmt.Errorf("fetching file URLs: %w", err)
 	}
-	if len(wheels) == 0 {
-		return nil, fmt.Errorf("%s==%s (sdist-only or no files): %w", name, resolved, ErrNoArtifact)
+	var contents *WheelContents
+	switch {
+	case len(wheels) > 0:
+		contents, err = s.fetchWheel(ctx, selectWheel(wheels), name)
+	case len(sdists) > 0:
+		contents, err = s.fetchSdist(ctx, selectSdist(sdists), name)
+	default:
+		err = fmt.Errorf("%s==%s (no wheel or sdist): %w", name, resolved, ErrNoArtifact)
 	}
-
-	contents, err := s.fetchWheel(ctx, selectWheel(wheels), name)
 	if err != nil {
 		return nil, err
 	}
@@ -162,13 +170,13 @@ func (s *Source) fetchWhole(ctx context.Context, w WheelFile, name string) (*Whe
 }
 
 func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]WheelFile, error) {
-	wheels, _, err := s.fetchRelease(ctx, name, version)
+	wheels, _, _, err := s.fetchRelease(ctx, name, version)
 	return wheels, err
 }
 
-// fetchRelease lists the wheels of one release and returns the release version.
-// An empty version selects the latest release.
-func (s *Source) fetchRelease(ctx context.Context, name, version string) ([]WheelFile, string, error) {
+// fetchRelease lists the wheels and sdists of one release and returns the release
+// version. An empty version selects the latest release.
+func (s *Source) fetchRelease(ctx context.Context, name, version string) (wheels, sdists []WheelFile, resolved string, err error) {
 	base := s.BaseURL
 	if base == "" {
 		base = pypiBaseURL
@@ -179,19 +187,19 @@ func (s *Source) fetchRelease(ctx context.Context, name, version string) ([]Whee
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, "", fmt.Errorf("%s==%s: %w", name, version, ErrNotFound)
+		return nil, nil, "", fmt.Errorf("%s==%s: %w", name, version, ErrNotFound)
 	}
 	if resp.StatusCode != 200 {
-		return nil, "", fmt.Errorf("PyPI returned %d", resp.StatusCode)
+		return nil, nil, "", fmt.Errorf("PyPI returned %d", resp.StatusCode)
 	}
 
 	var pypiResp struct {
@@ -206,24 +214,23 @@ func (s *Source) fetchRelease(ctx context.Context, name, version string) ([]Whee
 		} `json:"urls"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&pypiResp); err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	var wheels []WheelFile
 	for _, u := range pypiResp.URLs {
-		if u.PackageType == "bdist_wheel" {
-			wheels = append(wheels, WheelFile{
-				Filename: u.Filename,
-				URL:      u.URL,
-				Size:     u.Size,
-			})
+		f := WheelFile{Filename: u.Filename, URL: u.URL, Size: u.Size}
+		switch u.PackageType {
+		case "bdist_wheel":
+			wheels = append(wheels, f)
+		case "sdist":
+			sdists = append(sdists, f)
 		}
 	}
-	resolved := pypiResp.Info.Version
+	resolved = pypiResp.Info.Version
 	if resolved == "" {
 		resolved = version
 	}
-	return wheels, resolved, nil
+	return wheels, sdists, resolved, nil
 }
 
 // selectWheel picks one wheel deterministically: pure (none-any) wheels first,
@@ -291,7 +298,7 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 		}
 
 		if len(contents.Files) >= maxFileCount {
-			return nil, fmt.Errorf("wheel has too many files (max %d)", maxFileCount)
+			return nil, fmt.Errorf("wheel has too many files (max %d): %w", maxFileCount, ErrTooLarge)
 		}
 
 		if strings.HasSuffix(f.Name, ".dist-info/top_level.txt") {
@@ -336,11 +343,11 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 				return nil, fmt.Errorf("reading %q: %w", f.Name, err)
 			}
 			if int64(len(src)) > MaxDecompressedFile {
-				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, MaxDecompressedFile)
+				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes): %w", f.Name, MaxDecompressedFile, ErrTooLarge)
 			}
 			totalDecompressed += int64(len(src))
 			if totalDecompressed > MaxDecompressedTotal {
-				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes)", MaxDecompressedTotal)
+				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes): %w", MaxDecompressedTotal, ErrTooLarge)
 			}
 			contents.Files[f.Name] = src
 		}
