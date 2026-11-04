@@ -49,7 +49,13 @@ describe("docEntries", () => {
   });
 
   it("handles no modules", () => {
-    expect(docEntries([])).toEqual({ functions: [], classes: [], exceptions: [], aliases: [] });
+    expect(docEntries([])).toEqual({
+      functions: [],
+      classes: [],
+      exceptions: [],
+      constants: [],
+      aliases: [],
+    });
   });
 
   it("lists the aliases of a symbol on its entry", () => {
@@ -89,5 +95,51 @@ describe("docEntries", () => {
     ]);
     expect(e.aliases[0]!.targetId).toBe(e.functions[0]!.id);
     expect(e.classes[0]!.importableAs).toEqual(["n.x"]);
+  });
+
+  describe("constants", () => {
+    it("lists constants in module order with a path and an id", () => {
+      const { constants } = docEntries([
+        mod("a", { constants: [{ name: "X", default: "1" }, { name: "Y" }] }),
+        mod("b", { constants: [{ name: "Z", type: "int" }] }),
+      ]);
+      expect(constants.map((c) => c.id)).toEqual(["a.X", "a.Y", "b.Z"]);
+      expect(constants[0]).toMatchObject({ kind: "constant", module: "a", default: "1" });
+      expect(constants[2]).toMatchObject({ path: "b.Z", type: "int", repeated: false });
+    });
+
+    it("has an empty list for a module with no constants", () => {
+      expect(docEntries([mod("a")]).constants).toEqual([]);
+    });
+
+    it("does not take an id from a card with the same path", () => {
+      const e = docEntries([mod("a", { functions: [sym("X")], constants: [{ name: "X" }] })]);
+      expect(e.functions[0]!.id).toBe("a.X");
+      expect(e.constants[0]!.id).toBe("a.X~2");
+      expect(e.constants[0]!.path).toBe("a.X");
+    });
+
+    it("marks a name that repeats across modules and kinds", () => {
+      const e = docEntries([
+        mod("a", { constants: [{ name: "X" }] }),
+        mod("b", { constants: [{ name: "X" }], functions: [sym("f"), sym("g")] }),
+        mod("c", { functions: [sym("g")], constants: [{ name: "f" }] }),
+      ]);
+      expect(e.constants.map((c) => c.repeated)).toEqual([true, true, true]);
+      expect(e.functions.map((f) => f.repeated)).toEqual([true, true, true]);
+    });
+
+    it("sends an alias of a constant to its row", () => {
+      const e = docEntries([
+        mod("a", {
+          aliases: [
+            { name: "X", target: "a.core.X" },
+            { name: "u", target: "a.core.u" },
+          ],
+        }),
+        mod("a.core", { constants: [{ name: "X" }] }),
+      ]);
+      expect(e.aliases).toEqual([{ name: "X", module: "a", path: "a.X", targetId: "a.core.X" }]);
+    });
   });
 });

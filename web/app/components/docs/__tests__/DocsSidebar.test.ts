@@ -125,4 +125,42 @@ describe("DocsSidebar", () => {
     });
     expect(wrapper.find("[data-testid='section-header']").find("svg").exists()).toBe(true);
   });
+
+  it("lists constants as rows under their own header", async () => {
+    const constant = {
+      name: "LIMIT",
+      kind: "constant" as const,
+      module: "m",
+      path: "m.LIMIT",
+      id: "m.LIMIT",
+      repeated: false,
+    };
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: { functions, classes, exceptions: [], constants: [constant], activeSymbol: null },
+    });
+    const headers = wrapper.findAll("[data-testid='section-header']").map((h) => h.text());
+    expect(headers.at(-1)).toContain("Constants");
+    const row = wrapper.findAll("[data-testid='symbol-row']").at(-1)!;
+    expect(row.text()).toBe("LIMIT");
+    await row.trigger("click");
+    expect(wrapper.emitted("select")![0]).toEqual(["m.LIMIT"]);
+  });
+
+  it("jumps to the re-exports section from a header with no rows", async () => {
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: { functions, classes, exceptions: [], reExportCount: 42, activeSymbol: null },
+    });
+    const link = wrapper.find("[data-testid='section-link']");
+    expect(link.text()).toContain("Re-exports");
+    expect(link.text()).toContain("42");
+    await link.trigger("click");
+    expect(wrapper.emitted("select")![0]).toEqual(["re-exports"]);
+  });
+
+  it("has no re-exports link without aliases", async () => {
+    const wrapper = await mountSuspended(DocsSidebar, {
+      props: { functions, classes, exceptions: [], activeSymbol: null },
+    });
+    expect(wrapper.find("[data-testid='section-link']").exists()).toBe(false);
+  });
 });

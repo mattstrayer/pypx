@@ -100,6 +100,57 @@ describe("DocsCommandPalette", () => {
     expect(wrapper.emitted("jump")![0]![0]).toBe("m.fit");
   });
 
+  describe("constant rows", () => {
+    const constants = [
+      {
+        name: "DEFAULT_POOLSIZE",
+        kind: "constant" as const,
+        module: "n.adapters",
+        path: "n.adapters.DEFAULT_POOLSIZE",
+        id: "n.adapters.DEFAULT_POOLSIZE",
+        repeated: false,
+      },
+    ];
+
+    it("shows a constant only as a search result, and jumps to its row", async () => {
+      const wrapper = await mountSuspended(DocsCommandPalette, {
+        props: { symbols, constants, open: true, sections: [] },
+        attachTo: document.body,
+      });
+      expect(findInBody("palette-modal")?.textContent).not.toContain("DEFAULT_POOLSIZE");
+
+      const input = findInBody("palette-input") as HTMLInputElement;
+      input.value = "poolsize";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await nextTick();
+      await nextTick();
+      const row = findInBody("palette-result") as HTMLElement;
+      expect(row.textContent).toContain("constant");
+      expect(row.textContent).toContain("DEFAULT_POOLSIZE");
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await nextTick();
+      expect(wrapper.emitted("jump")![0]![0]).toBe("n.adapters.DEFAULT_POOLSIZE");
+    });
+  });
+
+  it("jumps to a section by its target", async () => {
+    const wrapper = await mountSuspended(DocsCommandPalette, {
+      props: {
+        symbols,
+        open: true,
+        sections: [
+          { label: "Re-exports", kind: "re-exports", count: 3, firstSymbol: "re-exports" },
+        ],
+      },
+      attachTo: document.body,
+    });
+    const section = findInBody("palette-section") as HTMLElement;
+    expect(section.textContent).toContain("Re-exports");
+    section.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
+    expect(wrapper.emitted("jump")![0]![0]).toBe("re-exports");
+  });
+
   describe("alias rows", () => {
     const aliases = [
       { name: "fit_alias", module: "n.sub", path: "n.sub.fit_alias", targetId: "m.fit" },

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Fuse from "fuse.js";
-import type { DocAliasEntry, DocEntry } from "~/utils/docSymbols";
+import type { DocAliasEntry, DocConstantEntry, DocEntry } from "~/utils/docSymbols";
 
 interface PaletteSection {
   label: string;
@@ -12,6 +12,7 @@ interface PaletteSection {
 const props = defineProps<{
   symbols: DocEntry[];
   aliases?: DocAliasEntry[];
+  constants?: DocConstantEntry[];
   open: boolean;
   sections: PaletteSection[];
 }>();
@@ -26,18 +27,21 @@ const selectedIndex = ref(0);
 
 const fuse = computed(
   () =>
-    new Fuse<DocEntry | DocAliasEntry>([...props.symbols, ...(props.aliases ?? [])], {
-      keys: ["name", "path", "kind"],
-      threshold: 0.4,
-      includeScore: true,
-    }),
+    new Fuse<DocEntry | DocConstantEntry | DocAliasEntry>(
+      [...props.symbols, ...(props.constants ?? []), ...(props.aliases ?? [])],
+      {
+        keys: ["name", "path", "kind"],
+        threshold: 0.4,
+        includeScore: true,
+      },
+    ),
 );
 
 const MAX_PER_GROUP = 8;
 
 type PaletteResult =
   | { type: "section"; section: PaletteSection }
-  | { type: "symbol"; symbol: DocEntry }
+  | { type: "symbol"; symbol: DocEntry | DocConstantEntry }
   | { type: "alias"; alias: DocAliasEntry };
 
 const results = computed<PaletteResult[]>(() => {
@@ -46,9 +50,9 @@ const results = computed<PaletteResult[]>(() => {
   // Sections: simple label match
   const matchedSections = props.sections.filter((s) => !q || s.label.toLowerCase().includes(q));
 
-  // Symbols: fuse.js when query present, grouped by kind when empty. Aliases only
-  // appear as search results.
-  let matchedSymbols: (DocEntry | DocAliasEntry)[];
+  // Symbols: fuse.js when query present, grouped by kind when empty. Constants and
+  // aliases only appear as search results.
+  let matchedSymbols: (DocEntry | DocConstantEntry | DocAliasEntry)[];
   if (!q) {
     const functions = props.symbols.filter((s) => s.kind === "function").slice(0, MAX_PER_GROUP);
     const classes = props.symbols.filter((s) => s.kind === "class").slice(0, MAX_PER_GROUP);
@@ -241,6 +245,7 @@ watch(
                   'bg-blue-950 text-blue-300': item.symbol.kind === 'function',
                   'bg-purple-950 text-purple-300': item.symbol.kind === 'class',
                   'bg-red-950 text-red-300': item.symbol.kind === 'exception',
+                  'bg-raised text-sky-400': item.symbol.kind === 'constant',
                 }"
                 >{{ item.symbol.kind }}</span
               >
