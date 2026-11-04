@@ -94,7 +94,7 @@ type Source struct {
 // NewSource creates a new wheel Source with defaults.
 func NewSource() *Source {
 	return &Source{
-		HTTPClient:   &http.Client{Timeout: 60 * time.Second},
+		HTTPClient:   &http.Client{Timeout: 60 * time.Second, Transport: Transport()},
 		MaxSize:      DefaultMaxSize,
 		MaxRangeSize: DefaultMaxRangeSize,
 		BaseURL:      pypiBaseURL,
