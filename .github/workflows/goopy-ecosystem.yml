@@ -40,6 +40,10 @@ jobs:
         working-directory: goopy
         run: go test ./internal/ecosystem/ -run TestParity -count=1 -timeout 1800s -v
 
+      - name: Run CPython ast conformance (60 packages)
+        working-directory: goopy
+        run: go test ./internal/ecosystem/ -run TestASTConformance -count=1 -timeout 1200s -v
+
   unit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
