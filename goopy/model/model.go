@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 // ParamKind is the kind of a function parameter.
 type ParamKind string
 
@@ -26,6 +28,26 @@ type Package struct {
 	Name    string    `json:"name"`
 	Version string    `json:"version"`
 	Modules []*Module `json:"modules"`
+	// Stats describes the extraction run. It never reaches JSON, so cached output
+	// is unchanged.
+	Stats Stats `json:"-"`
+}
+
+// Stats counts what one ExtractPackage run saw. A parse error does not stop
+// extraction: the module is kept, possibly partial.
+type Stats struct {
+	// Files is the number of .py and .pyi files parsed.
+	Files int
+	// Modules is the number of modules extracted, including private ones.
+	Modules int
+	// FilesWithErrors is the number of files with at least one parse error.
+	FilesWithErrors int
+	// Errors is the total number of parse errors.
+	Errors int
+	// PanickedModules is the number of extractions or merges that panicked. Each
+	// loses its module.
+	PanickedModules int
+	Duration        time.Duration
 }
 
 // Module represents a Python module (file).

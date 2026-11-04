@@ -480,6 +480,7 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
 		return nil, ErrDocsExtractionFailed
 	}
+	log.Print(extractionLogLine(name, version, result))
 	if ctx.Err() != nil {
 		if isClientCancel(ctx, nil) {
 			return nil, ErrDocsExtractionFailed
