@@ -706,6 +706,12 @@ func ExtractFromPyPI(ctx context.Context, name, version string) (*model.Package,
 	return ExtractFromWheel(ctx, wheel.NewSource(), name, version)
 }
 
+// WeighFromPyPI estimates the bytes that ExtractFromPyPI holds in memory for this
+// package, without downloading its sources. See wheel.Source.Weigh.
+func WeighFromPyPI(ctx context.Context, name, version string) (int64, error) {
+	return wheel.NewSource().Weigh(ctx, name, version)
+}
+
 // ExtractFromWheel downloads a package wheel using the given fetcher and extracts documentation.
 // Use this with a custom wheel.Fetcher for testing or non-PyPI sources.
 func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version string) (*model.Package, error) {
