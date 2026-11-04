@@ -464,3 +464,20 @@ func TestFetch_TruncatedDownloadRejected(t *testing.T) {
 		t.Fatalf("expected the post-download truncation error, got: %v", err)
 	}
 }
+
+func TestInferTopLevel_Deterministic(t *testing.T) {
+	files := map[string][]byte{
+		"zeta/__init__.py":           nil,
+		"alpha/__init__.py":          nil,
+		"mid.py":                     nil,
+		"beta/x.py":                  nil,
+		"pkg-1.0.dist-info/METADATA": nil,
+	}
+	want := []string{"alpha", "beta", "mid", "zeta"}
+	for i := 0; i < 30; i++ {
+		got := inferTopLevel(files, "pkg")
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("run %d: got %v, want %v", i, got, want)
+		}
+	}
+}
