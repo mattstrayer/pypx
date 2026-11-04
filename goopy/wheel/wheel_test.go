@@ -1041,7 +1041,10 @@ func TestFetch_RangeContextCancelledMidRead(t *testing.T) {
 	defer cancel()
 	srv := flakyWheelServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
 		cancel()
-		return false
+		// Send nothing until the client has dropped the request. If this handler
+		// sent the range, the client could finish reading it before it saw the cancel.
+		<-r.Context().Done()
+		return true
 	})
 	contents, err := fetchFlaky(t, ctx, data, srv.URL+"/w.whl")
 	if !errors.Is(err, context.Canceled) {
