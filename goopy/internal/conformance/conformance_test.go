@@ -20,7 +20,6 @@ var knownFailures = map[string]string{
 	"relative_imports.py": "relative imports with four or more dots",
 	"semicolons.py":       "semicolon-separated statements in a one-line block",
 	"subscripts.py":       "slices and tuple subscripts",
-	"tuples.py":           "unparenthesised tuples and starred expressions",
 	"walrus.py":           "assignment expressions in if headers",
 	"yield_expr.py":       "yield used as an expression",
 }

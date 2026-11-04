@@ -439,6 +439,24 @@ func (p *Parser) parseSubscriptContents() ast.Expr {
 	}
 }
 
+// parseExprList parses an unparenthesised tuple: expr (',' expr)* [','].
+// A single expression with no comma stays as that expression.
+func (p *Parser) parseExprList() ast.Expr {
+	first := p.parseExpr()
+	if p.tok.Type != token.COMMA {
+		return first
+	}
+	elts := []ast.Expr{first}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.atLineEnd() || p.at(token.ASSIGN, token.SEMI, token.COLON, token.RPAREN, token.RBRACK, token.RBRACE) {
+			break
+		}
+		elts = append(elts, p.parseExpr())
+	}
+	return &ast.Tuple{Position: first.Pos(), EndPos: elts[len(elts)-1].End(), Elts: elts}
+}
+
 // ---------------------------------------------------------------------------
 // Atom parsing
 // ---------------------------------------------------------------------------

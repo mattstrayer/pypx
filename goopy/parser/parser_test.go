@@ -1390,3 +1390,46 @@ func TestClassDef_ComplexBases(t *testing.T) {
 		t.Errorf("keywords: got %#v", cls.Keywords)
 	}
 }
+
+func asTuple(t *testing.T, expr ast.Expr, n int) *ast.Tuple {
+	t.Helper()
+	tup, ok := expr.(*ast.Tuple)
+	if !ok {
+		t.Fatalf("expected Tuple, got %T", expr)
+	}
+	if len(tup.Elts) != n {
+		t.Fatalf("expected %d elements, got %d", n, len(tup.Elts))
+	}
+	return tup
+}
+
+func TestBareTuples(t *testing.T) {
+	a := asAssign(t, parse(t, "a, b = 1, 2\n").Body[0])
+	if len(a.Targets) != 1 {
+		t.Fatalf("expected 1 target, got %d", len(a.Targets))
+	}
+	asTuple(t, a.Targets[0], 2)
+	asTuple(t, a.Value, 2)
+
+	asTuple(t, exprOf(t, "a, b,"), 2)
+	asTuple(t, asAssign(t, parse(t, "x = 1,\n").Body[0]).Value, 1)
+	asTuple(t, asAssign(t, parse(t, "a, = f()\n").Body[0]).Targets[0], 1)
+	asTuple(t, asAssign(t, parse(t, "x += 1, 2\n").Body[0]).Value, 2)
+	asTuple(t, asAnnAssign(t, parse(t, "x: T = 1, 2\n").Body[0]).Value, 2)
+
+	star := asTuple(t, asAssign(t, parse(t, "a, *b = c\n").Body[0]).Targets[0], 2)
+	if _, ok := star.Elts[1].(*ast.Starred); !ok {
+		t.Errorf("got %T, want Starred", star.Elts[1])
+	}
+}
+
+func TestChainedAssignmentKeepsEveryTarget(t *testing.T) {
+	a := asAssign(t, parse(t, "a = b, c = d = 1\n").Body[0])
+	if len(a.Targets) != 3 {
+		t.Fatalf("expected 3 targets, got %d", len(a.Targets))
+	}
+	asName(t, a.Targets[0])
+	asTuple(t, a.Targets[1], 2)
+	asName(t, a.Targets[2])
+	asConstant(t, a.Value)
+}
