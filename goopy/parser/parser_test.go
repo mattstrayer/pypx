@@ -1611,3 +1611,17 @@ func TestSubscripts(t *testing.T) {
 		t.Errorf("got %T, want Starred", tup.Elts[0])
 	}
 }
+
+func TestLoopElse(t *testing.T) {
+	for _, head := range []string{"for x in y:", "while x:"} {
+		body := passThroughBody(t, head+"\n    def a(): pass\nelse:\n    def b(): pass\n")
+		if len(body) != 2 || asFuncDef(t, body[1]).Name != "b" {
+			t.Errorf("%s: got %#v", head, body)
+		}
+	}
+	mod := parse(t, "async def f():\n    pass\nasync for x in y:\n    def a(): pass\nelse:\n    def b(): pass\nz = 1\n")
+	requireStmts(t, mod, 3)
+	if body := mod.Body[1].(*ast.PassThrough).Body; len(body) != 2 {
+		t.Errorf("async for: got %#v", body)
+	}
+}

@@ -365,7 +365,7 @@ func (p *Parser) parseAsync(decorators []ast.Expr) ast.Stmt {
 
 	case token.FOR:
 		p.next() // consume 'for'
-		body := p.parsePassThroughBlock()
+		body := p.parseLoopBlocks()
 		endPos := pos
 		if len(body) > 0 {
 			endPos = body[len(body)-1].End()
@@ -834,6 +834,8 @@ func (p *Parser) parsePassThrough() ast.Stmt {
 	switch kind {
 	case "try":
 		body = p.parseTryBlocks(pos)
+	case "for", "while":
+		body = p.parseLoopBlocks()
 	default:
 		body = p.parsePassThroughBlock()
 	}
@@ -856,6 +858,17 @@ func (p *Parser) parsePassThroughBlock() []ast.Stmt {
 	p.skipHeader()
 	p.expectColon()
 	return p.parseBlock()
+}
+
+// parseLoopBlocks parses the body of a for or while loop and its optional else.
+func (p *Parser) parseLoopBlocks() []ast.Stmt {
+	body := p.parsePassThroughBlock()
+	p.skipNewlines()
+	if p.tok.Type == token.ELSE {
+		p.next()
+		body = append(body, p.parsePassThroughBlock()...)
+	}
+	return body
 }
 
 // parseTryBlocks handles try: ... except: ... else: ... finally: ... blocks.
