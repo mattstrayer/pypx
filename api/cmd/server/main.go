@@ -25,6 +25,7 @@ import (
 	"github.com/pypx/api/internal/search"
 	"github.com/pypx/api/internal/stats"
 	"github.com/pypx/api/internal/worker"
+	"github.com/pypx/goopy"
 )
 
 func main() {
@@ -42,6 +43,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to open cache: %v", err)
 	}
+	go func() {
+		n, err := sqliteCache.PurgeDocsBefore(goopy.ExtractorVersion)
+		if err != nil {
+			log.Printf("purge old docs cache: %v", err)
+			return
+		}
+		log.Printf("purged %d stale docs cache rows", n)
+	}()
 	c := cache.NewMemoryCache(sqliteCache, 1000, cache.WithMaxBytes(128<<20))
 	defer func() { _ = c.Close() }()
 

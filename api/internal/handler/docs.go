@@ -125,14 +125,35 @@ func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse,
 	return h.fetchDocsAtVersion(ctx, name, pkg.Info.Version)
 }
 
+// DocsCacheKey returns the cache key for extracted docs. The key embeds
+// goopy.ExtractorVersion so an extractor change makes old entries unreachable.
+func DocsCacheKey(name, version string) string {
+	return fmt.Sprintf("docs:v%d:%s:%s", goopy.ExtractorVersion, strings.ToLower(name), version)
+}
+
+// DocsErrKey returns the cache key for a cached docs extraction error.
+func DocsErrKey(name, version string) string {
+	return fmt.Sprintf("docs-err:v%d:%s:%s", goopy.ExtractorVersion, strings.ToLower(name), version)
+}
+
+// DiffTextKey and DiffJSONKey return cache keys for rendered diffs. Diffs derive
+// from docs, so they carry the same extractor version.
+func DiffTextKey(name, from, to string) string {
+	return fmt.Sprintf("diff:v%d:%s:%s:%s", goopy.ExtractorVersion, strings.ToLower(name), from, to)
+}
+
+func DiffJSONKey(name, from, to string) string {
+	return fmt.Sprintf("diffjson:v%d:%s:%s:%s", goopy.ExtractorVersion, strings.ToLower(name), from, to)
+}
+
 // fetchDocsAtVersion returns the cached or freshly-extracted DocsResponse for
-// a specific (name, version) pair. Cache key is "docs:{name}:{version}",
+// a specific (name, version) pair. Cache key is "docs:v{ExtractorVersion}:{name}:{version}",
 // indefinite TTL. Used by both fetchDocs (latest) and the diff handler
 // (arbitrary historical versions). On cache hit returns the original cached
 // bytes (no re-marshal).
 func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version string) (DocsResponse, []byte, error) {
-	cacheKey := "docs:" + strings.ToLower(name) + ":" + version
-	errKey := "docs-err:" + strings.ToLower(name) + ":" + version
+	cacheKey := DocsCacheKey(name, version)
+	errKey := DocsErrKey(name, version)
 
 	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
 		var resp DocsResponse
