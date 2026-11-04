@@ -27,6 +27,9 @@ services:
     environment:
       - API_PORT=8080
       - SQLITE_PATH=/data/pypx.db
+      # Soft heap limit below the 512M container limit, so the GC works harder
+      # before the kernel kills the process.
+      - GOMEMLIMIT=450MiB
     volumes:
       - api_data:/data
     expose:

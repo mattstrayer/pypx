@@ -40,8 +40,8 @@ const { data: changelog } = useAsyncData(
 
 // Docs: non-blocking fetch to determine if the Docs tab should be shown.
 const { data: docsData } = useAsyncData(
-  () => `docs-${name.value}`,
-  () => api.fetchDocs(name.value).catch(() => null),
+  () => `docs-status-${name.value}`,
+  () => api.fetchDocsStatus(name.value).catch(() => null),
   { server: false, default: () => null, watch: [name] },
 );
 

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
+	"golang.org/x/sync/singleflight"
 )
 
 // DocsResponse is the response for GET /api/packages/{name}/docs.
@@ -69,20 +72,41 @@ type DocRaise struct {
 	Description string `json:"description"`
 }
 
+// maxConcurrentExtractions caps how many wheel downloads and parses run at
+// once. One extraction can hold a 50 MB wheel plus up to 200 MB of source, and
+// the API container has 512 MB.
+const maxConcurrentExtractions = 2
+
+const (
+	// docsExtractTimeout bounds one shared extraction, including the wait for a
+	// free extraction slot.
+	docsExtractTimeout = 60 * time.Second
+	// docsLatestTTL is how long a name-to-latest-version answer is reused.
+	docsLatestTTL = 5 * time.Minute
+)
+
 // DocsHandler serves rendered API documentation for a package.
 type DocsHandler struct {
 	pypi  *pypi.Client
 	cache cache.Cacher
 	// extract downloads and parses a distribution. Tests replace it.
 	extract func(ctx context.Context, name, version string) (*model.Package, error)
+	// sf collapses concurrent extractions of one (name, version) into one.
+	sf singleflight.Group
+	// sem limits concurrent extractions to maxConcurrentExtractions.
+	sem chan struct{}
+	// workTimeout bounds one shared extraction. Tests shorten it.
+	workTimeout time.Duration
 }
 
 // NewDocsHandler creates a new DocsHandler.
 func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 	return &DocsHandler{
-		pypi:    pypiClient,
-		cache:   c,
-		extract: goopy.ExtractFromPyPI,
+		pypi:        pypiClient,
+		cache:       c,
+		extract:     goopy.ExtractFromPyPI,
+		sem:         make(chan struct{}, maxConcurrentExtractions),
+		workTimeout: docsExtractTimeout,
 	}
 }
 
@@ -93,7 +117,7 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, encoded, err := h.fetchDocs(r.Context(), name)
+	encoded, err := h.fetchDocsBytes(r.Context(), name)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrDocsPackageNotFound):
@@ -108,6 +132,35 @@ func (h *DocsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Write(encoded) //nolint:errcheck
 }
 
+// DocsStatusResponse is the response for GET /api/packages/{name}/docs/status.
+type DocsStatusResponse struct {
+	Available bool `json:"available"`
+}
+
+// GetStatus handles GET /api/packages/{name}/docs/status. It reports whether
+// docs exist without sending the full docs payload.
+func (h *DocsHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if !validateName(w, name) {
+		return
+	}
+
+	encoded, err := h.fetchDocsBytes(r.Context(), name)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDocsPackageNotFound):
+			http.Error(w, "package not found", http.StatusNotFound)
+		default:
+			http.Error(w, "documentation extraction failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	available, _ := docsAvailable(encoded)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(DocsStatusResponse{Available: available}) //nolint:errcheck
+}
+
 // Sentinel errors for the docs path. Callers map these to HTTP statuses.
 var (
 	ErrDocsPackageNotFound  = errors.New("docs: package not found")
@@ -118,14 +171,74 @@ var (
 // fetchDocs returns the cached or freshly-extracted DocsResponse for a package's
 // LATEST version. Wraps fetchDocsAtVersion after resolving via PyPI.
 func (h *DocsHandler) fetchDocs(ctx context.Context, name string) (DocsResponse, []byte, error) {
+	version, err := h.latestVersion(ctx, name)
+	if err != nil {
+		return DocsResponse{}, nil, err
+	}
+	return h.fetchDocsAtVersion(ctx, name, version)
+}
+
+// fetchDocsBytes returns the encoded docs JSON for a package's latest version.
+// A cache hit returns the stored bytes without decoding them.
+func (h *DocsHandler) fetchDocsBytes(ctx context.Context, name string) ([]byte, error) {
+	version, err := h.latestVersion(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	_, data, err := h.docsAtVersion(ctx, name, version, false)
+	return data, err
+}
+
+// latestVersion resolves the latest version of a package. The answer is reused
+// for docsLatestTTL. If PyPI fails, a stale answer is served.
+func (h *DocsHandler) latestVersion(ctx context.Context, name string) (string, error) {
+	key := "docs-latest:" + strings.ToLower(name)
+	data, fresh, cerr := h.cache.Get(key, docsLatestTTL)
+	if cerr == nil && data != nil && fresh {
+		return string(data), nil
+	}
+
 	pkg, err := h.pypi.FetchPackage(ctx, name)
 	if err != nil {
 		if errors.Is(err, pypi.ErrNotFound) {
-			return DocsResponse{}, nil, ErrDocsPackageNotFound
+			return "", ErrDocsPackageNotFound
 		}
-		return DocsResponse{}, nil, fmt.Errorf("%w: %v", ErrDocsUpstreamFailed, err)
+		if cerr == nil && data != nil {
+			return string(data), nil
+		}
+		return "", fmt.Errorf("%w: %v", ErrDocsUpstreamFailed, err)
 	}
-	return h.fetchDocsAtVersion(ctx, name, pkg.Info.Version)
+	h.cache.Set(key, []byte(pkg.Info.Version), docsLatestTTL) //nolint:errcheck
+	return pkg.Info.Version, nil
+}
+
+// docsAvailable reads the "available" field of encoded docs JSON. It stops at
+// that field, so it does not decode the modules. ok is false if the JSON is
+// malformed or has no such field.
+func docsAvailable(data []byte) (available, ok bool) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return false, false
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return false, false
+		}
+		key, _ := keyTok.(string)
+		if key == "available" {
+			var v bool
+			if err := dec.Decode(&v); err != nil {
+				return false, false
+			}
+			return v, true
+		}
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return false, false
+		}
+	}
+	return false, false
 }
 
 // DocsCacheKey returns the cache key for extracted docs. The key embeds
@@ -171,36 +284,109 @@ func isClientCancel(ctx context.Context, err error) bool {
 // (arbitrary historical versions). On cache hit returns the original cached
 // bytes (no re-marshal).
 func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version string) (DocsResponse, []byte, error) {
-	cacheKey := DocsCacheKey(name, version)
-	errKey := DocsErrKey(name, version)
+	return h.docsAtVersion(ctx, name, version, true)
+}
 
-	if data, fresh, cerr := h.cache.Get(cacheKey, docsEmptyTTL); cerr == nil && data != nil {
-		var resp DocsResponse
-		if uerr := json.Unmarshal(data, &resp); uerr == nil && (resp.Available || fresh) {
-			return resp, data, nil
-		}
-		// Corrupt entry or expired empty result; fall through to live extraction.
+// docsAtVersion is fetchDocsAtVersion with a choice about decoding. With
+// decode false, a cache hit returns only the bytes and the DocsResponse is
+// zero. A miss always returns both.
+func (h *DocsHandler) docsAtVersion(ctx context.Context, name, version string, decode bool) (DocsResponse, []byte, error) {
+	if resp, data, ok := h.cachedDocs(name, version, decode); ok {
+		return resp, data, nil
 	}
 
+	errKey := DocsErrKey(name, version)
 	if data, fresh, cerr := h.cache.Get(errKey, docsErrTTL); cerr == nil && data != nil && fresh {
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
+	}
+
+	if ctx.Err() != nil {
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
+	}
+
+	// Concurrent misses for one (name, version) share one extraction. The shared
+	// work runs on its own context, so one caller leaving does not fail the
+	// others. A caller whose own context ends returns without writing anything.
+	ch := h.sf.DoChan(strings.ToLower(name)+":"+version, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
+		defer cancel()
+		return h.extractAndCache(workCtx, name, version)
+	})
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			return DocsResponse{}, nil, res.Err
+		}
+		out := res.Val.(docsResult)
+		return out.resp, out.encoded, nil
+	case <-ctx.Done():
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
+	}
+}
+
+// cachedDocs returns a usable cached docs entry. A corrupt entry, or an
+// Available:false entry past docsEmptyTTL, counts as a miss.
+func (h *DocsHandler) cachedDocs(name, version string, decode bool) (DocsResponse, []byte, bool) {
+	data, fresh, err := h.cache.Get(DocsCacheKey(name, version), docsEmptyTTL)
+	if err != nil || data == nil {
+		return DocsResponse{}, nil, false
+	}
+	if decode {
+		var resp DocsResponse
+		if json.Unmarshal(data, &resp) == nil && (resp.Available || fresh) {
+			return resp, data, true
+		}
+		return DocsResponse{}, nil, false
+	}
+	if available, ok := docsAvailable(data); ok && (available || fresh) {
+		return DocsResponse{}, data, true
+	}
+	return DocsResponse{}, nil, false
+}
+
+type docsResult struct {
+	resp    DocsResponse
+	encoded []byte
+}
+
+// extractAndCache runs one extraction under the concurrency cap and stores the
+// result. ctx is detached from any request, so only a real failure or the work
+// timeout writes the error key.
+func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (out docsResult, err error) {
+	errKey := DocsErrKey(name, version)
+
+	// singleflight re-panics in a new goroutine that nothing can recover, so a
+	// panic here would end the process. Contain it and cache it as a failure.
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("docs: panic extracting %s==%s: %v\n%s", name, version, p, debug.Stack())
+			h.cache.Set(errKey, []byte(fmt.Sprintf("panic: %v", p)), docsErrTTL) //nolint:errcheck
+			out, err = docsResult{}, ErrDocsExtractionFailed
+		}
+	}()
+
+	select {
+	case h.sem <- struct{}{}:
+		defer func() { <-h.sem }()
+	case <-ctx.Done():
+		return docsResult{}, ErrDocsExtractionFailed
 	}
 
 	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
 		if isClientCancel(ctx, gerr) {
-			return DocsResponse{}, nil, ErrDocsExtractionFailed
+			return docsResult{}, ErrDocsExtractionFailed
 		}
 		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
 		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
-		return DocsResponse{}, nil, ErrDocsExtractionFailed
+		return docsResult{}, ErrDocsExtractionFailed
 	}
 	if ctx.Err() != nil {
 		if isClientCancel(ctx, nil) {
-			return DocsResponse{}, nil, ErrDocsExtractionFailed
+			return docsResult{}, ErrDocsExtractionFailed
 		}
 		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), docsErrTTL) //nolint:errcheck
-		return DocsResponse{}, nil, ErrDocsExtractionFailed
+		return docsResult{}, ErrDocsExtractionFailed
 	}
 
 	stubs, stubPkgName := resolveStubs(ctx, h.pypi, strings.ToLower(name), version)
@@ -210,16 +396,16 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 	// resolveStubs swallows its errors, so a timeout during stub resolution
 	// would otherwise cache an incomplete result.
 	if ctx.Err() != nil {
-		return DocsResponse{}, nil, ErrDocsExtractionFailed
+		return docsResult{}, ErrDocsExtractionFailed
 	}
 
 	encoded, merr := json.Marshal(docsResp)
 	if merr != nil {
-		return DocsResponse{}, nil, fmt.Errorf("encode docs: %w", merr)
+		return docsResult{}, fmt.Errorf("encode docs: %w", merr)
 	}
 
-	h.cache.Set(cacheKey, encoded, 0) //nolint:errcheck
-	return docsResp, encoded, nil
+	h.cache.Set(DocsCacheKey(name, version), encoded, 0) //nolint:errcheck
+	return docsResult{resp: docsResp, encoded: encoded}, nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.

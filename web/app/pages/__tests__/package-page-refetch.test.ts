@@ -53,14 +53,14 @@ const fetchPackage = vi.fn(async (name: string) => ({
 const fetchSecurity = vi.fn().mockResolvedValue(null);
 const fetchExtras = vi.fn().mockResolvedValue(null);
 const fetchChangelog = vi.fn().mockResolvedValue(null);
-const fetchDocs = vi.fn().mockResolvedValue(null);
+const fetchDocsStatus = vi.fn().mockResolvedValue(null);
 
 mockNuxtImport("useApi", () => () => ({
   fetchPackage,
   fetchSecurity,
   fetchExtras,
   fetchChangelog,
-  fetchDocs,
+  fetchDocsStatus,
 }));
 
 describe("packages/[name].vue refetch on client-side navigation", () => {

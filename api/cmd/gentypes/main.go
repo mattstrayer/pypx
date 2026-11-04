@@ -57,6 +57,7 @@ var contract = []any{
 	handler.DocSymbol{},
 	handler.DocModule{},
 	handler.DocsResponse{},
+	handler.DocsStatusResponse{},
 	// Compare/diff JSON routes marshal the textfmt input structs directly
 	// (handler.CompareHandler.GetJSON, handler.DiffHandler.GetJSON).
 	textfmt.CompareInput{},

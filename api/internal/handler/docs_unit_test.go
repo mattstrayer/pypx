@@ -541,7 +541,12 @@ func (c *ttlCache) wrote(key string) bool {
 }
 
 func docsCacheHandler(c *ttlCache, ex func(context.Context, string, string) (*model.Package, error)) *DocsHandler {
-	return &DocsHandler{cache: c, extract: ex}
+	return &DocsHandler{
+		cache:       c,
+		extract:     ex,
+		sem:         make(chan struct{}, maxConcurrentExtractions),
+		workTimeout: docsExtractTimeout,
+	}
 }
 
 func mustJSON(t *testing.T, v DocsResponse) []byte {
@@ -626,37 +631,6 @@ func TestDocsCache_AvailableOlderThan24hServed(t *testing.T) {
 	resp, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
 	if err != nil || !resp.Available {
 		t.Fatalf("resp=%+v err=%v", resp, err)
-	}
-}
-
-// lateCancelCtx reports no error on the first Err call and context.Canceled on
-// every later call. It models a timeout that fires during stub resolution,
-// after the first post-extraction check.
-type lateCancelCtx struct {
-	context.Context
-	calls int
-}
-
-func (c *lateCancelCtx) Err() error {
-	c.calls++
-	if c.calls == 1 {
-		return nil
-	}
-	return context.Canceled
-}
-
-func TestDocsCache_CancelledContextAfterExtractionLeavesDocsKeyUnwritten(t *testing.T) {
-	c := newTTLCache()
-	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
-		return &model.Package{}, nil
-	})
-	ctx := &lateCancelCtx{Context: context.Background()}
-	_, _, err := h.fetchDocsAtVersion(ctx, "p", "1")
-	if !errors.Is(err, ErrDocsExtractionFailed) {
-		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
-	}
-	if c.wrote(DocsCacheKey("p", "1")) {
-		t.Error("docs key was written after cancellation")
 	}
 }
 

@@ -596,6 +596,17 @@
         ],
         "type": "object"
       },
+      "DocsStatusResponse": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "type": "object"
+      },
       "Entry": {
         "properties": {
           "body": {
@@ -2375,6 +2386,96 @@
           }
         },
         "summary": "Extracted API documentation (text)"
+      }
+    },
+    "/api/packages/{name}/docs/status": {
+      "get": {
+        "description": "Reports whether extracted documentation is available for the latest version, without sending the documentation itself. A cold cache can start an extraction. This route has no plain-text twin; `Accept: text/plain` is ignored. Server-side timeout: 60s.",
+        "operationId": "getApiPackagesByNameDocsStatus",
+        "parameters": [
+          {
+            "description": "PyPI project name (case-insensitive, PEP 503 normalized).",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocsStatusResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Invalid package name."
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Package not found on PyPI."
+          },
+          "429": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. See the X-RateLimit-* and Retry-After headers.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Configured requests-per-second rate, as a string.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current burst window.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Error. Upstream failures surface as 502; internal failures as 500."
+          }
+        },
+        "summary": "Whether API documentation exists"
       }
     },
     "/api/packages/{name}/docs/{symbol}": {
