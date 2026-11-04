@@ -197,7 +197,8 @@ async function jumpToSymbol(symbolName: string) {
 const paletteOpen = ref(false);
 
 function onKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+  // With no symbols to jump to, the app-wide palette keeps the shortcut.
+  if (docs.value?.available && (e.metaKey || e.ctrlKey) && e.key === "k") {
     e.preventDefault();
     // stopImmediatePropagation prevents the app-wide CommandPalette from also opening
     e.stopImmediatePropagation();
@@ -257,6 +258,7 @@ if (pkg.value) {
             {{ pkg.summary }}
           </span>
           <button
+            v-if="docs?.available"
             class="ml-auto flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-brand-border)] bg-[var(--color-brand-muted)] px-2.5 py-1.5 text-[11px] text-[var(--color-brand)] transition-colors hover:bg-[rgba(74,222,128,0.16)]"
             @click="paletteOpen = true"
           >

@@ -101,7 +101,7 @@ fmt.Printf("%s %s has %d modules\n", pkg.Name, pkg.Version, len(pkg.Modules))
 
 With an empty version, `pkg.Version` holds the release PyPI served.
 
-`ExtractFromPyPI` picks one wheel (preferring `py3-none-any`, then the smallest), reads the `.py` files into memory, and runs the parser and extractor over each one. Wheels above a size threshold are read with HTTP range requests, so only the zip directory and the `.py` entries cross the network. For packages without a wheel (sdist-only), it returns `wheel.ErrNoArtifact`. Supply your own `wheel.Fetcher` through `ExtractFromWheel` if you need different selection logic.
+`ExtractFromPyPI` picks one wheel (preferring `py3-none-any`, then the smallest), reads the `.py` files into memory, and runs the parser and extractor over each one. Wheels above a size threshold are read with HTTP range requests, so only the zip directory and the `.py` entries cross the network. For packages without a wheel (sdist-only), it reads the Python source from the sdist instead. If the release has neither, it returns an error wrapping `wheel.ErrNoArtifact`. Supply your own `wheel.Fetcher` through `ExtractFromWheel` if you need different selection logic.
 
 `ExtractFromPyPI` builds a new `wheel.Source` on each call. To reuse one HTTP client, build a `wheel.Source` once and pass it to `ExtractFromWheel`.
 

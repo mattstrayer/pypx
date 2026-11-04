@@ -2263,7 +2263,7 @@
     },
     "/api/packages/{name}/docs": {
       "get": {
-        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest wheel. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/docs.txt` instead of JSON. Server-side timeout: 60s.",
+        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest release: its wheel, or its sdist if it has no wheel. Sending `Accept: text/plain` returns the plain-text representation served at `/api/packages/{name}/docs.txt` instead of JSON. Server-side timeout: 60s.",
         "operationId": "getApiPackagesByNameDocs",
         "parameters": [
           {
@@ -2353,7 +2353,7 @@
     },
     "/api/packages/{name}/docs.txt": {
       "get": {
-        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest wheel. Plain-text representation of GET /api/packages/{name}/docs. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 60s.",
+        "description": "Public API surface (modules, classes, functions, parameters, docstrings) extracted from the latest release: its wheel, or its sdist if it has no wheel. Plain-text representation of GET /api/packages/{name}/docs. Requesting the JSON path with `Accept: text/plain` returns this same body. Server-side timeout: 60s.",
         "operationId": "getApiPackagesByNameDocsTxt",
         "parameters": [
           {
