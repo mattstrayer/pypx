@@ -17,7 +17,7 @@ import (
 )
 
 // stubHTTPClient is used for downloading stub wheels with an explicit timeout.
-var stubHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var stubHTTPClient = &http.Client{Timeout: 30 * time.Second, Transport: wheel.Transport()}
 
 // stubIndex maps qualified symbol names to stub functions.
 // Keys: "module.FuncName" for functions, "module.ClassName.methodName" for methods.
