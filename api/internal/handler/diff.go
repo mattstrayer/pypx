@@ -300,6 +300,8 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 
 	fromSyms := flattenSymbols(fromRes.resp)
 	toSyms := flattenSymbols(toRes.resp)
+	fromTargets := aliasTargets(fromRes.resp)
+	toTargets := aliasTargets(toRes.resp)
 
 	var ad textfmt.APIDiff
 	for path := range toSyms {
@@ -313,7 +315,17 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 		}
 	}
 	for path, fromSig := range fromSyms {
-		if toSig, ok := toSyms[path]; ok && toSig != fromSig {
+		toSig, ok := toSyms[path]
+		if !ok {
+			continue
+		}
+		// An alias that keeps its name and moves to another target changed, even if
+		// both targets have the same signature.
+		fromTarget, toTarget := fromTargets[path], toTargets[path]
+		if fromTarget != "" && toTarget != "" && fromTarget != toTarget {
+			fromSig, toSig = aliasSignature(fromTarget), aliasSignature(toTarget)
+		}
+		if toSig != fromSig {
 			ad.Changed = append(ad.Changed, textfmt.APIChange{Path: path, FromSig: fromSig, ToSig: toSig})
 		}
 	}
@@ -344,6 +356,8 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 // An alias path counts as a path of its target, with the target's signature and
 // members. Which module holds the definition is then not part of the comparison:
 // moving a definition to a private module changes no path that stays importable.
+// An alias whose target has no symbol, such as a module attribute, gets a row with
+// the signature "-> target".
 func flattenSymbols(d DocsResponse) map[string]string {
 	out := make(map[string]string)
 	// members maps a symbol's path to its member rows, keyed by the suffix after
@@ -384,8 +398,39 @@ func flattenSymbols(d DocsResponse) map[string]string {
 			if _, defined := members[path]; defined {
 				continue
 			}
-			for suffix, sig := range members[a.Target] {
+			target, ok := members[a.Target]
+			if !ok {
+				out[path] = aliasSignature(a.Target)
+				continue
+			}
+			for suffix, sig := range target {
 				out[path+suffix] = sig
+			}
+		}
+	}
+	return out
+}
+
+// aliasSignature is the signature of an alias row, as symbols.txt prints it.
+func aliasSignature(target string) string {
+	return "-> " + target
+}
+
+// aliasTargets maps each alias path to its target. A definition beats an alias
+// with the same path, as in flattenSymbols.
+func aliasTargets(d DocsResponse) map[string]string {
+	out := make(map[string]string)
+	for _, mod := range d.Modules {
+		if len(mod.Aliases) == 0 {
+			continue
+		}
+		defined := make(map[string]bool)
+		for _, sym := range slices.Concat(mod.Functions, mod.Classes, mod.Exceptions) {
+			defined[sym.Name] = true
+		}
+		for _, a := range mod.Aliases {
+			if !defined[a.Name] {
+				out[mod.Name+"."+a.Name] = a.Target
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -105,21 +106,30 @@ func TestConvertToDocsResponse_Aliases(t *testing.T) {
 			{Name: "fn", Target: "pkg.a.fn"},
 			{Name: "Err", Target: "pkg.a.Err"},
 			{Name: "CONST", Target: "pkg.a.CONST"},
+			{Name: "Kind", Target: "pkg.a.Kind"},
+			{Name: "ghost", Target: "pkg.a.ghost"},
 		}},
 		{Name: "pkg.a",
-			Functions:  []*model.Function{{Name: "fn"}},
-			Classes:    []*model.Class{{Name: "Err", BaseClasses: []*model.TypeRef{{Name: "Exception"}}}},
-			Attributes: []*model.Attribute{{Name: "CONST"}},
+			Functions:   []*model.Function{{Name: "fn"}},
+			Classes:     []*model.Class{{Name: "Err", BaseClasses: []*model.TypeRef{{Name: "Exception"}}}},
+			Attributes:  []*model.Attribute{{Name: "CONST"}},
+			TypeAliases: []*model.TypeAlias{{Name: "Kind"}},
 		},
 		{Name: "pkg.only", Aliases: []*model.Alias{{Name: "CONST", Target: "pkg.a.CONST"}}},
+		{Name: "pkg.lost", Aliases: []*model.Alias{{Name: "ghost", Target: "pkg.a.ghost"}}},
 	}}
 	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
-	if len(resp.Modules) != 2 {
-		t.Fatalf("Modules = %+v, want pkg and pkg.a only", resp.Modules)
+	if len(resp.Modules) != 3 || resp.Modules[2].Name != "pkg.only" {
+		t.Fatalf("Modules = %+v, want pkg, pkg.a and pkg.only", resp.Modules)
 	}
-	root := resp.Modules[0]
-	if len(root.Aliases) != 2 || root.Aliases[0].Name != "fn" || root.Aliases[1].Target != "pkg.a.Err" {
-		t.Errorf("root aliases = %+v", root.Aliases)
+	want := []DocAlias{
+		{Name: "fn", Target: "pkg.a.fn"},
+		{Name: "Err", Target: "pkg.a.Err"},
+		{Name: "CONST", Target: "pkg.a.CONST"},
+		{Name: "Kind", Target: "pkg.a.Kind"},
+	}
+	if root := resp.Modules[0]; !slices.Equal(root.Aliases, want) {
+		t.Errorf("root aliases = %+v, want %+v", root.Aliases, want)
 	}
 	encoded, err := json.Marshal(resp)
 	if err != nil {
@@ -130,14 +140,36 @@ func TestConvertToDocsResponse_Aliases(t *testing.T) {
 	}
 }
 
-func TestConvertToDocsResponse_NoSymbolsNotAvailable(t *testing.T) {
+// A package that only re-exports attributes still has names to show.
+func TestConvertToDocsResponse_OnlyAttributeAliasesAvailable(t *testing.T) {
 	pkg := &model.Package{Modules: []*model.Module{
 		{Name: "pkg", Aliases: []*model.Alias{{Name: "CONST", Target: "pkg.a.CONST"}}},
 		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "CONST"}}},
 	}}
 	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
+	if !resp.Available || len(resp.Modules) != 1 || resp.Modules[0].Name != "pkg" {
+		t.Errorf("resp = %+v, want pkg available", resp)
+	}
+}
+
+func TestConvertToDocsResponse_NoNamesNotAvailable(t *testing.T) {
+	pkg := &model.Package{Modules: []*model.Module{
+		{Name: "pkg", Aliases: []*model.Alias{{Name: "ghost", Target: "pkg.a.ghost"}}},
+		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "CONST"}}},
+	}}
+	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
 	if resp.Available || len(resp.Modules) != 0 {
 		t.Errorf("resp = %+v, want not available", resp)
+	}
+}
+
+func TestDocsInputFrom_CarriesOrigin(t *testing.T) {
+	in := docsInputFrom(DocsResponse{Modules: []DocModule{{
+		Name:      "pkg",
+		Functions: []DocSymbol{{Name: "f", Origin: "pkg._x"}},
+	}}})
+	if got := in.Modules[0].Functions[0].Origin; got != "pkg._x" {
+		t.Errorf("Origin = %q", got)
 	}
 }
 

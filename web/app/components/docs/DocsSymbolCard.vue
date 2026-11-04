@@ -15,6 +15,15 @@ const hasMembers = computed(
 function toggleExpand() {
   expanded.value = !expanded.value;
 }
+
+const MAX_SHOWN_ALIASES = 5;
+const allAliasesShown = ref(false);
+const hiddenAliasCount = computed(() => props.symbol.importableAs.length - MAX_SHOWN_ALIASES);
+const shownAliases = computed(() =>
+  allAliasesShown.value
+    ? props.symbol.importableAs
+    : props.symbol.importableAs.slice(0, MAX_SHOWN_ALIASES),
+);
 </script>
 
 <template>
@@ -31,6 +40,13 @@ function toggleExpand() {
     <p data-testid="symbol-module" class="mb-1 truncate font-mono text-[11px] text-muted">
       {{ symbol.module }}
     </p>
+    <p
+      v-if="symbol.origin"
+      data-testid="symbol-origin"
+      class="mb-1 truncate text-[11px] text-muted"
+    >
+      Defined in <span class="font-mono">{{ symbol.origin }}</span>
+    </p>
     <div class="mb-3 flex items-center gap-2.5">
       <span class="font-mono text-[15px] font-bold text-primary">{{ symbol.name }}</span>
       <span
@@ -43,6 +59,28 @@ function toggleExpand() {
         >{{ symbol.kind }}</span
       >
     </div>
+
+    <!-- Other names for this symbol -->
+    <p
+      v-if="symbol.importableAs.length"
+      data-testid="symbol-aliases"
+      class="mb-3 text-[11px] text-muted [overflow-wrap:anywhere]"
+    >
+      Also importable as
+      <template v-for="(path, i) in shownAliases" :key="path">
+        <span class="font-mono">{{ path }}</span
+        >{{ i < shownAliases.length - 1 ? ", " : "" }}
+      </template>
+      <button
+        v-if="hiddenAliasCount > 0"
+        data-testid="symbol-aliases-toggle"
+        class="ml-1 cursor-pointer text-[var(--color-brand)] hover:underline"
+        :aria-expanded="allAliasesShown"
+        @click="allAliasesShown = !allAliasesShown"
+      >
+        {{ allAliasesShown ? "show fewer" : `+${hiddenAliasCount} more` }}
+      </button>
+    </p>
 
     <!-- Signature -->
     <DocsPySignature :symbol="symbol" class="mb-3" />

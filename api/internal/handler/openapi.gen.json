@@ -2545,7 +2545,7 @@
     },
     "/api/packages/{name}/docs/{symbol}": {
       "get": {
-        "description": "Renders one symbol's signature and docstring. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped. Server-side timeout: 60s.",
+        "description": "Renders one symbol's signature and docstring. An alias whose target has no documentation, such as a module attribute, renders as its name and target. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped. Server-side timeout: 60s.",
         "operationId": "getApiPackagesByNameDocsBySymbol",
         "parameters": [
           {

@@ -39,6 +39,7 @@ const entries = computed(() => docEntries(docs.value?.modules ?? []));
 const allFunctions = computed(() => entries.value.functions);
 const allClasses = computed(() => entries.value.classes);
 const allExceptions = computed(() => entries.value.exceptions);
+const reExports = computed(() => (docs.value?.modules ?? []).filter((m) => m.aliases?.length));
 
 function symId(id: string) {
   return `sym-${encodeURIComponent(id)}`;
@@ -347,12 +348,19 @@ if (pkg.value) {
               :rendered-count="renderedCount"
               :total-count="allSymbols.length"
             />
+
+            <!-- Comes last, so a deferred card never renders above it -->
+            <DocsReExports
+              v-if="reExports.length && renderedCount >= allSymbols.length"
+              :modules="reExports"
+            />
           </div>
         </div>
 
         <!-- ⌘K Command Palette -->
         <DocsCommandPalette
           :symbols="allSymbols"
+          :aliases="entries.aliases"
           :open="paletteOpen"
           :sections="paletteSections"
           @jump="jumpToSymbol"

@@ -53,15 +53,16 @@ type DocModule struct {
 	Functions  []DocSymbol `json:"functions"`
 	Classes    []DocSymbol `json:"classes"`
 	Exceptions []DocSymbol `json:"exceptions"`
-	// Aliases lists names this module re-exports whose documentation is
-	// published under another module.
+	// Aliases lists names this module re-exports whose definition is published
+	// under another module.
 	Aliases []DocAlias `json:"aliases,omitempty"`
 }
 
-// DocAlias is a public name that points at a symbol documented elsewhere.
+// DocAlias is a public name that points at a definition published elsewhere.
 type DocAlias struct {
 	Name string `json:"name"`
-	// Target is the dotted module and name of the documented symbol.
+	// Target is the dotted module and name of the definition. It can be a module
+	// attribute, which has no symbol in this response.
 	Target string `json:"target"`
 }
 
@@ -665,11 +666,19 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 	}
 	var aliases []moduleAliases
 	exceptions := exceptionClasses(pkg)
+	// published holds the dotted path of every name that an alias can target.
+	published := map[string]bool{}
 
 	for i, mod := range pkg.Modules {
 		// Each module is released once converted, so the parsed package and the
 		// response do not both stay whole until the end.
 		pkg.Modules[i] = nil
+		for _, a := range mod.Attributes {
+			published[mod.Name+"."+a.Name] = true
+		}
+		for _, t := range mod.TypeAliases {
+			published[mod.Name+"."+t.Name] = true
+		}
 		dm := DocModule{
 			Name:       mod.Name,
 			Functions:  make([]DocSymbol, 0, len(mod.Functions)),
@@ -678,10 +687,12 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 
 		for _, fn := range mod.Functions {
+			published[mod.Name+"."+fn.Name] = true
 			dm.Functions = append(dm.Functions, convertFunction(fn, stubForFunction(stubs, mod.Name, fn)))
 		}
 
 		for _, cls := range mod.Classes {
+			published[mod.Name+"."+cls.Name] = true
 			sym := convertClass(cls, stubs, mod.Name)
 			if exceptions[cls] {
 				sym.Kind = "exception"
@@ -699,19 +710,11 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 	}
 
-	// The API documents functions, classes and exceptions. Keep only the aliases
-	// whose target is one of those, then drop any module left empty.
-	documented := map[string]bool{}
-	for _, dm := range modules {
-		for _, group := range [][]DocSymbol{dm.Functions, dm.Classes, dm.Exceptions} {
-			for _, sym := range group {
-				documented[dm.Name+"."+sym.Name] = true
-			}
-		}
-	}
+	// Keep every alias whose target exists, whatever its kind, then drop any module
+	// left empty. A target can be a module attribute, which has no symbol here.
 	for _, ma := range aliases {
 		for _, a := range ma.aliases {
-			if documented[a.Target] {
+			if published[a.Target] {
 				modules[ma.index].Aliases = append(modules[ma.index].Aliases, DocAlias{Name: a.Name, Target: a.Target})
 			}
 		}
@@ -1283,6 +1286,7 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 		Kind:      s.Kind,
 		Signature: s.Signature,
 		Docstring: s.Docstring,
+		Origin:    s.Origin,
 	}
 	for _, p := range s.Parameters {
 		out.Parameters = append(out.Parameters, textfmt.DocParamInput{
@@ -1318,6 +1322,9 @@ func attributeInputFrom(a DocAttribute) textfmt.DocAttributeInput {
 // each module name as a candidate prefix to form the full dotted path
 // understood by textfmt.FormatSymbol. If the symbol path is already module-
 // qualified (e.g. "httpx.Client"), that's tried as-is too.
+//
+// An alias whose target has no block, such as a module attribute, answers with
+// its own name and target. A symbol with a block always wins over such an alias.
 func (h *DocsHandler) GetSymbol(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if !validateName(w, name) {
@@ -1358,6 +1365,17 @@ func (h *DocsHandler) GetSymbol(w http.ResponseWriter, r *http.Request) {
 	if out, ok := textfmt.FormatSymbol(input, symbolPath); ok {
 		h.writeSymbolText(w, out)
 		return
+	}
+
+	if out, ok := textfmt.FormatAlias(input, symbolPath); ok {
+		h.writeSymbolText(w, out)
+		return
+	}
+	for _, mod := range input.Modules {
+		if out, ok := textfmt.FormatAlias(input, mod.Name+"."+symbolPath); ok {
+			h.writeSymbolText(w, out)
+			return
+		}
 	}
 
 	http.Error(w, "symbol not found", http.StatusNotFound)

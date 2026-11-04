@@ -252,7 +252,7 @@ var routes = []routeDef{
 	{
 		Path:        "/api/packages/{name}/docs/{symbol}",
 		Summary:     "Documentation for a single symbol (text only)",
-		Description: "Renders one symbol's signature and docstring. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped.",
+		Description: "Renders one symbol's signature and docstring. An alias whose target has no documentation, such as a module attribute, renders as its name and target. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped.",
 		Params: []paramDef{
 			nameParam,
 			{

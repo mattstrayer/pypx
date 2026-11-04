@@ -64,7 +64,8 @@ func TestFormatDocs_PrefixFollowsAliases(t *testing.T) {
 		{prefix: "pkg.fetch", want: []string{"### pkg.client.fetch — def fetch()"}},
 		{prefix: "pkg.Fail", want: []string{"### pkg.client.Fail — class Fail(Exception)"}},
 		{prefix: "pkg.client.fetch", want: []string{"### pkg.client.fetch"}, reject: []string{"class Client"}},
-		{prefix: "pkg.ghost", want: []string{"# no symbols matching prefix=pkg.ghost"}},
+		// An alias with no block for its target still has a line, and no more.
+		{prefix: "pkg.ghost", want: []string{"## pkg (module)", "Aliases:\n  ghost -> pkg.client.ghost\n"}, reject: []string{"###", "fetch"}},
 		{prefix: "pkg.Clientele", want: []string{"# no symbols matching prefix=pkg.Clientele"}},
 	}
 	for _, tt := range tests {
@@ -96,6 +97,66 @@ func TestFormatDocs_DefinitionBeatsAlias(t *testing.T) {
 	got := FormatDocs(in, "pkg.fetch")
 	if !strings.Contains(got, "def own()") || strings.Contains(got, "def fetch()") {
 		t.Errorf("got:\n%s", got)
+	}
+}
+
+func TestFormatDocs_AliasesBlock(t *testing.T) {
+	got := FormatDocs(aliasInput(), "")
+	want := "## pkg (module)\n\nAliases:\n" +
+		"  Client -> pkg.client.Client\n" +
+		"  fetch -> pkg.client.fetch\n" +
+		"  ghost -> pkg.client.ghost\n" +
+		"  Fail -> pkg.client.Fail\n\n\n" +
+		"## pkg.client (module)\n\n### pkg.client.fetch"
+	if !strings.HasPrefix(got, want) {
+		t.Errorf("got:\n%s\nwant prefix:\n%s", got, want)
+	}
+	if strings.Count(got, "Aliases:") != 1 {
+		t.Errorf("want one block, because pkg.client has no aliases:\n%s", got)
+	}
+
+	// The block sits above the symbols of a module that has both.
+	in := aliasInput()
+	in.Modules[1].Aliases = []DocAliasInput{{Name: "other", Target: "pkg.Client"}}
+	got = FormatDocs(in, "pkg.client")
+	if i, j := strings.Index(got, "  other -> pkg.Client\n"), strings.Index(got, "### pkg.client.fetch"); i < 0 || j < i {
+		t.Errorf("block must come first:\n%s", got)
+	}
+	if strings.Contains(got, "fetch -> ") {
+		t.Errorf("prefix must filter the block:\n%s", got)
+	}
+}
+
+func TestFormatDocs_DefinedIn(t *testing.T) {
+	in := &DocsInput{Modules: []DocModuleInput{{
+		Name: "attr",
+		Functions: []DocSymbolInput{
+			{Name: "asdict", Signature: "def asdict()", Docstring: "Doc.", Origin: "attr._funcs"},
+			{Name: "local", Signature: "def local()"},
+		},
+	}}}
+	got := FormatDocs(in, "")
+	if !strings.Contains(got, "### attr.asdict — def asdict()\nDefined in: attr._funcs\nDoc.\n") {
+		t.Errorf("line must follow the heading:\n%s", got)
+	}
+	if strings.Count(got, "Defined in:") != 1 {
+		t.Errorf("only a symbol with an origin gets the line:\n%s", got)
+	}
+	out, ok := FormatSymbol(in, "attr.asdict")
+	if !ok || !strings.Contains(out, "Defined in: attr._funcs\n") {
+		t.Errorf("FormatSymbol = %q, %v", out, ok)
+	}
+}
+
+func TestFormatAlias(t *testing.T) {
+	got, ok := FormatAlias(aliasInput(), "pkg.ghost")
+	if !ok || got != "### pkg.ghost -> pkg.client.ghost\n\n" {
+		t.Errorf("got %q, %v", got, ok)
+	}
+	for _, path := range []string{"ghost", "pkg.ghost.x", "pkg.client.ghost"} {
+		if got, ok := FormatAlias(aliasInput(), path); ok {
+			t.Errorf("FormatAlias(%q) = %q, want not found", path, got)
+		}
 	}
 }
 

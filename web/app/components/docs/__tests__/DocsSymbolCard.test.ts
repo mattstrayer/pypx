@@ -9,6 +9,7 @@ function makeSymbol(overrides: Partial<DocEntry> = {}): DocEntry {
     path: "sklearn.base.fit",
     id: "sklearn.base.fit",
     repeated: false,
+    importableAs: [],
     name: "fit",
     kind: "function",
     signature: "def fit(X, y=None)",
@@ -29,6 +30,57 @@ describe("DocsSymbolCard", () => {
     });
     expect(wrapper.find("[data-testid='symbol-module']").text()).toBe("sklearn.base");
     expect(wrapper.find("[id='sym-sklearn.base.fit']").exists()).toBe(true);
+  });
+
+  it("shows the defining module only when the symbol has an origin", async () => {
+    const plain = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol(), isActive: false },
+    });
+    expect(plain.find("[data-testid='symbol-origin']").exists()).toBe(false);
+
+    const copied = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ origin: "sklearn._base" }), isActive: false },
+    });
+    const line = copied.find("[data-testid='symbol-origin']");
+    expect(line.text()).toBe("Defined in sklearn._base");
+    expect(line.find("a").exists()).toBe(false);
+  });
+
+  it("lists every alias when five or fewer exist", async () => {
+    const plain = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol(), isActive: false },
+    });
+    expect(plain.find("[data-testid='symbol-aliases']").exists()).toBe(false);
+
+    const paths = ["a.fit", "b.fit", "c.fit", "d.fit", "e.fit"];
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ importableAs: paths }), isActive: false },
+    });
+    const line = wrapper.find("[data-testid='symbol-aliases']");
+    expect(line.text().replace(/\s+/g, " ")).toBe(
+      "Also importable as a.fit, b.fit, c.fit, d.fit, e.fit",
+    );
+    expect(wrapper.find("[data-testid='symbol-aliases-toggle']").exists()).toBe(false);
+  });
+
+  it("folds aliases past the fifth behind a +N more button", async () => {
+    const paths = ["a.fit", "b.fit", "c.fit", "d.fit", "e.fit", "f.fit", "g.fit"];
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ importableAs: paths }), isActive: false },
+    });
+    const line = wrapper.find("[data-testid='symbol-aliases']");
+    const toggle = wrapper.find("[data-testid='symbol-aliases-toggle']");
+    expect(toggle.text()).toBe("+2 more");
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    expect(line.text()).toContain("e.fit");
+    expect(line.text()).not.toContain("f.fit");
+
+    await toggle.trigger("click");
+    expect(line.text()).toContain("g.fit");
+    expect(toggle.attributes("aria-expanded")).toBe("true");
+
+    await toggle.trigger("click");
+    expect(line.text()).not.toContain("f.fit");
   });
 
   it("renders symbol name", async () => {
