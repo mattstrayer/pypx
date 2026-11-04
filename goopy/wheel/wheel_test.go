@@ -209,6 +209,38 @@ func TestExtractPyFiles_NoTopLevel(t *testing.T) {
 	}
 }
 
+func TestExtractPyFiles_VendoredTopLevelIgnored(t *testing.T) {
+	data := buildTestWheel(map[string]string{
+		"realpkg/__init__.py":                              `x = 1`,
+		"realpkg/core.py":                                  `y = 2`,
+		"realpkg-1.0.dist-info/top_level.txt":              "realpkg\n",
+		"realpkg/_vendor/zipp/__init__.py":                 `z = 3`,
+		"realpkg/_vendor/zipp-3.0.dist-info/top_level.txt": "zipp\n",
+		"realpkg/_vendor/zzz-1.0.dist-info/top_level.txt":  "zzz\n",
+	})
+	contents, err := extractPyFiles(data, "realpkg")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "realpkg" {
+		t.Errorf("TopLevelPkgs = %v, want [realpkg]", contents.TopLevelPkgs)
+	}
+}
+
+func TestExtractPyFiles_StaleTopLevelFallsBack(t *testing.T) {
+	data := buildTestWheel(map[string]string{
+		"mypkg/__init__.py":                 `x = 1`,
+		"mypkg-1.0.dist-info/top_level.txt": "ghost\n",
+	})
+	contents, err := extractPyFiles(data, "mypkg")
+	if err != nil {
+		t.Fatalf("extractPyFiles: %v", err)
+	}
+	if len(contents.TopLevelPkgs) != 1 || contents.TopLevelPkgs[0] != "mypkg" {
+		t.Errorf("TopLevelPkgs = %v, want [mypkg]", contents.TopLevelPkgs)
+	}
+}
+
 func TestExtractPyFiles_InvalidZip(t *testing.T) {
 	_, err := extractPyFiles([]byte("not a zip"), "mypkg")
 	if err == nil {

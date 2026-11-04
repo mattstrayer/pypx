@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/pypx/goopy/model"
@@ -250,6 +251,128 @@ func TestExtractPackage_SmallPackageCancelledContext(t *testing.T) {
 		t.Fatal("expected non-nil package")
 	}
 	t.Logf("extracted %d modules with cancelled context (small package)", len(pkg.Modules))
+}
+
+func TestIsTestModule(t *testing.T) {
+	cases := map[string]bool{
+		"pandas/tests/plotting/frame/test_frame.py": true,
+		"numpy/ma/tests/test_core.py":               true,
+		"pkg/tests/__init__.py":                     true,
+		"pkg/test/test_a.py":                        true,
+		"pkg/test/helpers.py":                       true,
+		"pkg/test/sub/deep.py":                      true,
+		"pkg/test_utils.py":                         true,
+		"pkg/utils_test.py":                         true,
+		"pkg/conftest.py":                           true,
+		"pkg/sub/conftest.py":                       true,
+		"pkg/tests.py":                              true,
+		"pytest/__init__.py":                        false,
+		"pytest/main.py":                            false,
+		"testing/__init__.py":                       false,
+		"numpy/testing/__init__.py":                 false,
+		"pkg/testing/utils.py":                      false,
+		"pkg/core.py":                               false,
+		"pkg/contest.py":                            false,
+		"pkg/attest.py":                             false,
+		"test/__init__.py":                          false,
+		"django/test/__init__.py":                   false,
+		"django/test/client.py":                     false,
+		"werkzeug/test.py":                          false,
+	}
+	files := map[string][]byte{"pkg/test/test_a.py": nil}
+	for path := range cases {
+		files[path] = nil
+	}
+	// django/test has no test files, so it must stay public.
+	for _, p := range []string{"django/test/__init__.py", "django/test/client.py"} {
+		files[p] = nil
+	}
+	testDirs := testFileDirs(files)
+	for path, want := range cases {
+		if got := isTestModule(path, testDirs); got != want {
+			t.Errorf("isTestModule(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestExtractPackage_SkipsTestModules(t *testing.T) {
+	files := map[string][]byte{
+		"pkg/__init__.py":        []byte("def a(): pass\n"),
+		"pkg/tests/test_a.py":    []byte("def test_a(): pass\n"),
+		"pkg/conftest.py":        []byte("def fix(): pass\n"),
+		"pkg/testing/helpers.py": []byte("def helper(): pass\n"),
+		"pkg/test/test_a.py":     []byte("def test_a(): pass\n"),
+		"pkg/test/helpers.py":    []byte("def h(): pass\n"),
+		"pkg/test.py":            []byte("def public(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	var names []string
+	for _, m := range pkg.Modules {
+		names = append(names, m.Name)
+	}
+	want := []string{"pkg", "pkg.test", "pkg.testing.helpers"}
+	if !slices.Equal(names, want) {
+		t.Errorf("modules = %v, want %v", names, want)
+	}
+}
+
+func TestExtractPackage_KeepsPublicTestPackage(t *testing.T) {
+	files := map[string][]byte{
+		"django/__init__.py":      []byte("x = 1\n"),
+		"django/test/__init__.py": []byte("from .client import Client\n"),
+		"django/test/client.py":   []byte("class Client: pass\n"),
+		"django/tests/test_x.py":  []byte("def test_x(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "django", files, []string{"django"})
+	var names []string
+	for _, m := range pkg.Modules {
+		names = append(names, m.Name)
+	}
+	want := []string{"django", "django.test", "django.test.client"}
+	if !slices.Equal(names, want) {
+		t.Errorf("modules = %v, want %v", names, want)
+	}
+}
+
+func requireModules(t *testing.T, name, version string, want ...string) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	pkg, err := ExtractFromPyPI(context.Background(), name, version)
+	if err != nil {
+		t.Fatalf("ExtractFromPyPI: %v", err)
+	}
+	have := map[string]bool{}
+	for _, m := range pkg.Modules {
+		have[m.Name] = true
+	}
+	for _, w := range want {
+		if !have[w] {
+			t.Errorf("%s %s: module %q missing (got %d modules)", name, version, w, len(pkg.Modules))
+		}
+	}
+}
+
+func TestExtractFromPyPI_Django(t *testing.T) {
+	requireModules(t, "django", "6.1.3", "django.test", "django.test.client")
+}
+
+func TestExtractFromPyPI_Werkzeug(t *testing.T) {
+	requireModules(t, "werkzeug", "3.1.8", "werkzeug.test")
+}
+
+func TestExtractFromPyPI_Setuptools(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	pkg, err := ExtractFromPyPI(context.Background(), "setuptools", "84.2.1")
+	if err != nil {
+		t.Fatalf("ExtractFromPyPI: %v", err)
+	}
+	if len(pkg.Modules) <= 50 {
+		t.Errorf("setuptools modules = %d, want > 50", len(pkg.Modules))
+	}
 }
 
 func TestExtractFromPyPI_Integration(t *testing.T) {
