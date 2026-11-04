@@ -150,6 +150,14 @@ describe("formatDocstring", () => {
       expect(result).toContain("<pre><code");
     });
 
+    it("finds a section name indented past the margin, as in numpy repack_fields", () => {
+      const result = formatDocstring("Summary.\n\n    Examples\n    --------\n    >>> a\n\nMore.");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).not.toContain("---");
+      expect(result).toContain("<pre><code");
+      expect(result).toContain("&gt;&gt;&gt; a");
+    });
+
     it("leaves dashes in doctest output alone", () => {
       const result = formatDocstring(">>> show()\nname\n----\nvalue");
       expect(result).not.toContain("<h4");

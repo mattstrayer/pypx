@@ -66,15 +66,28 @@ interface Block {
   lines: string[];
 }
 
-// A section title at the margin with a line of 3+ dashes under it, as NumPy writes
-// "Examples" and "Notes".
+const NUMPY_SECTIONS = new Set([
+  "Attributes",
+  "Examples",
+  "Methods",
+  "Notes",
+  "References",
+  "See Also",
+  "Warnings",
+  "Warns",
+]);
+
+// A title with a line of 3+ dashes under it, as NumPy writes "Examples" and "Notes".
+// The title sits at the margin, because an indented pair is usually a table in a
+// code block. A NumPy section name counts at any indent: numpy.lib.recfunctions
+// has docstrings that indent their sections past the margin.
 function isSectionHeading(title: string | undefined, underline: string | undefined): boolean {
   return (
     title !== undefined &&
     underline !== undefined &&
-    /^\S/.test(title) &&
+    (/^\S/.test(title) || NUMPY_SECTIONS.has(title.trim())) &&
     !title.startsWith(">>>") &&
-    /^-{3,}\s*$/.test(underline)
+    /^\s*-{3,}\s*$/.test(underline)
   );
 }
 
@@ -138,7 +151,7 @@ function renderBlock(block: Block): DocstringPart | null {
   }
 
   if (block.type === "heading") {
-    return html(`<h4 class="section-label">${escapeHtml(block.lines[0] ?? "")}</h4>`);
+    return html(`<h4 class="section-label">${escapeHtml((block.lines[0] ?? "").trim())}</h4>`);
   }
 
   if (block.type === "code") {
