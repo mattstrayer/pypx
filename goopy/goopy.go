@@ -116,6 +116,7 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 	}
 
 	r.settleStubDefinitions(parsed)
+	r.resolveConstructors(parsed)
 	r.publishExports(parsed)
 
 	pkg := &model.Package{Name: name}
