@@ -76,6 +76,11 @@ func TestExtraction(t *testing.T) {
 			if result == nil {
 				t.Fatal("nil result")
 			}
+			// New Python syntax or a parser bug shows here before users see it.
+			if result.Stats.Errors != 0 || result.Stats.PanickedModules != 0 {
+				t.Errorf("parse errors = %d in %d files, panicked modules = %d, want none",
+					result.Stats.Errors, result.Stats.FilesWithErrors, result.Stats.PanickedModules)
+			}
 
 			totalFuncs := 0
 			totalClasses := 0
