@@ -54,34 +54,6 @@ func (p *Parser) parseExpr() ast.Expr {
 	return expr
 }
 
-// parseExprFrom continues parsing an expression from a partially parsed left operand.
-// Used when we've already consumed a NAME token for lookahead purposes.
-func (p *Parser) parseExprFrom(left ast.Expr) ast.Expr {
-	// Continue with any binary operators that might follow.
-	return p.parseBinOpFrom(left)
-}
-
-// parseBinOpFrom handles binary operators starting from a pre-parsed left side,
-// beginning at the 'or' precedence level.
-func (p *Parser) parseBinOpFrom(left ast.Expr) ast.Expr {
-	// We need to thread the left operand through the precedence chain.
-	// The simplest approach: check for pipe (union type) since that's
-	// the most common case in class base lists.
-	for p.tok.Type == token.PIPE {
-		op := p.tok.Type
-		p.next()
-		right := p.parseBitXorExpr()
-		left = &ast.BinOp{
-			Position: left.Pos(),
-			EndPos:   right.End(),
-			Left:     left,
-			Op:       op,
-			Right:    right,
-		}
-	}
-	return left
-}
-
 func (p *Parser) parseOrExpr() ast.Expr {
 	left := p.parseAndExpr()
 	for p.tok.Type == token.OR {
@@ -362,93 +334,7 @@ func (p *Parser) parseTrailers(expr ast.Expr) ast.Expr {
 // parseCallTrailer parses '(' arglist ')' as a Call node.
 func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 	p.next() // consume '('
-	var args []ast.Expr
-	var keywords []*ast.Keyword
-
-	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
-		// Bail out if we hit a statement keyword — the paren was never closed.
-		// But FOR is valid inside calls (generator expressions), so exclude it.
-		if p.isStmtStart() && p.tok.Type != token.FOR {
-			break
-		}
-
-		// Check for keyword argument: name=expr
-		// Also accept soft keywords (type, match, case) as keyword arg names.
-		if p.tok.Type == token.NAME || p.isSoftKeyword() {
-			savedTok := p.tok
-			p.next()
-			if p.tok.Type == token.ASSIGN {
-				p.next()
-				val := p.parseExpr()
-				keywords = append(keywords, &ast.Keyword{
-					Arg:   savedTok.Lit,
-					Value: val,
-				})
-				if p.tok.Type == token.COMMA {
-					p.next()
-				}
-				continue
-			}
-			// Not keyword — reconstruct and parse as regular arg.
-			nameExpr := &ast.Name{
-				Position: savedTok.Pos,
-				EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-				Name:     savedTok.Lit,
-			}
-			expr := p.parseTrailers(nameExpr)
-			expr = p.parseExprFrom(expr)
-			args = append(args, expr)
-			// Generator expression: func(name for ...)
-			if p.tok.Type == token.FOR {
-				p.skipUntil(token.RPAREN)
-				break
-			}
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		// Check for **kwargs in call.
-		if p.tok.Type == token.DSTAR {
-			p.next()
-			val := p.parseExpr()
-			keywords = append(keywords, &ast.Keyword{Value: val})
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		// Check for *args in call.
-		if p.tok.Type == token.STAR {
-			pos := p.tok.Pos
-			p.next()
-			val := p.parseExpr()
-			args = append(args, &ast.Starred{
-				Position: pos,
-				EndPos:   val.End(),
-				Value:    val,
-			})
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		arg := p.parseExpr()
-		if arg != nil {
-			args = append(args, arg)
-		}
-		// Generator expression in call: func(expr for ...)
-		if p.tok.Type == token.FOR {
-			p.skipUntil(token.RPAREN)
-			break
-		}
-		if p.tok.Type == token.COMMA {
-			p.next()
-		}
-	}
+	args, keywords := p.parseArgList()
 
 	endPos := p.tok.Pos
 	p.expect(token.RPAREN)
@@ -460,6 +346,51 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 		Args:     args,
 		Keywords: keywords,
 	}
+}
+
+// parseArgList parses the arguments of a call or a class definition, up to the
+// closing parenthesis. Each argument is a full expression, a keyword argument, or
+// a * or ** unpack. A generator expression argument is skimmed.
+func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
+	var args []ast.Expr
+	var keywords []*ast.Keyword
+
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
+		// Bail out if we hit a statement keyword: the paren was never closed.
+		if p.isStmtStart() {
+			break
+		}
+
+		switch p.tok.Type {
+		case token.DSTAR:
+			p.next()
+			keywords = append(keywords, &ast.Keyword{Value: p.parseExpr()})
+		case token.STAR:
+			pos := p.tok.Pos
+			p.next()
+			val := p.parseExpr()
+			args = append(args, &ast.Starred{Position: pos, EndPos: val.End(), Value: val})
+		default:
+			arg := p.parseExpr()
+			if n, ok := arg.(*ast.Name); ok && p.tok.Type == token.ASSIGN {
+				p.next()
+				keywords = append(keywords, &ast.Keyword{Arg: n.Name, Value: p.parseExpr()})
+			} else {
+				args = append(args, arg)
+			}
+		}
+
+		if p.at(token.FOR, token.ASYNC) {
+			p.skipUntil(token.RPAREN)
+			break
+		}
+		if p.tok.Type != token.COMMA {
+			break
+		}
+		p.next()
+	}
+
+	return args, keywords
 }
 
 // parseSubscriptContents parses the contents inside [...].

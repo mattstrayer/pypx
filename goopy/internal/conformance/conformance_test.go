@@ -12,7 +12,6 @@ import (
 // knownFailures lists fixtures the parser fails today, keyed by fixture
 // filename with a one-line reason. A listed fixture that passes fails the test.
 var knownFailures = map[string]string{
-	"call_args.py":        "operators, conditional and generator expressions inside call arguments",
 	"compound_headers.py": "compound statement headers with complex expressions",
 	"dict_unpack.py":      "** unpacking inside dict displays",
 	"loop_else.py":        "else clauses on for, while and async for",

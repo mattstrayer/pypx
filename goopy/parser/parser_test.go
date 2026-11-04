@@ -1309,3 +1309,84 @@ func TestRecoveryAlwaysEnds(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Grammar: one test per root cause, asserting the AST shape
+// ---------------------------------------------------------------------------
+
+func exprOf(t *testing.T, src string) ast.Expr {
+	t.Helper()
+	mod := parse(t, src+"\n")
+	requireStmts(t, mod, 1)
+	return asExprStmt(t, mod.Body[0]).Value
+}
+
+func asCall(t *testing.T, expr ast.Expr) *ast.Call {
+	t.Helper()
+	c, ok := expr.(*ast.Call)
+	if !ok {
+		t.Fatalf("expected Call, got %T", expr)
+	}
+	return c
+}
+
+func TestCallArgs_FullExpressions(t *testing.T) {
+	c := asCall(t, exprOf(t, "f(a == 1, b or c, d if e else g, not h, i.j[0]() + 1, k=l == 2, *m or n, **o or p)"))
+	if len(c.Args) != 6 {
+		t.Fatalf("expected 6 args, got %d", len(c.Args))
+	}
+	for i, want := range []token.Type{token.EQ, token.OR} {
+		if op, ok := c.Args[i].(*ast.BinOp); !ok || op.Op != want {
+			t.Errorf("arg %d: got %#v, want BinOp %v", i, c.Args[i], want)
+		}
+	}
+	if _, ok := c.Args[2].(*ast.IfExpr); !ok {
+		t.Errorf("arg 2: got %T, want IfExpr", c.Args[2])
+	}
+	if _, ok := c.Args[5].(*ast.Starred); !ok {
+		t.Errorf("arg 5: got %T, want Starred", c.Args[5])
+	}
+	if len(c.Keywords) != 2 || c.Keywords[0].Arg != "k" || c.Keywords[1].Arg != "" {
+		t.Fatalf("keywords: got %#v", c.Keywords)
+	}
+	if op, ok := c.Keywords[0].Value.(*ast.BinOp); !ok || op.Op != token.EQ {
+		t.Errorf("keyword k: got %#v", c.Keywords[0].Value)
+	}
+}
+
+func TestCallArgs_SoftKeywordNames(t *testing.T) {
+	c := asCall(t, exprOf(t, "f(type=1, match=2, case=3, type)"))
+	if len(c.Keywords) != 3 || c.Keywords[0].Arg != "type" {
+		t.Fatalf("keywords: got %#v", c.Keywords)
+	}
+	if len(c.Args) != 1 || asName(t, c.Args[0]).Name != "type" {
+		t.Fatalf("args: got %#v", c.Args)
+	}
+}
+
+func TestCallArgs_Generator(t *testing.T) {
+	for _, src := range []string{"f(x for x in y)", "f(a == b for a, b in y if a)", "f(x async for x in y)"} {
+		if c := asCall(t, exprOf(t, src)); len(c.Args) != 1 {
+			t.Errorf("%s: expected 1 arg, got %d", src, len(c.Args))
+		}
+	}
+}
+
+func TestCallArgs_MissingCommaIsAnError(t *testing.T) {
+	if _, errs := parseWithErrors(t, "f(a b)\n"); len(errs) == 0 {
+		t.Fatal("expected a parse error")
+	}
+}
+
+func TestClassDef_ComplexBases(t *testing.T) {
+	cls := asClassDef(t, parse(t, "class C(a if b else c, d.e[f], *g, h=i or j, **k): pass\n").Body[0])
+	if len(cls.Bases) != 3 {
+		t.Fatalf("expected 3 bases, got %d", len(cls.Bases))
+	}
+	if _, ok := cls.Bases[0].(*ast.IfExpr); !ok {
+		t.Errorf("base 0: got %T, want IfExpr", cls.Bases[0])
+	}
+	if len(cls.Keywords) != 2 || cls.Keywords[0].Arg != "h" {
+		t.Errorf("keywords: got %#v", cls.Keywords)
+	}
+}

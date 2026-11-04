@@ -473,10 +473,11 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 	var keywords []*ast.Keyword
 	if p.tok.Type == token.LPAREN {
 		p.next()
-		bases, keywords = p.parseClassArgs()
+		bases, keywords = p.parseArgList()
 
 		// If the arg list hit a statement keyword (unclosed paren), abandon this class.
 		if p.isStmtStart() {
+			p.errorf("unclosed parenthesis in class bases")
 			return nil
 		}
 
@@ -501,65 +502,6 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 		Position:   pos,
 		EndPos:     endPos,
 	}
-}
-
-// parseClassArgs parses the argument list inside class Foo(...).
-// It distinguishes positional bases from keyword arguments (e.g., metaclass=ABCMeta).
-func (p *Parser) parseClassArgs() ([]ast.Expr, []*ast.Keyword) {
-	var bases []ast.Expr
-	var keywords []*ast.Keyword
-
-	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
-		// Bail out if we hit a statement keyword — the paren was never closed.
-		if p.isStmtStart() {
-			p.errorf("unclosed parenthesis in class bases")
-			break
-		}
-
-		// Check for keyword argument: name=expr
-		if p.tok.Type == token.NAME {
-			// Peek: is the next token '='?
-			savedTok := p.tok
-			p.next()
-			if p.tok.Type == token.ASSIGN {
-				// keyword argument
-				p.next() // consume '='
-				val := p.parseExpr()
-				keywords = append(keywords, &ast.Keyword{
-					Arg:   savedTok.Lit,
-					Value: val,
-				})
-				if p.tok.Type == token.COMMA {
-					p.next()
-				}
-				continue
-			}
-			// Not a keyword arg — back up. We already consumed the NAME,
-			// so we need to parse the rest as a trailer on that name.
-			expr := &ast.Name{
-				Position: savedTok.Pos,
-				EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-				Name:     savedTok.Lit,
-			}
-			// Parse any trailers (dots, subscripts, calls).
-			result := p.parseTrailers(expr)
-			// Handle binary operators that might follow (like |).
-			result = p.parseExprFrom(result)
-			bases = append(bases, result)
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		expr := p.parseExpr()
-		bases = append(bases, expr)
-		if p.tok.Type == token.COMMA {
-			p.next()
-		}
-	}
-
-	return bases, keywords
 }
 
 // parseBlock parses a colon-delimited block: NEWLINE INDENT stmt+ DEDENT.
