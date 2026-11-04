@@ -7,10 +7,30 @@ import (
 	"github.com/pypx/goopy/model"
 )
 
-// MarkStubImports applies the stub rule for re-exports to a module parsed from a
-// .pyi file: "from x import a" keeps a private to the stub. Only "from x import
-// a as a", "from . import a" and "from x import *" re-export.
-func MarkStubImports(m *model.Module) {
+// PrepareStub applies the rules for stubs to a module parsed from a .pyi file.
+//
+// "from x import a" keeps a private to the stub. Only "from x import a as a",
+// "from . import a" and "from x import *" re-export.
+//
+// "T = TypeVar(...)" and its relatives are not API. They stay reachable for imports,
+// but they are public only if a __all__ lists them.
+func PrepareStub(m *model.Module) {
+	listed := func(name string) bool {
+		return m.Exports != nil && slices.Contains(m.Exports.Names, name)
+	}
+	public := m.Attributes[:0:0]
+	for _, a := range m.Attributes {
+		a.StubTypeParam = isTypeParamValue(a.Value)
+		if a.StubTypeParam && !listed(a.Name) {
+			m.Hidden.Attributes = append(m.Hidden.Attributes, a)
+		} else {
+			public = append(public, a)
+		}
+	}
+	m.Attributes = public
+	for _, a := range m.Hidden.Attributes {
+		a.StubTypeParam = isTypeParamValue(a.Value)
+	}
 	for _, imp := range m.ImportFroms {
 		switch {
 		case imp.Name == "*":
@@ -22,6 +42,19 @@ func MarkStubImports(m *model.Module) {
 			imp.NotExported = imp.Alias != imp.Name
 		}
 	}
+}
+
+// isTypeParamValue reports whether an attribute's value creates a type parameter.
+func isTypeParamValue(value string) bool {
+	callee, _, isCall := strings.Cut(value, "(")
+	if !isCall {
+		return false
+	}
+	switch callee[strings.LastIndex(callee, ".")+1:] {
+	case "TypeVar", "ParamSpec", "TypeVarTuple":
+		return true
+	}
+	return false
 }
 
 // MergeStub merges a module's .pyi into its .py. The .py decides names and
@@ -116,7 +149,7 @@ func AddStubDefinitions(m *model.Module, defs model.Definitions) {
 	for _, a := range defs.Attributes {
 		if existing := findAttribute(m, a.Name); existing != nil {
 			MergeAttribute(existing, a)
-		} else if isPublic(a.Name, exports) {
+		} else if isPublic(a.Name, exports) && (exports != nil || !a.StubTypeParam) {
 			m.Attributes = append(m.Attributes, a)
 		} else {
 			m.Hidden.Attributes = append(m.Hidden.Attributes, a)

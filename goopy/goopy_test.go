@@ -1411,3 +1411,37 @@ func TestExtractPackage_StubOutputIsStable(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractPackage_StubTypeParamsAreNotAPI(t *testing.T) {
+	attrNames := func(m *model.Module) []string {
+		var names []string
+		for _, a := range m.Attributes {
+			names = append(names, a.Name)
+		}
+		return names
+	}
+	stub := "from typing import ParamSpec, TypeVar, TypeVarTuple\nT = TypeVar('T')\nP = ParamSpec('P')\nTs = TypeVarTuple('Ts')\nLIMIT: int\ndef f(x: T) -> T: ...\n"
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  []string
+	}{
+		{"stub only", map[string]string{"pkg/mod.pyi": stub}, []string{"LIMIT"}},
+		{"with a .py", map[string]string{"pkg/mod.py": "def f(x): ...\n", "pkg/mod.pyi": stub}, []string{"LIMIT"}},
+		{"star import in the .py", map[string]string{"pkg/mod.py": "from ._c import *\n", "pkg/mod.pyi": stub}, []string{"LIMIT"}},
+		{"dynamic __all__ in the .py", map[string]string{"pkg/mod.py": "__all__ = f()\n", "pkg/mod.pyi": stub}, []string{"LIMIT"}},
+		{"readable __all__ in the .py", map[string]string{"pkg/mod.py": "__all__ = ['T', 'f']\n", "pkg/mod.pyi": stub}, []string{"T"}},
+		{"readable __all__ in the stub", map[string]string{"pkg/mod.pyi": stub + "__all__ = ['P', 'f']\n"}, []string{"P"}},
+		{"stub __all__ with a dynamic .py list", map[string]string{"pkg/mod.py": "__all__ = f()\n", "pkg/mod.pyi": stub + "__all__ = ['Ts']\n"}, []string{"LIMIT", "Ts"}},
+		{"star import of a private stub", map[string]string{"pkg/mod.pyi": "from ._t import *\n", "pkg/_t.pyi": stub}, []string{"LIMIT"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := attrNames(stubPackage(t, tt.files)["pkg.mod"])
+			slices.Sort(got)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("attributes = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

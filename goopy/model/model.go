@@ -150,6 +150,9 @@ type Attribute struct {
 	Instance bool `json:"instance,omitempty"`
 	// Origin is the dotted module that defines this attribute, set on a re-export.
 	Origin string `json:"origin,omitempty"`
+	// StubTypeParam is true for "T = TypeVar(...)" in a .pyi. It is not API, so it
+	// is public only if a __all__ lists it.
+	StubTypeParam bool `json:"-"`
 }
 
 // TypeAlias represents a type alias (type X = ...).

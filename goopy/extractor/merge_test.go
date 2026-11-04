@@ -92,7 +92,7 @@ func TestMergeStub_ImportedNamesWait(t *testing.T) {
 	}
 }
 
-func TestMarkStubImports(t *testing.T) {
+func TestPrepareStub_Imports(t *testing.T) {
 	m := parseModule(t, `
 from x import a
 from x import b as b
@@ -103,7 +103,7 @@ from . import f as g
 import y
 import z as z
 `)
-	MarkStubImports(m)
+	PrepareStub(m)
 	want := []bool{true, false, true, false, false, true, true, false}
 	if len(m.ImportFroms) != len(want) {
 		t.Fatalf("%d imports, want %d", len(m.ImportFroms), len(want))
@@ -112,5 +112,54 @@ import z as z
 		if imp.NotExported != want[i] {
 			t.Errorf("import %d %+v: NotExported = %v, want %v", i, imp, imp.NotExported, want[i])
 		}
+	}
+}
+
+func TestPrepareStub_TypeParams(t *testing.T) {
+	src := `
+import typing as t
+from typing import ParamSpec, TypeVar, TypeVarTuple
+T = TypeVar("T")
+P = ParamSpec("P")
+Ts = TypeVarTuple("Ts")
+Q = t.TypeVar("Q")
+LIMIT: int
+`
+	m := parseModule(t, src)
+	PrepareStub(m)
+	if len(m.Attributes) != 1 || m.Attributes[0].Name != "LIMIT" {
+		t.Errorf("public attributes = %+v, want LIMIT only", m.Attributes)
+	}
+	if len(m.Hidden.Attributes) != 4 {
+		t.Errorf("hidden attributes = %d, want 4", len(m.Hidden.Attributes))
+	}
+
+	m = parseModule(t, src+"__all__ = ['T', 'LIMIT']\n")
+	PrepareStub(m)
+	if len(m.Attributes) != 2 || m.Attributes[0].Name != "T" {
+		t.Errorf("public attributes = %+v, want T and LIMIT", m.Attributes)
+	}
+}
+
+func TestMergeStub_TypeParams(t *testing.T) {
+	merge := func(base, stub string) *model.Module {
+		b, s := parseModule(t, base), parseModule(t, stub)
+		PrepareStub(s)
+		MergeStub(b, s)
+		return b
+	}
+	stub := "T = TypeVar('T')\ndef f(x: T) -> T: ...\n"
+	if m := merge("", stub); len(m.Attributes) != 0 || len(m.Functions) != 1 {
+		t.Errorf("no __all__: attributes %+v, functions %d", m.Attributes, len(m.Functions))
+	}
+	if m := merge("__all__ = ['T', 'f']\n", stub); len(m.Attributes) != 1 || m.Attributes[0].Name != "T" {
+		t.Errorf("readable __all__ lists T: attributes %+v", m.Attributes)
+	}
+	if m := merge("__all__ = ['f']\n", stub); len(m.Attributes) != 0 {
+		t.Errorf("readable __all__ omits T: attributes %+v", m.Attributes)
+	}
+	// A TypeVar the .py defines is the .py's own public name, as it always was.
+	if m := merge("T = TypeVar('T')\n", stub); len(m.Attributes) != 1 {
+		t.Errorf(".py defines T: attributes %+v", m.Attributes)
 	}
 }

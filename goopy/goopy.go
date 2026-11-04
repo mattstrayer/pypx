@@ -148,7 +148,7 @@ func (w work) extract() *model.Module {
 		if stub == nil {
 			return base
 		}
-		extractor.MarkStubImports(stub)
+		extractor.PrepareStub(stub)
 		if base == nil {
 			return stub
 		}
@@ -294,7 +294,8 @@ type parsedModule struct {
 	attrs map[string]definition
 	// stubOnly holds mod.StubOnly: names a lookup finds only if imports do not.
 	stubOnly map[string]definition
-	// order lists the keys of defs, attrs and stubOnly in a stable order.
+	// order lists the keys of defs, attrs and stubOnly in a stable order, except
+	// a stub's type parameters, which a star import does not bind as API.
 	order []string
 }
 
@@ -334,12 +335,15 @@ func newParsedModule(mod *model.Module, path string) *parsedModule {
 			_, inAttrs := pm.attrs[a.Name]
 			if !inDefs && !inAttrs {
 				pm.attrs[a.Name] = definition{module: mod.Name, attr: a}
-				pm.order = append(pm.order, a.Name)
+				if !a.StubTypeParam {
+					pm.order = append(pm.order, a.Name)
+				}
 			}
 		}
 	}
 	for _, d := range stubDefinitions(mod) {
-		if !pm.definesDirectly(d.name()) {
+		isTypeParam := d.attr != nil && d.attr.StubTypeParam
+		if !pm.definesDirectly(d.name()) && !isTypeParam {
 			pm.order = append(pm.order, d.name())
 		}
 		pm.stubOnly[d.name()] = d
@@ -701,7 +705,14 @@ func (r *resolver) settlePublic(pm *parsedModule) []string {
 		}
 		m.Functions, m.Hidden.Functions = repartition(m.Functions, m.Hidden.Functions, func(f *model.Function) string { return f.Name }, keep)
 		m.Classes, m.Hidden.Classes = repartition(m.Classes, m.Hidden.Classes, func(c *model.Class) string { return c.Name }, keep)
-		m.Attributes, m.Hidden.Attributes = repartition(m.Attributes, m.Hidden.Attributes, func(a *model.Attribute) string { return a.Name }, keep)
+		typeParams := map[string]bool{}
+		for _, a := range slices.Concat(m.Attributes, m.Hidden.Attributes) {
+			if a.StubTypeParam {
+				typeParams[a.Name] = true
+			}
+		}
+		keepAttr := func(n string) bool { return seen[n] || (keep(n) && !typeParams[n]) }
+		m.Attributes, m.Hidden.Attributes = repartition(m.Attributes, m.Hidden.Attributes, func(a *model.Attribute) string { return a.Name }, keepAttr)
 		m.TypeAliases, m.Hidden.TypeAliases = repartition(m.TypeAliases, m.Hidden.TypeAliases, func(t *model.TypeAlias) string { return t.Name }, keep)
 	}
 
