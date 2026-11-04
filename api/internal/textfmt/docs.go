@@ -39,7 +39,49 @@ type DocSymbolInput struct {
 	Returns    *DocReturnInput
 	Raises     []DocRaiseInput
 	Methods    []DocSymbolInput
+	Attributes []DocAttributeInput
 }
+
+// DocAttributeInput is a class attribute or property.
+type DocAttributeInput struct {
+	Name        string
+	Type        string
+	Default     string
+	Description string
+	IsProperty  bool
+	Writable    bool
+}
+
+// Kind returns "property" or "attribute".
+func (a DocAttributeInput) Kind() string {
+	if a.IsProperty {
+		return "property"
+	}
+	return "attribute"
+}
+
+// Signature renders the attribute on one line: "x: int = 1", or
+// "property x: int [read-only]".
+func (a DocAttributeInput) Signature() string {
+	s := a.Name
+	if a.Type != "" {
+		s += ": " + a.Type
+	}
+	if a.Default != "" {
+		s += " = " + a.Default
+	}
+	if a.IsProperty {
+		s = "property " + s
+		if !a.Writable {
+			s += " [read-only]"
+		}
+	}
+	return lineBreaks.Replace(s)
+}
+
+// lineBreaks removes the characters that a multi-line string value would put
+// into a one-line signature.
+var lineBreaks = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 type DocParamInput struct {
 	Name        string
@@ -107,7 +149,7 @@ func FormatDocs(in *DocsInput, prefix string) string {
 					break
 				}
 			}
-			if !classMatches && !anyMethodMatches {
+			if !classMatches && !anyMethodMatches && !anyAttributeMatches(path, cls, prefix) {
 				continue
 			}
 			writeModuleHeader()
@@ -122,15 +164,23 @@ func FormatDocs(in *DocsInput, prefix string) string {
 					matched = true
 				}
 			}
+			if !classMatches && writeMatchingAttributes(&b, path, cls, prefix) {
+				matched = true
+			}
 		}
 
 		for _, exc := range mod.Exceptions {
 			path := mod.Name + "." + exc.Name
-			if !matchesPrefix(path, prefix) {
+			excMatches := matchesPrefix(path, prefix)
+			if !excMatches && !anyAttributeMatches(path, exc, prefix) {
 				continue
 			}
 			writeModuleHeader()
-			writeSymbolBlock(&b, path, exc)
+			if excMatches {
+				writeSymbolBlock(&b, path, exc)
+			} else {
+				writeMatchingAttributes(&b, path, exc, prefix)
+			}
 			matched = true
 		}
 	}
@@ -151,6 +201,38 @@ func matchesPrefix(path, prefix string) bool {
 		return true
 	}
 	return strings.HasPrefix(path, prefix+".")
+}
+
+func anyAttributeMatches(path string, sym DocSymbolInput, prefix string) bool {
+	for _, a := range sym.Attributes {
+		if matchesPrefix(path+"."+a.Name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// writeMatchingAttributes writes a block for each attribute that matches prefix,
+// and reports whether it wrote any.
+func writeMatchingAttributes(b *strings.Builder, path string, sym DocSymbolInput, prefix string) bool {
+	wrote := false
+	for _, a := range sym.Attributes {
+		if ap := path + "." + a.Name; matchesPrefix(ap, prefix) {
+			writeAttributeBlock(b, ap, a)
+			wrote = true
+		}
+	}
+	return wrote
+}
+
+// writeAttributeBlock renders one attribute as a symbol of its own.
+func writeAttributeBlock(b *strings.Builder, dottedPath string, a DocAttributeInput) {
+	fmt.Fprintf(b, "### %s — %s\n", dottedPath, a.Signature())
+	if a.Description != "" {
+		b.WriteString(a.Description)
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
 }
 
 // writeSymbolBlock renders a single symbol's heading + body to b.
@@ -177,6 +259,30 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 			}
 			if p.Description != "" {
 				fmt.Fprintf(b, ": %s", p.Description)
+			}
+			b.WriteByte('\n')
+		}
+	}
+	if len(sym.Attributes) > 0 {
+		b.WriteString("\nAttributes:\n")
+		for _, a := range sym.Attributes {
+			b.WriteString("  ")
+			b.WriteString(a.Name)
+			if a.Type != "" {
+				fmt.Fprintf(b, " (%s)", a.Type)
+			}
+			if a.Default != "" {
+				fmt.Fprintf(b, " = %s", lineBreaks.Replace(a.Default))
+			}
+			if a.IsProperty {
+				if a.Writable {
+					b.WriteString(" [property]")
+				} else {
+					b.WriteString(" [property, read-only]")
+				}
+			}
+			if a.Description != "" {
+				fmt.Fprintf(b, ": %s", strings.ReplaceAll(a.Description, "\n", "\n    "))
 			}
 			b.WriteByte('\n')
 		}
@@ -212,10 +318,12 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //   - Module-qualified function: "module.fn"
 //   - Class: "module.Class"
 //   - Method: "module.Class.method"
+//   - Attribute: "module.Class.attr" or "module.ExceptionClass.attr"
 //   - Exception: "module.ExceptionClass"
 //
 // A class lookup returns only the class block, not its methods. Methods are
-// addressed individually by their dotted path.
+// addressed individually by their dotted path. A method wins over an attribute
+// with the same name.
 //
 // A path that starts with an alias resolves to the alias target, and the block
 // shows the target's path.
@@ -231,6 +339,18 @@ func FormatSymbol(in *DocsInput, dotted string) (string, bool) {
 					return out, true
 				}
 			}
+		}
+	}
+	return "", false
+}
+
+// formatAttribute renders the attribute of sym called name.
+func formatAttribute(sym DocSymbolInput, name, dotted string) (string, bool) {
+	for _, a := range sym.Attributes {
+		if a.Name == name {
+			var b strings.Builder
+			writeAttributeBlock(&b, dotted, a)
+			return b.String(), true
 		}
 	}
 	return "", false
@@ -274,15 +394,23 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 						return b.String(), true
 					}
 				}
+				if out, ok := formatAttribute(cls, methodName, dotted); ok {
+					return out, true
+				}
 			}
 		}
 
-		// Exception under this module?
+		// Exception or exception.attribute under this module?
 		for _, exc := range mod.Exceptions {
 			if rest == exc.Name {
 				var b strings.Builder
 				writeSymbolBlock(&b, dotted, exc)
 				return b.String(), true
+			}
+			if attr, ok := strings.CutPrefix(rest, exc.Name+"."); ok {
+				if out, ok := formatAttribute(exc, attr, dotted); ok {
+					return out, true
+				}
 			}
 		}
 	}
