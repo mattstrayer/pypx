@@ -788,8 +788,9 @@ func (r *resolver) settlePublic(pm *parsedModule) []string {
 
 // publishExports gives each definition one published location. A definition
 // already public in its own module stays there, and every re-export becomes an
-// alias. A private definition is copied once, into the exporting module that
-// sorts first, and its other re-exports become aliases of that copy.
+// alias. A private definition is copied once, into the exporting module with the
+// shortest path, then the first in sort order, and its other re-exports become
+// aliases of that copy.
 //
 // parsed must be sorted by module name.
 func (r *resolver) publishExports(parsed []*parsedModule) {
@@ -839,14 +840,19 @@ func (r *resolver) publishExports(parsed []*parsedModule) {
 		target := id.module + "." + id.name
 		copyIdx := -1
 		if src := r.modules[id.module]; !src.public || !src.isPublished(id.name) {
-			// The first export is in the module that sorts first. Inside that
-			// module, prefer the definition's own name over a rename.
+			// The module with the shortest path holds the copy, so a deprecated
+			// shim deep in the tree does not. On a tie it is the module that sorts
+			// first, which comes first here. Inside that module, prefer the
+			// definition's own name over a rename.
 			copyIdx = 0
+			depth := func(e export) int { return strings.Count(e.pm.mod.Name, ".") }
 			for i, e := range g.exports {
-				if e.pm != g.exports[0].pm {
-					break
+				if depth(e) < depth(g.exports[copyIdx]) {
+					copyIdx = i
 				}
-				if e.name == id.name {
+			}
+			for i, e := range g.exports {
+				if e.pm == g.exports[copyIdx].pm && e.name == id.name {
 					copyIdx = i
 					break
 				}

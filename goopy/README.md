@@ -16,7 +16,7 @@ import "github.com/pypx/goopy"
 - **Docstring parsing** — Google, NumPy, and Sphinx/reST styles, normalized into one structured form
 - **Wheel fetching** — downloads the best-matching wheel from PyPI's JSON API and extracts the Python source files from the zip
 - **Parallel extraction** — bounded worker pool sized to `GOMAXPROCS` for multi-module packages
-- **Re-export resolution** — follows imports through the wheel, so an API defined in `_private.py` and published by `__init__.py` is documented. Each definition is published once: a private definition is copied into the export location that sorts first, with `Origin` set, and every other re-export becomes a `Module.Aliases` entry that points at it
+- **Re-export resolution** — follows imports through the wheel, so an API defined in `_private.py` and published by `__init__.py` is documented. Each definition is published once: a private definition is copied into the export location with the shortest module path, then the first in sort order, with `Origin` set, and every other re-export becomes a `Module.Aliases` entry that points at it
 - **Pure Go** — no CGo, no Python runtime, no external binaries
 
 ## What it does *not* do
