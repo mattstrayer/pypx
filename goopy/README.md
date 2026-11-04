@@ -2,7 +2,7 @@
 
 **A pure-Go Python API documentation extractor.**
 
-`goopy` parses Python source code and extracts structured documentation — modules, classes, functions, parameters, type annotations, and docstrings (Google, NumPy, and reStructuredText styles). It can also download a package's wheel directly from PyPI and extract docs from the included `.py` files in-process, with no Python interpreter required.
+`goopy` parses Python source code and extracts structured documentation — modules, classes, functions, parameters, type annotations, and docstrings (Google, NumPy, and reStructuredText styles). It can also download a package's wheel directly from PyPI and extract docs from the included `.py` and `.pyi` files in-process, with no Python interpreter required.
 
 It was built to power the **Docs** tab on [pypx.app](https://pypx.app), but it's a standalone Go module and works fine as a library.
 
@@ -25,7 +25,7 @@ import "github.com/pypx/goopy"
 - Resolve dynamic attribute assignment, runtime metaclasses, or anything that depends on import-time effects
 - Follow runtime re-exports such as a module `__getattr__` or `lazy_import`. `attrs` publishes `__version__` this way, so names like that stay undocumented
 - Resolve names imported from another distribution. `from httpx import Timeout` in `openai` has no entry
-- Read compiled modules. A name that only exists in a `.so` file, with no `.pyi` to describe it, has no entry
+- Read compiled modules. goopy reads `.pyi` files bundled in wheels and sdists, so a stub can supply the names of a compiled module. A name with neither source nor stub has no entry
 - Read an `__all__` that is built at runtime. Names it lists as literals still count, and the public-name rule covers the rest. A name bound only by `globals().update(...)` has no entry, even if another `__all__` lists it: `scipy.special.multigammaln` reaches its package this way. `scipy.special.sinc` has no entry for a different reason, since `_basic.py` imports it from `numpy`
 - Type-check the code — annotations are captured as strings
 - Replace tools like Sphinx for full documentation site generation
@@ -101,7 +101,7 @@ fmt.Printf("%s %s has %d modules\n", pkg.Name, pkg.Version, len(pkg.Modules))
 
 With an empty version, `pkg.Version` holds the release PyPI served.
 
-`ExtractFromPyPI` picks one wheel (preferring `py3-none-any`, then the smallest), reads the `.py` files into memory, and runs the parser and extractor over each one. Wheels above a size threshold are read with HTTP range requests, so only the zip directory and the `.py` entries cross the network. For packages without a wheel (sdist-only), it reads the Python source from the sdist instead. If the release has neither, it returns an error wrapping `wheel.ErrNoArtifact`. Supply your own `wheel.Fetcher` through `ExtractFromWheel` if you need different selection logic.
+`ExtractFromPyPI` picks one wheel (preferring `py3-none-any`, then the smallest), reads the `.py` and `.pyi` files into memory, and runs the parser and extractor over each one. Wheels above a size threshold are read with HTTP range requests, so only the zip directory and the `.py` and `.pyi` entries cross the network. For packages without a wheel (sdist-only), it reads the Python source from the sdist instead. If the release has neither, it returns an error wrapping `wheel.ErrNoArtifact`. Supply your own `wheel.Fetcher` through `ExtractFromWheel` if you need different selection logic.
 
 `ExtractFromPyPI` builds a new `wheel.Source` on each call. To reuse one HTTP client, build a `wheel.Source` once and pass it to `ExtractFromWheel`.
 
