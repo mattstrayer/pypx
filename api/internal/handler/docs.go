@@ -73,13 +73,16 @@ type DocRaise struct {
 type DocsHandler struct {
 	pypi  *pypi.Client
 	cache cache.Cacher
+	// extract downloads and parses a distribution. Tests replace it.
+	extract func(ctx context.Context, name, version string) (*model.Package, error)
 }
 
 // NewDocsHandler creates a new DocsHandler.
 func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 	return &DocsHandler{
-		pypi:  pypiClient,
-		cache: c,
+		pypi:    pypiClient,
+		cache:   c,
+		extract: goopy.ExtractFromPyPI,
 	}
 }
 
@@ -146,6 +149,14 @@ func DiffJSONKey(name, from, to string) string {
 	return fmt.Sprintf("diffjson:v%d:%s:%s:%s", goopy.ExtractorVersion, strings.ToLower(name), from, to)
 }
 
+const (
+	// docsErrTTL is how long a docs extraction failure suppresses retries.
+	docsErrTTL = 5 * time.Minute
+	// docsEmptyTTL is how long an Available:false result is served before
+	// extraction runs again. Available:true results never expire.
+	docsEmptyTTL = 24 * time.Hour
+)
+
 // fetchDocsAtVersion returns the cached or freshly-extracted DocsResponse for
 // a specific (name, version) pair. Cache key is "docs:v{ExtractorVersion}:{name}:{version}",
 // indefinite TTL. Used by both fetchDocs (latest) and the diff handler
@@ -155,25 +166,26 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 	cacheKey := DocsCacheKey(name, version)
 	errKey := DocsErrKey(name, version)
 
-	if data, _, cerr := h.cache.Get(cacheKey, 0); cerr == nil && data != nil {
+	if data, fresh, cerr := h.cache.Get(cacheKey, docsEmptyTTL); cerr == nil && data != nil {
 		var resp DocsResponse
-		if uerr := json.Unmarshal(data, &resp); uerr == nil {
+		if uerr := json.Unmarshal(data, &resp); uerr == nil && (resp.Available || fresh) {
 			return resp, data, nil
 		}
 		// Corrupt cache entry; fall through to live extraction.
 	}
 
-	if data, fresh, cerr := h.cache.Get(errKey, 300); cerr == nil && data != nil && fresh {
+	if data, fresh, cerr := h.cache.Get(errKey, docsErrTTL); cerr == nil && data != nil && fresh {
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
-	result, gerr := goopy.ExtractFromPyPI(ctx, name, version)
+	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
-		h.cache.Set(errKey, []byte(gerr.Error()), 300) //nolint:errcheck
+		log.Printf("docs: extraction failed for %s==%s: %v", name, version, gerr)
+		h.cache.Set(errKey, []byte(gerr.Error()), docsErrTTL) //nolint:errcheck
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 	if ctx.Err() != nil {
-		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), 300) //nolint:errcheck
+		h.cache.Set(errKey, []byte("extraction interrupted by timeout"), docsErrTTL) //nolint:errcheck
 		return DocsResponse{}, nil, ErrDocsExtractionFailed
 	}
 
@@ -181,16 +193,18 @@ func (h *DocsHandler) fetchDocsAtVersion(ctx context.Context, name, version stri
 	docsResp := convertToDocsResponse(name, version, result, stubs)
 	docsResp.StubPackage = stubPkgName
 
+	// resolveStubs swallows its errors, so a timeout during stub resolution
+	// would otherwise cache an incomplete result.
+	if ctx.Err() != nil {
+		return DocsResponse{}, nil, ErrDocsExtractionFailed
+	}
+
 	encoded, merr := json.Marshal(docsResp)
 	if merr != nil {
 		return DocsResponse{}, nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
-	ttl := time.Duration(0)
-	if !docsResp.Available {
-		ttl = 24 * time.Hour
-	}
-	h.cache.Set(cacheKey, encoded, ttl) //nolint:errcheck
+	h.cache.Set(cacheKey, encoded, 0) //nolint:errcheck
 	return docsResp, encoded, nil
 }
 
