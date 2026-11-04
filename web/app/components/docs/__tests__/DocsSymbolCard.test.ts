@@ -168,6 +168,143 @@ describe("DocsSymbolCard", () => {
     expect(wrapper.text()).toMatch(/fitmethod(?!classmethod|staticmethod)/);
   });
 
+  it("shows one badge per fact beside the name", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({ decorators: ["abstractmethod", "final", "contextmanager"] }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.findAll("[data-testid='symbol-badge']").map((b) => b.text())).toEqual([
+      "abstract",
+      "final",
+      "contextmanager",
+    ]);
+  });
+
+  it("does not repeat a classmethod label on a method row", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Pipeline",
+          kind: "class",
+          methods: [
+            makeSymbol({
+              name: "from_steps",
+              method_kind: "classmethod",
+              decorators: ["abstractmethod"],
+            }),
+          ],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button").trigger("click");
+    expect(wrapper.findAll("[data-testid='symbol-badge']").map((b) => b.text())).toEqual([
+      "classmethod",
+      "abstract",
+    ]);
+  });
+
+  it("shows no badges on a symbol without decorators", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol(), isActive: false },
+    });
+    expect(wrapper.find("[data-testid='symbol-badge']").exists()).toBe(false);
+  });
+
+  it("folds overloads under the signature, closed by default", async () => {
+    const overloads = ["def fit(X: int)", "def fit(X: str, y: int) -> str"];
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ overloads }), isActive: false },
+    });
+    const toggle = wrapper.find("[data-testid='symbol-overloads-toggle']");
+    expect(toggle.text()).toBe("2 overloads");
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find("[data-testid='symbol-overload']").exists()).toBe(false);
+
+    await toggle.trigger("click");
+    expect(wrapper.findAll("[data-testid='symbol-overload']").map((o) => o.text())).toEqual(
+      overloads,
+    );
+    // The implementation stays the main line.
+    expect(wrapper.text()).toContain("def fit");
+  });
+
+  it("says 1 overload, and shows no fold without overloads", async () => {
+    const one = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ overloads: ["def fit(X: int)"] }), isActive: false },
+    });
+    expect(one.find("[data-testid='symbol-overloads-toggle']").text()).toBe("1 overload");
+
+    const none = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol(), isActive: false },
+    });
+    expect(none.find("[data-testid='symbol-overloads']").exists()).toBe(false);
+  });
+
+  it("gives methods the same overload fold", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Pipeline",
+          kind: "class",
+          methods: [makeSymbol({ name: "run", overloads: ["def run(a: int)"] })],
+        }),
+        isActive: false,
+      },
+    });
+    await wrapper.find("button").trigger("click");
+    await wrapper.find("[data-testid='symbol-overloads-toggle']").trigger("click");
+    expect(wrapper.find("[data-testid='symbol-overload']").text()).toBe("def run(a: int)");
+  });
+
+  it("folds nested classes after methods, closed by default", async () => {
+    const inner = makeSymbol({
+      name: "InvocationParams",
+      kind: "class",
+      signature: "class InvocationParams",
+      decorators: ["dataclass", "final"],
+      attributes: [{ name: "args", description: "", is_property: false, writable: false }],
+      methods: [makeSymbol({ name: "explain" })],
+      classes: [makeSymbol({ name: "Deep", kind: "class", signature: "class Deep" })],
+    });
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          name: "Config",
+          kind: "class",
+          methods: [makeSymbol({ name: "getini" })],
+          classes: [inner],
+        }),
+        isActive: false,
+      },
+    });
+    const folds = () => wrapper.findAll("button").map((b) => b.text().replace(/\s+/g, " "));
+    expect(folds()).toEqual(["Methods 1", "Nested classes 1"]);
+    expect(wrapper.text()).not.toContain("InvocationParams");
+
+    await wrapper.findAll("button")[1]!.trigger("click");
+    const entry = wrapper.find("[data-testid='member-entry']");
+    expect(entry.text()).toContain("InvocationParamsclassdataclassfinal");
+    expect(entry.text()).toContain("class InvocationParams");
+    expect(entry.text()).toContain("Attributes");
+    // Its own members stay folded.
+    expect(folds()).toEqual(["Methods 1", "Nested classes 1", "Methods 1", "Nested classes 1"]);
+    expect(entry.text()).not.toContain("explain");
+    expect(entry.text()).not.toContain("class Deep");
+
+    await wrapper.findAll("button")[3]!.trigger("click");
+    expect(entry.text()).toContain("class Deep");
+  });
+
+  it("shows no nested classes fold without nested classes", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ kind: "class", methods: [] }), isActive: false },
+    });
+    expect(wrapper.text()).not.toMatch(/nested classes/i);
+  });
+
   it("shows methods for exceptions", async () => {
     const wrapper = await mountSuspended(DocsSymbolCard, {
       props: {

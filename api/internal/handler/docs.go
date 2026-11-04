@@ -93,6 +93,8 @@ type DocSymbol struct {
 	Returns    *DocReturn  `json:"returns,omitempty"`
 	Raises     []DocRaise  `json:"raises,omitempty"`
 	Methods    []DocSymbol `json:"methods,omitempty"`
+	// Classes lists the public classes nested in a class, in the same shape.
+	Classes []DocSymbol `json:"classes,omitempty"`
 	// Attributes is set on classes and exceptions, as an empty list if they have
 	// none. omitzero keeps an empty list and drops the nil list of other kinds.
 	Attributes []DocAttribute `json:"attributes,omitzero"`
@@ -102,6 +104,13 @@ type DocSymbol struct {
 	// empty on any other symbol. The parameter list leaves out cls, so it cannot
 	// show this.
 	MethodKind string `json:"method_kind,omitempty"`
+	// Decorators lists the decorators that mean something to a caller, as bare names
+	// with no arguments: see servedDecorators. MethodKind alone carries classmethod
+	// and staticmethod, so neither appears here.
+	Decorators []string `json:"decorators,omitempty"`
+	// Overloads holds the signature of each @overload. Signature stays the
+	// implementation. On a class they are the overloads of its constructor.
+	Overloads []string `json:"overloads,omitempty"`
 }
 
 // DocAttribute is a class attribute or property.
@@ -789,6 +798,8 @@ func convertFunction(fn *model.Function, stubFn *model.Function) DocSymbol {
 		Parameters: make([]DocParam, 0, len(fn.Parameters)),
 		Origin:     fn.Origin,
 		MethodKind: methodKind(fn),
+		Decorators: servedDecorators(fn.Decorators),
+		Overloads:  overloadSignatures(fn, stubFn),
 	}
 	// Note: Signature is set after the parameter loop so stub-filled types appear.
 
@@ -869,7 +880,7 @@ func methodKind(fn *model.Function) string {
 		return ""
 	}
 	for _, dec := range fn.Decorators {
-		switch dec[strings.LastIndex(dec, ".")+1:] {
+		switch decoratorName(dec) {
 		case "classmethod", "abstractclassmethod":
 			return "classmethod"
 		case "staticmethod", "abstractstaticmethod":
@@ -879,19 +890,92 @@ func methodKind(fn *model.Function) string {
 	return ""
 }
 
+// decoratorName returns a decorator's name without its arguments or module path:
+// functools.lru_cache(maxsize=128) gives lru_cache.
+func decoratorName(dec string) string {
+	head, _, _ := strings.Cut(dec, "(")
+	return head[strings.LastIndex(head, ".")+1:]
+}
+
+// servedDecoratorNames maps each decorator with meaning for a caller to its served
+// name. A decorator outside this list is mostly a project's own helper.
+var servedDecoratorNames = map[string]string{
+	"abstractmethod": "abstractmethod", "abstractclassmethod": "abstractmethod",
+	"abstractstaticmethod": "abstractmethod", "final": "final", "override": "override",
+	"contextmanager": "contextmanager", "asynccontextmanager": "asynccontextmanager",
+	"dataclass": "dataclass", "deprecated": "deprecated", "lru_cache": "lru_cache",
+	"cache": "cache",
+}
+
+// servedDecorators returns the served names of the decorators in decs, in source
+// order and without repeats. "cache" is a common name, so a dotted form counts only
+// from functools: sqlalchemy's reflection.cache is a project helper.
+func servedDecorators(decs []string) []string {
+	var out []string
+	for _, dec := range decs {
+		name, ok := servedDecoratorNames[decoratorName(dec)]
+		if !ok || slices.Contains(out, name) {
+			continue
+		}
+		if head, _, _ := strings.Cut(dec, "("); name == "cache" && head != "cache" && head != "functools.cache" {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+// isOverload reports whether fn is itself an @overload. That happens when no
+// implementation exists, as in a stub.
+func isOverload(fn *model.Function) bool {
+	return slices.ContainsFunc(fn.Decorators, func(dec string) bool { return decoratorName(dec) == "overload" })
+}
+
+// overloadSignatures returns the signatures of fn's overloads, or of its stub's if
+// fn has none. An overload that holds the others, because no implementation exists,
+// counts as one of them. An overload alone on fn is already its main signature.
+func overloadSignatures(fn, stubFn *model.Function) []string {
+	owner := fn
+	if len(fn.Overloads) == 0 && stubFn != nil && (len(stubFn.Overloads) > 0 || isOverload(stubFn)) {
+		owner = stubFn
+	}
+	overloads := owner.Overloads
+	if isOverload(owner) && (owner != fn || len(overloads) > 0) {
+		overloads = slices.Concat([]*model.Function{owner}, overloads)
+	}
+	if len(overloads) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(overloads))
+	for _, o := range overloads {
+		out = append(out, overloadSignature(fn.Name, o))
+	}
+	return out
+}
+
 func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
+	return convertClassAt(cls, stubs, modName+"."+cls.Name, originKey(cls.Origin, cls.OriginName, cls.Name))
+}
+
+// convertClassAt converts a class published at path. Its stubs are under path or
+// originPath, which is empty for a class that is not a re-export.
+func convertClassAt(cls *model.Class, stubs stubIndex, path, originPath string) DocSymbol {
 	sym := DocSymbol{
-		Name:      cls.Name,
-		Kind:      "class",
-		Signature: buildClassSignature(cls),
-		Docstring: cleanDocstringText(cls.Docstring),
-		Origin:    cls.Origin,
+		Name:       cls.Name,
+		Kind:       "class",
+		Signature:  buildClassSignature(cls),
+		Docstring:  cleanDocstringText(cls.Docstring),
+		Origin:     cls.Origin,
+		Decorators: servedDecorators(cls.Decorators),
+	}
+	// A stub can make a class a dataclass with no decorator on the source class.
+	if cls.Dataclass != nil && !slices.Contains(sym.Decorators, "dataclass") {
+		sym.Decorators = append(sym.Decorators, "dataclass")
 	}
 
 	// A member's stub is under the class's published path or under its origin.
-	originPath := originKey(cls.Origin, cls.OriginName, cls.Name)
 	stubForMember := func(member string) *model.Function {
-		if s := stubs[modName+"."+cls.Name+"."+member]; s != nil {
+		if s := stubs[path+"."+member]; s != nil {
 			return s
 		}
 		if originPath != "" {
@@ -905,6 +989,7 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 	if cls.Constructor != nil {
 		ctor := convertFunction(cls.Constructor, stubForMember("__init__"))
 		sym.Parameters = ctor.Parameters
+		sym.Overloads = ctor.Overloads
 	}
 
 	if len(cls.Methods) > 0 {
@@ -912,6 +997,18 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		for _, m := range cls.Methods {
 			sym.Methods = append(sym.Methods, convertFunction(m, stubForMember(m.Name)))
 		}
+	}
+
+	for _, n := range cls.Classes {
+		// The extractor keeps a mangled __Name, but no caller can name it.
+		if strings.HasPrefix(n.Name, "_") {
+			continue
+		}
+		nestedOrigin := ""
+		if originPath != "" {
+			nestedOrigin = originPath + "." + n.Name
+		}
+		sym.Classes = append(sym.Classes, convertClassAt(n, stubs, path+"."+n.Name, nestedOrigin))
 	}
 
 	sym.Attributes = make([]DocAttribute, 0, len(cls.Attributes))
@@ -1073,33 +1170,77 @@ func isRSTAdornment(line string) bool {
 // buildMergedSignature builds a function signature using the already-merged DocParam
 // slice (which may include stub-backfilled types) rather than the raw model parameters.
 func buildMergedSignature(fn *model.Function, params []DocParam, returns *DocReturn) string {
+	parts := make([]string, len(params))
+	for i, dp := range params {
+		parts[i] = paramText(dp.Name, dp.Type, dp.Default)
+	}
+	returnType := ""
+	if returns != nil {
+		returnType = returns.Type
+	}
+	return joinSignature(fn.IsAsync, fn.Name, parts, returnType)
+}
+
+// overloadSignature renders one @overload under the name it is published as. The
+// main signature leaves out "*", "**" and "/", because the page rebuilds them from
+// Parameters. An overload is served only as this string, so it keeps them.
+func overloadSignature(name string, o *model.Function) string {
+	parts := make([]string, 0, len(o.Parameters)+2)
+	star := slices.ContainsFunc(o.Parameters, func(p *model.Parameter) bool { return p.Kind == model.ParamVarPositional })
+	for i, p := range o.Parameters {
+		if i > 0 && o.Parameters[i-1].Kind == model.ParamPositionalOnly && p.Kind != model.ParamPositionalOnly {
+			parts = append(parts, "/")
+		}
+		prefix := ""
+		switch p.Kind {
+		case model.ParamKeywordOnly:
+			if !star {
+				parts = append(parts, "*")
+				star = true
+			}
+		case model.ParamVarPositional:
+			prefix = "*"
+		case model.ParamVarKeyword:
+			prefix = "**"
+		}
+		parts = append(parts, paramText(prefix+p.Name, typeRaw(p.Type), p.Default))
+	}
+	if n := len(o.Parameters); n > 0 && o.Parameters[n-1].Kind == model.ParamPositionalOnly {
+		parts = append(parts, "/")
+	}
+	return joinSignature(o.IsAsync, name, parts, typeRaw(o.Returns))
+}
+
+func typeRaw(t *model.TypeExpr) string {
+	if t == nil {
+		return ""
+	}
+	return t.Raw
+}
+
+func paramText(name, typ, def string) string {
+	if typ != "" {
+		name += ": " + typ
+	}
+	if def != "" {
+		name += " = " + def
+	}
+	return name
+}
+
+func joinSignature(isAsync bool, name string, params []string, returnType string) string {
 	var b strings.Builder
-	if fn.IsAsync {
+	if isAsync {
 		b.WriteString("async ")
 	}
 	b.WriteString("def ")
-	b.WriteString(fn.Name)
+	b.WriteString(name)
 	b.WriteByte('(')
-
-	for i, dp := range params {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(dp.Name)
-		if dp.Type != "" {
-			b.WriteString(": ")
-			b.WriteString(dp.Type)
-		}
-		if dp.Default != "" {
-			b.WriteString(" = ")
-			b.WriteString(dp.Default)
-		}
-	}
-
+	b.WriteString(strings.Join(params, ", "))
 	b.WriteByte(')')
-	if returns != nil && returns.Type != "" {
+	if returnType != "" {
 		b.WriteString(" -> ")
-		b.WriteString(returns.Type)
+		b.WriteString(returnType)
 	}
 	return b.String()
 }
@@ -1423,6 +1564,10 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 		Signature: s.Signature,
 		Docstring: s.Docstring,
 		Origin:    s.Origin,
+
+		MethodKind: s.MethodKind,
+		Decorators: s.Decorators,
+		Overloads:  s.Overloads,
 	}
 	for _, p := range s.Parameters {
 		out.Parameters = append(out.Parameters, textfmt.DocParamInput{
@@ -1437,6 +1582,9 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 	}
 	for _, m := range s.Methods {
 		out.Methods = append(out.Methods, docSymbolFrom(m))
+	}
+	for _, c := range s.Classes {
+		out.Classes = append(out.Classes, docSymbolFrom(c))
 	}
 	for _, a := range s.Attributes {
 		out.Attributes = append(out.Attributes, attributeInputFrom(a))

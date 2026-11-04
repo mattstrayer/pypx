@@ -6,15 +6,9 @@ const props = defineProps<{
   isActive: boolean;
 }>();
 
-const expanded = ref(false);
-
 const hasMembers = computed(
   () => props.symbol.kind === "class" || props.symbol.kind === "exception",
 );
-
-function toggleExpand() {
-  expanded.value = !expanded.value;
-}
 
 const MAX_SHOWN_ALIASES = 5;
 const allAliasesShown = ref(false);
@@ -47,7 +41,7 @@ const shownAliases = computed(() =>
     >
       Defined in <span class="font-mono">{{ symbol.origin }}</span>
     </p>
-    <div class="mb-3 flex items-center gap-2.5">
+    <div class="mb-3 flex flex-wrap items-center gap-2.5">
       <span class="font-mono text-[15px] font-bold text-primary">{{ symbol.name }}</span>
       <span
         class="rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]"
@@ -58,6 +52,7 @@ const shownAliases = computed(() =>
         }"
         >{{ symbol.kind }}</span
       >
+      <DocsBadges :symbol="symbol" />
     </div>
 
     <!-- Other names for this symbol -->
@@ -84,6 +79,7 @@ const shownAliases = computed(() =>
 
     <!-- Signature -->
     <DocsPySignature :symbol="symbol" class="mb-3" />
+    <DocsOverloads v-if="symbol.overloads?.length" :overloads="symbol.overloads" class="mb-3" />
 
     <!-- Docstring -->
     <DocsPyDocstring v-if="symbol.docstring" :text="symbol.docstring" class="mb-4" />
@@ -153,109 +149,17 @@ const shownAliases = computed(() =>
     </div>
 
     <!-- Methods (classes and exceptions) -->
-    <div v-if="hasMembers && symbol.methods && symbol.methods.length" class="mb-1">
-      <button
-        class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted transition-colors hover:bg-raised hover:text-primary"
-        @click="toggleExpand"
-      >
-        <svg
-          class="h-3 w-3 text-[var(--color-brand)] transition-transform duration-150"
-          :class="expanded ? 'rotate-0' : '-rotate-90'"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-        Methods
-        <span class="rounded-full bg-raised px-2 py-0.5 text-[9px] text-muted ring-1 ring-subtle">
-          {{ symbol.methods.length }}
-        </span>
-      </button>
+    <DocsMemberFold
+      v-if="hasMembers && symbol.methods && symbol.methods.length"
+      title="Methods"
+      :members="symbol.methods"
+    />
 
-      <div v-if="expanded" class="mt-3 space-y-5 border-l-2 border-subtle pl-4">
-        <div v-for="method in symbol.methods" :key="method.name">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="font-mono text-[12px] font-semibold text-primary">{{ method.name }}</span>
-            <span
-              class="rounded border border-blue-500/20 bg-blue-950/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-blue-300"
-              >method</span
-            >
-            <span
-              v-if="method.method_kind"
-              class="rounded border border-subtle px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted"
-              >{{ method.method_kind }}</span
-            >
-          </div>
-
-          <DocsPySignature :symbol="method" class="mb-2" />
-          <DocsPyDocstring v-if="method.docstring" :text="method.docstring" class="mb-2" />
-
-          <div
-            v-if="
-              method.parameters &&
-              method.parameters.filter((p) => p.name !== 'self' && p.name !== 'cls').length
-            "
-            class="mb-2"
-          >
-            <p class="section-label">Parameters</p>
-            <div class="space-y-1">
-              <div
-                v-for="param in method.parameters.filter(
-                  (p) => p.name !== 'self' && p.name !== 'cls',
-                )"
-                :key="param.name"
-                class="flex items-baseline gap-2 rounded-md border-l-2 border-subtle bg-raised px-3 py-1.5"
-              >
-                <span class="font-mono text-[12px] text-sky-400">{{ param.name }}</span>
-                <span v-if="param.type" class="font-mono text-[11px] text-muted">{{
-                  param.type
-                }}</span>
-                <DocsPyInlineMarkup
-                  v-if="param.description"
-                  :text="param.description"
-                  class="ml-1 text-[11.5px] text-muted"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div v-if="method.returns" class="mb-2">
-            <p class="section-label">Returns</p>
-            <div
-              class="flex items-baseline gap-2 rounded-md border-l-2 border-[rgba(74,222,128,0.4)] bg-raised px-3 py-1.5"
-            >
-              <span v-if="method.returns.type" class="font-mono text-[12px] text-sky-400">{{
-                method.returns.type
-              }}</span>
-              <DocsPyInlineMarkup
-                v-if="method.returns.description"
-                :text="method.returns.description"
-                class="text-[11.5px] text-muted"
-              />
-            </div>
-          </div>
-
-          <div v-if="method.raises && method.raises.length" class="mb-2">
-            <p class="section-label">Raises</p>
-            <div class="space-y-1">
-              <div
-                v-for="r in method.raises"
-                :key="r.type"
-                class="flex items-baseline gap-2 rounded-md border-l-2 border-red-500/30 bg-raised px-3 py-1.5"
-              >
-                <span class="font-mono text-[12px] text-red-400">{{ r.type }}</span>
-                <DocsPyInlineMarkup
-                  v-if="r.description"
-                  :text="r.description"
-                  class="text-[11.5px] text-muted"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Nested classes -->
+    <DocsMemberFold
+      v-if="hasMembers && symbol.classes && symbol.classes.length"
+      title="Nested classes"
+      :members="symbol.classes"
+    />
   </div>
 </template>

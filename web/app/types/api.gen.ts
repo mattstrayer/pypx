@@ -229,9 +229,12 @@ export interface DocSymbol {
   returns?: DocReturn | null;
   raises?: DocRaise[];
   methods?: DocSymbol[];
+  classes?: DocSymbol[];
   attributes?: DocAttribute[];
   origin?: string;
   method_kind?: string;
+  decorators?: string[];
+  overloads?: string[];
 }
 
 export interface DocModule {

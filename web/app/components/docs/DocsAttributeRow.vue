@@ -37,7 +37,7 @@ defineProps<{
     <DocsPyDocstring
       v-if="attribute.description"
       :text="attribute.description"
-      class="basis-full text-[11.5px]! [&_p:last-child]:mb-0!"
+      class="min-w-0 basis-full text-[11.5px]! [overflow-wrap:anywhere] [&_p:last-child]:mb-0!"
     />
   </div>
 </template>
