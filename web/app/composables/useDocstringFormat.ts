@@ -10,14 +10,30 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function applyInlineFormatting(text: string): string {
-  // Strip rst role prefixes like :func:`name` → <code>name</code>
-  text = text.replace(/:[a-z]+:`([^`]+)`/g, "<code>$1</code>");
-  // Double backticks → <code>
-  text = text.replace(/``([^`]+?)``/g, "<code>$1</code>");
-  // Single backticks → <code>
-  text = text.replace(/`([^`]+?)`/g, "<code>$1</code>");
-  return text;
+// What Sphinx displays for an escaped role or default-role target: the title of
+// "Title <a.b>", the last part of "~a.b", and "!a.b" without its "!".
+function roleDisplayText(target: string): string {
+  const titled = target.match(/^(.+?)\s*&lt;.*&gt;$/);
+  if (titled) return titled[1] ?? target;
+  if (target.startsWith("~")) return target.split(".").at(-1)?.replace(/^~/, "") ?? target;
+  return target.replace(/^!/, "");
+}
+
+// One pass, so markup inside a code span stays as written. Bold needs text that
+// touches both pairs of stars, so "2 ** 3 ** 4" and "**kwargs" are left alone.
+const INLINE_MARKUP =
+  /(?::[a-zA-Z]+)+:`([^`]+)`|``([^`]+?)``|`([^`]+?)`|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*/g;
+
+/** Escapes one piece of docstring text and renders its reST inline markup as HTML. */
+export function formatInline(text: string): string {
+  return escapeHtml(text).replace(
+    INLINE_MARKUP,
+    (_, role?: string, literal?: string, single?: string, bold?: string) => {
+      if (literal !== undefined) return `<code>${literal}</code>`;
+      if (bold !== undefined) return `<strong>${bold}</strong>`;
+      return `<code>${roleDisplayText(role ?? single ?? "")}</code>`;
+    },
+  );
 }
 
 // Same rule as Python's inspect.cleandoc: a docstring's first line starts right after
@@ -151,7 +167,7 @@ function renderBlock(block: Block): DocstringPart | null {
       const rest = [directiveMatch[2] ?? "", ...block.lines.slice(1).map((l) => l.trim())]
         .filter(Boolean)
         .join(" ");
-      const content = escapeHtml(rest);
+      const content = formatInline(rest);
       const label = content ? `${directiveType}: ${content}` : directiveType;
       return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${label}</p>`);
     }
@@ -160,11 +176,8 @@ function renderBlock(block: Block): DocstringPart | null {
     return html(`<p class="text-[11px] italic text-zinc-400 dark:text-zinc-600">${content}</p>`);
   }
 
-  // Paragraph: join lines, escape, then apply inline formatting
-  const text = block.lines.join(" ").trim();
-  const escaped = escapeHtml(text);
-  const formatted = applyInlineFormatting(escaped);
-  return html(`<p>${formatted}</p>`);
+  // Paragraph: join lines, then apply inline formatting
+  return html(`<p>${formatInline(block.lines.join(" ").trim())}</p>`);
 }
 
 function parseDocstring(raw: string): DocstringPart[] {

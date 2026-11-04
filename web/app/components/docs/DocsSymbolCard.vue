@@ -58,9 +58,11 @@ function toggleExpand() {
         >
           <span class="font-mono text-[12px] text-sky-400">{{ param.name }}</span>
           <span v-if="param.type" class="font-mono text-[11px] text-muted">{{ param.type }}</span>
-          <span v-if="param.description" class="ml-1 text-[11.5px] text-muted">{{
-            param.description
-          }}</span>
+          <DocsPyInlineMarkup
+            v-if="param.description"
+            :text="param.description"
+            class="ml-1 text-[11.5px] text-muted"
+          />
         </div>
       </div>
     </div>
@@ -74,9 +76,11 @@ function toggleExpand() {
         <span v-if="symbol.returns.type" class="font-mono text-[12px] text-sky-400">{{
           symbol.returns.type
         }}</span>
-        <span v-if="symbol.returns.description" class="text-[11.5px] text-muted">{{
-          symbol.returns.description
-        }}</span>
+        <DocsPyInlineMarkup
+          v-if="symbol.returns.description"
+          :text="symbol.returns.description"
+          class="text-[11.5px] text-muted"
+        />
       </div>
     </div>
 
@@ -90,7 +94,11 @@ function toggleExpand() {
           class="flex items-baseline gap-2 rounded-md border-l-2 border-red-500/30 bg-raised px-3 py-1.5"
         >
           <span class="font-mono text-[12px] text-red-400">{{ r.type }}</span>
-          <span v-if="r.description" class="text-[11.5px] text-muted">{{ r.description }}</span>
+          <DocsPyInlineMarkup
+            v-if="r.description"
+            :text="r.description"
+            class="text-[11.5px] text-muted"
+          />
         </div>
       </div>
     </div>
@@ -190,9 +198,11 @@ function toggleExpand() {
                 <span v-if="param.type" class="font-mono text-[11px] text-muted">{{
                   param.type
                 }}</span>
-                <span v-if="param.description" class="ml-1 text-[11.5px] text-muted">{{
-                  param.description
-                }}</span>
+                <DocsPyInlineMarkup
+                  v-if="param.description"
+                  :text="param.description"
+                  class="ml-1 text-[11.5px] text-muted"
+                />
               </div>
             </div>
           </div>
@@ -205,9 +215,11 @@ function toggleExpand() {
               <span v-if="method.returns.type" class="font-mono text-[12px] text-sky-400">{{
                 method.returns.type
               }}</span>
-              <span v-if="method.returns.description" class="text-[11.5px] text-muted">{{
-                method.returns.description
-              }}</span>
+              <DocsPyInlineMarkup
+                v-if="method.returns.description"
+                :text="method.returns.description"
+                class="text-[11.5px] text-muted"
+              />
             </div>
           </div>
 
@@ -220,9 +232,11 @@ function toggleExpand() {
                 class="flex items-baseline gap-2 rounded-md border-l-2 border-red-500/30 bg-raised px-3 py-1.5"
               >
                 <span class="font-mono text-[12px] text-red-400">{{ r.type }}</span>
-                <span v-if="r.description" class="text-[11.5px] text-muted">{{
-                  r.description
-                }}</span>
+                <DocsPyInlineMarkup
+                  v-if="r.description"
+                  :text="r.description"
+                  class="text-[11.5px] text-muted"
+                />
               </div>
             </div>
           </div>

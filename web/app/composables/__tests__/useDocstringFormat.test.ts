@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDocstring, renderDocstring } from "../useDocstringFormat";
+import { formatDocstring, formatInline, renderDocstring } from "../useDocstringFormat";
 
 describe("formatDocstring", () => {
   describe("docstrings whose first line has no indent", () => {
@@ -170,6 +170,52 @@ describe("formatDocstring", () => {
 
     it("needs at least three dashes", () => {
       expect(formatDocstring("Title\n--\ntext")).not.toContain("<h4");
+    });
+  });
+
+  describe("inline markup", () => {
+    it.each([
+      ["**bold**", "<strong>bold</strong>"],
+      ["a **two words** b", "a <strong>two words</strong> b"],
+      [":class:`~logging.Logger`", "<code>Logger</code>"],
+      ["`~logging.Logger`", "<code>Logger</code>"],
+      [":py:class:`~a.b.C`", "<code>C</code>"],
+      [":func:`a.b`", "<code>a.b</code>"],
+      [":func:`!a.b`", "<code>a.b</code>"],
+      [":class:`Title <a.b.C>`", "<code>Title</code>"],
+      [":attr:`x`", "<code>x</code>"],
+      ["``~a.b``", "<code>~a.b</code>"],
+      ["``a**b**c``", "<code>a**b**c</code>"],
+      ["2 ** 3 ** 4", "2 ** 3 ** 4"],
+      ["f(*args, **kwargs)", "f(*args, **kwargs)"],
+    ])("formats %s", (input, want) => {
+      expect(formatInline(input)).toBe(want);
+    });
+
+    it("escapes before formatting", () => {
+      expect(formatInline("<script>**x**</script>")).toBe(
+        "&lt;script&gt;<strong>x</strong>&lt;/script&gt;",
+      );
+      expect(formatInline("`<img src=x>`")).toBe("<code>&lt;img src=x&gt;</code>");
+    });
+
+    it("applies in paragraphs", () => {
+      expect(formatDocstring("**bold** and :class:`~a.B`.")).toBe(
+        "<p><strong>bold</strong> and <code>B</code>.</p>",
+      );
+    });
+
+    it("applies in directives", () => {
+      const result = formatDocstring(
+        ".. versionchanged:: 2.0\n   The :class:`~a.B` default is ``x``.",
+      );
+      expect(result).toContain("<code>B</code>");
+      expect(result).toContain("<code>x</code>");
+      expect(result).not.toContain(":class:");
+    });
+
+    it("escapes directives", () => {
+      expect(formatDocstring(".. note:: <b>x</b>")).toContain("&lt;b&gt;x&lt;/b&gt;");
     });
   });
 
