@@ -21,6 +21,7 @@ import (
 	"github.com/pypx/api/internal/textfmt"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -86,10 +87,18 @@ type DocRaise struct {
 	Description string `json:"description"`
 }
 
-// maxConcurrentExtractions caps how many wheel downloads and parses run at
-// once. One extraction can hold a 50 MB wheel plus up to 200 MB of source, and
-// the API container has 512 MB.
-const maxConcurrentExtractions = 2
+const (
+	// extractionBudget caps the weight of the extractions running at once. The
+	// weight is goopy.WeighFromPyPI: source plus compressed bytes. Live memory
+	// reaches several times that once the source is parsed. Two large packages
+	// such as transformers and torch never fit together, and small ones still do.
+	extractionBudget = 64 << 20
+	// minExtractionCost is the least an extraction is charged. It bounds how many
+	// run at once when all are small, and it pays for weighing one.
+	minExtractionCost = 4 << 20
+	// unweighedExtractionCost is charged when the weight is unknown.
+	unweighedExtractionCost = extractionBudget / 2
+)
 
 const (
 	// docsExtractTimeout bounds one shared extraction, including the wait for a
@@ -105,10 +114,12 @@ type DocsHandler struct {
 	cache cache.Cacher
 	// extract downloads and parses a distribution. Tests replace it.
 	extract func(ctx context.Context, name, version string) (*model.Package, error)
+	// weigh estimates the memory one extraction holds. Nil means unknown.
+	weigh func(ctx context.Context, name, version string) (int64, error)
 	// sf collapses concurrent extractions of one (name, version) into one.
 	sf singleflight.Group
-	// sem limits concurrent extractions to maxConcurrentExtractions.
-	sem chan struct{}
+	// budget limits the weight of concurrent extractions to extractionBudget.
+	budget *semaphore.Weighted
 	// workTimeout bounds one shared extraction. Tests shorten it.
 	workTimeout time.Duration
 }
@@ -119,7 +130,8 @@ func NewDocsHandler(pypiClient *pypi.Client, c cache.Cacher) *DocsHandler {
 		pypi:        pypiClient,
 		cache:       c,
 		extract:     goopy.ExtractFromPyPI,
-		sem:         make(chan struct{}, maxConcurrentExtractions),
+		weigh:       goopy.WeighFromPyPI,
+		budget:      semaphore.NewWeighted(extractionBudget),
 		workTimeout: docsExtractTimeout,
 	}
 }
@@ -363,7 +375,40 @@ type docsResult struct {
 	encoded []byte
 }
 
-// extractAndCache runs one extraction under the concurrency cap and stores the
+// admit waits until the extraction's weight fits in the budget, and returns the
+// amount to release. A weight above the budget is charged as the whole budget, so
+// that extraction runs alone. The wait ends when ctx ends.
+func (h *DocsHandler) admit(ctx context.Context, name, version string) (int64, error) {
+	cost, err := h.extractionCost(ctx, name, version)
+	if err != nil {
+		return 0, err
+	}
+	if err := h.budget.Acquire(ctx, cost); err != nil {
+		return 0, err
+	}
+	return cost, nil
+}
+
+// extractionCost weighs an extraction while holding minExtractionCost, so a burst
+// of cold packages cannot read many central directories at once. A failure to
+// weigh is not an error here: the extraction itself reports the real failure.
+func (h *DocsHandler) extractionCost(ctx context.Context, name, version string) (int64, error) {
+	if h.weigh == nil {
+		return unweighedExtractionCost, nil
+	}
+	if err := h.budget.Acquire(ctx, minExtractionCost); err != nil {
+		return 0, err
+	}
+	defer h.budget.Release(minExtractionCost)
+
+	weight, err := h.weigh(ctx, name, version)
+	if err != nil {
+		return unweighedExtractionCost, nil
+	}
+	return min(max(weight, minExtractionCost), extractionBudget), nil
+}
+
+// extractAndCache runs one extraction within the memory budget and stores the
 // result. ctx is detached from any request, so only a real failure or the work
 // timeout writes the error key.
 func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string) (out docsResult, err error) {
@@ -379,12 +424,11 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 		}
 	}()
 
-	select {
-	case h.sem <- struct{}{}:
-		defer func() { <-h.sem }()
-	case <-ctx.Done():
+	cost, aerr := h.admit(ctx, name, version)
+	if aerr != nil {
 		return docsResult{}, ErrDocsExtractionFailed
 	}
+	defer h.budget.Release(cost)
 
 	result, gerr := h.extract(ctx, name, version)
 	if gerr != nil {
