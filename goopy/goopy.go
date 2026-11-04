@@ -51,6 +51,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		src     []byte
 	}
 	var items []work
+	testDirs := testFileDirs(files)
 	for _, pkgName := range topLevelPkgs {
 		dirPrefix := pkgName + "/"
 		hasDir := false
@@ -63,7 +64,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		for path, src := range files {
 			switch {
 			case strings.HasPrefix(path, dirPrefix):
-				if !isPrivateModule(path) && !isTestModule(path) {
+				if !isPrivateModule(path) && !isTestModule(path, testDirs) {
 					items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
 				}
 			case !hasDir && path == pkgName+".py":
@@ -183,24 +184,47 @@ func ExtractFromWheel(ctx context.Context, fetcher wheel.Fetcher, name, version 
 	return pkg, nil
 }
 
-// isTestModule returns true for test code: any path segment after the first
-// named tests or test, or a file named test_*.py, *_test.py, or conftest.py.
-// The first segment (the top-level package) is exempt. A "testing" package
-// stays public because it is often documented API (e.g. numpy.testing).
-func isTestModule(path string) bool {
+// testFileDirs returns the directories that directly contain a test_*.py or
+// *_test.py file.
+func testFileDirs(files map[string][]byte) map[string]bool {
+	dirs := map[string]bool{}
+	for path := range files {
+		i := strings.LastIndex(path, "/")
+		if i < 0 {
+			continue
+		}
+		base := path[i+1:]
+		if strings.HasSuffix(base, ".py") && (strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py")) {
+			dirs[path[:i]] = true
+		}
+	}
+	return dirs
+}
+
+// isTestModule returns true for test code: a "tests" directory, a "test"
+// directory that holds test files (testDirs), or a file named test_*.py,
+// *_test.py, conftest.py, or tests.py. The first segment (the top-level
+// package) is exempt. "test.py" and "testing" stay public because they are
+// documented API (werkzeug.test, numpy.testing).
+func isTestModule(path string, testDirs map[string]bool) bool {
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
 		if i == 0 {
 			continue
 		}
 		if i < len(parts)-1 {
-			if part == "tests" || part == "test" {
+			if part == "tests" {
+				return true
+			}
+			// "test" is public API in some packages (django.test), so it
+			// counts as test code only when it directly holds test files.
+			if part == "test" && testDirs[strings.Join(parts[:i+1], "/")] {
 				return true
 			}
 			continue
 		}
 		switch {
-		case part == "tests.py", part == "test.py", part == "conftest.py",
+		case part == "tests.py", part == "conftest.py",
 			strings.HasPrefix(part, "test_") && strings.HasSuffix(part, ".py"),
 			strings.HasSuffix(part, "_test.py"):
 			return true
