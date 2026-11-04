@@ -79,6 +79,60 @@ func TestExtractPackageWorkerPanicKeepsOtherModules(t *testing.T) {
 	}
 }
 
+func TestExtractPackageStatsCountParseErrors(t *testing.T) {
+	files := map[string][]byte{
+		"pkg/__init__.py": []byte("def ok(): pass\n"),
+		"pkg/bad.py":      []byte("def good(): pass\ndef broken(:\n    pass\n"),
+		"pkg/fine.py":     []byte("class C: pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	s := pkg.Stats
+	if s.Files != 3 || s.Modules != 3 {
+		t.Errorf("Files, Modules = %d, %d; want 3, 3", s.Files, s.Modules)
+	}
+	if s.FilesWithErrors != 1 {
+		t.Errorf("FilesWithErrors = %d, want 1", s.FilesWithErrors)
+	}
+	if s.Errors < 1 {
+		t.Errorf("Errors = %d, want at least 1", s.Errors)
+	}
+	if s.PanickedModules != 0 {
+		t.Errorf("PanickedModules = %d, want 0", s.PanickedModules)
+	}
+	// The broken file still publishes what parsed before the error.
+	var found bool
+	for _, m := range pkg.Modules {
+		if m.Name == "pkg.bad" && len(m.Functions) > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("pkg.bad lost its partial output")
+	}
+	if b, _ := json.Marshal(pkg); strings.Contains(string(b), "Stats") || strings.Contains(string(b), "Errors") {
+		t.Errorf("Stats reached JSON: %s", b)
+	}
+}
+
+func TestExtractPackageStatsCountPanics(t *testing.T) {
+	orig := extractModuleFn
+	defer func() { extractModuleFn = orig }()
+	extractModuleFn = func(name string, src []byte) (*model.Module, []error) {
+		if name == "pkg.m3" {
+			panic("boom")
+		}
+		return orig(name, src)
+	}
+	files := map[string][]byte{}
+	for i := 0; i < 12; i++ {
+		files[fmt.Sprintf("pkg/m%d.py", i)] = []byte(fmt.Sprintf("def f%d(): pass\n", i))
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	if pkg.Stats.PanickedModules != 1 || pkg.Stats.Files != 12 {
+		t.Errorf("Stats = %+v, want 1 panic over 12 files", pkg.Stats)
+	}
+}
+
 // symbolNames lists every name a module publishes, for test comparisons.
 func symbolNames(m *model.Module) []string {
 	var out []string

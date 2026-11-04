@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pypx/goopy/extractor"
 	"github.com/pypx/goopy/model"
@@ -51,16 +52,19 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 // extractPackage is ExtractPackage with a step that runs on each module once it is
 // parsed, before modules can reference each other.
 func extractPackage(ctx context.Context, name string, files map[string][]byte, topLevelPkgs []string, afterParse func(*model.Module)) *model.Package {
+	start := time.Now()
 	items := collectWork(files, topLevelPkgs)
 
 	results := make([]*model.Module, len(items))
+	// Each worker writes only its own index, so no lock is needed.
+	counts := make([]fileCounts, len(items))
 	if len(items) <= parallelThreshold {
 		// For small packages, skip goroutine overhead.
 		for i, item := range items {
 			if ctx.Err() != nil {
 				break
 			}
-			results[i] = item.extract()
+			results[i], counts[i] = item.extract()
 			items[i].src, items[i].stub = nil, nil // parsing copies what it keeps
 			if results[i] != nil {
 				afterParse(results[i])
@@ -89,7 +93,7 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 					if ctx.Err() != nil {
 						return
 					}
-					results[idx] = items[idx].extract()
+					results[idx], counts[idx] = items[idx].extract()
 					items[idx].src, items[idx].stub = nil, nil // parsing copies what it keeps
 					if results[idx] != nil {
 						afterParse(results[idx])
@@ -123,6 +127,11 @@ func extractPackage(ctx context.Context, name string, files map[string][]byte, t
 			pkg.Modules = append(pkg.Modules, pm.mod)
 		}
 	}
+	pkg.Stats.Modules = len(items)
+	for _, c := range counts {
+		c.addTo(&pkg.Stats)
+	}
+	pkg.Stats.Duration = time.Since(start)
 	return pkg
 }
 
@@ -135,16 +144,47 @@ type work struct {
 	hasSrc, hasStub bool
 }
 
+// fileCounts is what one module's extraction saw, for model.Stats.
+type fileCounts struct {
+	files, filesWithErrors, errors, panicked int
+}
+
+// add records one file's outcome.
+func (c *fileCounts) add(parseErrs int, panicked bool) {
+	c.files++
+	c.errors += parseErrs
+	if parseErrs > 0 {
+		c.filesWithErrors++
+	}
+	if panicked {
+		c.panicked++
+	}
+}
+
+func (c fileCounts) addTo(s *model.Stats) {
+	s.Files += c.files
+	s.FilesWithErrors += c.filesWithErrors
+	s.Errors += c.errors
+	s.PanickedModules += c.panicked
+}
+
 // extract parses the module's files, each once, and merges them.
-func (w work) extract() *model.Module {
+func (w work) extract() (*model.Module, fileCounts) {
 	var base, stub *model.Module
+	var c fileCounts
 	if w.hasSrc {
-		base = extractSafely(w.modName, w.src)
+		var n int
+		var panicked bool
+		base, n, panicked = extractSafely(w.modName, w.src)
+		c.add(n, panicked)
 	}
 	if w.hasStub {
-		stub = extractSafely(w.modName, w.stub)
+		var n int
+		var panicked bool
+		stub, n, panicked = extractSafely(w.modName, w.stub)
+		c.add(n, panicked)
 	}
-	return safely(w.modName, func() *model.Module {
+	merged, mergePanicked := safely(w.modName, func() *model.Module {
 		if stub == nil {
 			return base
 		}
@@ -155,6 +195,10 @@ func (w work) extract() *model.Module {
 		extractor.MergeStub(base, stub)
 		return base
 	})
+	if mergePanicked {
+		c.panicked++
+	}
+	return merged, c
 }
 
 // sourcePath returns the path a file has in the import tree, as a .py file:
@@ -876,24 +920,28 @@ func addCopy(m *model.Module, name string, d definition) {
 // extractModuleFn is the extraction call used by extractSafely. Tests replace it.
 var extractModuleFn = ExtractModule
 
-// extractSafely extracts one module and returns nil if extraction panics.
-func extractSafely(modName string, src []byte) *model.Module {
-	return safely(modName, func() *model.Module {
-		mod, _ := extractModuleFn(modName, src)
-		return mod
+// extractSafely extracts one module and returns nil if extraction panics. It also
+// returns the number of parse errors, which do not change the result, and whether
+// extraction panicked.
+func extractSafely(modName string, src []byte) (mod *model.Module, parseErrs int, panicked bool) {
+	mod, panicked = safely(modName, func() *model.Module {
+		m, errs := extractModuleFn(modName, src)
+		parseErrs = len(errs)
+		return m
 	})
+	return mod, parseErrs, panicked
 }
 
 // safely returns nil if fn panics, so a single bad module cannot stop a worker or
-// lose other modules.
-func safely(modName string, fn func() *model.Module) (mod *model.Module) {
+// lose other modules. The second value reports the panic.
+func safely(modName string, fn func() *model.Module) (mod *model.Module, panicked bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("goopy: extract panic on %s: %v\n%s", modName, r, debug.Stack())
-			mod = nil
+			mod, panicked = nil, true
 		}
 	}()
-	return fn()
+	return fn(), false
 }
 
 func pathToModuleName(path string) string {
