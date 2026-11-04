@@ -14,6 +14,134 @@ import (
 	"github.com/pypx/goopy/model"
 )
 
+func testClass(name string, bases ...string) *model.Class {
+	c := &model.Class{Name: name}
+	for _, b := range bases {
+		c.BaseClasses = append(c.BaseClasses, &model.TypeRef{Name: b})
+	}
+	return c
+}
+
+func TestExceptionClasses_Names(t *testing.T) {
+	for base, want := range map[string]bool{
+		"Exception":          true,
+		"BaseException":      true,
+		"ValueError":         true,
+		"errors.CustomError": true,
+		"UserWarning":        true,
+		"SystemExit":         true,
+		"Generic[Error]":     false,
+		"MyError[T]":         true,
+		"ExceptionGroup":     true,
+		"ExceptionGroup[E]":  true,
+		"BaseExceptionGroup": true,
+		"KeyboardInterrupt":  true,
+		"StopIteration":      true,
+		"StopAsyncIteration": true,
+		"ErrorHandler":       false,
+		"ExceptionMixin":     false,
+		"WarningFilter":      false,
+		"errors.Base":        false,
+		"Error.Inner":        false,
+		"object":             false,
+		"Terror":             false,
+	} {
+		cls := testClass("C", base)
+		pkg := &model.Package{Modules: []*model.Module{{Name: "m", Classes: []*model.Class{cls}}}}
+		if got := exceptionClasses(pkg)[cls]; got != want {
+			t.Errorf("base %q: exception = %v, want %v", base, got, want)
+		}
+	}
+}
+
+func TestExceptionClasses_SameModule(t *testing.T) {
+	// The order is deliberate: a subclass may come before its base in the list.
+	grandchild := testClass("C", "B")
+	child := testClass("B", "A")
+	root := testClass("A", "ValueError")
+	other := testClass("D", "E")
+	mixed := testClass("F", "Mixin", "A")
+	pkg := &model.Package{Modules: []*model.Module{{Name: "m", Classes: []*model.Class{grandchild, child, root, other, mixed}}}}
+	got := exceptionClasses(pkg)
+	for _, c := range []*model.Class{grandchild, child, root, mixed} {
+		if !got[c] {
+			t.Errorf("%s should be an exception", c.Name)
+		}
+	}
+	if got[other] {
+		t.Error("D has no exception base")
+	}
+}
+
+func TestExceptionClasses_SameNameInOtherModule(t *testing.T) {
+	base := testClass("Base", "Exception")
+	c := testClass("C", "Base")
+	pkg := &model.Package{Modules: []*model.Module{
+		{Name: "a", Classes: []*model.Class{base}},
+		{Name: "b", Classes: []*model.Class{c}},
+	}}
+	if exceptionClasses(pkg)[c] {
+		t.Error("b.Base is not known, so a.Base must not decide")
+	}
+}
+
+func TestExceptionClasses_CopiedClasses(t *testing.T) {
+	// pkg re-exports from the private pkg._errors, so both copies carry an Origin.
+	root := testClass("Root", "Exception")
+	root.Origin = "pkg._errors"
+	child := testClass("Child", "Root")
+	child.Origin = "pkg._errors"
+	renamedBase := testClass("Public", "Exception")
+	renamedBase.Origin, renamedBase.OriginName = "pkg._errors", "Hidden"
+	viaRename := testClass("ViaRename", "Hidden")
+	viaRename.Origin = "pkg._errors"
+	unknown := testClass("Unknown", "NotInOutput")
+	unknown.Origin = "pkg._errors"
+	wrongScope := testClass("WrongScope", "Local")
+	wrongScope.Origin = "pkg._other"
+	local := testClass("Local", "Exception")
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:    "pkg",
+		Classes: []*model.Class{child, root, viaRename, renamedBase, unknown, wrongScope, local},
+	}}}
+	got := exceptionClasses(pkg)
+	for _, c := range []*model.Class{root, child, viaRename, renamedBase, local} {
+		if !got[c] {
+			t.Errorf("%s should be an exception", c.Name)
+		}
+	}
+	if got[unknown] {
+		t.Error("a base not in the output must not count")
+	}
+	if got[wrongScope] {
+		t.Error("the base must be looked up in the class's Origin, not where the copy lives")
+	}
+}
+
+func TestExceptionClasses_FollowsAlias(t *testing.T) {
+	root := testClass("Root", "Exception")
+	child := testClass("Child", "Root")
+	pkg := &model.Package{Modules: []*model.Module{
+		{Name: "pkg", Classes: []*model.Class{child}, Aliases: []*model.Alias{{Name: "Root", Target: "pkg.errors.Root"}}},
+		{Name: "pkg.errors", Classes: []*model.Class{root}},
+	}}
+	if !exceptionClasses(pkg)[child] {
+		t.Error("Child's base is an alias of an exception")
+	}
+}
+
+func TestConvertToDocsResponse_GroupsDerivedExceptions(t *testing.T) {
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:    "m",
+		Classes: []*model.Class{testClass("B", "A"), testClass("A", "Exception"), testClass("Plain")},
+	}}}
+	resp := convertToDocsResponse("p", "1", pkg, nil)
+	dm := resp.Modules[0]
+	if len(dm.Exceptions) != 2 || len(dm.Classes) != 1 || dm.Classes[0].Name != "Plain" {
+		t.Errorf("Exceptions = %+v, Classes = %+v", dm.Exceptions, dm.Classes)
+	}
+}
+
 func TestCleanDocstringText_Sphinx(t *testing.T) {
 	ds := &model.Docstring{
 		Style: model.DocstringSphinx,

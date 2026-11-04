@@ -462,6 +462,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		aliases []*model.Alias
 	}
 	var aliases []moduleAliases
+	exceptions := exceptionClasses(pkg)
 
 	for _, mod := range pkg.Modules {
 		dm := DocModule{
@@ -477,7 +478,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 
 		for _, cls := range mod.Classes {
 			sym := convertClass(cls, stubs, mod.Name)
-			if isException(cls) {
+			if exceptions[cls] {
 				sym.Kind = "exception"
 				dm.Exceptions = append(dm.Exceptions, sym)
 			} else {
@@ -875,16 +876,83 @@ func isGoogleSection(word string) bool {
 	return false
 }
 
-// isException returns true if the class inherits from an exception base.
-func isException(cls *model.Class) bool {
-	for _, base := range cls.BaseClasses {
-		name := base.Name
-		if strings.Contains(name, "Exception") || strings.Contains(name, "Error") ||
-			strings.Contains(name, "Warning") || name == "BaseException" {
-			return true
+// baseSegment returns the last dotted segment of a base class, without type
+// arguments: "errors.Base[T]" gives "Base".
+func baseSegment(base string) string {
+	base, _, _ = strings.Cut(base, "[")
+	return base[strings.LastIndex(base, ".")+1:]
+}
+
+// isExceptionName reports whether a base class name is an exception by its name.
+// The builtins in the switch are the ones that do not follow the suffix rule.
+func isExceptionName(base string) bool {
+	segment := baseSegment(base)
+	switch segment {
+	case "BaseExceptionGroup", "ExceptionGroup", "KeyboardInterrupt", "StopIteration", "StopAsyncIteration":
+		return true
+	}
+	return strings.HasSuffix(segment, "Error") || strings.HasSuffix(segment, "Exception") ||
+		strings.HasSuffix(segment, "Warning") || strings.HasSuffix(segment, "Exit")
+}
+
+// exceptionClasses returns the classes of pkg that inherit from an exception. A
+// plain base name is looked up in the module that defines the class, which for a
+// copied class is its Origin. A base that is not in the output stays unknown: its
+// class is an exception only if the base's own name says so.
+func exceptionClasses(pkg *model.Package) map[*model.Class]bool {
+	byPath := map[string]*model.Class{}
+	aliases := map[string]string{}
+	for _, mod := range pkg.Modules {
+		for _, cls := range mod.Classes {
+			byPath[mod.Name+"."+cls.Name] = cls
+			if key := originKey(cls.Origin, cls.OriginName, cls.Name); key != "" {
+				byPath[key] = cls
+			}
+		}
+		for _, a := range mod.Aliases {
+			aliases[mod.Name+"."+a.Name] = a.Target
 		}
 	}
-	return false
+
+	// bases holds the classes in the output that each class inherits from.
+	bases := map[*model.Class][]*model.Class{}
+	exceptions := map[*model.Class]bool{}
+	for _, mod := range pkg.Modules {
+		for _, cls := range mod.Classes {
+			scope := mod.Name
+			if cls.Origin != "" {
+				scope = cls.Origin
+			}
+			for _, base := range cls.BaseClasses {
+				if isExceptionName(base.Name) {
+					exceptions[cls] = true
+				}
+				// A dotted base names another module, which this data cannot resolve.
+				name, _, _ := strings.Cut(base.Name, "[")
+				if strings.Contains(name, ".") {
+					continue
+				}
+				path := scope + "." + name
+				if target, ok := aliases[path]; ok {
+					path = target
+				}
+				if parent := byPath[path]; parent != nil {
+					bases[cls] = append(bases[cls], parent)
+				}
+			}
+		}
+	}
+
+	for changed := true; changed; {
+		changed = false
+		for cls, parents := range bases {
+			if !exceptions[cls] && slices.ContainsFunc(parents, func(p *model.Class) bool { return exceptions[p] }) {
+				exceptions[cls] = true
+				changed = true
+			}
+		}
+	}
+	return exceptions
 }
 
 // GetText handles GET /api/packages/{name}/docs.txt[?prefix=].
