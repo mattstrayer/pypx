@@ -1,8 +1,14 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pypx/goopy/model"
 )
@@ -448,5 +454,219 @@ func TestConvertFunction_SignatureReflectsStubTypes(t *testing.T) {
 	}
 	if !strings.Contains(sym.Signature, "-> QuerySet") {
 		t.Errorf("Signature should contain stub-filled return type: %q", sym.Signature)
+	}
+}
+
+// ttlCache is a Cacher that honours the ttl passed to Get, like the SQLite
+// cache: fresh = age < ttl. Set records the time from the injected clock.
+type ttlCache struct {
+	mu   sync.Mutex
+	rows map[string]ttlRow
+	sets []string
+}
+
+type ttlRow struct {
+	val []byte
+	at  time.Time
+}
+
+func newTTLCache() *ttlCache { return &ttlCache{rows: map[string]ttlRow{}} }
+
+func (c *ttlCache) put(key string, val []byte, age time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rows[key] = ttlRow{val: val, at: time.Now().Add(-age)}
+}
+
+func (c *ttlCache) Get(key string, ttl time.Duration) ([]byte, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r, ok := c.rows[key]
+	if !ok {
+		return nil, false, nil
+	}
+	return r.val, time.Since(r.at) < ttl, nil
+}
+
+func (c *ttlCache) Set(key string, val []byte, _ time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sets = append(c.sets, key)
+	c.rows[key] = ttlRow{val: val, at: time.Now()}
+	return nil
+}
+
+func (c *ttlCache) Delete(key string) error { return nil }
+func (c *ttlCache) Close() error            { return nil }
+
+func (c *ttlCache) wrote(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, k := range c.sets {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+func docsCacheHandler(c *ttlCache, ex func(context.Context, string, string) (*model.Package, error)) *DocsHandler {
+	return &DocsHandler{cache: c, extract: ex}
+}
+
+func mustJSON(t *testing.T, v DocsResponse) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestDocsCache_ErrorKeyYoungerThanTTLShortCircuits(t *testing.T) {
+	c := newTTLCache()
+	c.put(DocsErrKey("p", "1"), []byte("boom"), time.Minute)
+	calls := 0
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls++
+		return &model.Package{}, nil
+	})
+	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if calls != 0 {
+		t.Errorf("extract called %d times, want 0", calls)
+	}
+}
+
+func TestDocsCache_ErrorKeyOlderThanTTLRetries(t *testing.T) {
+	c := newTTLCache()
+	c.put(DocsErrKey("p", "1"), []byte("boom"), 10*time.Minute)
+	calls := 0
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls++
+		return nil, errors.New("still broken")
+	})
+	_, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("extract called %d times, want 1", calls)
+	}
+}
+
+func TestDocsCache_UnavailableYoungerThan24hServed(t *testing.T) {
+	c := newTTLCache()
+	c.put(DocsCacheKey("p", "1"), mustJSON(t, DocsResponse{Available: false}), time.Hour)
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		t.Fatal("extract must not run")
+		return nil, nil
+	})
+	resp, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil || resp.Available {
+		t.Fatalf("resp=%+v err=%v", resp, err)
+	}
+}
+
+func TestDocsCache_UnavailableOlderThan24hReExtracted(t *testing.T) {
+	c := newTTLCache()
+	c.put(DocsCacheKey("p", "1"), mustJSON(t, DocsResponse{Available: false}), 25*time.Hour)
+	calls := 0
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		calls++
+		return &model.Package{}, nil
+	})
+	if _, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Errorf("extract called %d times, want 1", calls)
+	}
+}
+
+func TestDocsCache_AvailableOlderThan24hServed(t *testing.T) {
+	c := newTTLCache()
+	c.put(DocsCacheKey("p", "1"), mustJSON(t, DocsResponse{Available: true}), 48*time.Hour)
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		t.Fatal("extract must not run")
+		return nil, nil
+	})
+	resp, _, err := h.fetchDocsAtVersion(context.Background(), "p", "1")
+	if err != nil || !resp.Available {
+		t.Fatalf("resp=%+v err=%v", resp, err)
+	}
+}
+
+// lateCancelCtx reports no error on the first Err call and context.Canceled on
+// every later call. It models a timeout that fires during stub resolution,
+// after the first post-extraction check.
+type lateCancelCtx struct {
+	context.Context
+	calls int
+}
+
+func (c *lateCancelCtx) Err() error {
+	c.calls++
+	if c.calls == 1 {
+		return nil
+	}
+	return context.Canceled
+}
+
+func TestDocsCache_CancelledContextAfterExtractionLeavesDocsKeyUnwritten(t *testing.T) {
+	c := newTTLCache()
+	h := docsCacheHandler(c, func(context.Context, string, string) (*model.Package, error) {
+		return &model.Package{}, nil
+	})
+	ctx := &lateCancelCtx{Context: context.Background()}
+	_, _, err := h.fetchDocsAtVersion(ctx, "p", "1")
+	if !errors.Is(err, ErrDocsExtractionFailed) {
+		t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+	}
+	if c.wrote(DocsCacheKey("p", "1")) {
+		t.Error("docs key was written after cancellation")
+	}
+}
+
+func TestDocsCache_ErrorKeyWriteByCause(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	cases := []struct {
+		name      string
+		ctx       context.Context
+		extract   func(context.Context, string, string) (*model.Package, error)
+		wantWrite bool
+	}{
+		{"client cancel error", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, fmt.Errorf("download: %w", context.Canceled)
+			}, false},
+		{"client cancel with partial package", cancelled,
+			func(context.Context, string, string) (*model.Package, error) {
+				return &model.Package{}, nil
+			}, false},
+		{"deadline exceeded", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, fmt.Errorf("download: %w", context.DeadlineExceeded)
+			}, true},
+		{"generic error", context.Background(),
+			func(context.Context, string, string) (*model.Package, error) {
+				return nil, errors.New("bad wheel")
+			}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTTLCache()
+			h := docsCacheHandler(c, tc.extract)
+			_, _, err := h.fetchDocsAtVersion(tc.ctx, "p", "1")
+			if !errors.Is(err, ErrDocsExtractionFailed) {
+				t.Fatalf("err = %v, want ErrDocsExtractionFailed", err)
+			}
+			if got := c.wrote(DocsErrKey("p", "1")); got != tc.wantWrite {
+				t.Errorf("error key written = %v, want %v", got, tc.wantWrite)
+			}
+		})
 	}
 }
