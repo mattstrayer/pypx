@@ -191,7 +191,8 @@ func TestFlattenSymbols_ChangePastTruncatedDefault(t *testing.T) {
 	if flat(long+"1")["m.C.x"] == flat(long+"2")["m.C.x"] {
 		t.Error("a change past the cut must change the row")
 	}
-	if flat(long)["m.C.x"] != flat(long)["m.C.x"] {
+	first, second := flat(long), flat(long)
+	if first["m.C.x"] != second["m.C.x"] {
 		t.Error("the same value must give the same row")
 	}
 	if got := flat("short")["m.C.x"]; got != "x = short" {
