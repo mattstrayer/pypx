@@ -26,9 +26,20 @@ function buildFunctionTokens(symbol: DocSymbol): Token[] {
   tokens.push({ text: " ", cls: "" });
   tokens.push({ text: symbol.name, cls: "py-name" });
   tokens.push(punct("("));
+  pushParamTokens(tokens, symbol.parameters ?? []);
+  tokens.push(punct(")"));
 
+  if (symbol.returns?.type) {
+    tokens.push({ text: " -> ", cls: "py-punct" });
+    tokens.push({ text: symbol.returns.type, cls: "py-type" });
+  }
+
+  return tokens;
+}
+
+function pushParamTokens(tokens: Token[], allParams: DocParam[]): void {
   // Filter out self/cls — these are implicit in method signatures.
-  const params = (symbol.parameters ?? []).filter((p) => p.name !== "self" && p.name !== "cls");
+  const params = allParams.filter((p) => p.name !== "self" && p.name !== "cls");
 
   // Track whether we've inserted the `/` separator (after all positional-only params)
   let insertedSlash = false;
@@ -91,15 +102,6 @@ function buildFunctionTokens(symbol: DocSymbol): Token[] {
     if (!first) tokens.push(punct(", "));
     tokens.push(punct("/"));
   }
-
-  tokens.push(punct(")"));
-
-  if (symbol.returns?.type) {
-    tokens.push({ text: " -> ", cls: "py-punct" });
-    tokens.push({ text: symbol.returns.type, cls: "py-type" });
-  }
-
-  return tokens;
 }
 
 function buildClassTokens(symbol: DocSymbol): Token[] {
@@ -127,6 +129,21 @@ function buildClassTokens(symbol: DocSymbol): Token[] {
   return tokens;
 }
 
+// Constructor call line, e.g. `Client(url: str, timeout = 5)`, shown under the
+// class line when the class has constructor parameters.
+function buildConstructorTokens(symbol: DocSymbol): Token[] {
+  const tokens: Token[] = [{ text: symbol.name, cls: "py-name" }, punct("(")];
+  pushParamTokens(tokens, symbol.parameters ?? []);
+  tokens.push(punct(")"));
+  return tokens;
+}
+
+const constructorTokens = computed<Token[]>(() => {
+  const s = props.symbol;
+  if ((s.kind !== "class" && s.kind !== "exception") || !s.parameters?.length) return [];
+  return buildConstructorTokens(s);
+});
+
 const tokens = computed<Token[]>(() => {
   if (props.symbol.kind === "class" || props.symbol.kind === "exception") {
     return buildClassTokens(props.symbol);
@@ -139,9 +156,16 @@ const tokens = computed<Token[]>(() => {
   <div
     class="rounded-md border border-subtle bg-surface px-4 py-2.5 font-mono text-[11px] leading-relaxed overflow-x-auto"
   >
-    <span v-for="(token, i) in tokens" :key="i" :class="token.cls || undefined">{{
-      token.text
-    }}</span>
+    <div>
+      <span v-for="(token, i) in tokens" :key="i" :class="token.cls || undefined">{{
+        token.text
+      }}</span>
+    </div>
+    <div v-if="constructorTokens.length" data-testid="constructor-signature">
+      <span v-for="(token, i) in constructorTokens" :key="i" :class="token.cls || undefined">{{
+        token.text
+      }}</span>
+    </div>
   </div>
 </template>
 

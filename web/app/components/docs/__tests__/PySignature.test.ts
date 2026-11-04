@@ -61,6 +61,42 @@ describe("PySignature", () => {
     expect(wrapper.find(".py-type").text()).toBe("ValueError");
   });
 
+  it("renders constructor parameters for a class", async () => {
+    const wrapper = await mountSuspended(PySignature, {
+      props: {
+        symbol: {
+          name: "Client",
+          kind: "class" as const,
+          signature: "class Client(Base)",
+          docstring: "",
+          parameters: [
+            { name: "url", type: "str", description: "", kind: "positional_or_keyword" },
+            { name: "timeout", description: "", kind: "positional_or_keyword", default: "5" },
+          ],
+        },
+      },
+    });
+    const ctor = wrapper.find("[data-testid='constructor-signature']");
+    expect(ctor.exists()).toBe(true);
+    expect(ctor.text()).toBe("Client(url: str, timeout = 5)");
+    expect(wrapper.text()).toContain("class Client(Base)");
+  });
+
+  it("renders no constructor line for a class without parameters", async () => {
+    const wrapper = await mountSuspended(PySignature, {
+      props: {
+        symbol: {
+          name: "Empty",
+          kind: "class" as const,
+          signature: "class Empty",
+          docstring: "",
+          parameters: [],
+        },
+      },
+    });
+    expect(wrapper.find("[data-testid='constructor-signature']").exists()).toBe(false);
+  });
+
   it("renders default value", async () => {
     const wrapper = await mountSuspended(PySignature, {
       props: {

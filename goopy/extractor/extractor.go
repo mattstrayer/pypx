@@ -204,6 +204,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 			if s.Name == "__init__" {
 				// But extract attributes from __init__ body.
 				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
+				cls.Constructor = e.extractFunction(s, true)
 				continue
 			}
 			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
@@ -245,7 +246,84 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		}
 	}
 
+	if cls.Constructor == nil {
+		cls.Constructor = dataclassConstructor(cd)
+	}
+	if cls.Constructor != nil && cls.Docstring != nil {
+		// Class docstring params fill gaps; the __init__ docstring wins.
+		for _, p := range cls.Constructor.Parameters {
+			if p.DocParam != nil {
+				continue
+			}
+			for _, dp := range cls.Docstring.Params {
+				if dp.Name == p.Name {
+					p.DocParam = dp
+					break
+				}
+			}
+		}
+	}
+
 	return cls
+}
+
+// dataclassConstructor synthesizes a constructor for a @dataclass class
+// without an explicit __init__. Returns nil for other classes.
+func dataclassConstructor(cd *ast.ClassDef) *model.Function {
+	var dec ast.Expr
+	for _, d := range cd.Decorators {
+		target := d
+		if c, ok := d.(*ast.Call); ok {
+			target = c.Func
+		}
+		switch t := target.(type) {
+		case *ast.Name:
+			if t.Name == "dataclass" {
+				dec = d
+			}
+		case *ast.Attribute:
+			if t.Attr == "dataclass" {
+				dec = d
+			}
+		}
+	}
+	if dec == nil {
+		return nil
+	}
+	kind := model.ParamPositionalOrKeyword
+	if c, ok := dec.(*ast.Call); ok {
+		for _, kw := range c.Keywords {
+			if kw.Arg == "kw_only" && exprToString(kw.Value) == "True" {
+				kind = model.ParamKeywordOnly
+			}
+		}
+	}
+
+	fn := &model.Function{Name: "__init__", IsMethod: true}
+	for _, stmt := range cd.Body {
+		s, ok := stmt.(*ast.AnnAssign)
+		if !ok {
+			continue
+		}
+		n, ok := s.Target.(*ast.Name)
+		if !ok {
+			continue
+		}
+		ann := exprToString(s.Annotation)
+		if ann == "ClassVar" || strings.HasPrefix(ann, "ClassVar[") || strings.HasSuffix(ann, ".ClassVar") || strings.Contains(ann, ".ClassVar[") {
+			continue
+		}
+		p := &model.Parameter{
+			Name: n.Name,
+			Kind: kind,
+			Type: exprToTypeExpr(s.Annotation),
+		}
+		if s.Value != nil {
+			p.Default = exprToString(s.Value)
+		}
+		fn.Parameters = append(fn.Parameters, p)
+	}
+	return fn
 }
 
 // extractPropertyAttribute converts a @property-decorated method into an Attribute.

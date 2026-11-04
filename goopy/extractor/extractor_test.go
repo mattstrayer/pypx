@@ -693,3 +693,130 @@ def f(x: typing.Optional[str]) -> typing.List[int]:
 		t.Errorf("expected generic List for typing.List, got %+v", rType)
 	}
 }
+
+func TestConstructorPlain(t *testing.T) {
+	m := extract(`
+class Client:
+    def __init__(self, url: str, timeout: float = 5.0):
+        self.url = url
+`)
+	cls := m.Classes[0]
+	if cls.Constructor == nil {
+		t.Fatal("expected constructor")
+	}
+	ps := cls.Constructor.Parameters
+	if len(ps) != 2 || ps[0].Name != "url" || ps[1].Default != "5.0" {
+		t.Errorf("unexpected params: %+v", ps)
+	}
+	if len(cls.Methods) != 0 {
+		t.Errorf("__init__ must not appear in methods, got %d", len(cls.Methods))
+	}
+	if len(cls.Attributes) == 0 {
+		t.Error("expected init attributes to be kept")
+	}
+}
+
+func TestConstructorClassDocstringParams(t *testing.T) {
+	m := extract(`
+class Client:
+    """A client.
+
+    Args:
+        url: The base URL.
+        timeout: Seconds to wait.
+    """
+    def __init__(self, url, timeout=5):
+        pass
+`)
+	ps := m.Classes[0].Constructor.Parameters
+	if ps[0].DocParam == nil || ps[0].DocParam.Description != "The base URL." {
+		t.Errorf("expected class docstring merge for url, got %+v", ps[0].DocParam)
+	}
+	if ps[1].DocParam == nil || ps[1].DocParam.Description != "Seconds to wait." {
+		t.Errorf("expected class docstring merge for timeout, got %+v", ps[1].DocParam)
+	}
+}
+
+func TestConstructorInitDocstringWins(t *testing.T) {
+	m := extract(`
+class Client:
+    """A client.
+
+    Args:
+        url: From class.
+        timeout: From class.
+    """
+    def __init__(self, url, timeout=5):
+        """Init.
+
+        Args:
+            url: From init.
+        """
+`)
+	ps := m.Classes[0].Constructor.Parameters
+	if ps[0].DocParam == nil || ps[0].DocParam.Description != "From init." {
+		t.Errorf("expected __init__ docstring to win, got %+v", ps[0].DocParam)
+	}
+	if ps[1].DocParam == nil || ps[1].DocParam.Description != "From class." {
+		t.Errorf("expected class docstring fallback, got %+v", ps[1].DocParam)
+	}
+}
+
+func TestConstructorDataclass(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+@dataclass
+class Point:
+    x: float
+    y: float = 0.0
+    tags: list = field(default_factory=list)
+    count: ClassVar[int] = 0
+`)
+	c := m.Classes[0].Constructor
+	if c == nil {
+		t.Fatal("expected synthesized constructor")
+	}
+	if len(c.Parameters) != 3 {
+		t.Fatalf("expected 3 params (ClassVar excluded), got %d: %+v", len(c.Parameters), c.Parameters)
+	}
+	if c.Parameters[0].Name != "x" || c.Parameters[0].Default != "" {
+		t.Errorf("bad x: %+v", c.Parameters[0])
+	}
+	if c.Parameters[1].Default != "0.0" {
+		t.Errorf("bad y default: %q", c.Parameters[1].Default)
+	}
+	if c.Parameters[2].Default != "field(default_factory=list)" {
+		t.Errorf("bad tags default: %q", c.Parameters[2].Default)
+	}
+	for _, p := range c.Parameters {
+		if p.Kind != model.ParamPositionalOrKeyword {
+			t.Errorf("param %s kind %s", p.Name, p.Kind)
+		}
+	}
+}
+
+func TestConstructorDataclassKwOnly(t *testing.T) {
+	m := extract(`
+import dataclasses
+
+@dataclasses.dataclass(kw_only=True)
+class Opts:
+    a: int
+`)
+	c := m.Classes[0].Constructor
+	if c == nil || len(c.Parameters) != 1 || c.Parameters[0].Kind != model.ParamKeywordOnly {
+		t.Fatalf("expected one keyword-only param, got %+v", c)
+	}
+}
+
+func TestConstructorAbsent(t *testing.T) {
+	m := extract(`
+class Plain:
+    x: int = 1
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil constructor, got %+v", m.Classes[0].Constructor)
+	}
+}
