@@ -25,8 +25,8 @@ import "github.com/pypx/goopy"
 - Resolve dynamic attribute assignment, runtime metaclasses, or anything that depends on import-time effects
 - Follow runtime re-exports such as a module `__getattr__` or `lazy_import`. `attrs` publishes `__version__` this way, so names like that stay undocumented
 - Resolve names imported from another distribution. `from httpx import Timeout` in `openai` has no entry
-- Read compiled modules. A name that only exists in a `.so` file has no entry, such as `pandas.Timestamp`. `.pyi` stub files are not read yet, so stub-only signatures and types are missing
-- Read an `__all__` that is built at runtime. Names it lists as literals still count, and the public-name rule covers the rest
+- Read compiled modules. A name that only exists in a `.so` file, with no `.pyi` to describe it, has no entry
+- Read an `__all__` that is built at runtime. Names it lists as literals still count, and the public-name rule covers the rest. A name bound only by `globals().update(...)` has no entry, even if another `__all__` lists it: `scipy.special.multigammaln` reaches its package this way. `scipy.special.sinc` has no entry for a different reason, since `_basic.py` imports it from `numpy`
 - Type-check the code — annotations are captured as strings
 - Replace tools like Sphinx for full documentation site generation
 

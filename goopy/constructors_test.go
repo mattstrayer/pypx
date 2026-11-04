@@ -244,6 +244,53 @@ class C(A):
 	}
 }
 
+// These two shapes come from scipy.special. Python binds the names when it runs
+// the modules, and a static reader has no definition to publish. Listing a name
+// in __all__ must not invent one, and must not lose the names around it.
+func TestRuntimeBoundNamesHaveNoEntry(t *testing.T) {
+	files := map[string][]byte{
+		"pkg/__init__.py": []byte(`
+from . import _basic
+from ._basic import *
+from ._backends import *
+__all__ = _basic.__all__
+__all__ += ["multigammaln", "kept"]
+from ._kept import kept
+`),
+		"pkg/_basic.py": []byte(`
+from numpy import sinc
+__all__ = ["sinc", "own"]
+def own(): pass
+`),
+		"pkg/_stats.py": []byte(`
+__all__ = ["multigammaln"]
+def multigammaln(a, d): pass
+`),
+		"pkg/_backends.py": []byte(`
+from . import _stats
+_funcs = (_stats.multigammaln,)
+globals().update({f.__name__: f for f in _funcs})
+__all__ = [f.__name__ for f in _funcs]
+`),
+		"pkg/_kept.py": []byte("def kept(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	got := map[string]bool{}
+	for _, f := range pkg.Modules[0].Functions {
+		got[f.Name] = true
+	}
+	for _, name := range []string{"own", "kept"} {
+		if !got[name] {
+			t.Errorf("%s is missing: %v", name, got)
+		}
+	}
+	for _, name := range []string{"multigammaln", "sinc"} {
+		if got[name] {
+			t.Errorf("%s has an entry, but no definition is reachable", name)
+		}
+	}
+}
+
 // A subclass shares no parameters with its base, so its class docstring cannot
 // change the base's documentation.
 func TestInheritedConstructorKeepsBaseDocs(t *testing.T) {
