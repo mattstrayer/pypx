@@ -43,16 +43,33 @@ function plainCodeBlock(code: string): string {
   return `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
 }
 
-type BlockType = "paragraph" | "code" | "directive" | "hidden";
+type BlockType = "paragraph" | "code" | "directive" | "hidden" | "heading";
 
 interface Block {
   type: BlockType;
   lines: string[];
 }
 
+// A section title at the margin with a line of 3+ dashes under it, as NumPy writes
+// "Examples" and "Notes".
+function isSectionHeading(title: string | undefined, underline: string | undefined): boolean {
+  return (
+    title !== undefined &&
+    underline !== undefined &&
+    /^\S/.test(title) &&
+    !title.startsWith(">>>") &&
+    /^-{3,}\s*$/.test(underline)
+  );
+}
+
 function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Block[] {
   return rawBlocks.map((lines, i) => {
     const firstLine = lines[0] ?? "";
+
+    const prevLine = prevBlockLines[i]?.at(-1)?.trimEnd() ?? "";
+    if (lines.length === 2 && !prevLine.endsWith("::") && isSectionHeading(lines[0], lines[1])) {
+      return { type: "heading", lines };
+    }
 
     // RST directive: starts with ".. word::" (possibly indented)
     if (/^\s*\.\.\s+\w+::/.test(firstLine)) {
@@ -102,6 +119,10 @@ function classifyBlocks(rawBlocks: string[][], prevBlockLines: string[][]): Bloc
 function renderBlock(block: Block): DocstringPart | null {
   if (block.type === "hidden") {
     return null;
+  }
+
+  if (block.type === "heading") {
+    return html(`<h4 class="section-label">${escapeHtml(block.lines[0] ?? "")}</h4>`);
   }
 
   if (block.type === "code") {
@@ -155,16 +176,27 @@ function parseDocstring(raw: string): DocstringPart[] {
   // Split into lines and dedent
   const lines = dedent(normalized.split("\n"));
 
-  // Split into raw blocks by blank lines
+  // Split into raw blocks by blank lines. A section heading is a block of its own,
+  // even with no blank line after it. It must start a block, and not the literal
+  // block after a "::", so dashes in code stay in the code.
   const rawBlocks: string[][] = [];
   let current: string[] = [];
+  const afterLiteralMarker = () => rawBlocks.at(-1)?.at(-1)?.trimEnd().endsWith("::") ?? false;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
     if (line.trim() === "") {
       if (current.length > 0) {
         rawBlocks.push(current);
         current = [];
       }
+    } else if (
+      current.length === 0 &&
+      !afterLiteralMarker() &&
+      isSectionHeading(line, lines[i + 1])
+    ) {
+      rawBlocks.push([line, lines[i + 1] ?? ""]);
+      i++;
     } else {
       current.push(line);
     }

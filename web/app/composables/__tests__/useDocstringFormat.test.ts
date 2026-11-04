@@ -101,6 +101,78 @@ describe("formatDocstring", () => {
     expect(result).not.toContain(".. version");
   });
 
+  describe("NumPy section headings", () => {
+    // Shape of numpy.add's docstring after the API removes structured sections.
+    const numpyStyle = [
+      "Add arguments element-wise.",
+      "",
+      "Notes",
+      "-----",
+      "Equivalent to `x1` + `x2` in terms of array broadcasting.",
+      "",
+      "Examples",
+      "--------",
+      ">>> np.add(1.0, 4.0)",
+      "5.0",
+      "",
+      ">>> x1 = np.arange(9.0)",
+      "",
+      "See Also",
+      "--------",
+      "subtract : The opposite.",
+    ].join("\n");
+
+    it("renders the title as a heading without the dashes", () => {
+      const result = formatDocstring(numpyStyle);
+      expect(result).toContain(">Notes</h4>");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).toContain(">See Also</h4>");
+      expect(result).not.toContain("---");
+    });
+
+    it("keeps the example as code, without the title in the block", async () => {
+      const seen: string[] = [];
+      await renderDocstring(numpyStyle, async (code) => {
+        seen.push(code);
+        return "";
+      });
+      expect(seen).toEqual([">>> np.add(1.0, 4.0)\n5.0", ">>> x1 = np.arange(9.0)"]);
+    });
+
+    it("keeps text under a heading as a paragraph with inline markup", () => {
+      const result = formatDocstring(numpyStyle);
+      expect(result).toContain("<p>Equivalent to <code>x1</code> + <code>x2</code>");
+    });
+
+    it("handles a heading with a blank line before its body", () => {
+      const result = formatDocstring("Examples\n--------\n\n>>> a");
+      expect(result).toContain(">Examples</h4>");
+      expect(result).toContain("<pre><code");
+    });
+
+    it("leaves dashes in doctest output alone", () => {
+      const result = formatDocstring(">>> show()\nname\n----\nvalue");
+      expect(result).not.toContain("<h4");
+      expect(result).toContain("name\n----\nvalue");
+    });
+
+    it("leaves dashes in an indented block alone", () => {
+      const result = formatDocstring("Table::\n\n    name\n    ----\n    value");
+      expect(result).not.toContain("<h4");
+      expect(result).toContain("name\n----\nvalue");
+    });
+
+    it("escapes the title", () => {
+      const result = formatDocstring("<b>x</b>\n--------\ntext");
+      expect(result).toContain("&lt;b&gt;x&lt;/b&gt;</h4>");
+      expect(result).not.toContain("<b>");
+    });
+
+    it("needs at least three dashes", () => {
+      expect(formatDocstring("Title\n--\ntext")).not.toContain("<h4");
+    });
+  });
+
   it("handles real click.echo docstring", () => {
     const input =
       "Print a message plus a newline to the given file or stdout. On\nfirst call, if ``err`` is false, a check is done whether the\nfile object has been set to non-blocking mode.\n\nExample::\n\n    click.echo('Hello World!')\n    click.echo(b'\\xe2\\x98\\x83', nl=False)";
