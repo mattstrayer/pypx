@@ -346,6 +346,18 @@ func (i *IfExpr) Pos() token.Pos { return i.Position }
 func (i *IfExpr) End() token.Pos { return i.EndPos }
 func (i *IfExpr) exprNode()      {}
 
+// Lambda is a lambda expression. Args holds the parameter source text.
+type Lambda struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Args     string
+	Body     Expr
+}
+
+func (l *Lambda) Pos() token.Pos { return l.Position }
+func (l *Lambda) End() token.Pos { return l.EndPos }
+func (l *Lambda) exprNode()      {}
+
 // Await is an await expression (await value).
 type Await struct {
 	Position token.Pos

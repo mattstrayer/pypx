@@ -19,9 +19,14 @@ func exprToString(expr ast.Expr) string {
 	case *ast.Constant:
 		return e.Lit
 	case *ast.Attribute:
-		return exprToString(e.Value) + "." + e.Attr
+		return primaryToString(e.Value) + "." + e.Attr
 	case *ast.Subscript:
-		return exprToString(e.Value) + "[" + exprToString(e.Slice) + "]"
+		return primaryToString(e.Value) + "[" + exprToString(e.Slice) + "]"
+	case *ast.Lambda:
+		if e.Args == "" {
+			return "lambda: " + exprToString(e.Body)
+		}
+		return "lambda " + e.Args + ": " + exprToString(e.Body)
 	case *ast.BinOp:
 		op := operatorString(e.Op)
 		return exprToString(e.Left) + " " + op + " " + exprToString(e.Right)
@@ -40,7 +45,7 @@ func exprToString(expr ast.Expr) string {
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
 	case *ast.Call:
-		s := exprToString(e.Func) + "("
+		s := primaryToString(e.Func) + "("
 		var args []string
 		for _, arg := range e.Args {
 			args = append(args, exprToString(arg))
@@ -94,6 +99,15 @@ func exprToString(expr ast.Expr) string {
 	default:
 		return "?"
 	}
+}
+
+// primaryToString renders an expression that a call, attribute or subscript
+// applies to. A lambda needs parentheses there, or the suffix joins its body.
+func primaryToString(expr ast.Expr) string {
+	if _, ok := expr.(*ast.Lambda); ok {
+		return "(" + exprToString(expr) + ")"
+	}
+	return exprToString(expr)
 }
 
 // operatorString returns the string representation of a token operator.

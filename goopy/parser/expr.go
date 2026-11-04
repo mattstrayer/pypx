@@ -887,14 +887,15 @@ func (p *Parser) parseYield() ast.Expr {
 	return y
 }
 
-// parseLambda parses 'lambda params: expr'. We treat it as a passthrough
-// by returning the whole thing as an opaque expression.
+// parseLambda parses 'lambda params: expr'. The parameters stay as source text.
 func (p *Parser) parseLambda() ast.Expr {
 	pos := p.tok.Pos
 	p.next() // consume 'lambda'
 
-	// Skip to the colon — we don't deeply model lambda params.
+	// skipHeader finds the colon, past colons in brackets and in nested lambdas.
+	start := p.tok.Pos.Offset
 	p.skipHeader()
+	args := lambdaArgsText(p.src[start:max(start, p.tok.Pos.Offset)])
 	if p.tok.Type == token.COLON {
 		p.next()
 	}
@@ -909,5 +910,39 @@ func (p *Parser) parseLambda() ast.Expr {
 			Lit:      "...",
 		}
 	}
-	return body
+	return &ast.Lambda{Position: pos, EndPos: body.End(), Args: args, Body: body}
+}
+
+// lambdaArgsText returns lambda parameter source on one line. Parameters inside
+// brackets can span lines and hold comments. String content stays as written.
+func lambdaArgsText(src []byte) string {
+	var b strings.Builder
+	var quote byte
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		switch {
+		case quote != 0:
+			b.WriteByte(c)
+			if c == '\\' && i+1 < len(src) {
+				i++
+				b.WriteByte(src[i])
+			} else if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+			b.WriteByte(c)
+		case c == '#':
+			for i+1 < len(src) && src[i+1] != '\n' {
+				i++
+			}
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\\':
+			if s := b.String(); s != "" && s[len(s)-1] != ' ' {
+				b.WriteByte(' ')
+			}
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
