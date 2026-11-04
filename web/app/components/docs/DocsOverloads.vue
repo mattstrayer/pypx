@@ -36,7 +36,9 @@ const open = ref(false);
         data-testid="symbol-overload"
         class="[overflow-wrap:anywhere]"
       >
-        {{ signature }}
+        <template v-for="(part, j) in signature.split(' -> ')" :key="j"
+          ><span v-if="j > 0" class="whitespace-nowrap"> -&gt; </span>{{ part }}</template
+        >
       </li>
     </ul>
   </div>

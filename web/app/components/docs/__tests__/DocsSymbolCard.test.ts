@@ -453,4 +453,27 @@ describe("DocsSymbolCard", () => {
     expect(rows).toHaveLength(6);
     for (const row of rows) expect(row.classes()).toContain("flex-wrap");
   });
+
+  it("shows no Parameters label when self or cls is the only parameter", async () => {
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: {
+        symbol: makeSymbol({
+          parameters: [{ name: "self", type: "", description: "", kind: "positional_or_keyword" }],
+        }),
+        isActive: false,
+      },
+    });
+    expect(wrapper.text()).not.toContain("Parameters");
+  });
+
+  it("keeps an overload's text and does not split its arrow across lines", async () => {
+    const signature = "def f(x: int) -> str";
+    const wrapper = await mountSuspended(DocsSymbolCard, {
+      props: { symbol: makeSymbol({ overloads: [signature] }), isActive: false },
+    });
+    await wrapper.find("[data-testid='symbol-overloads-toggle']").trigger("click");
+    const row = wrapper.find("[data-testid='symbol-overload']");
+    expect(row.text()).toBe(signature);
+    expect(row.find(".whitespace-nowrap").text()).toBe("->");
+  });
 });

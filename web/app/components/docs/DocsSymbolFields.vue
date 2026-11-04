@@ -11,12 +11,6 @@ const shownParams = computed(() =>
   (props.symbol.parameters ?? []).filter((p) => p.name !== "self" && p.name !== "cls"),
 );
 
-// A card keeps its label when self or cls is the only parameter, so this component does
-// not move a card at desktop width. Removing that empty label is a separate change.
-const showParams = computed(() =>
-  props.dense ? shownParams.value.length > 0 : Boolean(props.symbol.parameters?.length),
-);
-
 const sectionClass = computed(() => (props.dense ? "mb-2" : "mb-4"));
 const listClass = computed(() => (props.dense ? "space-y-1" : "space-y-1.5"));
 
@@ -29,7 +23,7 @@ const rowClass = computed(() => [
 </script>
 
 <template>
-  <div v-if="showParams" :class="sectionClass">
+  <div v-if="shownParams.length" :class="sectionClass">
     <p class="section-label">Parameters</p>
     <div :class="listClass">
       <div

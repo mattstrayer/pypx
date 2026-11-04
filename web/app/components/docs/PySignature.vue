@@ -30,7 +30,7 @@ function buildFunctionTokens(symbol: DocSymbol): Token[] {
   tokens.push(punct(")"));
 
   if (symbol.returns?.type) {
-    tokens.push({ text: " -> ", cls: "py-punct" });
+    tokens.push({ text: " -> ", cls: "py-punct whitespace-nowrap" });
     tokens.push({ text: symbol.returns.type, cls: "py-type" });
   }
 
