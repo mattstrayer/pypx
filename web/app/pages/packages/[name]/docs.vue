@@ -242,6 +242,7 @@ if (pkg.value) {
     <PackageLoadError v-else-if="pageStatus" :status="pageStatus" :name="name" />
 
     <div v-else-if="pkg">
+      <h1 class="sr-only">{{ pkg.name }} API documentation</h1>
       <!-- Docs context bar -->
       <div class="-mx-4 mb-0 border-b border-subtle bg-base/90 backdrop-blur-sm sm:-mx-6 lg:-mx-8">
         <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2">
