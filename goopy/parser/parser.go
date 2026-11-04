@@ -311,7 +311,12 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseIf()
 	case token.PASS:
 		return p.parsePass()
-	case token.FOR, token.WHILE, token.TRY, token.WITH, token.MATCH:
+	case token.MATCH:
+		if p.isMatchStmt() {
+			return p.parseMatch()
+		}
+		return p.parseSimpleStmt()
+	case token.FOR, token.WHILE, token.TRY, token.WITH:
 		return p.parsePassThrough()
 	case token.RETURN, token.RAISE, token.YIELD, token.DEL,
 		token.GLOBAL, token.NONLOCAL, token.ASSERT:
@@ -700,46 +705,37 @@ func (p *Parser) parseImportNames() []*ast.ImportAlias {
 
 // parseTypeOrSimple disambiguates 'type' as a type alias keyword vs. a regular name.
 // In Python 3.12+, 'type X = ...' is a type alias. But 'type' can also be a regular
-// identifier (e.g., 'type = "foo"' or 'type(x)').
+// identifier (e.g., 'type = "foo"' or 'type(x).y'). Only an alias has a name next.
 func (p *Parser) parseTypeOrSimple() ast.Stmt {
+	switch p.lex.Clone().Next().Type {
+	case token.NAME, token.TYPE, token.MATCH, token.CASE:
+	default:
+		return p.parseSimpleStmt()
+	}
+
 	pos := p.tok.Pos
-	savedTok := p.tok
 	p.next() // consume 'type'
+	name := p.expectName()
 
-	// If followed by NAME, it's a type alias statement.
-	if p.tok.Type == token.NAME {
-		name := p.expectName()
-
-		// Optional type parameters.
-		var typeParams []*ast.TypeParam
-		if p.tok.Type == token.LBRACK {
-			typeParams = p.parseTypeParams()
-		}
-
-		if p.tok.Type == token.ASSIGN {
-			p.next() // consume '='
-			value := p.parseExpr()
-			endPos := value.End()
-			if p.tok.Type == token.NEWLINE {
-				p.next()
-			}
-			return &ast.TypeAliasDef{
-				Position:   pos,
-				EndPos:     endPos,
-				Name:       name,
-				TypeParams: typeParams,
-				Value:      value,
-			}
-		}
+	// Optional type parameters.
+	var typeParams []*ast.TypeParam
+	if p.tok.Type == token.LBRACK {
+		typeParams = p.parseTypeParams()
 	}
 
-	// Fall back to treating 'type' as a name expression in a simple statement.
-	nameExpr := &ast.Name{
-		Position: savedTok.Pos,
-		EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-		Name:     "type",
+	p.expect(token.ASSIGN)
+	value := p.parseExpr()
+	endPos := value.End()
+	if p.tok.Type == token.NEWLINE {
+		p.next()
 	}
-	return p.finishSimpleStmt(nameExpr)
+	return &ast.TypeAliasDef{
+		Position:   pos,
+		EndPos:     endPos,
+		Name:       name,
+		TypeParams: typeParams,
+		Value:      value,
+	}
 }
 
 // parseIf parses 'if expr: block (elif expr: block)* (else: block)?'.
@@ -858,6 +854,60 @@ func (p *Parser) parsePassThroughBlock() []ast.Stmt {
 	p.skipHeader()
 	p.expectColon()
 	return p.parseBlock()
+}
+
+// isMatchStmt decides whether the soft keyword 'match' at the current token starts
+// a match statement. The whole statement grammar decides this: only a match
+// statement has a logical line that ends in ':' and is followed by an indented 'case'.
+func (p *Parser) isMatchStmt() bool {
+	lex := p.lex.Clone()
+	t := lex.Next()
+	if t.Type == token.COLON {
+		return false // 'match: T' is an annotation of a variable named match.
+	}
+	prev := token.EOF
+	for t.Type != token.NEWLINE {
+		if t.Type == token.EOF || t.Type == token.INDENT || t.Type == token.DEDENT {
+			return false
+		}
+		prev = t.Type
+		t = lex.Next()
+	}
+	return prev == token.COLON && lex.Next().Type == token.INDENT && lex.Next().Type == token.CASE
+}
+
+// parseMatch parses a match statement. isMatchStmt has checked its shape. Subjects
+// and patterns are skipped, and the bodies of all cases are recursed into.
+func (p *Parser) parseMatch() ast.Stmt {
+	pos := p.tok.Pos
+	p.next() // consume 'match'
+	p.skipHeader()
+	p.expectColon()
+	p.skipNewlines()
+	p.next() // consume INDENT
+
+	var body []ast.Stmt
+	for p.tok.Type != token.DEDENT && p.tok.Type != token.EOF {
+		if p.tok.Type == token.CASE {
+			p.next()
+			body = append(body, p.parsePassThroughBlock()...)
+		} else {
+			p.errorf("expected case, got %s", p.tok.Type)
+			if stmt := p.parseStmtRecovering(); stmt != nil {
+				body = append(body, stmt)
+			}
+		}
+		p.skipNewlines()
+	}
+	if p.tok.Type == token.DEDENT {
+		p.next()
+	}
+
+	endPos := pos
+	if len(body) > 0 {
+		endPos = body[len(body)-1].End()
+	}
+	return &ast.PassThrough{Kind: "match", Body: body, Position: pos, EndPos: endPos}
 }
 
 // parseLoopBlocks parses the body of a for or while loop and its optional else.

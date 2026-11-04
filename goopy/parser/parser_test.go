@@ -1670,3 +1670,64 @@ func TestYieldExpressions(t *testing.T) {
 	asYield(t, exprOf(t, "(yield)"))
 	exprOf(t, "[(yield x), (yield)]")
 }
+
+func TestMatchStatement(t *testing.T) {
+	src := `match x:
+    case [a, *b] if a > 1 and (c := b):
+        def f(): pass
+    case {"k": v, **rest} if v:
+        def g(): pass
+    case A(b=1) | B() as c: pass
+    case _:
+        def h(): pass
+`
+	body := passThroughBody(t, src)
+	if len(body) != 4 {
+		t.Fatalf("expected 4 statements, got %d", len(body))
+	}
+	if asFuncDef(t, body[0]).Name != "f" || asFuncDef(t, body[1]).Name != "g" || asFuncDef(t, body[3]).Name != "h" {
+		t.Errorf("got %#v", body)
+	}
+}
+
+func TestMatchTypeCaseAsNames(t *testing.T) {
+	for _, src := range []string{
+		"match = 1\n",
+		"match: int = 1\n",
+		"match(x)\n",
+		"match(x).y = 1\n",
+		"match.group(1)\n",
+		"match, y = 1, 2\n",
+		"match[x]\n",
+		"match[x]: int\n",
+		"match + 1\n",
+		"match(a)\nb: int\n",
+		"case = 1\n",
+		"case(x)\n",
+		"type = 1\n",
+		"type(x)\n",
+		"type(x).y = 1\n",
+		"type(x) == y\n",
+		"type.y\n",
+		"type, y = 1, 2\n",
+		"type: int = 1\n",
+		"type + 1\n",
+		"x = type\n",
+		"x = match\n",
+	} {
+		mod := parse(t, src)
+		for _, stmt := range mod.Body {
+			switch stmt.(type) {
+			case *ast.ExprStmt, *ast.Assign, *ast.AnnAssign:
+			default:
+				t.Errorf("%q: got %T", src, stmt)
+			}
+		}
+	}
+	if call := asCall(t, exprOf(t, "type(x)")); asName(t, call.Func).Name != "type" {
+		t.Errorf("got %#v", call)
+	}
+	if a := asTypeAlias(t, parse(t, "type match[T] = int\n").Body[0]); a.Name != "match" || len(a.TypeParams) != 1 {
+		t.Errorf("got %#v", a)
+	}
+}

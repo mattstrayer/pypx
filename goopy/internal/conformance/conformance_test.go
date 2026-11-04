@@ -12,7 +12,6 @@ import (
 // knownFailures lists fixtures the parser fails today, keyed by fixture
 // filename with a one-line reason. A listed fixture that passes fails the test.
 var knownFailures = map[string]string{
-	"match_guard.py":      "match case with star pattern and guard",
 	"semicolons.py":       "semicolon-separated statements in a one-line block",
 }
 

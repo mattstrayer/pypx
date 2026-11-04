@@ -33,6 +33,14 @@ func New(src []byte) *Lexer {
 	}
 }
 
+// Clone returns an independent copy of the lexer, for token lookahead.
+func (l *Lexer) Clone() *Lexer {
+	c := *l
+	c.tokens = append([]token.Token(nil), l.tokens...)
+	c.indentStack = append([]int(nil), l.indentStack...)
+	return &c
+}
+
 // Next returns the next token from the source.
 func (l *Lexer) Next() token.Token {
 	// Drain any buffered DEDENT tokens first.
