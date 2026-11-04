@@ -21,6 +21,8 @@ type Lexer struct {
 	indentStack  []int
 	bracketDepth int
 	atLineStart  bool
+
+	fstringFailed bool // an f-string was invalid; lex the rest as plain strings
 }
 
 // New returns a new Lexer for the given source bytes.
@@ -278,13 +280,34 @@ func isStringPrefix(ch byte) bool {
 		ch == 't' || ch == 'T'
 }
 
+// maxFStringDepth bounds recursion on nested f-string fields, so that crafted input
+// cannot overflow the goroutine stack. CPython's own limit is far lower.
+const maxFStringDepth = 150
+
 // lexString lexes a string literal (with optional prefix).
 func (l *Lexer) lexString() token.Token {
 	pos := l.currentPos()
 	start := l.pos
 
-	// Collect prefix.
-	isFStr := false
+	isFStr := l.skipStringPrefix()
+	if isFStr && !l.fstringFailed {
+		savedPos, savedLine, savedCol := l.pos, l.line, l.col
+		if l.scanFString(0) {
+			return token.Token{Type: token.STRING, Lit: string(l.src[start:l.pos]), Pos: pos}
+		}
+		// Invalid f-string. Lex it and any later ones as plain strings, so that
+		// each byte of the file is scanned at most twice.
+		l.fstringFailed = true
+		l.pos, l.line, l.col = savedPos, savedLine, savedCol
+	}
+	l.scanPlainString()
+
+	return token.Token{Type: token.STRING, Lit: string(l.src[start:l.pos]), Pos: pos}
+}
+
+// skipStringPrefix consumes a string prefix and reports whether it marks an f-string
+// or a t-string. The two have the same syntax.
+func (l *Lexer) skipStringPrefix() (isFStr bool) {
 	for l.pos < len(l.src) && isStringPrefix(l.src[l.pos]) {
 		ch := l.src[l.pos]
 		if ch == 'f' || ch == 'F' || ch == 't' || ch == 'T' {
@@ -293,121 +316,195 @@ func (l *Lexer) lexString() token.Token {
 		l.pos++
 		l.col++
 	}
+	return isFStr
+}
 
-	quote := l.src[l.pos]
-	// Determine if triple-quoted.
-	triple := false
+// openQuote consumes the opening quotes of a string.
+func (l *Lexer) openQuote() (quote byte, triple bool) {
+	quote = l.src[l.pos]
 	if l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote {
-		triple = true
 		l.pos += 3
 		l.col += 3
-	} else {
-		l.pos++
+		return quote, true
+	}
+	l.pos++
+	l.col++
+	return quote, false
+}
+
+// atCloseQuote returns true at the closing quotes of a string.
+func (l *Lexer) atCloseQuote(quote byte, triple bool) bool {
+	if l.src[l.pos] != quote {
+		return false
+	}
+	return !triple || (l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote)
+}
+
+// closeQuote consumes the closing quotes of a string.
+func (l *Lexer) closeQuote(triple bool) {
+	n := 1
+	if triple {
+		n = 3
+	}
+	l.pos += n
+	l.col += n
+}
+
+// step consumes one source character, and keeps the line and column correct.
+func (l *Lexer) step() {
+	switch ch := l.src[l.pos]; ch {
+	case '\r':
+		if l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
+			l.pos++
+		}
+		l.line++
+		l.col = 0
+	case '\n':
+		l.line++
+		l.col = 0
+	case '\t':
+		l.col += 8 - (l.col % 8)
+	default:
 		l.col++
 	}
+	l.pos++
+}
 
-	// Read string body.
-	braceDepth := 0 // tracks { } inside f-string expressions
+// scanPlainString consumes a string body with its quotes. An unterminated
+// single-line string stops at the end of the line.
+func (l *Lexer) scanPlainString() {
+	quote, triple := l.openQuote()
 	for l.pos < len(l.src) {
 		ch := l.src[l.pos]
-
-		if ch == '\\' && l.pos+1 < len(l.src) {
-			// Escape sequence — skip both chars (handle \n for line count).
-			l.pos++
-			l.col++
-			next := l.src[l.pos]
-			if next == '\n' {
-				l.line++
-				l.col = 0
-			} else if next == '\r' {
-				l.line++
-				l.col = 0
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
-					l.pos++
-				}
-			} else {
-				l.col++
-			}
-			l.pos++
-			continue
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.step()
+			l.step()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return
+		case l.atCloseQuote(quote, triple):
+			l.closeQuote(triple)
+			return
+		default:
+			l.step()
 		}
+	}
+}
 
-		if ch == '\n' || ch == '\r' {
-			if !triple && braceDepth == 0 {
-				// Unterminated single-line string — stop here.
-				break
-			}
-			if ch == '\r' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
-				l.pos++
-			}
-			l.pos++
-			l.line++
-			l.col = 0
-			continue
-		}
-
-		// F-string brace tracking.
-		if isFStr {
-			if ch == '{' {
-				// {{ is escaped brace, not an expression.
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '{' {
-					l.pos += 2
-					l.col += 2
-					continue
-				}
-				braceDepth++
-				l.pos++
-				l.col++
+// scanFString consumes an f-string body with its quotes. It returns false if the
+// string is invalid, and then the caller must restore the position.
+func (l *Lexer) scanFString(depth int) bool {
+	if depth > maxFStringDepth {
+		return false
+	}
+	quote, triple := l.openQuote()
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.stepEscape()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return false
+		case l.atCloseQuote(quote, triple):
+			l.closeQuote(triple)
+			return true
+		case ch == '{':
+			if l.pos+1 < len(l.src) && l.src[l.pos+1] == '{' {
+				l.step()
+				l.step()
 				continue
 			}
-			if ch == '}' {
-				if braceDepth > 0 {
-					braceDepth--
-					l.pos++
-					l.col++
-					continue
-				}
-				// }} is escaped closing brace.
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '}' {
-					l.pos += 2
-					l.col += 2
-					continue
-				}
-				// Stray } outside expression — treat as literal char.
-				l.pos++
-				l.col++
-				continue
+			l.step()
+			if !l.scanField(triple, depth+1) {
+				return false
 			}
+		default:
+			// Includes } and }}, which are literal text here.
+			l.step()
 		}
+	}
+	return false
+}
 
-		// Check for closing quote (only when not inside an f-string expression).
-		if ch == quote && braceDepth == 0 {
-			if triple {
-				if l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote {
-					l.pos += 3
-					l.col += 3
-					break
+// stepEscape consumes a backslash in the literal part of an f-string. A brace after
+// the backslash keeps its meaning, even in a raw string: rf'\{{' is an escaped brace.
+func (l *Lexer) stepEscape() {
+	l.step()
+	if next := l.src[l.pos]; next != '{' && next != '}' {
+		l.step()
+	}
+}
+
+// scanField consumes a replacement field, after its opening brace, up to and
+// including the closing brace. It tracks brackets and nested strings, as the
+// expression can hold both, and in Python 3.12+ it can hold the same quote as the
+// enclosing string, comments, and newlines.
+func (l *Lexer) scanField(triple bool, depth int) bool {
+	brackets := 0
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case l.isStringStart():
+			if l.skipStringPrefix() {
+				if !l.scanFString(depth) {
+					return false
 				}
 			} else {
-				l.pos++
-				l.col++
-				break
+				l.scanPlainString()
 			}
+		case ch == '#':
+			for l.pos < len(l.src) && l.src[l.pos] != '\n' && l.src[l.pos] != '\r' {
+				l.step()
+			}
+		case ch == '(' || ch == '[' || ch == '{':
+			brackets++
+			l.step()
+		case ch == ')' || ch == ']':
+			brackets--
+			l.step()
+		case ch == '}':
+			l.step()
+			if brackets <= 0 {
+				return true
+			}
+			brackets--
+		case ch == ':' && brackets <= 0:
+			l.step()
+			return l.scanFormatSpec(triple, depth)
+		default:
+			l.step()
 		}
+	}
+	return false
+}
 
-		if ch == '\t' {
-			l.col += 8 - (l.col % 8)
-		} else {
-			l.col++
+// scanFormatSpec consumes a format spec, after its colon, up to and including the
+// closing brace of the field. Quotes have no meaning in a format spec, and it can
+// hold nested fields.
+func (l *Lexer) scanFormatSpec(triple bool, depth int) bool {
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.stepEscape()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return false
+		case ch == '{':
+			if depth > maxFStringDepth {
+				return false
+			}
+			l.step()
+			if !l.scanField(triple, depth+1) {
+				return false
+			}
+		case ch == '}':
+			l.step()
+			return true
+		default:
+			l.step()
 		}
-		l.pos++
 	}
-
-	return token.Token{
-		Type: token.STRING,
-		Lit:  string(l.src[start:l.pos]),
-		Pos:  pos,
-	}
+	return false
 }
 
 // lexIdent lexes an identifier or keyword.

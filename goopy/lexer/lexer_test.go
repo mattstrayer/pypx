@@ -1,6 +1,7 @@
 package lexer_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pypx/goopy/lexer"
@@ -625,5 +626,74 @@ func TestLexicalForms(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+func TestFStringBodies(t *testing.T) {
+	for _, lit := range []string{
+		`f''`,
+		`f'{a}'`,
+		`f'{{'`,
+		`f'}}'`,
+		`f'{{{a}}}'`,
+		`f'{a!r:>{w}}'`,
+		`f'{a:{b}.{c}}'`,
+		`f'{a:%H:%M}'`,
+		`f"{a:'>10}"`,
+		`f'{a["b"]}'`,
+		`f"{a["b"]}"`,
+		`f"{a['}']}"`,
+		`f"{a['{']}"`,
+		`f"{f"{f"{a}"}"}"`,
+		`f'{ {1: 2}[1] }'`,
+		`f'{(lambda x: 1)(2)}'`,
+		`f'{a[1:2]}'`,
+		`f'{(a := 1)}'`,
+		`f'{a != b}'`,
+		`f'{a=}'`,
+		`rf'\{{%'`,
+		`rf'\{a}'`,
+		`rf'\\{a}'`,
+		`f'\N{DASH}'`,
+		`f'\''`,
+		`rf'\''`,
+		"f'''{\na\n}\n'''",
+		"f'{\na # comment }\n}'",
+		"f'''{a:\n}'''",
+		`f"{'''a'''}"`,
+		`f'{b"x"}'`,
+		`t'{a}'`,
+		`rb'{'`,
+		`'{'`,
+	} {
+		toks := collectTokens(lexer.New([]byte(lit + " x\n")))
+		if len(toks) != 4 || toks[0].Type != token.STRING || toks[0].Lit != lit || toks[1].Type != token.NAME {
+			t.Errorf("%q: got %v", lit, toks)
+		}
+	}
+}
+
+func TestFStringLineCount(t *testing.T) {
+	toks := collectTokens(lexer.New([]byte("f'''{\na\n}\n''' x\n")))
+	if toks[1].Pos.Line != 4 {
+		t.Errorf("got line %d, want 4", toks[1].Pos.Line)
+	}
+}
+
+// Invalid f-strings stay on their line when they can, and never make the lexer slow.
+func TestFStringInvalid(t *testing.T) {
+	toks := collectTokens(lexer.New([]byte("f'{a\nb = 1\n")))
+	if toks[0].Type != token.STRING || toks[1].Type != token.NEWLINE || toks[2].Lit != "b" {
+		t.Errorf("got %v", toks)
+	}
+	for _, src := range []string{
+		strings.Repeat("f'{", 2000000),
+		strings.Repeat(`f"{`, 2000000),
+		strings.Repeat("f'{\n", 500000),
+		strings.Repeat("f'''{", 500000),
+		strings.Repeat("f'{a:", 500000),
+		"f'" + strings.Repeat("{a:", 2000000),
+	} {
+		collectTokens(lexer.New([]byte(src)))
 	}
 }

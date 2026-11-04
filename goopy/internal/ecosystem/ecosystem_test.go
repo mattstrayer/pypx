@@ -226,8 +226,8 @@ func TestParity(t *testing.T) {
 }
 
 // TestASTConformance compares goopy's parser with CPython's ast module on every
-// .py file in the pinned packages. Counts may not exceed the ratchet maxima and
-// must be lowered when they improve. Plan 002 lowers them to zero.
+// .py file in the pinned packages. Counts may not exceed the ratchet maxima, which
+// are all zero.
 //
 // Requires: python3 (standard library only).
 func TestASTConformance(t *testing.T) {
@@ -238,12 +238,12 @@ func TestASTConformance(t *testing.T) {
 		t.Skip("python3 not available")
 	}
 
-	// Ratchet maxima. Lower these when the parser improves.
+	// Ratchet maxima. The parser matches CPython on the whole corpus, so all are 0.
 	const (
-		maxFilesWithErrors = 626
-		maxMissingDefs     = 2726
-		maxExtraDefs       = 2638
-		maxParamMismatches = 1
+		maxFilesWithErrors = 0
+		maxMissingDefs     = 0
+		maxExtraDefs       = 0
+		maxParamMismatches = 0
 	)
 
 	gen, err := filepath.Abs(filepath.Join("..", "conformance", "gen_golden.py"))

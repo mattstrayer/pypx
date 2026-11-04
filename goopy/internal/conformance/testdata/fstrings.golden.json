@@ -1,0 +1,24 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "C"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "C.m"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_fstrings"
+  }
+]
