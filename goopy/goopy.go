@@ -711,7 +711,8 @@ func (r *resolver) lookup(mod, name string, visited map[[2]string]bool, depth in
 
 // exportList returns the names public module pm publishes. With a complete
 // __all__ that is every listed name. Otherwise it is the public names imported
-// from private modules of the wheel, plus any names __all__ lists.
+// from private modules of the wheel, the names any module marks as explicit
+// re-exports, and any names __all__ lists.
 func (r *resolver) exportList(pm *parsedModule) []string {
 	if ex := pm.mod.Exports; ex != nil && !r.isPartialAll(pm) {
 		return r.starNames(pm.mod.Name, map[string]bool{})
@@ -732,7 +733,7 @@ func (r *resolver) exportList(pm *parsedModule) []string {
 		}
 		src := importSource(pm, imp)
 		target, ok := r.modules[src]
-		if !ok || target.public {
+		if !ok || (target.public && !isExplicitReexport(imp)) {
 			continue
 		}
 		if imp.Name == "*" {
@@ -746,6 +747,12 @@ func (r *resolver) exportList(pm *parsedModule) []string {
 		}
 	}
 	return names
+}
+
+// isExplicitReexport reports whether imp has the form "from .x import Y as Y", the
+// standard way to mark a name as part of a module's public API (PEP 484).
+func isExplicitReexport(imp *model.Import) bool {
+	return imp.Name != "*" && imp.Alias == imp.Name
 }
 
 // settlePublic decides which of pm's own definitions are public. It returns the
