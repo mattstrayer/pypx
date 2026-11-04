@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -295,6 +296,7 @@ func inferTopLevel(files map[string][]byte, pkgName string) []string {
 		for dir := range seen {
 			result = append(result, dir)
 		}
+		sort.Strings(result)
 		return result
 	}
 

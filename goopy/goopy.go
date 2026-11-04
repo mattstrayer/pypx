@@ -6,6 +6,7 @@ import (
 	"log"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 
@@ -46,6 +47,7 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 	// Collect eligible files.
 	type work struct {
 		modName string
+		path    string
 		src     []byte
 	}
 	var items []work
@@ -62,14 +64,33 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 			switch {
 			case strings.HasPrefix(path, dirPrefix):
 				if !isPrivateModule(path) {
-					items = append(items, work{modName: pathToModuleName(path), src: src})
+					items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
 				}
 			case !hasDir && path == pkgName+".py":
 				// Single-file module distribution (e.g. six.py).
-				items = append(items, work{modName: pathToModuleName(path), src: src})
+				items = append(items, work{modName: pathToModuleName(path), path: path, src: src})
 			}
 		}
 	}
+
+	// Map iteration order is random. Sort by module name so output is stable
+	// and a package root ("pkg") precedes its submodules ("pkg.sub").
+	// If "foo.py" and "foo/__init__.py" both exist they share a module name:
+	// keep the package directory's file, which Python's import system prefers.
+	slices.SortFunc(items, func(a, b work) int {
+		if c := strings.Compare(a.modName, b.modName); c != 0 {
+			return c
+		}
+		aInit, bInit := strings.HasSuffix(a.path, "/__init__.py"), strings.HasSuffix(b.path, "/__init__.py")
+		if aInit != bInit {
+			if aInit {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.path, b.path)
+	})
+	items = slices.CompactFunc(items, func(a, b work) bool { return a.modName == b.modName })
 
 	// For small packages, skip goroutine overhead.
 	if len(items) <= parallelThreshold {
@@ -78,17 +99,9 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 			if ctx.Err() != nil {
 				break
 			}
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("goopy: serial extract panic on %s: %v\n%s", item.modName, r, debug.Stack())
-					}
-				}()
-				mod, _ := ExtractModule(item.modName, item.src)
-				if hasContent(mod) {
-					pkg.Modules = append(pkg.Modules, mod)
-				}
-			}()
+			if mod := extractSafely(item.modName, item.src); mod != nil && hasContent(mod) {
+				pkg.Modules = append(pkg.Modules, mod)
+			}
 		}
 		return pkg
 	}
@@ -112,17 +125,11 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 	for range workers {
 		go func() {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("goopy: worker panic: %v\n%s", r, debug.Stack())
-				}
-			}()
 			for idx := range ch {
 				if ctx.Err() != nil {
 					return
 				}
-				mod, _ := ExtractModule(items[idx].modName, items[idx].src)
-				results[idx] = mod
+				results[idx] = extractSafely(items[idx].modName, items[idx].src)
 			}
 		}()
 	}
@@ -135,6 +142,22 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		}
 	}
 	return pkg
+}
+
+// extractModuleFn is the extraction call used by extractSafely. Tests replace it.
+var extractModuleFn = ExtractModule
+
+// extractSafely extracts one module and returns nil if extraction panics, so a
+// single bad module cannot stop a worker or lose other modules.
+func extractSafely(modName string, src []byte) (mod *model.Module) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("goopy: extract panic on %s: %v\n%s", modName, r, debug.Stack())
+			mod = nil
+		}
+	}()
+	mod, _ = extractModuleFn(modName, src)
+	return mod
 }
 
 func pathToModuleName(path string) string {

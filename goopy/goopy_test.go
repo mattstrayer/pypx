@@ -1,10 +1,79 @@
 package goopy
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/pypx/goopy/model"
 )
+
+func TestExtractPackageDeterministic(t *testing.T) {
+	files := map[string][]byte{}
+	for _, top := range []string{"alpha", "beta"} {
+		files[top+"/__init__.py"] = []byte("def " + top + "_root(): pass\n")
+		for i := 0; i < 19; i++ {
+			sub := fmt.Sprintf("%s/sub%d", top, i%3)
+			files[fmt.Sprintf("%s/m%02d.py", sub, i)] = []byte(fmt.Sprintf("def f%d(): pass\n", i))
+		}
+	}
+	if len(files) != 40 {
+		t.Fatalf("setup: %d files, want 40", len(files))
+	}
+	var first []byte
+	for run := 0; run < 20; run++ {
+		pkg := ExtractPackage(context.Background(), "test", files, []string{"beta", "alpha"})
+		got, err := json.Marshal(pkg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if run == 0 {
+			first = got
+			continue
+		}
+		if !bytes.Equal(first, got) {
+			t.Fatalf("run %d output differs from run 0", run)
+		}
+	}
+}
+
+func TestExtractPackage_DuplicateModuleNames(t *testing.T) {
+	files := map[string][]byte{
+		"foo/__init__.py": []byte("def from_pkg(): pass\n"),
+		"foo.py":          []byte("def from_file(): pass\n"),
+		"foo/a.py":        []byte("def a(): pass\n"),
+	}
+	for run := 0; run < 10; run++ {
+		pkg := ExtractPackage(context.Background(), "foo", files, []string{"foo", "foo"})
+		if len(pkg.Modules) != 2 {
+			t.Fatalf("Modules len = %d, want 2", len(pkg.Modules))
+		}
+		if pkg.Modules[0].Name != "foo" || pkg.Modules[1].Name != "foo.a" {
+			t.Fatalf("order = %q, %q", pkg.Modules[0].Name, pkg.Modules[1].Name)
+		}
+	}
+}
+
+func TestExtractPackageWorkerPanicKeepsOtherModules(t *testing.T) {
+	orig := extractModuleFn
+	defer func() { extractModuleFn = orig }()
+	extractModuleFn = func(name string, src []byte) (*model.Module, []error) {
+		if name == "pkg.m3" {
+			panic("boom")
+		}
+		return orig(name, src)
+	}
+	files := map[string][]byte{}
+	for i := 0; i < 12; i++ {
+		files[fmt.Sprintf("pkg/m%d.py", i)] = []byte(fmt.Sprintf("def f%d(): pass\n", i))
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	if len(pkg.Modules) != 11 {
+		t.Fatalf("Modules len = %d, want 11", len(pkg.Modules))
+	}
+}
 
 func TestExtractModule(t *testing.T) {
 	src := []byte("\"\"\"My module.\"\"\"\n\ndef hello(name: str) -> str:\n    \"\"\"Say hello.\n\n    Args:\n        name: The name to greet.\n\n    Returns:\n        str: A greeting string.\n    \"\"\"\n    return f\"Hello, {name}\"\n\nclass Greeter:\n    \"\"\"A greeter.\"\"\"\n\n    def __init__(self, prefix: str = \"Hello\"):\n        self.prefix = prefix\n\n    def greet(self, name: str) -> str:\n        \"\"\"Greet someone.\"\"\"\n        return f\"{self.prefix}, {name}\"\n\nclass BadInputError(ValueError):\n    \"\"\"Raised on bad input.\"\"\"\n    pass\n")
