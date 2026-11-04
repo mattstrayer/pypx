@@ -2,8 +2,8 @@
 // against griffe (the Python reference implementation). These tests download
 // real PyPI packages and verify goopy finds the same symbols griffe does.
 //
-// Run: cd goopy && go test ./ecosystem/ -v -count=1
-// Skip: go test ./ecosystem/ -short (skips all network tests)
+// Run: cd goopy && go test ./internal/ecosystem/ -v -count=1
+// Skip: go test ./internal/ecosystem/ -short (skips all network tests)
 //
 // The parity test is designed for CI: it fails if goopy misses any function
 // or class that griffe finds in a shared module. Only expand packages.json
