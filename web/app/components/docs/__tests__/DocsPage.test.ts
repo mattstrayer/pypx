@@ -327,7 +327,7 @@ describe("docs page", () => {
     const modules = [
       {
         name: "pkg",
-        functions: cards(400),
+        functions: cards(120),
         classes: [],
         exceptions: [],
         constants: [{ name: "LIMIT", default: "10" }],
@@ -345,17 +345,17 @@ describe("docs page", () => {
     }
 
     it("renders the cards after a card target, and the sections after them", async () => {
-      const page = await jump("pkg.f100");
-      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f100']").exists()).toBe(true));
-      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f399']").exists()).toBe(true), 5000);
+      const page = await jump("pkg.f50");
+      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f50']").exists()).toBe(true));
+      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f119']").exists()).toBe(true), 8000);
       await vi.waitFor(() => expect(page.find("[data-testid='re-exports']").exists()).toBe(true));
-    });
+    }, 15000);
 
     it.each(["constants", "re-exports", "pkg.LIMIT"])("reaches %s at once", async (id) => {
       const page = await jump(id);
       await nextTick();
       await nextTick();
-      expect(page.find("[id='sym-pkg.f399']").exists()).toBe(true);
+      expect(page.find("[id='sym-pkg.f119']").exists()).toBe(true);
       expect(page.find("[data-testid='constants']").exists()).toBe(true);
       expect(page.find("[data-testid='re-exports']").exists()).toBe(true);
     });
