@@ -837,9 +837,7 @@ func (p *Parser) parseLambda() ast.Expr {
 	p.next() // consume 'lambda'
 
 	// Skip to the colon — we don't deeply model lambda params.
-	for p.tok.Type != token.COLON && !p.atLineEnd() {
-		p.next()
-	}
+	p.skipHeader()
 	if p.tok.Type == token.COLON {
 		p.next()
 	}

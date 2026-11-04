@@ -851,49 +851,22 @@ func (p *Parser) parsePassThrough() ast.Stmt {
 	}
 }
 
-// parsePassThroughBlock skips tokens until ':' then parses the block.
+// parsePassThroughBlock skips the header up to its ':' then parses the block.
 func (p *Parser) parsePassThroughBlock() []ast.Stmt {
-	// Skip to the colon.
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-		p.next()
-	}
-	if p.tok.Type == token.COLON {
-		p.next()
-		return p.parseBlock()
-	}
-	// If we hit NEWLINE without colon, skip it and move on.
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
-	return nil
+	p.skipHeader()
+	p.expectColon()
+	return p.parseBlock()
 }
 
 // parseTryBlocks handles try: ... except: ... else: ... finally: ... blocks.
 func (p *Parser) parseTryBlocks(pos token.Pos) []ast.Stmt {
-	var allBody []ast.Stmt
-
-	// Skip to first ':'
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-		p.next()
-	}
-	if p.tok.Type == token.COLON {
-		p.next()
-		allBody = append(allBody, p.parseBlock()...)
-	}
-
+	allBody := p.parsePassThroughBlock()
 	p.skipNewlines()
 
 	// Handle except/else/finally blocks.
 	for p.at(token.EXCEPT, token.ELSE, token.FINALLY) {
 		p.next() // consume keyword
-		// Skip to colon.
-		for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-			p.next()
-		}
-		if p.tok.Type == token.COLON {
-			p.next()
-			allBody = append(allBody, p.parseBlock()...)
-		}
+		allBody = append(allBody, p.parsePassThroughBlock()...)
 		p.skipNewlines()
 	}
 

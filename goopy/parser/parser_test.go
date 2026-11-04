@@ -1523,3 +1523,48 @@ func TestDictUnpack(t *testing.T) {
 		t.Errorf("value 2: got %T, want Attribute", d.Values[2])
 	}
 }
+
+func passThroughBody(t *testing.T, src string) []ast.Stmt {
+	t.Helper()
+	mod := parse(t, src)
+	requireStmts(t, mod, 1)
+	pt, ok := mod.Body[0].(*ast.PassThrough)
+	if !ok {
+		t.Fatalf("expected PassThrough, got %T", mod.Body[0])
+	}
+	return pt.Body
+}
+
+func TestCompoundHeaders(t *testing.T) {
+	for _, header := range []string{
+		"for x in y[:-1]:",
+		"for x in {1: 2}:",
+		"for x in lambda: y, lambda a=1: a:",
+		"for x in (lambda: y):",
+		"while f(lambda a: a):",
+		"with a[1:2] as b, c as d:",
+		"with (a as b, c as d):",
+		"try:",
+	} {
+		src := header + "\n    def m(): pass\n"
+		if header == "try:" {
+			src += "except (A, B) as e:\n    pass\nexcept* C:\n    pass\nelse:\n    pass\nfinally:\n    pass\n"
+		}
+		body := passThroughBody(t, src)
+		if _, ok := body[0].(*ast.FunctionDef); !ok {
+			t.Errorf("%s: got %T, want FunctionDef", header, body[0])
+		}
+	}
+}
+
+func TestLambdaColons(t *testing.T) {
+	for _, src := range []string{
+		"f = lambda x=a[1:2]: x",
+		"f = lambda x={1: 2}, *y, **z: x",
+		"f = lambda x=lambda y: y: x",
+		"f = lambda: 0",
+		"d = {'k': lambda v: v, 'l': 1}",
+	} {
+		asAssign(t, parse(t, src+"\n").Body[0])
+	}
+}
