@@ -820,3 +820,144 @@ class Plain:
 		t.Errorf("expected nil constructor, got %+v", m.Classes[0].Constructor)
 	}
 }
+
+func dcParams(t *testing.T, src string) []*model.Parameter {
+	t.Helper()
+	m := extract(src)
+	c := m.Classes[0].Constructor
+	if c == nil {
+		t.Fatal("expected constructor")
+	}
+	return c.Parameters
+}
+
+func paramNames(ps []*model.Parameter) []string {
+	var out []string
+	for _, p := range ps {
+		out = append(out, p.Name)
+	}
+	return out
+}
+
+func TestDataclassInitFalseDecorator(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass
+
+@dataclass(init=False)
+class A:
+    x: int
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil constructor, got %+v", m.Classes[0].Constructor)
+	}
+}
+
+func TestDataclassFieldInitFalse(t *testing.T) {
+	ps := dcParams(t, `
+import dataclasses
+from dataclasses import dataclass, field
+
+@dataclass
+class A:
+    x: int
+    y: int = field(init=False)
+    z: int = dataclasses.field(init=False, default=0)
+    w: int = 1
+`)
+	got := paramNames(ps)
+	if len(got) != 2 || got[0] != "x" || got[1] != "w" {
+		t.Errorf("got %v, want [x w]", got)
+	}
+}
+
+func TestDataclassKWOnlySentinel(t *testing.T) {
+	ps := dcParams(t, `
+from dataclasses import dataclass, KW_ONLY
+
+@dataclass
+class A:
+    a: int
+    _: KW_ONLY
+    b: int
+    c: int = 2
+`)
+	got := paramNames(ps)
+	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Fatalf("got %v, want [a b c]", got)
+	}
+	if ps[0].Kind != model.ParamPositionalOrKeyword || ps[1].Kind != model.ParamKeywordOnly || ps[2].Kind != model.ParamKeywordOnly {
+		t.Errorf("bad kinds: %s %s %s", ps[0].Kind, ps[1].Kind, ps[2].Kind)
+	}
+
+	ps = dcParams(t, `
+import dataclasses
+
+@dataclasses.dataclass
+class B:
+    a: int
+    _: dataclasses.KW_ONLY
+    b: int
+`)
+	if len(ps) != 2 || ps[1].Kind != model.ParamKeywordOnly {
+		t.Errorf("dataclasses.KW_ONLY not handled: %+v", ps)
+	}
+}
+
+func TestDataclassFieldKWOnlyReordered(t *testing.T) {
+	ps := dcParams(t, `
+from dataclasses import dataclass, field
+
+@dataclass
+class A:
+    a: int
+    b: int = field(kw_only=True, default=0)
+    c: int = 3
+`)
+	got := paramNames(ps)
+	if len(got) != 3 || got[0] != "a" || got[1] != "c" || got[2] != "b" {
+		t.Fatalf("got %v, want [a c b]", got)
+	}
+	if ps[2].Kind != model.ParamKeywordOnly || ps[1].Kind != model.ParamPositionalOrKeyword {
+		t.Errorf("bad kinds: %s %s", ps[1].Kind, ps[2].Kind)
+	}
+}
+
+func TestDataclassInitVar(t *testing.T) {
+	ps := dcParams(t, `
+import dataclasses
+from dataclasses import dataclass, InitVar
+
+@dataclass
+class A:
+    x: InitVar[int]
+    y: dataclasses.InitVar[str] = "a"
+`)
+	if len(ps) != 2 {
+		t.Fatalf("got %v", paramNames(ps))
+	}
+	if ps[0].Type == nil || ps[0].Type.Raw != "int" {
+		t.Errorf("x type = %+v, want int", ps[0].Type)
+	}
+	if ps[1].Type == nil || ps[1].Type.Raw != "str" {
+		t.Errorf("y type = %+v, want str", ps[1].Type)
+	}
+}
+
+func TestDataclassInheritedBasesReturnNil(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass
+
+@dataclass
+class Child(Base):
+    x: int
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil for subclass of unknown base, got %+v", m.Classes[0].Constructor)
+	}
+	for _, base := range []string{"object", "ABC", "abc.ABC", "Protocol", "typing.Protocol", "Generic[T]", "typing.Generic[T]"} {
+		m := extract("from dataclasses import dataclass\n\n@dataclass\nclass C(" + base + "):\n    x: int\n")
+		if m.Classes[0].Constructor == nil {
+			t.Errorf("base %q should keep the synthesized constructor", base)
+		}
+	}
+}
