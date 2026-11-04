@@ -427,6 +427,24 @@
       },
       "DocModule": {
         "properties": {
+          "aliases": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "target"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "classes": {
             "items": {
               "$ref": "#/components/schemas/DocSymbol"
@@ -530,6 +548,9 @@
             "type": "array"
           },
           "name": {
+            "type": "string"
+          },
+          "origin": {
             "type": "string"
           },
           "parameters": {

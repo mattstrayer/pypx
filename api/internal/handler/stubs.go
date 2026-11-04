@@ -206,13 +206,30 @@ func buildStubIndex(pkg *model.Package) stubIndex {
 	if pkg == nil {
 		return idx
 	}
+	classes := make(map[string]*model.Class)
 	for _, mod := range pkg.Modules {
 		for _, fn := range mod.Functions {
 			idx[mod.Name+"."+fn.Name] = fn
 		}
 		for _, cls := range mod.Classes {
+			classes[mod.Name+"."+cls.Name] = cls
 			for _, m := range cls.Methods {
 				idx[mod.Name+"."+cls.Name+"."+m.Name] = m
+			}
+		}
+	}
+	// A stub's alias answers for its target, so a source symbol published under
+	// the alias path still finds its stub.
+	for _, mod := range pkg.Modules {
+		for _, a := range mod.Aliases {
+			path := mod.Name + "." + a.Name
+			if fn, ok := idx[a.Target]; ok {
+				idx[path] = fn
+			}
+			if cls, ok := classes[a.Target]; ok {
+				for _, m := range cls.Methods {
+					idx[path+"."+m.Name] = m
+				}
 			}
 		}
 	}
