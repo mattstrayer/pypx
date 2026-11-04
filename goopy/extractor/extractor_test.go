@@ -1626,3 +1626,35 @@ func TestLambdaDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyPlainStringsAreDocstrings(t *testing.T) {
+	for body, want := range map[string]string{
+		`"doc"`:    "doc",
+		`r"doc"`:   "doc",
+		`"a" "b"`:  "ab",
+		`f"x"`:     "",
+		`b"x"`:     "",
+		`rb"x"`:    "",
+		`"a" f"b"`: "",
+		`f"a" "b"`: "",
+		`F"""x"""`: "",
+	} {
+		t.Run(body, func(t *testing.T) {
+			m := extract("def f():\n    " + body + "\n")
+			got := ""
+			if d := m.Functions[0].Docstring; d != nil {
+				got = d.Text
+			}
+			if got != want {
+				t.Errorf("docstring = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestFStringInAllIsDynamic(t *testing.T) {
+	m := extract("__all__ = [\"a\", f\"b\"]\n")
+	if m.Exports == nil || !m.Exports.Dynamic {
+		t.Errorf("Exports = %+v, want Dynamic", m.Exports)
+	}
+}

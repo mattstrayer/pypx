@@ -602,11 +602,16 @@ func (p *Parser) parseString() ast.Expr {
 
 	lit := t.Lit
 	value := stripQuotes(lit)
+	kind := stringKind(lit)
 
-	// Concatenate adjacent strings.
+	// Concatenate adjacent strings. One f-string makes the whole expression an
+	// f-string, as in CPython.
 	for p.tok.Type == token.STRING {
 		lit += " " + p.tok.Lit
 		value += stripQuotes(p.tok.Lit)
+		if k := stringKind(p.tok.Lit); k == "fstr" {
+			kind = k
+		}
 		p.next()
 	}
 
@@ -614,9 +619,22 @@ func (p *Parser) parseString() ast.Expr {
 		Position: t.Pos,
 		EndPos:   token.Pos{Line: t.Pos.Line, Col: t.Pos.Col + len(lit), Offset: t.Pos.Offset + len(lit)},
 		Value:    value,
-		Kind:     "str",
+		Kind:     kind,
 		Lit:      lit,
 	}
+}
+
+// stringKind returns the Constant kind of one string literal, from its prefix.
+func stringKind(lit string) string {
+	for i := 0; i < len(lit) && isStringPrefixChar(lit[i]); i++ {
+		switch lit[i] {
+		case 'f', 'F', 't', 'T':
+			return "fstr"
+		case 'b', 'B':
+			return "bytes"
+		}
+	}
+	return "str"
 }
 
 // stripQuotes removes the quote delimiters and optional prefix from a string literal.

@@ -304,7 +304,7 @@ type Constant struct {
 	Position token.Pos
 	EndPos   token.Pos
 	Value    string // string representation: "42", "hello", "True"
-	Kind     string // "str", "int", "float", "bool", "none", "ellipsis"
+	Kind     string // "str", "bytes", "fstr", "int", "float", "bool", "none", "ellipsis"
 	Lit      string // raw source literal text (preserves quotes for strings)
 }
 
