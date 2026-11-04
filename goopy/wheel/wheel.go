@@ -63,6 +63,9 @@ type WheelFile struct {
 type WheelContents struct {
 	Files        map[string][]byte // relative path -> source bytes
 	TopLevelPkgs []string
+	// Version is the release version PyPI reported. Fetch sets it, so a
+	// request for the latest release (empty version) learns the version it got.
+	Version string
 }
 
 // Fetcher downloads and extracts Python source files from a package wheel.
@@ -94,15 +97,20 @@ var _ Fetcher = (*Source)(nil)
 
 // Fetch downloads a wheel for the given package and version, returning .py file contents.
 func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContents, error) {
-	wheels, err := s.fetchWheelURLs(ctx, name, version)
+	wheels, resolved, err := s.fetchRelease(ctx, name, version)
 	if err != nil {
 		return nil, fmt.Errorf("fetching wheel URLs: %w", err)
 	}
 	if len(wheels) == 0 {
-		return nil, fmt.Errorf("%s==%s (sdist-only or no files): %w", name, version, ErrNoArtifact)
+		return nil, fmt.Errorf("%s==%s (sdist-only or no files): %w", name, resolved, ErrNoArtifact)
 	}
 
-	return s.fetchWheel(ctx, selectWheel(wheels), name)
+	contents, err := s.fetchWheel(ctx, selectWheel(wheels), name)
+	if err != nil {
+		return nil, err
+	}
+	contents.Version = resolved
+	return contents, nil
 }
 
 // fetchWheel reads one wheel. Wheels above rangeThreshold are read with HTTP
@@ -149,29 +157,42 @@ func (s *Source) fetchWhole(ctx context.Context, w WheelFile, name string) (*Whe
 }
 
 func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]WheelFile, error) {
+	wheels, _, err := s.fetchRelease(ctx, name, version)
+	return wheels, err
+}
+
+// fetchRelease lists the wheels of one release and returns the release version.
+// An empty version selects the latest release.
+func (s *Source) fetchRelease(ctx context.Context, name, version string) ([]WheelFile, string, error) {
 	base := s.BaseURL
 	if base == "" {
 		base = pypiBaseURL
 	}
-	url := fmt.Sprintf("%s/pypi/%s/%s/json", base, neturl.PathEscape(name), neturl.PathEscape(version))
+	url := fmt.Sprintf("%s/pypi/%s/json", base, neturl.PathEscape(name))
+	if version != "" {
+		url = fmt.Sprintf("%s/pypi/%s/%s/json", base, neturl.PathEscape(name), neturl.PathEscape(version))
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("%s==%s: %w", name, version, ErrNotFound)
+		return nil, "", fmt.Errorf("%s==%s: %w", name, version, ErrNotFound)
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("PyPI returned %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("PyPI returned %d", resp.StatusCode)
 	}
 
 	var pypiResp struct {
+		Info struct {
+			Version string `json:"version"`
+		} `json:"info"`
 		URLs []struct {
 			Filename    string `json:"filename"`
 			URL         string `json:"url"`
@@ -180,7 +201,7 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 		} `json:"urls"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&pypiResp); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	var wheels []WheelFile
@@ -193,7 +214,11 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 			})
 		}
 	}
-	return wheels, nil
+	resolved := pypiResp.Info.Version
+	if resolved == "" {
+		resolved = version
+	}
+	return wheels, resolved, nil
 }
 
 // selectWheel picks one wheel deterministically: pure (none-any) wheels first,

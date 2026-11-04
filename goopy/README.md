@@ -25,7 +25,7 @@ import "github.com/pypx/goopy"
 - Resolve dynamic attribute assignment, runtime metaclasses, or anything that depends on import-time effects
 - Follow runtime re-exports such as a module `__getattr__` or `lazy_import`. `attrs` publishes `__version__` this way, so names like that stay undocumented
 - Resolve names imported from another distribution. `from httpx import Timeout` in `openai` has no entry
-- Read compiled modules. A name that only exists in a `.so` file has no entry, such as `pandas.Timestamp`. `.pyi` files are not read during package extraction
+- Read compiled modules. A name that only exists in a `.so` file has no entry, such as `pandas.Timestamp`. `.pyi` stub files are not read yet, so stub-only signatures and types are missing
 - Read an `__all__` that is built at runtime. Names it lists as literals still count, and the public-name rule covers the rest
 - Type-check the code — annotations are captured as strings
 - Replace tools like Sphinx for full documentation site generation
@@ -45,11 +45,12 @@ import (
 
 func main() {
     src := []byte(`
-def greet(name: str) -> str:
+def greet(name: str, excited: bool = False) -> str:
     """Return a friendly greeting.
 
     Args:
         name: who to greet.
+        excited: end the greeting with an exclamation mark.
     """
     return f"hello, {name}"
 `)
@@ -58,24 +59,51 @@ def greet(name: str) -> str:
         fmt.Println("parse warnings:", errs)
     }
     for _, fn := range mod.Functions {
-        fmt.Printf("%s(%s) -> %s — %s\n",
-            fn.Name, fn.Signature, fn.ReturnType, fn.Summary)
+        fmt.Printf("%s (%s docstring)\n", fn.Name, fn.Docstring.Style)
+        for _, p := range fn.Parameters {
+            typ := ""
+            if p.Type != nil {
+                typ = p.Type.Raw
+            }
+            fmt.Printf("  param %s (%s) default=%q\n", p.Name, typ, p.Default)
+        }
+        for _, p := range fn.Docstring.Params {
+            fmt.Printf("  doc   %s: %s\n", p.Name, p.Description)
+        }
+        if fn.Returns != nil {
+            fmt.Printf("  returns %s\n", fn.Returns.Raw)
+        }
     }
 }
+```
+
+This prints:
+
+```
+greet (google docstring)
+  param name (str) default=""
+  param excited (bool) default="False"
+  doc   name: who to greet.
+  doc   excited: end the greeting with an exclamation mark.
+  returns str
 ```
 
 ### Extract from a published package on PyPI
 
 ```go
 ctx := context.Background()
-pkg, err := goopy.ExtractFromPyPI(ctx, "requests", "") // empty version → latest
+pkg, err := goopy.ExtractFromPyPI(ctx, "requests", "") // empty version: latest release
 if err != nil {
     log.Fatal(err)
 }
-fmt.Printf("%s has %d modules\n", pkg.Name, len(pkg.Modules))
+fmt.Printf("%s %s has %d modules\n", pkg.Name, pkg.Version, len(pkg.Modules))
 ```
 
-`ExtractFromPyPI` will pick the most appropriate wheel (preferring `py3-none-any`), download it, unzip into memory, and run the parser+extractor over each `.py` file. For packages without a wheel (sdist-only), this returns an error — supply your own `wheel.Fetcher` via `ExtractFromWheel` if you need different selection logic.
+With an empty version, `pkg.Version` holds the release PyPI served.
+
+`ExtractFromPyPI` picks one wheel (preferring `py3-none-any`, then the smallest), reads the `.py` files into memory, and runs the parser and extractor over each one. Wheels above a size threshold are read with HTTP range requests, so only the zip directory and the `.py` entries cross the network. For packages without a wheel (sdist-only), it returns `wheel.ErrNoArtifact`. Supply your own `wheel.Fetcher` through `ExtractFromWheel` if you need different selection logic.
+
+`ExtractFromPyPI` builds a new `wheel.Source` on each call. To reuse one HTTP client, build a `wheel.Source` once and pass it to `ExtractFromWheel`.
 
 ## API surface
 
@@ -86,7 +114,15 @@ fmt.Printf("%s has %d modules\n", pkg.Name, len(pkg.Modules))
 | `ExtractFromPyPI(ctx, name, version) (*Package, error)` | You want the convenience flow — fetch + extract |
 | `ExtractFromWheel(ctx, fetcher, name, version) (*Package, error)` | You want to plug in a custom wheel source |
 
-The full data model lives in [`model/`](./model). Highlights: `Module`, `Class`, `Function`, `Parameter`, `Docstring` (with `Summary`, `Description`, `Args`, `Returns`, `Raises`, `Examples`).
+The full data model lives in [`model/`](./model). Highlights: `Module`, `Class`, `Function`, `Parameter`, and `Docstring`. A `Docstring` has `Text` (the docstring body), `Style` (`google`, `numpy`, `sphinx`, or `plain`), and the parsed sections `Params`, `Returns`, `Yields`, and `Raises`.
+
+### Re-exports and aliases
+
+`ExtractPackage` resolves re-exports. A definition that lives in a private module and appears in a public module (for example through `__init__.py`) is published once, in the first export location by sort order. That copy carries `Origin`, the dotted name of the defining module. Every other public module that re-exports the same definition lists it in `Module.Aliases` as a `{Name, Target}` pair.
+
+### Extractor version
+
+`goopy.ExtractorVersion` is a constant that names the current extraction output. Callers that cache results should include it in the cache key. Any change that alters extraction output must raise it, so cached results regenerate.
 
 ## Layout
 
@@ -107,10 +143,12 @@ goopy/
 ## Tests
 
 ```bash
-go test ./...
+go test -short ./...
 ```
 
-A separate slow ecosystem suite parses real wheels for popular packages (numpy, pandas, requests, …) and verifies extraction parity. It's gated by build tags so the default `go test` stays fast; pypx runs it weekly via the `goopy-ecosystem.yml` GitHub Actions workflow.
+A separate slow ecosystem suite in `internal/ecosystem` downloads real wheels for popular packages (numpy, pandas, requests, and others) and checks extraction against griffe and the CPython AST. These tests call `testing.Short()`, so `go test -short ./...` skips them. Run them without `-short` and with a long `-timeout`, for example `go test ./internal/ecosystem/ -run TestASTConformance -count=1 -timeout 1200s`. The `goopy-ecosystem.yml` GitHub Actions workflow runs the suite on a schedule.
+
+`internal/benchmark` times goopy on a fixed list of packages. Run it with `go test ./internal/benchmark/ -v -count=1 -timeout 600s`.
 
 ## License
 

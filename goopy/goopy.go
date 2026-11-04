@@ -750,6 +750,9 @@ func extractWheel(ctx context.Context, fetcher wheel.Fetcher, name, version stri
 	}
 	pkg := extractPackage(ctx, name, contents.Files, contents.TopLevelPkgs, afterParse)
 	pkg.Version = version
+	if contents.Version != "" {
+		pkg.Version = contents.Version
+	}
 	return pkg, nil
 }
 
