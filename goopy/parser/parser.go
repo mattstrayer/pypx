@@ -232,24 +232,6 @@ func (p *Parser) skipHeader() {
 	}
 }
 
-// skipUntil skips tokens until the given closing delimiter is reached at depth 0.
-// It tracks bracket nesting so it won't stop at a delimiter inside a nested group.
-func (p *Parser) skipUntil(close token.Type) {
-	depth := 0
-	for !p.atLineEnd() {
-		switch p.tok.Type {
-		case token.LPAREN, token.LBRACK, token.LBRACE:
-			depth++
-		case token.RPAREN, token.RBRACK, token.RBRACE:
-			if depth == 0 && p.tok.Type == close {
-				return
-			}
-			depth--
-		}
-		p.next()
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Statement parsing
 // ---------------------------------------------------------------------------

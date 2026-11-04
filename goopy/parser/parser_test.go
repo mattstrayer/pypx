@@ -1193,9 +1193,16 @@ func TestListComprehension(t *testing.T) {
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
 	a := asAssign(t, mod.Body[0])
-	_, ok := a.Value.(*ast.List)
+	c, ok := a.Value.(*ast.ListComp)
 	if !ok {
-		t.Fatalf("expected List, got %T", a.Value)
+		t.Fatalf("expected ListComp, got %T", a.Value)
+	}
+	if asName(t, c.Elt).Name != "i" || len(c.Generators) != 1 {
+		t.Fatalf("got %#v", c)
+	}
+	g := c.Generators[0]
+	if asName(t, g.Target).Name != "i" || asCall(t, g.Iter) == nil || len(g.Ifs) != 0 || g.IsAsync {
+		t.Errorf("got clause %#v", g)
 	}
 }
 
@@ -1204,13 +1211,14 @@ func TestDictComprehension(t *testing.T) {
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
 	a := asAssign(t, mod.Body[0])
-	d, ok := a.Value.(*ast.Dict)
+	d, ok := a.Value.(*ast.DictComp)
 	if !ok {
-		t.Fatalf("expected Dict, got %T", a.Value)
+		t.Fatalf("expected DictComp, got %T", a.Value)
 	}
-	if len(d.Keys) != 1 {
-		t.Errorf("keys len = %d, want 1", len(d.Keys))
+	if asName(t, d.Key).Name != "k" || asName(t, d.Value).Name != "v" {
+		t.Errorf("got key %#v, value %#v", d.Key, d.Value)
 	}
+	asTuple(t, d.Generators[0].Target, 2)
 }
 
 func TestSetComprehension(t *testing.T) {
@@ -1218,16 +1226,20 @@ func TestSetComprehension(t *testing.T) {
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
 	a := asAssign(t, mod.Body[0])
-	_, ok := a.Value.(*ast.Set)
+	_, ok := a.Value.(*ast.SetComp)
 	if !ok {
-		t.Fatalf("expected Set, got %T", a.Value)
+		t.Fatalf("expected SetComp, got %T", a.Value)
 	}
 }
 
 func TestGeneratorExpression(t *testing.T) {
-	src := "x = tuple(i for i in range(10))\n"
+	src := "x = (i for i in y)\n"
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
+	a := asAssign(t, mod.Body[0])
+	if _, ok := a.Value.(*ast.GeneratorExp); !ok {
+		t.Fatalf("expected GeneratorExp, got %T", a.Value)
+	}
 }
 
 func TestNestedComprehension(t *testing.T) {
@@ -1235,9 +1247,55 @@ func TestNestedComprehension(t *testing.T) {
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
 	a := asAssign(t, mod.Body[0])
-	_, ok := a.Value.(*ast.List)
+	c, ok := a.Value.(*ast.ListComp)
 	if !ok {
-		t.Fatalf("expected List, got %T", a.Value)
+		t.Fatalf("expected ListComp, got %T", a.Value)
+	}
+	if _, ok := c.Generators[0].Iter.(*ast.ListComp); !ok {
+		t.Errorf("expected ListComp iter, got %T", c.Generators[0].Iter)
+	}
+}
+
+func TestComprehensionClauses(t *testing.T) {
+	c, ok := exprOf(t, "[a async for a, *b, in c if d if e for f.g in h]").(*ast.ListComp)
+	if !ok || len(c.Generators) != 2 {
+		t.Fatalf("got %#v", c)
+	}
+	first, second := c.Generators[0], c.Generators[1]
+	if !first.IsAsync || second.IsAsync {
+		t.Errorf("async: got %v, %v", first.IsAsync, second.IsAsync)
+	}
+	if _, ok := asTuple(t, first.Target, 2).Elts[1].(*ast.Starred); !ok {
+		t.Errorf("target: got %#v", first.Target)
+	}
+	if asName(t, first.Iter).Name != "c" || len(first.Ifs) != 2 {
+		t.Errorf("clause: got %#v", first)
+	}
+	if _, ok := second.Target.(*ast.Attribute); !ok {
+		t.Errorf("target: got %T, want Attribute", second.Target)
+	}
+}
+
+func TestChainedOperatorsDifferFromParentheses(t *testing.T) {
+	cases := []struct {
+		src  string
+		want bool
+	}{
+		{"a < b < c", true},
+		{"(a < b) < c", false},
+		{"a or b or c", true},
+		{"(a or b) or c", false},
+		{"a and b and c", true},
+		{"(a and b) and c", false},
+	}
+	for _, c := range cases {
+		op, ok := exprOf(t, c.src).(*ast.BinOp)
+		if !ok {
+			t.Fatalf("%s: got %T", c.src, exprOf(t, c.src))
+		}
+		if op.Chained != c.want {
+			t.Errorf("%s: Chained = %v, want %v", c.src, op.Chained, c.want)
+		}
 	}
 }
 
@@ -1416,8 +1474,13 @@ func TestCallArgs_SoftKeywordNames(t *testing.T) {
 
 func TestCallArgs_Generator(t *testing.T) {
 	for _, src := range []string{"f(x for x in y)", "f(a == b for a, b in y if a)", "f(x async for x in y)"} {
-		if c := asCall(t, exprOf(t, src)); len(c.Args) != 1 {
+		c := asCall(t, exprOf(t, src))
+		if len(c.Args) != 1 {
 			t.Errorf("%s: expected 1 arg, got %d", src, len(c.Args))
+			continue
+		}
+		if _, ok := c.Args[0].(*ast.GeneratorExp); !ok {
+			t.Errorf("%s: got %T, want GeneratorExp", src, c.Args[0])
 		}
 	}
 }

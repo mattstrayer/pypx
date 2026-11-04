@@ -233,6 +233,10 @@ type BinOp struct {
 	// Negated set, and "is not" is IS with Negated set.
 	Negated bool
 	Right   Expr
+	// Chained marks a comparison or a boolean operator that continues a run with
+	// Left: "a < b < c" and "a or b or c". Without it, a Left of the same kind was
+	// written in parentheses, and "(a < b) < c" means something else.
+	Chained bool
 }
 
 func (b *BinOp) Pos() token.Pos { return b.Position }
@@ -296,6 +300,64 @@ type Set struct {
 func (s *Set) Pos() token.Pos { return s.Position }
 func (s *Set) End() token.Pos { return s.EndPos }
 func (s *Set) exprNode()      {}
+
+// Comprehension is one "for target in iter if cond" clause of a comprehension.
+type Comprehension struct {
+	Target  Expr
+	Iter    Expr
+	Ifs     []Expr
+	IsAsync bool
+}
+
+// ListComp is a list comprehension [elt for ...].
+type ListComp struct {
+	Position   token.Pos
+	EndPos     token.Pos
+	Elt        Expr
+	Generators []*Comprehension
+}
+
+func (l *ListComp) Pos() token.Pos { return l.Position }
+func (l *ListComp) End() token.Pos { return l.EndPos }
+func (l *ListComp) exprNode()      {}
+
+// SetComp is a set comprehension {elt for ...}.
+type SetComp struct {
+	Position   token.Pos
+	EndPos     token.Pos
+	Elt        Expr
+	Generators []*Comprehension
+}
+
+func (s *SetComp) Pos() token.Pos { return s.Position }
+func (s *SetComp) End() token.Pos { return s.EndPos }
+func (s *SetComp) exprNode()      {}
+
+// GeneratorExp is a generator expression (elt for ...).
+type GeneratorExp struct {
+	Position   token.Pos
+	EndPos     token.Pos
+	Elt        Expr
+	Generators []*Comprehension
+}
+
+func (g *GeneratorExp) Pos() token.Pos { return g.Position }
+func (g *GeneratorExp) End() token.Pos { return g.EndPos }
+func (g *GeneratorExp) exprNode()      {}
+
+// DictComp is a dict comprehension {key: value for ...}. As in Dict, an unpack
+// {**value for ...} has a nil Key.
+type DictComp struct {
+	Position   token.Pos
+	EndPos     token.Pos
+	Key        Expr
+	Value      Expr
+	Generators []*Comprehension
+}
+
+func (d *DictComp) Pos() token.Pos { return d.Position }
+func (d *DictComp) End() token.Pos { return d.EndPos }
+func (d *DictComp) exprNode()      {}
 
 // Constant is a constant value (number, string, bool, None).
 // Value holds the string representation, Kind identifies the type,
