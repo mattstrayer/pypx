@@ -40,6 +40,9 @@ type Parser struct {
 	errors []Error
 	src    []byte
 	depth  int // current expression-recursion depth (guards against stack overflow)
+
+	prev     token.Type // type of the most recently consumed token
+	consumed int        // number of tokens consumed, used to detect a stalled loop
 }
 
 // New creates a parser for the given Python source bytes.
@@ -68,7 +71,7 @@ func (p *Parser) Parse() *ast.Module {
 	}
 
 	for p.tok.Type != token.EOF {
-		stmt := p.parseStmt()
+		stmt := p.parseStmtRecovering()
 		if stmt != nil {
 			mod.Body = append(mod.Body, stmt)
 		}
@@ -88,11 +91,24 @@ func (p *Parser) Parse() *ast.Module {
 
 // next advances to the next token.
 func (p *Parser) next() {
+	p.prev = p.tok.Type
+	p.consumed++
 	p.tok = p.lex.Next()
 }
 
-// expect consumes the current token if it matches typ, otherwise records an error
-// and advances past the unexpected token to prevent infinite loops.
+// atLineEnd returns true at a token that ends the logical line or changes block
+// nesting. The lexer emits these tokens only outside brackets, so they always mean
+// real structure. Only the statement and block parsers may consume them.
+func (p *Parser) atLineEnd() bool {
+	switch p.tok.Type {
+	case token.NEWLINE, token.INDENT, token.DEDENT, token.EOF:
+		return true
+	}
+	return false
+}
+
+// expect consumes the current token if it matches typ. Otherwise it records an
+// error and skips the unexpected token, unless that token is structural.
 // Returns the consumed token (or the unexpected token on failure).
 func (p *Parser) expect(typ token.Type) token.Token {
 	if p.tok.Type == typ {
@@ -102,10 +118,23 @@ func (p *Parser) expect(typ token.Type) token.Token {
 	}
 	t := p.tok
 	p.errorf("expected %s, got %s", typ, p.tok.Type)
-	if p.tok.Type != token.EOF {
+	if !p.atLineEnd() {
 		p.next()
 	}
 	return t
+}
+
+// expectColon consumes the colon that ends a compound statement header. If the
+// header has unexpected tokens, it records an error and skips to the colon, so
+// that the block body stays attached to this statement.
+func (p *Parser) expectColon() {
+	if p.tok.Type != token.COLON {
+		p.errorf("expected %s, got %s", token.COLON, p.tok.Type)
+		p.skipHeader()
+	}
+	if p.tok.Type == token.COLON {
+		p.next()
+	}
 }
 
 // expectName is a convenience for expecting a NAME token and returning its literal.
@@ -169,9 +198,36 @@ func (p *Parser) isStmtStart() bool {
 	return false
 }
 
-// syncStmt skips tokens until we reach a statement boundary (NEWLINE, DEDENT, or EOF).
+// syncStmt skips tokens until we reach the end of the logical line.
 func (p *Parser) syncStmt() {
-	for !p.at(token.NEWLINE, token.DEDENT, token.EOF) {
+	for !p.atLineEnd() {
+		p.next()
+	}
+}
+
+// skipHeader advances to the colon that ends a compound statement header. It
+// ignores colons inside brackets and colons that belong to a lambda, and it never
+// passes the end of the logical line.
+func (p *Parser) skipHeader() {
+	depth, lambdas := 0, 0
+	for !p.atLineEnd() {
+		switch p.tok.Type {
+		case token.LPAREN, token.LBRACK, token.LBRACE:
+			depth++
+		case token.RPAREN, token.RBRACK, token.RBRACE:
+			depth--
+		case token.LAMBDA:
+			if depth <= 0 {
+				lambdas++
+			}
+		case token.COLON:
+			if depth <= 0 {
+				if lambdas == 0 {
+					return
+				}
+				lambdas--
+			}
+		}
 		p.next()
 	}
 }
@@ -180,7 +236,7 @@ func (p *Parser) syncStmt() {
 // It tracks bracket nesting so it won't stop at a delimiter inside a nested group.
 func (p *Parser) skipUntil(close token.Type) {
 	depth := 0
-	for p.tok.Type != token.EOF {
+	for !p.atLineEnd() {
 		switch p.tok.Type {
 		case token.LPAREN, token.LBRACK, token.LBRACE:
 			depth++
@@ -198,9 +254,45 @@ func (p *Parser) skipUntil(close token.Type) {
 // Statement parsing
 // ---------------------------------------------------------------------------
 
+// parseStmtRecovering parses one statement and contains any error inside it. After
+// an error it drops the rest of the logical line, so that the block continues. It
+// also guarantees progress, so that the statement loops always end.
+func (p *Parser) parseStmtRecovering() ast.Stmt {
+	errs, consumed := len(p.errors), p.consumed
+	stmt := p.parseStmt()
+	if len(p.errors) > errs && !p.atStmtBoundary() {
+		p.syncStmt()
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+	}
+	if p.consumed == consumed {
+		p.next()
+	}
+	return stmt
+}
+
+// atStmtBoundary returns true if the parser already stands at the start of a
+// statement: the previous statement ended its line or its block, or it was
+// abandoned at a statement keyword because of an unclosed bracket.
+func (p *Parser) atStmtBoundary() bool {
+	switch p.prev {
+	case token.NEWLINE, token.INDENT, token.DEDENT:
+		return true
+	}
+	return p.isStmtStart()
+}
+
 // parseStmt parses a single statement, dispatching based on the current token.
 func (p *Parser) parseStmt() ast.Stmt {
 	switch p.tok.Type {
+	case token.INDENT:
+		// An indent with no header, or after a header that failed. Keep the
+		// body as a nested block so that its DEDENT cannot close the enclosing block.
+		pos := p.tok.Pos
+		p.errorf("unexpected indent")
+		body := p.parseIndentedBody()
+		return &ast.PassThrough{Kind: "error", Body: body, Position: pos, EndPos: p.tok.Pos}
 	case token.AT:
 		return p.parseDecorated()
 	case token.DEF:
@@ -209,18 +301,46 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseAsync(nil)
 	case token.CLASS:
 		return p.parseClassDef(nil)
+	case token.IF:
+		return p.parseIf()
+	case token.MATCH:
+		if p.isMatchStmt() {
+			return p.parseMatch()
+		}
+		return p.parseSimpleStmt()
+	case token.FOR, token.WHILE, token.TRY, token.WITH:
+		return p.parsePassThrough()
+	default:
+		return p.parseSmallStmt()
+	}
+}
+
+// parseSmallStmt parses one statement that can share a line with others: anything
+// except a compound statement. A one-line block allows only these, so this path has
+// no recursion through blocks, and a long line cannot grow the stack.
+func (p *Parser) parseSmallStmt() ast.Stmt {
+	switch p.tok.Type {
+	case token.NAME:
+		// 'lazy' is a soft keyword only directly before an import statement.
+		if p.tok.Lit == "lazy" {
+			switch p.lex.Clone().Next().Type {
+			case token.IMPORT:
+				p.next()
+				return p.parseImport()
+			case token.FROM:
+				p.next()
+				return p.parseImportFrom()
+			}
+		}
+		return p.parseSimpleStmt()
 	case token.IMPORT:
 		return p.parseImport()
 	case token.FROM:
 		return p.parseImportFrom()
 	case token.TYPE:
 		return p.parseTypeOrSimple()
-	case token.IF:
-		return p.parseIf()
 	case token.PASS:
 		return p.parsePass()
-	case token.FOR, token.WHILE, token.TRY, token.WITH, token.MATCH:
-		return p.parsePassThrough()
 	case token.RETURN, token.RAISE, token.YIELD, token.DEL,
 		token.GLOBAL, token.NONLOCAL, token.ASSERT:
 		return p.parseSimpleKeywordStmt()
@@ -235,7 +355,7 @@ func (p *Parser) parseDecorated() ast.Stmt {
 
 	for p.tok.Type == token.AT {
 		p.next() // consume '@'
-		dec := p.parseExpr()
+		dec := p.parseNamedExpr()
 		decorators = append(decorators, dec)
 		// Consume the NEWLINE after the decorator.
 		if p.tok.Type == token.NEWLINE {
@@ -273,7 +393,7 @@ func (p *Parser) parseAsync(decorators []ast.Expr) ast.Stmt {
 
 	case token.FOR:
 		p.next() // consume 'for'
-		body := p.parsePassThroughBlock()
+		body := p.parseLoopBlocks()
 		endPos := pos
 		if len(body) > 0 {
 			endPos = body[len(body)-1].End()
@@ -340,7 +460,7 @@ func (p *Parser) parseFuncDef(decorators []ast.Expr) ast.Stmt {
 		returns = p.parseExpr()
 	}
 
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	endPos := pos
@@ -381,17 +501,18 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 	var keywords []*ast.Keyword
 	if p.tok.Type == token.LPAREN {
 		p.next()
-		bases, keywords = p.parseClassArgs()
+		bases, keywords = p.parseArgList()
 
 		// If the arg list hit a statement keyword (unclosed paren), abandon this class.
 		if p.isStmtStart() {
+			p.errorf("unclosed parenthesis in class bases")
 			return nil
 		}
 
 		p.expect(token.RPAREN)
 	}
 
-	p.expect(token.COLON)
+	p.expectColon()
 	body := p.parseBlock()
 
 	endPos := pos
@@ -411,75 +532,21 @@ func (p *Parser) parseClassDef(decorators []ast.Expr) ast.Stmt {
 	}
 }
 
-// parseClassArgs parses the argument list inside class Foo(...).
-// It distinguishes positional bases from keyword arguments (e.g., metaclass=ABCMeta).
-func (p *Parser) parseClassArgs() ([]ast.Expr, []*ast.Keyword) {
-	var bases []ast.Expr
-	var keywords []*ast.Keyword
-
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
-		// Bail out if we hit a statement keyword — the paren was never closed.
-		if p.isStmtStart() {
-			p.errorf("unclosed parenthesis in class bases")
-			break
-		}
-
-		// Check for keyword argument: name=expr
-		if p.tok.Type == token.NAME {
-			// Peek: is the next token '='?
-			savedTok := p.tok
-			p.next()
-			if p.tok.Type == token.ASSIGN {
-				// keyword argument
-				p.next() // consume '='
-				val := p.parseExpr()
-				keywords = append(keywords, &ast.Keyword{
-					Arg:   savedTok.Lit,
-					Value: val,
-				})
-				if p.tok.Type == token.COMMA {
-					p.next()
-				}
-				continue
-			}
-			// Not a keyword arg — back up. We already consumed the NAME,
-			// so we need to parse the rest as a trailer on that name.
-			expr := &ast.Name{
-				Position: savedTok.Pos,
-				EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-				Name:     savedTok.Lit,
-			}
-			// Parse any trailers (dots, subscripts, calls).
-			result := p.parseTrailers(expr)
-			// Handle binary operators that might follow (like |).
-			result = p.parseExprFrom(result)
-			bases = append(bases, result)
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		expr := p.parseExpr()
-		bases = append(bases, expr)
-		if p.tok.Type == token.COMMA {
-			p.next()
-		}
-	}
-
-	return bases, keywords
-}
-
 // parseBlock parses a colon-delimited block: NEWLINE INDENT stmt+ DEDENT.
 // Also handles single-line blocks (e.g., "def foo(): pass").
 func (p *Parser) parseBlock() []ast.Stmt {
 	// Single-line block (no NEWLINE INDENT).
 	if p.tok.Type != token.NEWLINE {
-		stmt := p.parseSimpleStmtInline()
-		if stmt != nil {
-			return []ast.Stmt{stmt}
+		var body []ast.Stmt
+		for {
+			if stmt := p.parseSmallStmt(); stmt != nil {
+				body = append(body, stmt)
+			}
+			// A ';' that endSimpleStmt consumed means this line has more statements.
+			if p.prev != token.SEMI || p.atLineEnd() {
+				return body
+			}
 		}
-		return nil
 	}
 
 	p.next() // consume NEWLINE
@@ -489,11 +556,16 @@ func (p *Parser) parseBlock() []ast.Stmt {
 		// Empty block or malformed — don't error, just return empty.
 		return nil
 	}
+	return p.parseIndentedBody()
+}
+
+// parseIndentedBody parses INDENT stmt+ DEDENT. The caller stands at the INDENT.
+func (p *Parser) parseIndentedBody() []ast.Stmt {
 	p.next() // consume INDENT
 
 	var body []ast.Stmt
 	for p.tok.Type != token.DEDENT && p.tok.Type != token.EOF {
-		stmt := p.parseStmt()
+		stmt := p.parseStmtRecovering()
 		if stmt != nil {
 			body = append(body, stmt)
 		}
@@ -507,22 +579,29 @@ func (p *Parser) parseBlock() []ast.Stmt {
 	return body
 }
 
-// parseSimpleStmtInline parses a simple statement on the same line (e.g., pass, ..., expr).
-func (p *Parser) parseSimpleStmtInline() ast.Stmt {
-	if p.tok.Type == token.PASS {
-		return p.parsePass()
+// endSimpleStmt consumes the end of a simple statement: a NEWLINE, or a ';' with
+// the NEWLINE that can follow it. Any other token is an error. The parser then
+// stands at the next statement, on this line or the next one.
+func (p *Parser) endSimpleStmt() {
+	switch p.tok.Type {
+	case token.NEWLINE:
+		p.next()
+	case token.SEMI:
+		p.next()
+		if p.tok.Type == token.NEWLINE {
+			p.next()
+		}
+	case token.DEDENT, token.EOF:
+	default:
+		p.errorf("expected end of statement, got %s", p.tok.Type)
 	}
-	return p.parseSimpleStmt()
 }
 
 // parsePass parses a 'pass' statement.
 func (p *Parser) parsePass() ast.Stmt {
 	pos := p.tok.Pos
 	p.next() // consume 'pass'
-	// Consume trailing newline if present.
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 	return &ast.PassThrough{
 		Kind:     "pass",
 		Position: pos,
@@ -546,10 +625,7 @@ func (p *Parser) parseImport() ast.Stmt {
 	}
 
 	endPos := p.tok.Pos
-	// Consume trailing newline.
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.Import{
 		Position: pos,
@@ -585,20 +661,20 @@ func (p *Parser) parseImportFrom() ast.Stmt {
 	p.next() // consume 'from'
 
 	// Count leading dots for relative imports.
+	// The lexer groups dots greedily, so '....' is ELLIPSIS DOT.
 	level := 0
-	for p.tok.Type == token.DOT {
-		level++
-		p.next()
-	}
-	// Handle '...' (ELLIPSIS) as three dots.
-	for p.tok.Type == token.ELLIPSIS {
-		level += 3
+	for p.at(token.DOT, token.ELLIPSIS) {
+		if p.tok.Type == token.DOT {
+			level++
+		} else {
+			level += 3
+		}
 		p.next()
 	}
 
 	// Optional module name.
 	module := ""
-	if p.tok.Type == token.NAME {
+	if p.tok.Type == token.NAME || p.isSoftKeyword() {
 		module = p.parseDottedName()
 	}
 
@@ -618,11 +694,12 @@ func (p *Parser) parseImportFrom() ast.Stmt {
 	} else {
 		names = p.parseImportNames()
 	}
+	if len(names) == 0 {
+		p.errorf("expected import name, got %s", p.tok.Type)
+	}
 
 	endPos := p.tok.Pos
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.ImportFrom{
 		Position: pos,
@@ -658,125 +735,78 @@ func (p *Parser) parseImportNames() []*ast.ImportAlias {
 
 // parseTypeOrSimple disambiguates 'type' as a type alias keyword vs. a regular name.
 // In Python 3.12+, 'type X = ...' is a type alias. But 'type' can also be a regular
-// identifier (e.g., 'type = "foo"' or 'type(x)').
+// identifier (e.g., 'type = "foo"' or 'type(x).y'). Only an alias has a name next.
 func (p *Parser) parseTypeOrSimple() ast.Stmt {
+	switch p.lex.Clone().Next().Type {
+	case token.NAME, token.TYPE, token.MATCH, token.CASE:
+	default:
+		return p.parseSimpleStmt()
+	}
+
 	pos := p.tok.Pos
-	savedTok := p.tok
 	p.next() // consume 'type'
+	name := p.expectName()
 
-	// If followed by NAME, it's a type alias statement.
-	if p.tok.Type == token.NAME {
-		name := p.expectName()
-
-		// Optional type parameters.
-		var typeParams []*ast.TypeParam
-		if p.tok.Type == token.LBRACK {
-			typeParams = p.parseTypeParams()
-		}
-
-		if p.tok.Type == token.ASSIGN {
-			p.next() // consume '='
-			value := p.parseExpr()
-			endPos := value.End()
-			if p.tok.Type == token.NEWLINE {
-				p.next()
-			}
-			return &ast.TypeAliasDef{
-				Position:   pos,
-				EndPos:     endPos,
-				Name:       name,
-				TypeParams: typeParams,
-				Value:      value,
-			}
-		}
+	// Optional type parameters.
+	var typeParams []*ast.TypeParam
+	if p.tok.Type == token.LBRACK {
+		typeParams = p.parseTypeParams()
 	}
 
-	// Fall back to treating 'type' as a name expression in a simple statement.
-	nameExpr := &ast.Name{
-		Position: savedTok.Pos,
-		EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-		Name:     "type",
+	p.expect(token.ASSIGN)
+	value := p.parseExpr()
+	endPos := value.End()
+	p.endSimpleStmt()
+	return &ast.TypeAliasDef{
+		Position:   pos,
+		EndPos:     endPos,
+		Name:       name,
+		TypeParams: typeParams,
+		Value:      value,
 	}
-	return p.finishSimpleStmt(nameExpr)
 }
 
-// parseIf parses 'if expr: block (elif expr: block)* (else: block)?'.
+// parseIf parses 'if expr: block (elif expr: block)* (else: block)?'. Each elif is a
+// nested If in the Orelse of the branch before it. A loop builds the chain, because
+// a chain has no nesting in the source and its length must not grow the stack.
 func (p *Parser) parseIf() ast.Stmt {
-	pos := p.tok.Pos
-	p.next() // consume 'if'
-
-	test := p.parseExpr()
-	p.expect(token.COLON)
-	body := p.parseBlock()
-
-	var orelse []ast.Stmt
+	first := p.parseIfBranch()
+	last := first
 	p.skipNewlines()
-
-	if p.tok.Type == token.ELIF {
-		// elif is parsed as a nested if in the orelse.
-		elifStmt := p.parseElif()
-		if elifStmt != nil {
-			orelse = []ast.Stmt{elifStmt}
-		}
-	} else if p.tok.Type == token.ELSE {
+	for p.tok.Type == token.ELIF {
+		branch := p.parseIfBranch()
+		last.Orelse = []ast.Stmt{branch}
+		last = branch
+		p.skipNewlines()
+	}
+	if p.tok.Type == token.ELSE {
 		p.next() // consume 'else'
-		p.expect(token.COLON)
-		orelse = p.parseBlock()
+		p.expectColon()
+		last.Orelse = p.parseBlock()
+		if len(last.Orelse) > 0 {
+			last.EndPos = last.Orelse[len(last.Orelse)-1].End()
+		}
 	}
-
-	endPos := pos
-	if len(orelse) > 0 {
-		endPos = orelse[len(orelse)-1].End()
-	} else if len(body) > 0 {
-		endPos = body[len(body)-1].End()
+	for n := first; n != last; n = n.Orelse[0].(*ast.If) {
+		n.EndPos = last.EndPos
 	}
-
-	return &ast.If{
-		Position: pos,
-		EndPos:   endPos,
-		Test:     test,
-		Body:     body,
-		Orelse:   orelse,
-	}
+	return first
 }
 
-// parseElif parses 'elif expr: block ...' as a nested If node.
-func (p *Parser) parseElif() ast.Stmt {
+// parseIfBranch parses the 'if expr: block' or 'elif expr: block' at the current token.
+func (p *Parser) parseIfBranch() *ast.If {
 	pos := p.tok.Pos
-	p.next() // consume 'elif'
+	p.next() // consume 'if' or 'elif'
 
-	test := p.parseExpr()
-	p.expect(token.COLON)
+	test := p.parseNamedExpr()
+	p.expectColon()
 	body := p.parseBlock()
 
-	var orelse []ast.Stmt
-	p.skipNewlines()
-
-	if p.tok.Type == token.ELIF {
-		elifStmt := p.parseElif()
-		if elifStmt != nil {
-			orelse = []ast.Stmt{elifStmt}
-		}
-	} else if p.tok.Type == token.ELSE {
-		p.next()
-		p.expect(token.COLON)
-		orelse = p.parseBlock()
-	}
-
 	endPos := pos
-	if len(orelse) > 0 {
-		endPos = orelse[len(orelse)-1].End()
-	} else if len(body) > 0 {
+	if len(body) > 0 {
 		endPos = body[len(body)-1].End()
 	}
-
-	return &ast.If{
-		Position: pos,
-		EndPos:   endPos,
-		Test:     test,
-		Body:     body,
-		Orelse:   orelse,
-	}
+	return &ast.If{Position: pos, EndPos: endPos, Test: test, Body: body}
 }
 
 // parsePassThrough handles compound statements we don't deeply model:
@@ -792,6 +822,8 @@ func (p *Parser) parsePassThrough() ast.Stmt {
 	switch kind {
 	case "try":
 		body = p.parseTryBlocks(pos)
+	case "for", "while":
+		body = p.parseLoopBlocks()
 	default:
 		body = p.parsePassThroughBlock()
 	}
@@ -809,49 +841,87 @@ func (p *Parser) parsePassThrough() ast.Stmt {
 	}
 }
 
-// parsePassThroughBlock skips tokens until ':' then parses the block.
+// parsePassThroughBlock skips the header up to its ':' then parses the block.
 func (p *Parser) parsePassThroughBlock() []ast.Stmt {
-	// Skip to the colon.
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
+	p.skipHeader()
+	p.expectColon()
+	return p.parseBlock()
+}
+
+// isMatchStmt decides whether the soft keyword 'match' at the current token starts
+// a match statement. The whole statement grammar decides this: only a match
+// statement has a logical line that ends in ':' and is followed by an indented 'case'.
+func (p *Parser) isMatchStmt() bool {
+	lex := p.lex.Clone()
+	t := lex.Next()
+	if t.Type == token.COLON {
+		return false // 'match: T' is an annotation of a variable named match.
+	}
+	prev := token.EOF
+	for t.Type != token.NEWLINE {
+		if t.Type == token.EOF || t.Type == token.INDENT || t.Type == token.DEDENT {
+			return false
+		}
+		prev = t.Type
+		t = lex.Next()
+	}
+	return prev == token.COLON && lex.Next().Type == token.INDENT && lex.Next().Type == token.CASE
+}
+
+// parseMatch parses a match statement. isMatchStmt has checked its shape. Subjects
+// and patterns are skipped, and the bodies of all cases are recursed into.
+func (p *Parser) parseMatch() ast.Stmt {
+	pos := p.tok.Pos
+	p.next() // consume 'match'
+	p.skipHeader()
+	p.expectColon()
+	p.skipNewlines()
+	p.next() // consume INDENT
+
+	var body []ast.Stmt
+	for p.tok.Type != token.DEDENT && p.tok.Type != token.EOF {
+		if p.tok.Type == token.CASE {
+			p.next()
+			body = append(body, p.parsePassThroughBlock()...)
+		} else {
+			p.errorf("expected case, got %s", p.tok.Type)
+			if stmt := p.parseStmtRecovering(); stmt != nil {
+				body = append(body, stmt)
+			}
+		}
+		p.skipNewlines()
+	}
+	if p.tok.Type == token.DEDENT {
 		p.next()
 	}
-	if p.tok.Type == token.COLON {
-		p.next()
-		return p.parseBlock()
+
+	endPos := pos
+	if len(body) > 0 {
+		endPos = body[len(body)-1].End()
 	}
-	// If we hit NEWLINE without colon, skip it and move on.
-	if p.tok.Type == token.NEWLINE {
+	return &ast.PassThrough{Kind: "match", Body: body, Position: pos, EndPos: endPos}
+}
+
+// parseLoopBlocks parses the body of a for or while loop and its optional else.
+func (p *Parser) parseLoopBlocks() []ast.Stmt {
+	body := p.parsePassThroughBlock()
+	p.skipNewlines()
+	if p.tok.Type == token.ELSE {
 		p.next()
+		body = append(body, p.parsePassThroughBlock()...)
 	}
-	return nil
+	return body
 }
 
 // parseTryBlocks handles try: ... except: ... else: ... finally: ... blocks.
 func (p *Parser) parseTryBlocks(pos token.Pos) []ast.Stmt {
-	var allBody []ast.Stmt
-
-	// Skip to first ':'
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-		p.next()
-	}
-	if p.tok.Type == token.COLON {
-		p.next()
-		allBody = append(allBody, p.parseBlock()...)
-	}
-
+	allBody := p.parsePassThroughBlock()
 	p.skipNewlines()
 
 	// Handle except/else/finally blocks.
 	for p.at(token.EXCEPT, token.ELSE, token.FINALLY) {
 		p.next() // consume keyword
-		// Skip to colon.
-		for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-			p.next()
-		}
-		if p.tok.Type == token.COLON {
-			p.next()
-			allBody = append(allBody, p.parseBlock()...)
-		}
+		allBody = append(allBody, p.parsePassThroughBlock()...)
 		p.skipNewlines()
 	}
 
@@ -865,13 +935,11 @@ func (p *Parser) parseSimpleKeywordStmt() ast.Stmt {
 	kind := strings.ToLower(p.tok.Lit)
 	p.next()
 
-	// Consume the rest of the line.
-	for !p.at(token.NEWLINE, token.EOF, token.DEDENT) {
+	// Consume the rest of the statement.
+	for !p.atLineEnd() && p.tok.Type != token.SEMI {
 		p.next()
 	}
-	if p.tok.Type == token.NEWLINE {
-		p.next()
-	}
+	p.endSimpleStmt()
 
 	return &ast.PassThrough{
 		Kind:     kind,
@@ -882,13 +950,11 @@ func (p *Parser) parseSimpleKeywordStmt() ast.Stmt {
 
 // parseSimpleStmt parses an expression statement, assignment, or annotated assignment.
 func (p *Parser) parseSimpleStmt() ast.Stmt {
-	expr := p.parseExpr()
+	expr := p.parseExprList()
 	if expr == nil {
 		p.errorf("expected statement, got %s", p.tok.Type)
 		p.syncStmt()
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return nil
 	}
 
@@ -901,35 +967,33 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 	switch p.tok.Type {
 	case token.ASSIGN:
 		// Assignment: target = value, or chained: a = b = value
+		targets := []ast.Expr{expr}
 		p.next()
-		value := p.parseExpr()
-		// Handle chained assignment: consume additional = expr pairs
+		value := p.parseExprList()
+		// In a chain, every expression except the last is a target.
 		for p.tok.Type == token.ASSIGN {
+			targets = append(targets, value)
 			p.next()
-			value = p.parseExpr()
+			value = p.parseExprList()
 		}
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.Assign{
 			Position: expr.Pos(),
 			EndPos:   endPos,
-			Targets:  []ast.Expr{expr},
+			Targets:  targets,
 			Value:    value,
 		}
 
 	case token.PLUSEQ, token.MINUSEQ, token.STAREQ, token.SLASHEQ,
 		token.DSLASHEQ, token.PERCENTEQ, token.DSTAREQ,
 		token.AMPEREQ, token.PIPEEQ, token.CARETEQ,
-		token.RSHIFTEQ, token.LSHIFTEQ:
+		token.RSHIFTEQ, token.LSHIFTEQ, token.ATEQ:
 		// Augmented assignment: target op= value
 		p.next()
-		value := p.parseExpr()
+		value := p.parseExprList()
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.Assign{
 			Position: expr.Pos(),
 			EndPos:   endPos,
@@ -944,12 +1008,10 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 		var value ast.Expr
 		if p.tok.Type == token.ASSIGN {
 			p.next()
-			value = p.parseExpr()
+			value = p.parseExprList()
 		}
 		endPos := p.tok.Pos
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		// Simple is true when the target is a plain name (not subscript/attribute).
 		_, simple := expr.(*ast.Name)
 		return &ast.AnnAssign{
@@ -961,42 +1023,9 @@ func (p *Parser) finishSimpleStmt(expr ast.Expr) ast.Stmt {
 			Simple:     simple,
 		}
 
-	case token.COMMA:
-		// Tuple expression or tuple unpacking: a, b = value or a, b, c
-		// Consume the rest of the target list.
-		for p.tok.Type == token.COMMA {
-			p.next()
-			if p.at(token.ASSIGN, token.NEWLINE, token.EOF) {
-				break
-			}
-			p.parseExpr() // consume next target
-		}
-		if p.tok.Type == token.ASSIGN {
-			// Tuple unpacking assignment: a, b = value
-			p.next()
-			value := p.parseExpr()
-			endPos := p.tok.Pos
-			if p.tok.Type == token.NEWLINE {
-				p.next()
-			}
-			return &ast.Assign{
-				Position: expr.Pos(),
-				EndPos:   endPos,
-				Targets:  []ast.Expr{expr},
-				Value:    value,
-			}
-		}
-		// Bare tuple expression.
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
-		return &ast.ExprStmt{Value: expr}
-
 	default:
 		// Bare expression statement.
-		if p.tok.Type == token.NEWLINE {
-			p.next()
-		}
+		p.endSimpleStmt()
 		return &ast.ExprStmt{Value: expr}
 	}
 }
@@ -1027,7 +1056,7 @@ func (p *Parser) parseParameters() *ast.Arguments {
 	var params []paramInfo
 	slashIdx := -1 // index after which we saw '/'
 
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
 		// Bail out if we hit a statement keyword — the paren was never closed.
 		if p.isStmtStart() {
 			p.errorf("unclosed parenthesis in parameter list")
@@ -1064,7 +1093,7 @@ func (p *Parser) parseParameters() *ast.Arguments {
 			p.next()
 			pi := paramInfo{isStar: true, pos: p.tok.Pos}
 			// Could be bare * (keyword-only separator) or *args.
-			if p.tok.Type == token.NAME {
+			if p.tok.Type == token.NAME || p.isSoftKeyword() {
 				pi.starName = p.expectName()
 				pi.pos = p.tok.Pos
 				if p.tok.Type == token.COLON {
@@ -1200,27 +1229,35 @@ func (p *Parser) parseParameters() *ast.Arguments {
 	return args
 }
 
-// parseTypeParams parses type parameters: '[' name (',' name)* ']'.
+// parseTypeParams parses type parameters: '[' param (',' param)* ']', where a param
+// is [*|**] name [':' bound] ['=' default].
 func (p *Parser) parseTypeParams() []*ast.TypeParam {
 	p.next() // consume '['
 	var params []*ast.TypeParam
 
-	for p.tok.Type != token.RBRACK && p.tok.Type != token.EOF {
+	for p.tok.Type != token.RBRACK && !p.atLineEnd() {
 		tp := &ast.TypeParam{Position: p.tok.Pos}
+		if p.at(token.STAR, token.DSTAR) {
+			p.next()
+		}
 		tp.Name = p.expectName()
 
-		// Optional bound: ': expr' or default via '=' (simplified).
 		if p.tok.Type == token.COLON {
 			p.next()
 			tp.Bound = p.parseExpr()
+		}
+		if p.tok.Type == token.ASSIGN {
+			p.next()
+			tp.Default = p.parseExpr()
 		}
 
 		tp.EndPos = p.tok.Pos
 		params = append(params, tp)
 
-		if p.tok.Type == token.COMMA {
-			p.next()
+		if p.tok.Type != token.COMMA {
+			break
 		}
+		p.next()
 	}
 
 	p.expect(token.RBRACK)

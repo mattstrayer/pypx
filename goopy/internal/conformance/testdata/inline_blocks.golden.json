@@ -1,0 +1,26 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "Inline"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "raises"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "returns"
+  }
+]

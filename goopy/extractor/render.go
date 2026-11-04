@@ -57,9 +57,31 @@ func exprToString(expr ast.Expr) string {
 		return "*" + exprToString(e.Value)
 	case *ast.IfExpr:
 		return exprToString(e.Body) + " if " + exprToString(e.Test) + " else " + exprToString(e.Orelse)
+	case *ast.Slice:
+		s := exprToString(e.Lower) + ":" + exprToString(e.Upper)
+		if e.Step != nil {
+			s += ":" + exprToString(e.Step)
+		}
+		return s
+	case *ast.Await:
+		return "await " + exprToString(e.Value)
+	case *ast.Yield:
+		switch {
+		case e.From:
+			return "yield from " + exprToString(e.Value)
+		case e.Value != nil:
+			return "yield " + exprToString(e.Value)
+		}
+		return "yield"
+	case *ast.NamedExpr:
+		return exprToString(e.Target) + " := " + exprToString(e.Value)
 	case *ast.Dict:
 		var parts []string
 		for i := range e.Keys {
+			if e.Keys[i] == nil {
+				parts = append(parts, "**"+exprToString(e.Values[i]))
+				continue
+			}
 			parts = append(parts, exprToString(e.Keys[i])+": "+exprToString(e.Values[i]))
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
@@ -91,6 +113,12 @@ func operatorString(op token.Type) string {
 		return "/"
 	case token.DSLASH:
 		return "//"
+	case token.AT:
+		return "@"
+	case token.IN:
+		return "in"
+	case token.IS:
+		return "is"
 	case token.PERCENT:
 		return "%"
 	case token.AMPER:

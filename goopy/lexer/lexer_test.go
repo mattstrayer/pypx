@@ -1,6 +1,7 @@
 package lexer_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pypx/goopy/lexer"
@@ -582,4 +583,117 @@ func equalTypes(a, b []token.Type) bool {
 		}
 	}
 	return true
+}
+
+func TestAtOperators(t *testing.T) {
+	got := types(collectTokens(lexer.New([]byte("a @ b @= c\n"))))
+	want := []token.Type{token.NAME, token.AT, token.NAME, token.ATEQ, token.NAME, token.NEWLINE, token.EOF}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("token %d: got %s, want %s", i, got[i], want[i])
+		}
+	}
+}
+
+func TestLexicalForms(t *testing.T) {
+	cases := map[string]struct {
+		src  string
+		want []token.Type
+	}{
+		"form feed between tokens": {"a\f= 1\n", []token.Type{token.NAME, token.ASSIGN, token.NUMBER, token.NEWLINE, token.EOF}},
+		"form feed line":           {"a\n\f\nb\n", []token.Type{token.NAME, token.NEWLINE, token.NAME, token.NEWLINE, token.EOF}},
+		"form feed before code":    {"a\n\fb\n", []token.Type{token.NAME, token.NEWLINE, token.NAME, token.NEWLINE, token.EOF}},
+		"byte order mark":          {"\xef\xbb\xbfa\n", []token.Type{token.NAME, token.NEWLINE, token.EOF}},
+		"combining mark":           {"e\u0301 = 1\n", []token.Type{token.NAME, token.ASSIGN, token.NUMBER, token.NEWLINE, token.EOF}},
+		"letter number":            {"\u2160 = 1\n", []token.Type{token.NAME, token.ASSIGN, token.NUMBER, token.NEWLINE, token.EOF}},
+		"not an exponent":          {"1else 2\n", []token.Type{token.NUMBER, token.ELSE, token.NUMBER, token.NEWLINE, token.EOF}},
+		"exponent":                 {"1e5 1E+5 1_0e1_0\n", []token.Type{token.NUMBER, token.NUMBER, token.NUMBER, token.NEWLINE, token.EOF}},
+		"template string":          {"t'{a}' Tr'b'\n", []token.Type{token.STRING, token.STRING, token.NEWLINE, token.EOF}},
+		"field across lines":       {"f'{a +\n b}'\n", []token.Type{token.STRING, token.NEWLINE, token.EOF}},
+	}
+	for name, c := range cases {
+		got := types(collectTokens(lexer.New([]byte(c.src))))
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %v, want %v", name, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: got %v, want %v", name, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+func TestFStringBodies(t *testing.T) {
+	for _, lit := range []string{
+		`f''`,
+		`f'{a}'`,
+		`f'{{'`,
+		`f'}}'`,
+		`f'{{{a}}}'`,
+		`f'{a!r:>{w}}'`,
+		`f'{a:{b}.{c}}'`,
+		`f'{a:%H:%M}'`,
+		`f"{a:'>10}"`,
+		`f'{a["b"]}'`,
+		`f"{a["b"]}"`,
+		`f"{a['}']}"`,
+		`f"{a['{']}"`,
+		`f"{f"{f"{a}"}"}"`,
+		`f'{ {1: 2}[1] }'`,
+		`f'{(lambda x: 1)(2)}'`,
+		`f'{a[1:2]}'`,
+		`f'{(a := 1)}'`,
+		`f'{a != b}'`,
+		`f'{a=}'`,
+		`rf'\{{%'`,
+		`rf'\{a}'`,
+		`rf'\\{a}'`,
+		`f'\N{DASH}'`,
+		`f'\''`,
+		`rf'\''`,
+		"f'''{\na\n}\n'''",
+		"f'{\na # comment }\n}'",
+		"f'''{a:\n}'''",
+		`f"{'''a'''}"`,
+		`f'{b"x"}'`,
+		`t'{a}'`,
+		`rb'{'`,
+		`'{'`,
+	} {
+		toks := collectTokens(lexer.New([]byte(lit + " x\n")))
+		if len(toks) != 4 || toks[0].Type != token.STRING || toks[0].Lit != lit || toks[1].Type != token.NAME {
+			t.Errorf("%q: got %v", lit, toks)
+		}
+	}
+}
+
+func TestFStringLineCount(t *testing.T) {
+	toks := collectTokens(lexer.New([]byte("f'''{\na\n}\n''' x\n")))
+	if toks[1].Pos.Line != 4 {
+		t.Errorf("got line %d, want 4", toks[1].Pos.Line)
+	}
+}
+
+// Invalid f-strings stay on their line when they can, and never make the lexer slow.
+func TestFStringInvalid(t *testing.T) {
+	toks := collectTokens(lexer.New([]byte("f'{a\nb = 1\n")))
+	if toks[0].Type != token.STRING || toks[1].Type != token.NEWLINE || toks[2].Lit != "b" {
+		t.Errorf("got %v", toks)
+	}
+	for _, src := range []string{
+		strings.Repeat("f'{", 2000000),
+		strings.Repeat(`f"{`, 2000000),
+		strings.Repeat("f'{\n", 500000),
+		strings.Repeat("f'''{", 500000),
+		strings.Repeat("f'{a:", 500000),
+		"f'" + strings.Repeat("{a:", 2000000),
+	} {
+		collectTokens(lexer.New([]byte(src)))
+	}
 }

@@ -11,20 +11,7 @@ import (
 
 // knownFailures lists fixtures the parser fails today, keyed by fixture
 // filename with a one-line reason. A listed fixture that passes fails the test.
-var knownFailures = map[string]string{
-	"call_args.py":        "operators, conditional and generator expressions inside call arguments",
-	"compound_headers.py": "compound statement headers with complex expressions",
-	"dict_unpack.py":      "** unpacking inside dict displays",
-	"loop_else.py":        "else clauses on for, while and async for",
-	"match_guard.py":      "match case with star pattern and guard",
-	"matmul.py":           "@ and @= operators",
-	"relative_imports.py": "relative imports with four or more dots",
-	"semicolons.py":       "semicolon-separated statements in a one-line block",
-	"subscripts.py":       "slices and tuple subscripts",
-	"tuples.py":           "unparenthesised tuples and starred expressions",
-	"walrus.py":           "assignment expressions in if headers",
-	"yield_expr.py":       "yield used as an expression",
-}
+var knownFailures = map[string]string{}
 
 func TestFixtures(t *testing.T) {
 	files, err := filepath.Glob("testdata/*.py")

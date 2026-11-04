@@ -207,6 +207,19 @@ func (s *Subscript) Pos() token.Pos { return s.Position }
 func (s *Subscript) End() token.Pos { return s.EndPos }
 func (s *Subscript) exprNode()      {}
 
+// Slice is a slice inside a subscript (lower:upper:step). Any part can be nil.
+type Slice struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Lower    Expr
+	Upper    Expr
+	Step     Expr
+}
+
+func (s *Slice) Pos() token.Pos { return s.Position }
+func (s *Slice) End() token.Pos { return s.EndPos }
+func (s *Slice) exprNode()      {}
+
 // BinOp is a binary operation (left op right).
 type BinOp struct {
 	Position token.Pos
@@ -254,7 +267,8 @@ func (l *List) Pos() token.Pos { return l.Position }
 func (l *List) End() token.Pos { return l.EndPos }
 func (l *List) exprNode()      {}
 
-// Dict is a dict expression {k1: v1, k2: v2}.
+// Dict is a dict expression {k1: v1, k2: v2}. As in CPython, an unpack entry
+// {**x} has a nil key at its position in Keys, and x as its value.
 type Dict struct {
 	Position token.Pos
 	EndPos   token.Pos
@@ -329,6 +343,41 @@ func (i *IfExpr) Pos() token.Pos { return i.Position }
 func (i *IfExpr) End() token.Pos { return i.EndPos }
 func (i *IfExpr) exprNode()      {}
 
+// Await is an await expression (await value).
+type Await struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Value    Expr
+}
+
+func (a *Await) Pos() token.Pos { return a.Position }
+func (a *Await) End() token.Pos { return a.EndPos }
+func (a *Await) exprNode()      {}
+
+// Yield is a yield expression (yield value, yield from value). Value can be nil.
+type Yield struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Value    Expr
+	From     bool
+}
+
+func (y *Yield) Pos() token.Pos { return y.Position }
+func (y *Yield) End() token.Pos { return y.EndPos }
+func (y *Yield) exprNode()      {}
+
+// NamedExpr is an assignment expression (target := value).
+type NamedExpr struct {
+	Position token.Pos
+	EndPos   token.Pos
+	Target   Expr
+	Value    Expr
+}
+
+func (n *NamedExpr) Pos() token.Pos { return n.Position }
+func (n *NamedExpr) End() token.Pos { return n.EndPos }
+func (n *NamedExpr) exprNode()      {}
+
 // =======================
 // Supporting Types
 // =======================
@@ -363,6 +412,7 @@ type TypeParam struct {
 	EndPos   token.Pos
 	Name     string
 	Bound    Expr
+	Default  Expr
 }
 
 func (t *TypeParam) Pos() token.Pos { return t.Position }

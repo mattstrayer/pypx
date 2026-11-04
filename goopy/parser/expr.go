@@ -20,16 +20,7 @@ func (p *Parser) parseExpr() ast.Expr {
 	p.depth++
 	defer func() { p.depth-- }()
 	if p.depth > maxExprDepth {
-		p.errorf("expression nesting too deep (max %d)", maxExprDepth)
-		p.syncStmt()
-		pos := p.tok.Pos
-		return &ast.Constant{
-			Position: pos,
-			EndPos:   pos,
-			Value:    "?",
-			Kind:     "error",
-			Lit:      "?",
-		}
+		return p.depthError()
 	}
 	expr := p.parseOrExpr()
 	if expr == nil {
@@ -54,32 +45,18 @@ func (p *Parser) parseExpr() ast.Expr {
 	return expr
 }
 
-// parseExprFrom continues parsing an expression from a partially parsed left operand.
-// Used when we've already consumed a NAME token for lookahead purposes.
-func (p *Parser) parseExprFrom(left ast.Expr) ast.Expr {
-	// Continue with any binary operators that might follow.
-	return p.parseBinOpFrom(left)
-}
-
-// parseBinOpFrom handles binary operators starting from a pre-parsed left side,
-// beginning at the 'or' precedence level.
-func (p *Parser) parseBinOpFrom(left ast.Expr) ast.Expr {
-	// We need to thread the left operand through the precedence chain.
-	// The simplest approach: check for pipe (union type) since that's
-	// the most common case in class base lists.
-	for p.tok.Type == token.PIPE {
-		op := p.tok.Type
-		p.next()
-		right := p.parseBitXorExpr()
-		left = &ast.BinOp{
-			Position: left.Pos(),
-			EndPos:   right.End(),
-			Left:     left,
-			Op:       op,
-			Right:    right,
-		}
+// depthError records that an expression nests too deep and drops the line.
+func (p *Parser) depthError() ast.Expr {
+	p.errorf("expression nesting too deep (max %d)", maxExprDepth)
+	p.syncStmt()
+	pos := p.tok.Pos
+	return &ast.Constant{
+		Position: pos,
+		EndPos:   pos,
+		Value:    "?",
+		Kind:     "error",
+		Lit:      "?",
 	}
-	return left
 }
 
 func (p *Parser) parseOrExpr() ast.Expr {
@@ -118,6 +95,11 @@ func (p *Parser) parseAndExpr() ast.Expr {
 
 func (p *Parser) parseNotExpr() ast.Expr {
 	if p.tok.Type == token.NOT {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		pos := p.tok.Pos
 		p.next()
 		operand := p.parseNotExpr()
@@ -268,7 +250,7 @@ func (p *Parser) parseArithExpr() ast.Expr {
 
 func (p *Parser) parseTerm() ast.Expr {
 	left := p.parseUnary()
-	for p.at(token.STAR, token.SLASH, token.DSLASH, token.PERCENT) {
+	for p.at(token.STAR, token.SLASH, token.DSLASH, token.PERCENT, token.AT) {
 		op := p.tok.Type
 		p.next()
 		right := p.parseUnary()
@@ -285,6 +267,11 @@ func (p *Parser) parseTerm() ast.Expr {
 
 func (p *Parser) parseUnary() ast.Expr {
 	if p.at(token.PLUS, token.MINUS, token.TILDE) {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		pos := p.tok.Pos
 		op := p.tok.Type
 		p.next()
@@ -300,8 +287,21 @@ func (p *Parser) parseUnary() ast.Expr {
 }
 
 func (p *Parser) parsePower() ast.Expr {
-	base := p.parseAtomExpr()
+	var base ast.Expr
+	if p.tok.Type == token.AWAIT {
+		pos := p.tok.Pos
+		p.next()
+		val := p.parseAtomExpr()
+		base = &ast.Await{Position: pos, EndPos: val.End(), Value: val}
+	} else {
+		base = p.parseAtomExpr()
+	}
 	if p.tok.Type == token.DSTAR {
+		p.depth++
+		defer func() { p.depth-- }()
+		if p.depth > maxExprDepth {
+			return p.depthError()
+		}
 		op := p.tok.Type
 		p.next()
 		exp := p.parseUnary()
@@ -362,93 +362,7 @@ func (p *Parser) parseTrailers(expr ast.Expr) ast.Expr {
 // parseCallTrailer parses '(' arglist ')' as a Call node.
 func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 	p.next() // consume '('
-	var args []ast.Expr
-	var keywords []*ast.Keyword
-
-	for p.tok.Type != token.RPAREN && p.tok.Type != token.EOF {
-		// Bail out if we hit a statement keyword — the paren was never closed.
-		// But FOR is valid inside calls (generator expressions), so exclude it.
-		if p.isStmtStart() && p.tok.Type != token.FOR {
-			break
-		}
-
-		// Check for keyword argument: name=expr
-		// Also accept soft keywords (type, match, case) as keyword arg names.
-		if p.tok.Type == token.NAME || p.isSoftKeyword() {
-			savedTok := p.tok
-			p.next()
-			if p.tok.Type == token.ASSIGN {
-				p.next()
-				val := p.parseExpr()
-				keywords = append(keywords, &ast.Keyword{
-					Arg:   savedTok.Lit,
-					Value: val,
-				})
-				if p.tok.Type == token.COMMA {
-					p.next()
-				}
-				continue
-			}
-			// Not keyword — reconstruct and parse as regular arg.
-			nameExpr := &ast.Name{
-				Position: savedTok.Pos,
-				EndPos:   token.Pos{Line: savedTok.Pos.Line, Col: savedTok.Pos.Col + len(savedTok.Lit), Offset: savedTok.Pos.Offset + len(savedTok.Lit)},
-				Name:     savedTok.Lit,
-			}
-			expr := p.parseTrailers(nameExpr)
-			expr = p.parseExprFrom(expr)
-			args = append(args, expr)
-			// Generator expression: func(name for ...)
-			if p.tok.Type == token.FOR {
-				p.skipUntil(token.RPAREN)
-				break
-			}
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		// Check for **kwargs in call.
-		if p.tok.Type == token.DSTAR {
-			p.next()
-			val := p.parseExpr()
-			keywords = append(keywords, &ast.Keyword{Value: val})
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		// Check for *args in call.
-		if p.tok.Type == token.STAR {
-			pos := p.tok.Pos
-			p.next()
-			val := p.parseExpr()
-			args = append(args, &ast.Starred{
-				Position: pos,
-				EndPos:   val.End(),
-				Value:    val,
-			})
-			if p.tok.Type == token.COMMA {
-				p.next()
-			}
-			continue
-		}
-
-		arg := p.parseExpr()
-		if arg != nil {
-			args = append(args, arg)
-		}
-		// Generator expression in call: func(expr for ...)
-		if p.tok.Type == token.FOR {
-			p.skipUntil(token.RPAREN)
-			break
-		}
-		if p.tok.Type == token.COMMA {
-			p.next()
-		}
-	}
+	args, keywords := p.parseArgList()
 
 	endPos := p.tok.Pos
 	p.expect(token.RPAREN)
@@ -462,43 +376,95 @@ func (p *Parser) parseCallTrailer(fn ast.Expr) ast.Expr {
 	}
 }
 
-// parseSubscriptContents parses the contents inside [...].
-// For comma-separated items (e.g., dict[str, int]), returns a Tuple.
-// For slice syntax (e.g., value[:end]), skips to ] since we don't deeply
-// model slice expressions for doc extraction.
-func (p *Parser) parseSubscriptContents() ast.Expr {
-	// Slice with no start: [:end] or [::step]
-	if p.tok.Type == token.COLON {
-		p.skipUntil(token.RBRACK)
-		return &ast.Constant{
-			Position: p.tok.Pos,
-			EndPos:   p.tok.Pos,
-			Value:    "...",
-			Kind:     "ellipsis",
-			Lit:      "...",
+// parseArgList parses the arguments of a call or a class definition, up to the
+// closing parenthesis. Each argument is a full expression, a keyword argument, or
+// a * or ** unpack. A generator expression argument is skimmed.
+func (p *Parser) parseArgList() ([]ast.Expr, []*ast.Keyword) {
+	var args []ast.Expr
+	var keywords []*ast.Keyword
+
+	for p.tok.Type != token.RPAREN && !p.atLineEnd() {
+		// Bail out if we hit a statement keyword: the paren was never closed.
+		if p.isStmtStart() {
+			break
 		}
+
+		switch p.tok.Type {
+		case token.DSTAR:
+			p.next()
+			keywords = append(keywords, &ast.Keyword{Value: p.parseExpr()})
+		case token.STAR:
+			pos := p.tok.Pos
+			p.next()
+			val := p.parseExpr()
+			args = append(args, &ast.Starred{Position: pos, EndPos: val.End(), Value: val})
+		default:
+			arg := p.parseNamedExpr()
+			if n, ok := arg.(*ast.Name); ok && p.tok.Type == token.ASSIGN {
+				p.next()
+				keywords = append(keywords, &ast.Keyword{Arg: n.Name, Value: p.parseExpr()})
+			} else {
+				args = append(args, arg)
+			}
+		}
+
+		if p.at(token.FOR, token.ASYNC) {
+			p.skipUntil(token.RPAREN)
+			break
+		}
+		if p.tok.Type != token.COMMA {
+			break
+		}
+		p.next()
 	}
 
-	first := p.parseExpr()
+	return args, keywords
+}
 
-	// Slice with start: [start:end] or [start:end:step]
-	if p.tok.Type == token.COLON {
-		p.skipUntil(token.RBRACK)
+// parseNamedExpr parses expr [':=' expr].
+func (p *Parser) parseNamedExpr() ast.Expr {
+	x := p.parseExpr()
+	if p.tok.Type != token.WALRUS {
+		return x
+	}
+	p.next()
+	value := p.parseExpr()
+	return &ast.NamedExpr{Position: x.Pos(), EndPos: value.End(), Target: x, Value: value}
+}
+
+// parseExprList parses an unparenthesised tuple: expr (',' expr)* [','].
+// A single expression with no comma stays as that expression.
+func (p *Parser) parseExprList() ast.Expr {
+	first := p.parseExpr()
+	if p.tok.Type != token.COMMA {
 		return first
 	}
+	elts := []ast.Expr{first}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.atLineEnd() || p.at(token.ASSIGN, token.SEMI, token.COLON, token.RPAREN, token.RBRACK, token.RBRACE) {
+			break
+		}
+		elts = append(elts, p.parseExpr())
+	}
+	return &ast.Tuple{Position: first.Pos(), EndPos: elts[len(elts)-1].End(), Elts: elts}
+}
 
+// parseSubscriptContents parses the contents inside [...]. Several comma-separated
+// items, such as dict[str, int] or y[1, :], become a Tuple.
+func (p *Parser) parseSubscriptContents() ast.Expr {
+	first := p.parseSliceItem()
 	if p.tok.Type != token.COMMA {
 		return first
 	}
 
-	// Multiple items — build a Tuple.
 	elts := []ast.Expr{first}
 	for p.tok.Type == token.COMMA {
 		p.next()
 		if p.tok.Type == token.RBRACK {
 			break
 		}
-		elts = append(elts, p.parseExpr())
+		elts = append(elts, p.parseSliceItem())
 	}
 
 	return &ast.Tuple{
@@ -506,6 +472,36 @@ func (p *Parser) parseSubscriptContents() ast.Expr {
 		EndPos:   elts[len(elts)-1].End(),
 		Elts:     elts,
 	}
+}
+
+// parseSliceItem parses one subscript item: a named expression or a slice.
+func (p *Parser) parseSliceItem() ast.Expr {
+	pos := p.tok.Pos
+	var lower ast.Expr
+	if p.tok.Type != token.COLON {
+		lower = p.parseNamedExpr()
+		if p.tok.Type != token.COLON {
+			return lower
+		}
+	}
+	s := &ast.Slice{Position: pos, Lower: lower}
+	p.next() // consume ':'
+	if !p.atSliceItemEnd() && p.tok.Type != token.COLON {
+		s.Upper = p.parseExpr()
+	}
+	if p.tok.Type == token.COLON {
+		p.next()
+		if !p.atSliceItemEnd() {
+			s.Step = p.parseExpr()
+		}
+	}
+	s.EndPos = p.tok.Pos
+	return s
+}
+
+// atSliceItemEnd returns true at a token that ends a subscript item.
+func (p *Parser) atSliceItemEnd() bool {
+	return p.at(token.COMMA, token.RBRACK) || p.atLineEnd()
 }
 
 // ---------------------------------------------------------------------------
@@ -548,11 +544,14 @@ func (p *Parser) parseAtom() ast.Expr {
 		}
 	case token.LAMBDA:
 		return p.parseLambda()
+	case token.YIELD:
+		return p.parseYield()
 	default:
-		// Unrecognized token — record error and advance to prevent infinite loops.
+		// Unrecognized token: record an error and skip it, unless it is structural.
+		// The statement loops guarantee progress at structural tokens.
 		p.errorf("unexpected token %s in expression", p.tok.Type)
 		pos := p.tok.Pos
-		if p.tok.Type != token.EOF {
+		if !p.atLineEnd() {
 			p.next()
 		}
 		return &ast.Constant{
@@ -640,7 +639,8 @@ func stripQuotes(s string) string {
 
 func isStringPrefixChar(c byte) bool {
 	return c == 'r' || c == 'R' || c == 'b' || c == 'B' ||
-		c == 'f' || c == 'F' || c == 'u' || c == 'U'
+		c == 'f' || c == 'F' || c == 'u' || c == 'U' ||
+		c == 't' || c == 'T'
 }
 
 func (p *Parser) parseNone() ast.Expr {
@@ -694,10 +694,10 @@ func (p *Parser) parseParenExpr() ast.Expr {
 		}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	// Generator expression: (expr for ...)
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RPAREN)
 		endPos := p.tok.Pos
 		p.expect(token.RPAREN)
@@ -712,7 +712,7 @@ func (p *Parser) parseParenExpr() ast.Expr {
 			if p.tok.Type == token.RPAREN {
 				break
 			}
-			elts = append(elts, p.parseExpr())
+			elts = append(elts, p.parseNamedExpr())
 		}
 		endPos := p.tok.Pos
 		p.expect(token.RPAREN)
@@ -740,10 +740,10 @@ func (p *Parser) parseListExpr() ast.Expr {
 		return &ast.List{Position: pos, EndPos: endPos}
 	}
 
-	first := p.parseExpr()
+	first := p.parseNamedExpr()
 
 	// List comprehension: [expr for ...]
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RBRACK)
 		endPos := p.tok.Pos
 		p.expect(token.RBRACK)
@@ -756,7 +756,7 @@ func (p *Parser) parseListExpr() ast.Expr {
 		if p.tok.Type == token.RBRACK {
 			break
 		}
-		elts = append(elts, p.parseExpr())
+		elts = append(elts, p.parseNamedExpr())
 	}
 
 	endPos := p.tok.Pos
@@ -781,7 +781,20 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		return &ast.Dict{Position: pos, EndPos: endPos}
 	}
 
-	first := p.parseExpr()
+	// Dict starting with an unpack, or an unpacking comprehension: {**x for ...}.
+	if p.tok.Type == token.DSTAR {
+		p.next()
+		firstVal := p.parseExpr()
+		if p.at(token.FOR, token.ASYNC) {
+			p.skipUntil(token.RBRACE)
+			endPos := p.tok.Pos
+			p.expect(token.RBRACE)
+			return &ast.Dict{Position: pos, EndPos: endPos, Keys: []ast.Expr{nil}, Values: []ast.Expr{firstVal}}
+		}
+		return p.parseDictItems(pos, nil, firstVal)
+	}
+
+	first := p.parseNamedExpr()
 
 	if p.tok.Type == token.COLON {
 		// Dict literal or dict comprehension.
@@ -789,7 +802,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		firstVal := p.parseExpr()
 
 		// Dict comprehension: {k: v for ...}
-		if p.tok.Type == token.FOR {
+		if p.at(token.FOR, token.ASYNC) {
 			p.skipUntil(token.RBRACE)
 			endPos := p.tok.Pos
 			p.expect(token.RBRACE)
@@ -801,31 +814,11 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 			}
 		}
 
-		keys := []ast.Expr{first}
-		vals := []ast.Expr{firstVal}
-		for p.tok.Type == token.COMMA {
-			p.next()
-			if p.tok.Type == token.RBRACE {
-				break
-			}
-			k := p.parseExpr()
-			p.expect(token.COLON)
-			v := p.parseExpr()
-			keys = append(keys, k)
-			vals = append(vals, v)
-		}
-		endPos := p.tok.Pos
-		p.expect(token.RBRACE)
-		return &ast.Dict{
-			Position: pos,
-			EndPos:   endPos,
-			Keys:     keys,
-			Values:   vals,
-		}
+		return p.parseDictItems(pos, first, firstVal)
 	}
 
 	// Set comprehension: {expr for ...}
-	if p.tok.Type == token.FOR {
+	if p.at(token.FOR, token.ASYNC) {
 		p.skipUntil(token.RBRACE)
 		endPos := p.tok.Pos
 		p.expect(token.RBRACE)
@@ -839,7 +832,7 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 		if p.tok.Type == token.RBRACE {
 			break
 		}
-		elts = append(elts, p.parseExpr())
+		elts = append(elts, p.parseNamedExpr())
 	}
 	endPos := p.tok.Pos
 	p.expect(token.RBRACE)
@@ -850,6 +843,50 @@ func (p *Parser) parseDictOrSetExpr() ast.Expr {
 	}
 }
 
+// parseDictItems parses the rest of a dict display after its first entry, up to
+// and including the closing brace. A nil key marks a ** unpack entry.
+func (p *Parser) parseDictItems(pos token.Pos, firstKey, firstVal ast.Expr) ast.Expr {
+	keys := []ast.Expr{firstKey}
+	vals := []ast.Expr{firstVal}
+	for p.tok.Type == token.COMMA {
+		p.next()
+		if p.tok.Type == token.RBRACE {
+			break
+		}
+		if p.tok.Type == token.DSTAR {
+			p.next()
+			keys = append(keys, nil)
+			vals = append(vals, p.parseExpr())
+			continue
+		}
+		k := p.parseExpr()
+		p.expect(token.COLON)
+		keys = append(keys, k)
+		vals = append(vals, p.parseExpr())
+	}
+	endPos := p.tok.Pos
+	p.expect(token.RBRACE)
+	return &ast.Dict{Position: pos, EndPos: endPos, Keys: keys, Values: vals}
+}
+
+// parseYield parses 'yield', 'yield exprlist' or 'yield from expr'.
+func (p *Parser) parseYield() ast.Expr {
+	y := &ast.Yield{Position: p.tok.Pos, EndPos: p.tok.Pos}
+	p.next() // consume 'yield'
+	switch {
+	case p.tok.Type == token.FROM:
+		p.next()
+		y.From = true
+		y.Value = p.parseExpr()
+	case p.atLineEnd() || p.at(token.RPAREN, token.RBRACK, token.RBRACE, token.SEMI, token.ASSIGN, token.COLON, token.COMMA):
+		return y
+	default:
+		y.Value = p.parseExprList()
+	}
+	y.EndPos = y.Value.End()
+	return y
+}
+
 // parseLambda parses 'lambda params: expr'. We treat it as a passthrough
 // by returning the whole thing as an opaque expression.
 func (p *Parser) parseLambda() ast.Expr {
@@ -857,9 +894,7 @@ func (p *Parser) parseLambda() ast.Expr {
 	p.next() // consume 'lambda'
 
 	// Skip to the colon — we don't deeply model lambda params.
-	for !p.at(token.COLON, token.NEWLINE, token.EOF) {
-		p.next()
-	}
+	p.skipHeader()
 	if p.tok.Type == token.COLON {
 		p.next()
 	}

@@ -163,27 +163,6 @@ func TestParity(t *testing.T) {
 				}
 			}
 
-			// Filter out known gaps: symbols in private modules where cascading
-			// parse errors from complex body expressions prevent extraction.
-			// These are tracked here so adding new packages only passes when
-			// they reach true 100% parity.
-			// Known gaps: symbols in modules where cascading parse errors from
-			// complex body expressions prevent full extraction. Each gap is
-			// tracked here — when the parser improves, remove entries and the
-			// test will enforce the fix.
-			knownGaps := map[string]bool{
-				// _pytest.reports: tuple unpacking in method bodies cascades
-				"_pytest.reports.pytest_report_from_serializable": true,
-				"_pytest.reports.pytest_report_to_serializable":   true,
-				"_pytest.reports.CollectErrorRepr":                true,
-				"_pytest.reports.CollectReport":                   true,
-				// pygments.cmdline: `not in` inside generator expr in call args
-				"pygments.cmdline.main":          true,
-				"pygments.cmdline.HelpFormatter": true,
-			}
-			pkgMissedFuncs = filterKnown(pkgMissedFuncs, knownGaps)
-			pkgMissedClasses = filterKnown(pkgMissedClasses, knownGaps)
-
 			// Report per-package
 			if len(pkgMissedFuncs) > 0 {
 				sort.Strings(pkgMissedFuncs)
@@ -226,8 +205,8 @@ func TestParity(t *testing.T) {
 }
 
 // TestASTConformance compares goopy's parser with CPython's ast module on every
-// .py file in the pinned packages. Counts may not exceed the ratchet maxima and
-// must be lowered when they improve. Plan 002 lowers them to zero.
+// .py file in the pinned packages. Counts may not exceed the ratchet maxima, which
+// are all zero.
 //
 // Requires: python3 (standard library only).
 func TestASTConformance(t *testing.T) {
@@ -238,12 +217,12 @@ func TestASTConformance(t *testing.T) {
 		t.Skip("python3 not available")
 	}
 
-	// Ratchet maxima. Lower these when the parser improves.
+	// Ratchet maxima. The parser matches CPython on the whole corpus, so all are 0.
 	const (
-		maxFilesWithErrors = 626
-		maxMissingDefs     = 2726
-		maxExtraDefs       = 2638
-		maxParamMismatches = 1
+		maxFilesWithErrors = 0
+		maxMissingDefs     = 0
+		maxExtraDefs       = 0
+		maxParamMismatches = 0
 	)
 
 	gen, err := filepath.Abs(filepath.Join("..", "conformance", "gen_golden.py"))
@@ -530,16 +509,6 @@ func loadPackages(t *testing.T) packageList {
 		t.Fatalf("parsing packages.json: %v", err)
 	}
 	return list
-}
-
-func filterKnown(items []string, known map[string]bool) []string {
-	var result []string
-	for _, item := range items {
-		if !known[item] {
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 // Silence unused import if only one test is run.

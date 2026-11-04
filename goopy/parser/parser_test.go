@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -15,6 +16,55 @@ func TestParseDeeplyNestedDoesNotOverflow(t *testing.T) {
 		if len(errs) == 0 {
 			t.Errorf("open=%q: expected a parse error from the depth cap, got none", open)
 		}
+	}
+}
+
+// smallStack lowers the stack limit for one test, so that unbounded recursion fails
+// fast on a small input. The depth cap needs far less stack than this.
+func smallStack(t *testing.T) {
+	t.Helper()
+	old := debug.SetMaxStack(16 << 20)
+	t.Cleanup(func() { debug.SetMaxStack(old) })
+}
+
+// Operators recurse without going through parseExpr, so they need the cap too.
+// Without it, these inputs overflow the goroutine stack, which is a fatal error.
+func TestParseDeepOperatorsDoNotOverflow(t *testing.T) {
+	smallStack(t)
+	const n = 1_000_000
+	for name, src := range map[string]string{
+		"unary": "x = " + strings.Repeat("-", n) + "a\n",
+		"not":   "x = " + strings.Repeat("not ", n) + "a\n",
+		"power": "x = a" + strings.Repeat("**a", n) + "\n",
+	} {
+		if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+			t.Errorf("%s: expected a parse error from the depth cap, got none", name)
+		}
+	}
+}
+
+// An elif chain has no nesting in the source, so its length must not grow the stack.
+func TestLongElifChain(t *testing.T) {
+	smallStack(t)
+	const n = 500_000
+	src := "if a:\n    pass\n" + strings.Repeat("elif a:\n    pass\n", n) + "else:\n    def f(): pass\n"
+	mod := parse(t, src)
+	requireStmts(t, mod, 1)
+	depth := 0
+	node := mod.Body[0].(*ast.If)
+	for len(node.Orelse) == 1 {
+		next, ok := node.Orelse[0].(*ast.If)
+		if !ok {
+			break
+		}
+		node = next
+		depth++
+	}
+	if depth != n {
+		t.Errorf("got %d elif branches, want %d", depth, n)
+	}
+	if fn := asFuncDef(t, node.Orelse[0]); fn.Name != "f" {
+		t.Errorf("got %q, want f", fn.Name)
 	}
 }
 
@@ -1199,4 +1249,661 @@ func TestComprehensionInDefaultValue(t *testing.T) {
 	if fd.Name != "foo" {
 		t.Errorf("name = %q, want foo", fd.Name)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Recovery: an error stays inside its statement and its block
+// ---------------------------------------------------------------------------
+
+func TestRecoveryStaysInBlock(t *testing.T) {
+	cases := map[string]string{
+		"bad expression": `class C:
+    def m(self):
+        x = )
+        y = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"bad keyword in expression": `class C:
+    def m(self):
+        y = 1 + class + 2
+        z = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"line ends inside expression": `class C:
+    def m(self):
+        y = 1 +
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"bad header": `class C:
+    def m(self) oops:
+        y = 1
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+		"stray indent": `class C:
+    def m(self):
+        y = 1
+            z = 2
+        w = 3
+    def after_m(self):
+        pass
+
+def after_c():
+    pass
+`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			mod, errs := parseWithErrors(t, src)
+			if len(errs) == 0 {
+				t.Fatal("expected a parse error")
+			}
+			requireStmts(t, mod, 2)
+			cls := asClassDef(t, mod.Body[0])
+			if cls.Name != "C" {
+				t.Fatalf("expected class C, got %s", cls.Name)
+			}
+			var methods []string
+			for _, stmt := range cls.Body {
+				if fd, ok := stmt.(*ast.FunctionDef); ok {
+					methods = append(methods, fd.Name)
+				}
+			}
+			if strings.Join(methods, ",") != "m,after_m" {
+				t.Errorf("methods of C: got %v, want [m after_m]", methods)
+			}
+			if fn := asFuncDef(t, mod.Body[1]); fn.Name != "after_c" {
+				t.Errorf("expected module function after_c, got %s", fn.Name)
+			}
+		})
+	}
+}
+
+// Invalid input must end, and must not panic, in any loop that parses a list.
+func TestRecoveryAlwaysEnds(t *testing.T) {
+	for _, src := range []string{
+		"f(]\nx = 1\n",
+		"def f(]\nx = 1\n",
+		"class C(]\nx = 1\n",
+		"def f[]\nx = 1\n",
+		"def f[T]\n",
+		"x[]\ny = 1\n",
+		"x = {]\ny = 1\n",
+		"from x import\n",
+		"import\n",
+		"@\n",
+		"  x = 1\n",
+		"if\n  x = 1\ny = 2\n",
+		"lambda\n",
+		"(a for ]\nx = 1\n",
+		"    a\n  b\nc\n",
+		")\n]\n}\n",
+	} {
+		if mod, errs := parseWithErrors(t, src); mod == nil || len(errs) == 0 {
+			t.Errorf("%q: expected a module and parse errors, got %d errors", src, len(errs))
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Grammar: one test per root cause, asserting the AST shape
+// ---------------------------------------------------------------------------
+
+func exprOf(t *testing.T, src string) ast.Expr {
+	t.Helper()
+	mod := parse(t, src+"\n")
+	requireStmts(t, mod, 1)
+	return asExprStmt(t, mod.Body[0]).Value
+}
+
+func asCall(t *testing.T, expr ast.Expr) *ast.Call {
+	t.Helper()
+	c, ok := expr.(*ast.Call)
+	if !ok {
+		t.Fatalf("expected Call, got %T", expr)
+	}
+	return c
+}
+
+func TestCallArgs_FullExpressions(t *testing.T) {
+	c := asCall(t, exprOf(t, "f(a == 1, b or c, d if e else g, not h, i.j[0]() + 1, k=l == 2, *m or n, **o or p)"))
+	if len(c.Args) != 6 {
+		t.Fatalf("expected 6 args, got %d", len(c.Args))
+	}
+	for i, want := range []token.Type{token.EQ, token.OR} {
+		if op, ok := c.Args[i].(*ast.BinOp); !ok || op.Op != want {
+			t.Errorf("arg %d: got %#v, want BinOp %v", i, c.Args[i], want)
+		}
+	}
+	if _, ok := c.Args[2].(*ast.IfExpr); !ok {
+		t.Errorf("arg 2: got %T, want IfExpr", c.Args[2])
+	}
+	if _, ok := c.Args[5].(*ast.Starred); !ok {
+		t.Errorf("arg 5: got %T, want Starred", c.Args[5])
+	}
+	if len(c.Keywords) != 2 || c.Keywords[0].Arg != "k" || c.Keywords[1].Arg != "" {
+		t.Fatalf("keywords: got %#v", c.Keywords)
+	}
+	if op, ok := c.Keywords[0].Value.(*ast.BinOp); !ok || op.Op != token.EQ {
+		t.Errorf("keyword k: got %#v", c.Keywords[0].Value)
+	}
+}
+
+func TestCallArgs_SoftKeywordNames(t *testing.T) {
+	c := asCall(t, exprOf(t, "f(type=1, match=2, case=3, type)"))
+	if len(c.Keywords) != 3 || c.Keywords[0].Arg != "type" {
+		t.Fatalf("keywords: got %#v", c.Keywords)
+	}
+	if len(c.Args) != 1 || asName(t, c.Args[0]).Name != "type" {
+		t.Fatalf("args: got %#v", c.Args)
+	}
+}
+
+func TestCallArgs_Generator(t *testing.T) {
+	for _, src := range []string{"f(x for x in y)", "f(a == b for a, b in y if a)", "f(x async for x in y)"} {
+		if c := asCall(t, exprOf(t, src)); len(c.Args) != 1 {
+			t.Errorf("%s: expected 1 arg, got %d", src, len(c.Args))
+		}
+	}
+}
+
+func TestCallArgs_MissingCommaIsAnError(t *testing.T) {
+	if _, errs := parseWithErrors(t, "f(a b)\n"); len(errs) == 0 {
+		t.Fatal("expected a parse error")
+	}
+}
+
+func TestClassDef_ComplexBases(t *testing.T) {
+	cls := asClassDef(t, parse(t, "class C(a if b else c, d.e[f], *g, h=i or j, **k): pass\n").Body[0])
+	if len(cls.Bases) != 3 {
+		t.Fatalf("expected 3 bases, got %d", len(cls.Bases))
+	}
+	if _, ok := cls.Bases[0].(*ast.IfExpr); !ok {
+		t.Errorf("base 0: got %T, want IfExpr", cls.Bases[0])
+	}
+	if len(cls.Keywords) != 2 || cls.Keywords[0].Arg != "h" {
+		t.Errorf("keywords: got %#v", cls.Keywords)
+	}
+}
+
+func asTuple(t *testing.T, expr ast.Expr, n int) *ast.Tuple {
+	t.Helper()
+	tup, ok := expr.(*ast.Tuple)
+	if !ok {
+		t.Fatalf("expected Tuple, got %T", expr)
+	}
+	if len(tup.Elts) != n {
+		t.Fatalf("expected %d elements, got %d", n, len(tup.Elts))
+	}
+	return tup
+}
+
+func TestBareTuples(t *testing.T) {
+	a := asAssign(t, parse(t, "a, b = 1, 2\n").Body[0])
+	if len(a.Targets) != 1 {
+		t.Fatalf("expected 1 target, got %d", len(a.Targets))
+	}
+	asTuple(t, a.Targets[0], 2)
+	asTuple(t, a.Value, 2)
+
+	asTuple(t, exprOf(t, "a, b,"), 2)
+	asTuple(t, asAssign(t, parse(t, "x = 1,\n").Body[0]).Value, 1)
+	asTuple(t, asAssign(t, parse(t, "a, = f()\n").Body[0]).Targets[0], 1)
+	asTuple(t, asAssign(t, parse(t, "x += 1, 2\n").Body[0]).Value, 2)
+	asTuple(t, asAnnAssign(t, parse(t, "x: T = 1, 2\n").Body[0]).Value, 2)
+
+	star := asTuple(t, asAssign(t, parse(t, "a, *b = c\n").Body[0]).Targets[0], 2)
+	if _, ok := star.Elts[1].(*ast.Starred); !ok {
+		t.Errorf("got %T, want Starred", star.Elts[1])
+	}
+}
+
+func TestChainedAssignmentKeepsEveryTarget(t *testing.T) {
+	a := asAssign(t, parse(t, "a = b, c = d = 1\n").Body[0])
+	if len(a.Targets) != 3 {
+		t.Fatalf("expected 3 targets, got %d", len(a.Targets))
+	}
+	asName(t, a.Targets[0])
+	asTuple(t, a.Targets[1], 2)
+	asName(t, a.Targets[2])
+	asConstant(t, a.Value)
+}
+
+func TestImportFrom_RelativeLevels(t *testing.T) {
+	cases := []struct {
+		src    string
+		level  int
+		module string
+	}{
+		{"from . import a", 1, ""},
+		{"from .. import a", 2, ""},
+		{"from ... import a", 3, ""},
+		{"from .... import a", 4, ""},
+		{"from ..... import a", 5, ""},
+		{"from ....... import a", 7, ""},
+		{"from ....b.c import a", 4, "b.c"},
+		{"from .type import a", 1, "type"},
+		{"from match import a", 0, "match"},
+	}
+	for _, c := range cases {
+		imp := asImportFrom(t, parse(t, c.src+"\n").Body[0])
+		if imp.Level != c.level || imp.Module != c.module {
+			t.Errorf("%s: got level %d module %q", c.src, imp.Level, imp.Module)
+		}
+	}
+}
+
+func asNamedExpr(t *testing.T, expr ast.Expr) *ast.NamedExpr {
+	t.Helper()
+	n, ok := expr.(*ast.NamedExpr)
+	if !ok {
+		t.Fatalf("expected NamedExpr, got %T", expr)
+	}
+	return n
+}
+
+func TestWalrus(t *testing.T) {
+	ifStmt, ok := parse(t, "if (n := f()) > 1:\n    pass\nelif m := g():\n    pass\n").Body[0].(*ast.If)
+	if !ok {
+		t.Fatal("expected If")
+	}
+	cmp, ok := ifStmt.Test.(*ast.BinOp)
+	if !ok {
+		t.Fatalf("expected BinOp test, got %T", ifStmt.Test)
+	}
+	n := asNamedExpr(t, cmp.Left)
+	if asName(t, n.Target).Name != "n" {
+		t.Errorf("target: got %#v", n.Target)
+	}
+	if _, ok := n.Value.(*ast.Call); !ok {
+		t.Errorf("value: got %T, want Call", n.Value)
+	}
+
+	elif, ok := ifStmt.Orelse[0].(*ast.If)
+	if !ok {
+		t.Fatalf("expected elif If, got %T", ifStmt.Orelse[0])
+	}
+	if asName(t, asNamedExpr(t, elif.Test).Target).Name != "m" {
+		t.Errorf("elif target: got %#v", elif.Test)
+	}
+
+	c := asCall(t, exprOf(t, "f(a := 1, b)"))
+	asNamedExpr(t, c.Args[0])
+	asNamedExpr(t, exprOf(t, "[a := 1, 2]").(*ast.List).Elts[0])
+	asNamedExpr(t, exprOf(t, "{a := 1, 2}").(*ast.Set).Elts[0])
+	asNamedExpr(t, exprOf(t, "(a := 1, 2)").(*ast.Tuple).Elts[0])
+	asNamedExpr(t, exprOf(t, "(a := 1)"))
+	asNamedExpr(t, exprOf(t, "x[a := 1]").(*ast.Subscript).Slice)
+	exprOf(t, "[(a := x) for x in y]")
+}
+
+func TestDictUnpack(t *testing.T) {
+	d, ok := exprOf(t, "{**a, 'k': 1, **b.c, 'l': 2,}").(*ast.Dict)
+	if !ok {
+		t.Fatal("expected Dict")
+	}
+	if len(d.Keys) != 4 || len(d.Values) != 4 {
+		t.Fatalf("got %d keys and %d values, want 4 of each", len(d.Keys), len(d.Values))
+	}
+	if d.Keys[0] != nil || d.Keys[2] != nil {
+		t.Errorf("unpack entries must have nil keys: %#v", d.Keys)
+	}
+	if asName(t, d.Values[0]).Name != "a" {
+		t.Errorf("value 0: got %#v", d.Values[0])
+	}
+	if asConstant(t, d.Keys[1]).Value != "k" {
+		t.Errorf("key 1: got %#v", d.Keys[1])
+	}
+	if _, ok := d.Values[2].(*ast.Attribute); !ok {
+		t.Errorf("value 2: got %T, want Attribute", d.Values[2])
+	}
+}
+
+func passThroughBody(t *testing.T, src string) []ast.Stmt {
+	t.Helper()
+	mod := parse(t, src)
+	requireStmts(t, mod, 1)
+	pt, ok := mod.Body[0].(*ast.PassThrough)
+	if !ok {
+		t.Fatalf("expected PassThrough, got %T", mod.Body[0])
+	}
+	return pt.Body
+}
+
+func TestCompoundHeaders(t *testing.T) {
+	for _, header := range []string{
+		"for x in y[:-1]:",
+		"for x in {1: 2}:",
+		"for x in lambda: y, lambda a=1: a:",
+		"for x in (lambda: y):",
+		"while f(lambda a: a):",
+		"with a[1:2] as b, c as d:",
+		"with (a as b, c as d):",
+		"try:",
+	} {
+		src := header + "\n    def m(): pass\n"
+		if header == "try:" {
+			src += "except (A, B) as e:\n    pass\nexcept* C:\n    pass\nelse:\n    pass\nfinally:\n    pass\n"
+		}
+		body := passThroughBody(t, src)
+		if _, ok := body[0].(*ast.FunctionDef); !ok {
+			t.Errorf("%s: got %T, want FunctionDef", header, body[0])
+		}
+	}
+}
+
+func TestLambdaColons(t *testing.T) {
+	for _, src := range []string{
+		"f = lambda x=a[1:2]: x",
+		"f = lambda x={1: 2}, *y, **z: x",
+		"f = lambda x=lambda y: y: x",
+		"f = lambda: 0",
+		"d = {'k': lambda v: v, 'l': 1}",
+	} {
+		asAssign(t, parse(t, src+"\n").Body[0])
+	}
+}
+
+func asSubscriptSlice(t *testing.T, src string) ast.Expr {
+	t.Helper()
+	sub, ok := exprOf(t, src).(*ast.Subscript)
+	if !ok {
+		t.Fatalf("%s: expected Subscript", src)
+	}
+	return sub.Slice
+}
+
+func TestSubscripts(t *testing.T) {
+	check := func(expr ast.Expr, lower, upper, step bool) {
+		t.Helper()
+		s, ok := expr.(*ast.Slice)
+		if !ok {
+			t.Fatalf("expected Slice, got %T", expr)
+		}
+		if (s.Lower != nil) != lower || (s.Upper != nil) != upper || (s.Step != nil) != step {
+			t.Errorf("got %#v, want lower=%v upper=%v step=%v", s, lower, upper, step)
+		}
+	}
+	check(asSubscriptSlice(t, "y[:]"), false, false, false)
+	check(asSubscriptSlice(t, "y[::]"), false, false, false)
+	check(asSubscriptSlice(t, "y[1:]"), true, false, false)
+	check(asSubscriptSlice(t, "y[:2]"), false, true, false)
+	check(asSubscriptSlice(t, "y[::3]"), false, false, true)
+	check(asSubscriptSlice(t, "y[1:2:3]"), true, true, true)
+
+	// Elements parsed before and after a slice stay in the tuple.
+	tup := asTuple(t, asSubscriptSlice(t, "y[1, :, 2:3, ...]"), 4)
+	asConstant(t, tup.Elts[0])
+	check(tup.Elts[1], false, false, false)
+	check(tup.Elts[2], true, true, false)
+	asConstant(t, tup.Elts[3])
+
+	tup = asTuple(t, asSubscriptSlice(t, "y[:, 1,]"), 2)
+	check(tup.Elts[0], false, false, false)
+
+	tup = asTuple(t, asSubscriptSlice(t, "y[*a, b]"), 2)
+	if _, ok := tup.Elts[0].(*ast.Starred); !ok {
+		t.Errorf("got %T, want Starred", tup.Elts[0])
+	}
+}
+
+func TestLoopElse(t *testing.T) {
+	for _, head := range []string{"for x in y:", "while x:"} {
+		body := passThroughBody(t, head+"\n    def a(): pass\nelse:\n    def b(): pass\n")
+		if len(body) != 2 || asFuncDef(t, body[1]).Name != "b" {
+			t.Errorf("%s: got %#v", head, body)
+		}
+	}
+	mod := parse(t, "async def f():\n    pass\nasync for x in y:\n    def a(): pass\nelse:\n    def b(): pass\nz = 1\n")
+	requireStmts(t, mod, 3)
+	if body := mod.Body[1].(*ast.PassThrough).Body; len(body) != 2 {
+		t.Errorf("async for: got %#v", body)
+	}
+}
+
+func TestMatmul(t *testing.T) {
+	op, ok := asAssign(t, parse(t, "x = a @ b * c\n").Body[0]).Value.(*ast.BinOp)
+	if !ok {
+		t.Fatal("expected BinOp value")
+	}
+	// @ and * have the same precedence and associate to the left.
+	if left, ok := op.Left.(*ast.BinOp); op.Op != token.STAR || !ok || left.Op != token.AT {
+		t.Errorf("got %#v", op)
+	}
+	if a := asAssign(t, parse(t, "x @= y\n").Body[0]); asName(t, a.Targets[0]).Name != "x" {
+		t.Errorf("got %#v", a)
+	}
+	mod := parse(t, "x = a @ b\n@dec\ndef f(): pass\n")
+	requireStmts(t, mod, 2)
+	if len(asFuncDef(t, mod.Body[1]).Decorators) != 1 {
+		t.Error("expected a decorator on f")
+	}
+}
+
+func asYield(t *testing.T, expr ast.Expr) *ast.Yield {
+	t.Helper()
+	y, ok := expr.(*ast.Yield)
+	if !ok {
+		t.Fatalf("expected Yield, got %T", expr)
+	}
+	return y
+}
+
+func TestYieldExpressions(t *testing.T) {
+	if y := asYield(t, asAssign(t, parse(t, "x = yield\n").Body[0]).Value); y.Value != nil || y.From {
+		t.Errorf("got %#v", y)
+	}
+	y := asYield(t, asAssign(t, parse(t, "x = yield a, b\n").Body[0]).Value)
+	asTuple(t, y.Value, 2)
+	y = asYield(t, asAssign(t, parse(t, "x = yield from g()\n").Body[0]).Value)
+	if !y.From {
+		t.Errorf("got %#v", y)
+	}
+	asYield(t, asAssign(t, parse(t, "x += yield 1\n").Body[0]).Value)
+	asYield(t, asAnnAssign(t, parse(t, "x: int = yield\n").Body[0]).Value)
+	asYield(t, asCall(t, exprOf(t, "f((yield))")).Args[0])
+	asYield(t, exprOf(t, "(yield)"))
+	exprOf(t, "[(yield x), (yield)]")
+}
+
+func TestMatchStatement(t *testing.T) {
+	src := `match x:
+    case [a, *b] if a > 1 and (c := b):
+        def f(): pass
+    case {"k": v, **rest} if v:
+        def g(): pass
+    case A(b=1) | B() as c: pass
+    case _:
+        def h(): pass
+`
+	body := passThroughBody(t, src)
+	if len(body) != 4 {
+		t.Fatalf("expected 4 statements, got %d", len(body))
+	}
+	if asFuncDef(t, body[0]).Name != "f" || asFuncDef(t, body[1]).Name != "g" || asFuncDef(t, body[3]).Name != "h" {
+		t.Errorf("got %#v", body)
+	}
+}
+
+func TestMatchTypeCaseAsNames(t *testing.T) {
+	for _, src := range []string{
+		"match = 1\n",
+		"match: int = 1\n",
+		"match(x)\n",
+		"match(x).y = 1\n",
+		"match.group(1)\n",
+		"match, y = 1, 2\n",
+		"match[x]\n",
+		"match[x]: int\n",
+		"match + 1\n",
+		"match(a)\nb: int\n",
+		"case = 1\n",
+		"case(x)\n",
+		"type = 1\n",
+		"type(x)\n",
+		"type(x).y = 1\n",
+		"type(x) == y\n",
+		"type.y\n",
+		"type, y = 1, 2\n",
+		"type: int = 1\n",
+		"type + 1\n",
+		"x = type\n",
+		"x = match\n",
+	} {
+		mod := parse(t, src)
+		for _, stmt := range mod.Body {
+			switch stmt.(type) {
+			case *ast.ExprStmt, *ast.Assign, *ast.AnnAssign:
+			default:
+				t.Errorf("%q: got %T", src, stmt)
+			}
+		}
+	}
+	if call := asCall(t, exprOf(t, "type(x)")); asName(t, call.Func).Name != "type" {
+		t.Errorf("got %#v", call)
+	}
+	if a := asTypeAlias(t, parse(t, "type match[T] = int\n").Body[0]); a.Name != "match" || len(a.TypeParams) != 1 {
+		t.Errorf("got %#v", a)
+	}
+}
+
+func TestSemicolons(t *testing.T) {
+	mod := parse(t, "a = 1; b = 2\nimport c; from d import e; pass; f = 3;\ng = 4\n")
+	requireStmts(t, mod, 7)
+	if asName(t, asAssign(t, mod.Body[1]).Targets[0]).Name != "b" {
+		t.Errorf("got %#v", mod.Body[1])
+	}
+	if asName(t, asAssign(t, mod.Body[6]).Targets[0]).Name != "g" {
+		t.Errorf("got %#v", mod.Body[6])
+	}
+
+	mod = parse(t, "def f(): a = 1; b = 2;\nclass C: x = 1; y = 2\nz = 3\n")
+	requireStmts(t, mod, 3)
+	if n := len(asFuncDef(t, mod.Body[0]).Body); n != 2 {
+		t.Errorf("f: expected 2 statements, got %d", n)
+	}
+	if n := len(asClassDef(t, mod.Body[1]).Body); n != 2 {
+		t.Errorf("C: expected 2 statements, got %d", n)
+	}
+
+	// A keyword statement ends at the semicolon.
+	mod = parse(t, "global a; a = 1\n")
+	requireStmts(t, mod, 2)
+	asAssign(t, mod.Body[1])
+}
+
+func TestTrailingTokensAreAnError(t *testing.T) {
+	for _, src := range []string{"a b\n", "a = 1 2\n", "import a b\n", "from a import b c\n", "pass a\n", "x: int y\n"} {
+		if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+			t.Errorf("%q: expected a parse error", src)
+		}
+	}
+}
+
+func TestAwait(t *testing.T) {
+	aw, ok := asAssign(t, parse(t, "x = await f(a).b\n").Body[0]).Value.(*ast.Await)
+	if !ok {
+		t.Fatal("expected Await value")
+	}
+	if _, ok := aw.Value.(*ast.Attribute); !ok {
+		t.Errorf("got %T, want Attribute", aw.Value)
+	}
+	// await binds tighter than ** and every other operator.
+	op, ok := exprOf(t, "-await a ** 2 + 1").(*ast.BinOp)
+	if !ok || op.Op != token.PLUS {
+		t.Fatalf("got %#v", op)
+	}
+	neg, ok := op.Left.(*ast.UnaryOp)
+	if !ok {
+		t.Fatalf("got %T, want UnaryOp", op.Left)
+	}
+	pow, ok := neg.Operand.(*ast.BinOp)
+	if !ok || pow.Op != token.DSTAR {
+		t.Fatalf("got %#v", neg.Operand)
+	}
+	if _, ok := pow.Left.(*ast.Await); !ok {
+		t.Errorf("got %T, want Await", pow.Left)
+	}
+	exprOf(t, "f(await a, k=await b)")
+	exprOf(t, "[await a for a in b]")
+	parse(t, "if await a:\n    pass\n")
+}
+
+func TestOneLineBlockStatements(t *testing.T) {
+	for _, stmt := range []string{
+		"return", "return 1, 2", "raise E from e", "yield", "yield 1", "del a, b", "global a", "nonlocal a",
+		"assert a, b", "import a", "from a import b", "pass", "...", "break", "continue", "a = 1", "a: int = 1",
+		"type A = int", "x; return", "return; x",
+	} {
+		for _, head := range []string{"def f(): ", "class C: ", "if a: ", "for a in b: ", "while a: ", "with a: "} {
+			parse(t, head+stmt+"\nafter = 1\n")
+		}
+		parse(t, "if a: "+stmt+"\nelse: "+stmt+"\n")
+		parse(t, "try: "+stmt+"\nexcept E: "+stmt+"\nelse: "+stmt+"\nfinally: "+stmt+"\n")
+	}
+	body := asFuncDef(t, parse(t, "def f(): import a; return a\n").Body[0]).Body
+	if len(body) != 2 {
+		t.Fatalf("expected 2 statements, got %d", len(body))
+	}
+	asImport(t, body[0])
+}
+
+func TestOneLineBlockRejectsCompoundStatement(t *testing.T) {
+	src := strings.Repeat("if a: ", 200000) + "pass\n"
+	if _, errs := parseWithErrors(t, src); len(errs) == 0 {
+		t.Fatal("expected a parse error")
+	}
+}
+
+func TestSignatureSoftKeywordsAndTypeParams(t *testing.T) {
+	fn := asFuncDef(t, parse(t, "def f(type, *match, case=1, **type_): pass\n").Body[0])
+	if fn.Args.VarArg == nil || fn.Args.VarArg.Name != "match" || len(fn.Args.KwOnlyArgs) != 1 {
+		t.Errorf("got %#v", fn.Args)
+	}
+
+	fn = asFuncDef(t, parse(t, "def f[T: int = str, *Ts = *x, **P = [int], U = int](a: T): pass\n").Body[0])
+	if len(fn.TypeParams) != 4 {
+		t.Fatalf("expected 4 type params, got %d", len(fn.TypeParams))
+	}
+	for i, name := range []string{"T", "Ts", "P", "U"} {
+		if fn.TypeParams[i].Name != name || fn.TypeParams[i].Default == nil {
+			t.Errorf("type param %d: got %#v", i, fn.TypeParams[i])
+		}
+	}
+	if fn.TypeParams[0].Bound == nil {
+		t.Error("expected a bound on T")
+	}
+	asClassDef(t, parse(t, "class C[*Ts, **P]: pass\n").Body[0])
+	asTypeAlias(t, parse(t, "type A[*Ts] = int\n").Body[0])
+}
+
+func TestLazyImport(t *testing.T) {
+	mod := parse(t, "lazy import a\nlazy from b import c\nlazy = 1\nlazy(1)\n")
+	requireStmts(t, mod, 4)
+	asImport(t, mod.Body[0])
+	asImportFrom(t, mod.Body[1])
+	asAssign(t, mod.Body[2])
+}
+
+func TestUnpackingComprehensions(t *testing.T) {
+	exprOf(t, "[*a for a in b]")
+	exprOf(t, "{*a for a in b}")
+	exprOf(t, "{**a for a in b}")
+	exprOf(t, "(*a for a in b)")
+	exprOf(t, "f(*a for a in b)")
 }

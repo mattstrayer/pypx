@@ -1,0 +1,51 @@
+[
+  {
+    "doc": false,
+    "params": [],
+    "q": "C"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "C.after_form_feed"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "C.m"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": false,
+    "params": [
+      "\u0915\u093f",
+      "\u3007"
+    ],
+    "q": "caf\u00e9"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "form_feed"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "form_feed_at_start"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "number_then_keyword"
+  }
+]

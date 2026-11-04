@@ -4,6 +4,7 @@
 package lexer
 
 import (
+	"bytes"
 	"unicode"
 	"unicode/utf8"
 
@@ -20,10 +21,14 @@ type Lexer struct {
 	indentStack  []int
 	bracketDepth int
 	atLineStart  bool
+
+	fstringFailed bool // an f-string was invalid; lex the rest as plain strings
 }
 
 // New returns a new Lexer for the given source bytes.
 func New(src []byte) *Lexer {
+	// A byte order mark at the start of a file is not part of the source.
+	src = bytes.TrimPrefix(src, []byte("\xef\xbb\xbf"))
 	return &Lexer{
 		src:         src,
 		line:        1,
@@ -31,6 +36,14 @@ func New(src []byte) *Lexer {
 		indentStack: []int{0},
 		atLineStart: true,
 	}
+}
+
+// Clone returns an independent copy of the lexer, for token lookahead.
+func (l *Lexer) Clone() *Lexer {
+	c := *l
+	c.tokens = append([]token.Token(nil), l.tokens...)
+	c.indentStack = append([]int(nil), l.indentStack...)
+	return &c
 }
 
 // Next returns the next token from the source.
@@ -86,8 +99,8 @@ func (l *Lexer) Next() token.Token {
 
 		ch := l.src[l.pos]
 
-		// Skip spaces and tabs (not at line start — those were handled above).
-		if ch == ' ' || ch == '\t' {
+		// Skip spaces, tabs and form feeds (not at line start — those were handled above).
+		if ch == ' ' || ch == '\t' || ch == '\f' {
 			l.pos++
 			l.col++
 			continue
@@ -147,7 +160,7 @@ func (l *Lexer) Next() token.Token {
 			// For multi-byte starts, verify the decoded rune is actually a letter.
 			if ch >= 0x80 {
 				r, _ := utf8.DecodeRune(l.src[l.pos:])
-				if r == utf8.RuneError || !unicode.IsLetter(r) {
+				if !isIdentStartRune(r) {
 					return l.lexOperator()
 				}
 			}
@@ -182,7 +195,7 @@ func (l *Lexer) eofTokens() token.Token {
 // whitespace and optionally a comment, followed by a newline or EOF.
 func (l *Lexer) isBlankOrCommentLine() bool {
 	i := l.pos
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t' || l.src[i] == '\f') {
 		i++
 	}
 	if i >= len(l.src) {
@@ -219,6 +232,10 @@ func (l *Lexer) measureIndent() (spaces int, bytes int) {
 			i++
 		} else if l.src[i] == '\t' {
 			col += 8 - (col % 8)
+			i++
+		} else if l.src[i] == '\f' {
+			// As in CPython, a form feed resets the indent count.
+			col = 0
 			i++
 		} else {
 			break
@@ -259,139 +276,235 @@ func (l *Lexer) isStringStart() bool {
 
 func isStringPrefix(ch byte) bool {
 	return ch == 'r' || ch == 'R' || ch == 'b' || ch == 'B' ||
-		ch == 'f' || ch == 'F' || ch == 'u' || ch == 'U'
+		ch == 'f' || ch == 'F' || ch == 'u' || ch == 'U' ||
+		ch == 't' || ch == 'T'
 }
+
+// maxFStringDepth bounds recursion on nested f-string fields, so that crafted input
+// cannot overflow the goroutine stack. CPython's own limit is far lower.
+const maxFStringDepth = 150
 
 // lexString lexes a string literal (with optional prefix).
 func (l *Lexer) lexString() token.Token {
 	pos := l.currentPos()
 	start := l.pos
 
-	// Collect prefix.
-	isFStr := false
+	isFStr := l.skipStringPrefix()
+	if isFStr && !l.fstringFailed {
+		savedPos, savedLine, savedCol := l.pos, l.line, l.col
+		if l.scanFString(0) {
+			return token.Token{Type: token.STRING, Lit: string(l.src[start:l.pos]), Pos: pos}
+		}
+		// Invalid f-string. Lex it and any later ones as plain strings, so that
+		// each byte of the file is scanned at most twice.
+		l.fstringFailed = true
+		l.pos, l.line, l.col = savedPos, savedLine, savedCol
+	}
+	l.scanPlainString()
+
+	return token.Token{Type: token.STRING, Lit: string(l.src[start:l.pos]), Pos: pos}
+}
+
+// skipStringPrefix consumes a string prefix and reports whether it marks an f-string
+// or a t-string. The two have the same syntax.
+func (l *Lexer) skipStringPrefix() (isFStr bool) {
 	for l.pos < len(l.src) && isStringPrefix(l.src[l.pos]) {
 		ch := l.src[l.pos]
-		if ch == 'f' || ch == 'F' {
+		if ch == 'f' || ch == 'F' || ch == 't' || ch == 'T' {
 			isFStr = true
 		}
 		l.pos++
 		l.col++
 	}
+	return isFStr
+}
 
-	quote := l.src[l.pos]
-	// Determine if triple-quoted.
-	triple := false
+// openQuote consumes the opening quotes of a string.
+func (l *Lexer) openQuote() (quote byte, triple bool) {
+	quote = l.src[l.pos]
 	if l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote {
-		triple = true
 		l.pos += 3
 		l.col += 3
-	} else {
-		l.pos++
+		return quote, true
+	}
+	l.pos++
+	l.col++
+	return quote, false
+}
+
+// atCloseQuote returns true at the closing quotes of a string.
+func (l *Lexer) atCloseQuote(quote byte, triple bool) bool {
+	if l.src[l.pos] != quote {
+		return false
+	}
+	return !triple || (l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote)
+}
+
+// closeQuote consumes the closing quotes of a string.
+func (l *Lexer) closeQuote(triple bool) {
+	n := 1
+	if triple {
+		n = 3
+	}
+	l.pos += n
+	l.col += n
+}
+
+// step consumes one source character, and keeps the line and column correct.
+func (l *Lexer) step() {
+	switch ch := l.src[l.pos]; ch {
+	case '\r':
+		if l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
+			l.pos++
+		}
+		l.line++
+		l.col = 0
+	case '\n':
+		l.line++
+		l.col = 0
+	case '\t':
+		l.col += 8 - (l.col % 8)
+	default:
 		l.col++
 	}
+	l.pos++
+}
 
-	// Read string body.
-	braceDepth := 0 // tracks { } inside f-string expressions
+// scanPlainString consumes a string body with its quotes. An unterminated
+// single-line string stops at the end of the line.
+func (l *Lexer) scanPlainString() {
+	quote, triple := l.openQuote()
 	for l.pos < len(l.src) {
 		ch := l.src[l.pos]
-
-		if ch == '\\' && l.pos+1 < len(l.src) {
-			// Escape sequence — skip both chars (handle \n for line count).
-			l.pos++
-			l.col++
-			next := l.src[l.pos]
-			if next == '\n' {
-				l.line++
-				l.col = 0
-			} else if next == '\r' {
-				l.line++
-				l.col = 0
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
-					l.pos++
-				}
-			} else {
-				l.col++
-			}
-			l.pos++
-			continue
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.step()
+			l.step()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return
+		case l.atCloseQuote(quote, triple):
+			l.closeQuote(triple)
+			return
+		default:
+			l.step()
 		}
+	}
+}
 
-		if ch == '\n' || ch == '\r' {
-			if !triple {
-				// Unterminated single-line string — stop here.
-				break
-			}
-			if ch == '\r' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '\n' {
-				l.pos++
-			}
-			l.pos++
-			l.line++
-			l.col = 0
-			continue
-		}
-
-		// F-string brace tracking.
-		if isFStr {
-			if ch == '{' {
-				// {{ is escaped brace, not an expression.
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '{' {
-					l.pos += 2
-					l.col += 2
-					continue
-				}
-				braceDepth++
-				l.pos++
-				l.col++
+// scanFString consumes an f-string body with its quotes. It returns false if the
+// string is invalid, and then the caller must restore the position.
+func (l *Lexer) scanFString(depth int) bool {
+	if depth > maxFStringDepth {
+		return false
+	}
+	quote, triple := l.openQuote()
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.stepEscape()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return false
+		case l.atCloseQuote(quote, triple):
+			l.closeQuote(triple)
+			return true
+		case ch == '{':
+			if l.pos+1 < len(l.src) && l.src[l.pos+1] == '{' {
+				l.step()
+				l.step()
 				continue
 			}
-			if ch == '}' {
-				if braceDepth > 0 {
-					braceDepth--
-					l.pos++
-					l.col++
-					continue
-				}
-				// }} is escaped closing brace.
-				if l.pos+1 < len(l.src) && l.src[l.pos+1] == '}' {
-					l.pos += 2
-					l.col += 2
-					continue
-				}
-				// Stray } outside expression — treat as literal char.
-				l.pos++
-				l.col++
-				continue
+			l.step()
+			if !l.scanField(triple, depth+1) {
+				return false
 			}
+		default:
+			// Includes } and }}, which are literal text here.
+			l.step()
 		}
+	}
+	return false
+}
 
-		// Check for closing quote (only when not inside an f-string expression).
-		if ch == quote && braceDepth == 0 {
-			if triple {
-				if l.pos+2 < len(l.src) && l.src[l.pos+1] == quote && l.src[l.pos+2] == quote {
-					l.pos += 3
-					l.col += 3
-					break
+// stepEscape consumes a backslash in the literal part of an f-string. A brace after
+// the backslash keeps its meaning, even in a raw string: rf'\{{' is an escaped brace.
+func (l *Lexer) stepEscape() {
+	l.step()
+	if next := l.src[l.pos]; next != '{' && next != '}' {
+		l.step()
+	}
+}
+
+// scanField consumes a replacement field, after its opening brace, up to and
+// including the closing brace. It tracks brackets and nested strings, as the
+// expression can hold both, and in Python 3.12+ it can hold the same quote as the
+// enclosing string, comments, and newlines.
+func (l *Lexer) scanField(triple bool, depth int) bool {
+	brackets := 0
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case l.isStringStart():
+			if l.skipStringPrefix() {
+				if !l.scanFString(depth) {
+					return false
 				}
 			} else {
-				l.pos++
-				l.col++
-				break
+				l.scanPlainString()
 			}
+		case ch == '#':
+			for l.pos < len(l.src) && l.src[l.pos] != '\n' && l.src[l.pos] != '\r' {
+				l.step()
+			}
+		case ch == '(' || ch == '[' || ch == '{':
+			brackets++
+			l.step()
+		case ch == ')' || ch == ']':
+			brackets--
+			l.step()
+		case ch == '}':
+			l.step()
+			if brackets <= 0 {
+				return true
+			}
+			brackets--
+		case ch == ':' && brackets <= 0:
+			l.step()
+			return l.scanFormatSpec(triple, depth)
+		default:
+			l.step()
 		}
+	}
+	return false
+}
 
-		if ch == '\t' {
-			l.col += 8 - (l.col % 8)
-		} else {
-			l.col++
+// scanFormatSpec consumes a format spec, after its colon, up to and including the
+// closing brace of the field. Quotes have no meaning in a format spec, and it can
+// hold nested fields.
+func (l *Lexer) scanFormatSpec(triple bool, depth int) bool {
+	for l.pos < len(l.src) {
+		ch := l.src[l.pos]
+		switch {
+		case ch == '\\' && l.pos+1 < len(l.src):
+			l.stepEscape()
+		case (ch == '\n' || ch == '\r') && !triple:
+			return false
+		case ch == '{':
+			if depth > maxFStringDepth {
+				return false
+			}
+			l.step()
+			if !l.scanField(triple, depth+1) {
+				return false
+			}
+		case ch == '}':
+			l.step()
+			return true
+		default:
+			l.step()
 		}
-		l.pos++
 	}
-
-	return token.Token{
-		Type: token.STRING,
-		Lit:  string(l.src[start:l.pos]),
-		Pos:  pos,
-	}
+	return false
 }
 
 // lexIdent lexes an identifier or keyword.
@@ -409,9 +522,9 @@ func (l *Lexer) lexIdent() token.Token {
 			l.pos++
 			l.col++
 		} else {
-			// Multi-byte UTF-8: decode a full rune and check if it's a letter or digit.
+			// Multi-byte UTF-8: decode a full rune and check it.
 			r, size := utf8.DecodeRune(l.src[l.pos:])
-			if r == utf8.RuneError || (!unicode.IsLetter(r) && !unicode.IsDigit(r)) {
+			if !isIdentContinueRune(r) {
 				break
 			}
 			l.pos += size
@@ -483,24 +596,35 @@ func (l *Lexer) lexNumber() token.Token {
 		}
 	}
 
-	// Exponent part.
-	if l.pos < len(l.src) && (l.src[l.pos] == 'e' || l.src[l.pos] == 'E') {
-		l.pos++
-		l.col++
-		if l.pos < len(l.src) && (l.src[l.pos] == '+' || l.src[l.pos] == '-') {
-			l.pos++
-			l.col++
-		}
-		for l.pos < len(l.src) && isDigit(l.src[l.pos]) {
-			l.pos++
-			l.col++
-		}
+	// Exponent part. Only digits make it an exponent: 1else starts a keyword.
+	if n := l.exponentLen(); n > 0 {
+		l.pos += n
+		l.col += n
 	}
 
 	// Complex suffix.
 	l.consumeComplexSuffix()
 
 	return token.Token{Type: token.NUMBER, Lit: string(l.src[start:l.pos]), Pos: pos}
+}
+
+// exponentLen returns the length of the exponent at the current position, or 0.
+func (l *Lexer) exponentLen() int {
+	i := l.pos
+	if i >= len(l.src) || (l.src[i] != 'e' && l.src[i] != 'E') {
+		return 0
+	}
+	i++
+	if i < len(l.src) && (l.src[i] == '+' || l.src[i] == '-') {
+		i++
+	}
+	if i >= len(l.src) || !isDigit(l.src[i]) {
+		return 0
+	}
+	for i < len(l.src) && (isDigit(l.src[i]) || l.src[i] == '_') {
+		i++
+	}
+	return i - l.pos
 }
 
 func (l *Lexer) consumeComplexSuffix() {
@@ -648,6 +772,12 @@ func (l *Lexer) lexOperator() token.Token {
 				l.col++
 				return token.Token{Type: token.GTE, Lit: ">=", Pos: pos}
 			}
+		case '@':
+			if next == '=' {
+				l.pos++
+				l.col++
+				return token.Token{Type: token.ATEQ, Lit: "@=", Pos: pos}
+			}
 		case '.':
 			if next == '.' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '.' {
 				l.pos += 2
@@ -732,6 +862,16 @@ func isIdentStart(ch byte) bool {
 
 func isIdentContinue(ch byte) bool {
 	return isIdentStart(ch) || isDigit(ch)
+}
+
+// isIdentStartRune approximates the XID_Start property for a non-ASCII rune.
+func isIdentStartRune(r rune) bool {
+	return r != utf8.RuneError && (unicode.IsLetter(r) || unicode.Is(unicode.Nl, r) || unicode.Is(unicode.Other_ID_Start, r))
+}
+
+// isIdentContinueRune approximates the XID_Continue property for a non-ASCII rune.
+func isIdentContinueRune(r rune) bool {
+	return isIdentStartRune(r) || unicode.In(r, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc, unicode.Other_ID_Continue)
 }
 
 func isDigit(ch byte) bool {

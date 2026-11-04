@@ -1,0 +1,48 @@
+[
+  {
+    "doc": true,
+    "params": [],
+    "q": "After"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self",
+      "a"
+    ],
+    "q": "After.m"
+  },
+  {
+    "doc": false,
+    "params": [
+      "self"
+    ],
+    "q": "After.n"
+  },
+  {
+    "doc": false,
+    "params": [],
+    "q": "after_all"
+  },
+  {
+    "doc": true,
+    "params": [
+      "a"
+    ],
+    "q": "assign"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "headers"
+  },
+  {
+    "doc": false,
+    "params": [
+      "a"
+    ],
+    "q": "nested"
+  }
+]

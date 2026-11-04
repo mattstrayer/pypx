@@ -48,6 +48,7 @@ const (
 	NONLOCAL
 	ASSERT
 	LAMBDA
+	AWAIT
 	AND
 	OR
 	NOT
@@ -97,6 +98,7 @@ const (
 	CARETEQ
 	RSHIFTEQ
 	LSHIFTEQ
+	ATEQ
 
 	// Delimiters
 	LPAREN
@@ -139,6 +141,7 @@ var keywords = map[string]Type{
 	"nonlocal": NONLOCAL,
 	"assert":   ASSERT,
 	"lambda":   LAMBDA,
+	"await":    AWAIT,
 	"and":      AND,
 	"or":       OR,
 	"not":      NOT,
