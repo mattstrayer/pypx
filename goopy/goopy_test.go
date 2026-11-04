@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pypx/goopy/model"
@@ -73,6 +75,503 @@ func TestExtractPackageWorkerPanicKeepsOtherModules(t *testing.T) {
 	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
 	if len(pkg.Modules) != 11 {
 		t.Fatalf("Modules len = %d, want 11", len(pkg.Modules))
+	}
+}
+
+// symbolNames lists every name a module publishes, for test comparisons.
+func symbolNames(m *model.Module) []string {
+	var out []string
+	for _, f := range m.Functions {
+		out = append(out, f.Name)
+	}
+	for _, c := range m.Classes {
+		out = append(out, c.Name)
+	}
+	for _, a := range m.Attributes {
+		out = append(out, a.Name)
+	}
+	for _, ta := range m.TypeAliases {
+		out = append(out, ta.Name)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func findModule(t *testing.T, pkg *model.Package, name string) *model.Module {
+	t.Helper()
+	for _, m := range pkg.Modules {
+		if m.Name == name {
+			return m
+		}
+	}
+	t.Fatalf("module %q not found", name)
+	return nil
+}
+
+func TestExtractPackageReexports(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		tops  []string
+		// module -> published names; every name there must match exactly.
+		want map[string][]string
+		// "module.name" -> Origin.
+		origins map[string]string
+	}{
+		{
+			name: "relative",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import Y\n",
+				"pkg/_x.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}},
+			origins: map[string]string{"pkg.Y": "pkg._x"},
+		},
+		{
+			name: "absolute",
+			files: map[string]string{
+				"pkg/__init__.py": "from pkg._x import Y\n",
+				"pkg/_x.py":       "def Y(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}},
+			origins: map[string]string{"pkg.Y": "pkg._x"},
+		},
+		{
+			name: "alias",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import foo as bar\n",
+				"pkg/_x.py":       "def foo(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"bar"}},
+			origins: map[string]string{"pkg.bar": "pkg._x"},
+		},
+		{
+			name: "star with public names",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import *\n",
+				"pkg/_x.py":       "def a(): pass\ndef _b(): pass\nC = 1\n",
+			},
+			want:    map[string][]string{"pkg": {"C", "a"}},
+			origins: map[string]string{"pkg.a": "pkg._x", "pkg.C": "pkg._x"},
+		},
+		{
+			name: "star follows target __all__",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import *\n",
+				"pkg/_x.py":       "__all__ = [\"a\"]\ndef a(): pass\ndef b(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"a"}},
+		},
+		{
+			name: "chained",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._a import Y as Z\n",
+				"pkg/_a.py":       "from ._b import Y\n",
+				"pkg/_b.py":       "from ._c import *\n",
+				"pkg/_c.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Z"}},
+			origins: map[string]string{"pkg.Z": "pkg._c"},
+		},
+		{
+			name: "cycle",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._a import Y, Z\n",
+				"pkg/_a.py":       "from ._b import Y\nfrom ._b import *\nclass Z: pass\n",
+				"pkg/_b.py":       "from ._a import Y\nfrom ._a import *\n",
+			},
+			want:    map[string][]string{"pkg": {"Z"}},
+			origins: map[string]string{"pkg.Z": "pkg._a"},
+		},
+		{
+			name: "__all__ only",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import a, b\n__all__ = [\"a\"]\n",
+				"pkg/_x.py":       "def a(): pass\ndef b(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"a"}},
+			origins: map[string]string{"pkg.a": "pkg._x"},
+		},
+		{
+			name: "__all__ lists a private name",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import _a\n__all__ = [\"_a\"]\n",
+				"pkg/_x.py":       "def _a(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"_a"}},
+		},
+		{
+			name: "private names stay hidden without __all__",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import _a, b as _c\n",
+				"pkg/_x.py":       "def _a(): pass\ndef b(): pass\n",
+			},
+			want: map[string][]string{"pkg": nil},
+		},
+		{
+			name: "explicit import reaches name the target __all__ hides",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import b\n",
+				"pkg/_x.py":       "__all__ = [\"a\"]\ndef a(): pass\ndef b(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"b"}},
+		},
+		{
+			name: "__all__ copies from a public module",
+			files: map[string]string{
+				"pkg/__init__.py": "from .pub import a\n__all__ = [\"a\"]\n",
+				"pkg/pub.py":      "def a(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"a"}, "pkg.pub": {"a"}},
+			origins: map[string]string{"pkg.a": "pkg.pub", "pkg.pub.a": ""},
+		},
+		{
+			name: "no __all__ does not copy from a public module",
+			files: map[string]string{
+				"pkg/__init__.py": "from .pub import a\nfrom .pub2 import *\n",
+				"pkg/pub.py":      "def a(): pass\n",
+				"pkg/pub2.py":     "def b(): pass\n",
+			},
+			want: map[string][]string{"pkg": nil, "pkg.pub": {"a"}, "pkg.pub2": {"b"}},
+		},
+		{
+			name: "direct definition wins",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import a\n__all__ = [\"a\"]\ndef a(): pass\n",
+				"pkg/_x.py":       "def a(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"a"}},
+			origins: map[string]string{"pkg.a": ""},
+		},
+		{
+			name: "absolute import across top-level packages",
+			files: map[string]string{
+				"attrs/__init__.py": "from attr import define\nfrom attr._make import Factory\n__all__ = [\"define\", \"Factory\"]\n",
+				"attr/__init__.py":  "from ._next_gen import define\n__all__ = [\"define\"]\n",
+				"attr/_next_gen.py": "def define(): pass\n",
+				"attr/_make.py":     "class Factory: pass\n",
+			},
+			tops: []string{"attr", "attrs"},
+			want: map[string][]string{"attr": {"define"}, "attrs": {"Factory", "define"}},
+			origins: map[string]string{
+				"attr.define":   "attr._next_gen",
+				"attrs.define":  "attr._next_gen",
+				"attrs.Factory": "attr._make",
+			},
+		},
+		{
+			name: "import from another distribution finds nothing",
+			files: map[string]string{
+				"pkg/__init__.py": "from other import a\nfrom typing import Any\n__all__ = [\"a\", \"Any\"]\n",
+			},
+			want: map[string][]string{"pkg": nil},
+		},
+		{
+			name: "parent relative import",
+			files: map[string]string{
+				"pkg/__init__.py":     "",
+				"pkg/sub/__init__.py": "from .._x import a\nfrom ..sib import b\n__all__ = [\"a\", \"b\"]\n",
+				"pkg/sub/mod.py":      "from .._x import a\nfrom ._y import c\n",
+				"pkg/sub/_y.py":       "def c(): pass\n",
+				"pkg/_x.py":           "def a(): pass\n",
+				"pkg/sib.py":          "def b(): pass\n",
+			},
+			want: map[string][]string{"pkg.sub": {"a", "b"}, "pkg.sub.mod": {"a", "c"}, "pkg.sib": {"b"}},
+			origins: map[string]string{
+				"pkg.sub.a":     "pkg._x",
+				"pkg.sub.b":     "pkg.sib",
+				"pkg.sub.mod.a": "pkg._x",
+				"pkg.sub.mod.c": "pkg.sub._y",
+			},
+		},
+		{
+			name: "module __all__ references",
+			files: map[string]string{
+				"pkg/__init__.py": "from . import a\nfrom .a import *\nfrom ._b import *\nimport pkg.c as cc\nfrom .c import z\n__all__ = a.__all__ + _b.__all__ + cc.__all__\ndef hidden(): pass\n",
+				"pkg/a.py":        "__all__ = [\"x\"]\ndef x(): pass\n",
+				"pkg/_b.py":       "__all__ = [\"y\"]\ndef y(): pass\n",
+				"pkg/c.py":        "__all__ = [\"z\"]\ndef z(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"x", "y", "z"}, "pkg.a": {"x"}, "pkg.c": {"z"}},
+		},
+		{
+			name: "__all__ += and local definition",
+			files: map[string]string{
+				"pkg/__init__.py": "__all__ = [\"a\"]\n__all__ += [\"b\"]\n__all__.append(\"_c\")\n__all__.extend([\"d\"])\nfrom ._x import a, _c\ndef b(): pass\ndef _c2(): pass\nclass d: pass\ndef not_listed(): pass\n",
+				"pkg/_x.py":       "def a(): pass\ndef _c(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"_c", "a", "b", "d"}},
+		},
+		{
+			name: "unreadable __all__ keeps the underscore rule",
+			files: map[string]string{
+				"pkg/__init__.py": "__all__ = make() + [\"_a\"]\nfrom ._x import _a, b\ndef c(): pass\ndef _d(): pass\n",
+				"pkg/_x.py":       "def _a(): pass\ndef b(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"_a", "b", "c"}},
+		},
+		{
+			name: "attribute and type alias",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import A, T\n",
+				"pkg/_x.py":       "A: int = 1\ntype T = int\n",
+			},
+			want:    map[string][]string{"pkg": {"A", "T"}},
+			origins: map[string]string{"pkg.A": "pkg._x", "pkg.T": "pkg._x"},
+		},
+		{
+			name: "import wins over a placeholder attribute in the source module",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import Y\n",
+				"pkg/_x.py":       "try:\n    from ._impl import Y\nexcept ImportError:\n    Y = None\n",
+				"pkg/_impl.py":    "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}},
+			origins: map[string]string{"pkg.Y": "pkg._impl"},
+		},
+		{
+			name: "relative import above the wheel finds nothing",
+			files: map[string]string{
+				"pkg/__init__.py": "from ...far import a\n__all__ = [\"a\"]\n",
+				"pkg/_x.py":       "",
+			},
+			want: map[string][]string{"pkg": nil},
+		},
+		{
+			name: "single-file distribution",
+			files: map[string]string{
+				"six.py": "from _six_impl import a\n__all__ = [\"a\"]\n",
+			},
+			want: map[string][]string{"six": nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := make(map[string][]byte, len(tt.files))
+			for k, v := range tt.files {
+				files[k] = []byte(v)
+			}
+			tops := tt.tops
+			if tops == nil {
+				tops = []string{"pkg"}
+				if _, ok := files["six.py"]; ok {
+					tops = []string{"six"}
+				}
+			}
+			pkg := ExtractPackage(context.Background(), "test", files, tops)
+
+			published := map[string]bool{}
+			for _, m := range pkg.Modules {
+				published[m.Name] = true
+				if isPrivateModule(strings.ReplaceAll(m.Name, ".", "/") + ".py") {
+					t.Errorf("private module %q was published", m.Name)
+				}
+				if m.ImportFroms != nil || m.Exports != nil || len(m.Hidden.Functions) != 0 {
+					t.Errorf("module %q keeps resolver input", m.Name)
+				}
+			}
+			for modName, wantNames := range tt.want {
+				if wantNames == nil && !published[modName] {
+					continue
+				}
+				m := findModule(t, pkg, modName)
+				if got := symbolNames(m); !slices.Equal(got, wantNames) {
+					t.Errorf("%s names = %q, want %q", modName, got, wantNames)
+				}
+			}
+			for key, want := range tt.origins {
+				i := strings.LastIndex(key, ".")
+				if got, ok := symbolOrigin(findModule(t, pkg, key[:i]), key[i+1:]); !ok || got != want {
+					t.Errorf("%s Origin = %q (found %v), want %q", key, got, ok, want)
+				}
+			}
+		})
+	}
+}
+
+func symbolOrigin(m *model.Module, name string) (string, bool) {
+	for _, f := range m.Functions {
+		if f.Name == name {
+			return f.Origin, true
+		}
+	}
+	for _, c := range m.Classes {
+		if c.Name == name {
+			return c.Origin, true
+		}
+	}
+	for _, a := range m.Attributes {
+		if a.Name == name {
+			return a.Origin, true
+		}
+	}
+	for _, ta := range m.TypeAliases {
+		if ta.Name == name {
+			return ta.Origin, true
+		}
+	}
+	return "", false
+}
+
+// httpxShaped returns files shaped like httpx: an __init__.py with __all__,
+// private implementation modules, and one public module.
+func httpxShaped() map[string][]byte {
+	files := map[string][]byte{
+		"httpx/__init__.py": []byte(`"""HTTPX."""
+from ._api import *
+from ._client import AsyncClient, Client
+from ._exceptions import HTTPError
+from .sub import helper
+__all__ = ["AsyncClient", "Client", "HTTPError", "get", "helper", "request"]
+`),
+		"httpx/_api.py": []byte(`__all__ = ["get", "request"]
+def get(url: str) -> "Response":
+    """Send GET."""
+def request(method: str, url: str) -> "Response": pass
+def not_exported(): pass
+`),
+		"httpx/_client.py": []byte(`class BaseClient: pass
+class Client(BaseClient):
+    """Sync client."""
+    def get(self, url: str): pass
+class AsyncClient(BaseClient): pass
+`),
+		"httpx/_exceptions.py": []byte("class HTTPError(Exception): pass\n"),
+		"httpx/sub.py":         []byte("def helper(): pass\n"),
+	}
+	return files
+}
+
+func TestExtractPackage_HTTPXShaped(t *testing.T) {
+	pkg := ExtractPackage(context.Background(), "httpx", httpxShaped(), []string{"httpx"})
+
+	var names []string
+	for _, m := range pkg.Modules {
+		names = append(names, m.Name)
+	}
+	if !slices.Equal(names, []string{"httpx", "httpx.sub"}) {
+		t.Fatalf("modules = %q", names)
+	}
+	root := pkg.Modules[0]
+	want := []string{"AsyncClient", "Client", "HTTPError", "get", "helper", "request"}
+	if got := symbolNames(root); !slices.Equal(got, want) {
+		t.Errorf("root names = %q, want %q", got, want)
+	}
+	for _, c := range root.Classes {
+		if c.Name == "Client" {
+			if c.Origin != "httpx._client" || len(c.Methods) != 1 || c.Docstring == nil {
+				t.Errorf("Client = %+v", c)
+			}
+		}
+	}
+}
+
+func TestExtractPackage_CopyDoesNotChangeSource(t *testing.T) {
+	files := map[string][]byte{
+		"pkg/__init__.py": []byte("from .pub import a as b\n__all__ = [\"b\"]\n"),
+		"pkg/pub.py":      []byte("def a(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	copied := findModule(t, pkg, "pkg").Functions[0]
+	source := findModule(t, pkg, "pkg.pub").Functions[0]
+	if source.Name != "a" || source.Origin != "" {
+		t.Errorf("source changed: %+v", source)
+	}
+	if copied.Name != "b" || copied.Origin != "pkg.pub" || copied.OriginName != "a" {
+		t.Errorf("copy = %+v", copied)
+	}
+}
+
+func TestExtractPackage_OriginJSON(t *testing.T) {
+	files := map[string][]byte{
+		"pkg/__init__.py": []byte("from ._x import a\n__all__ = [\"a\", \"b\"]\ndef b(): pass\n"),
+		"pkg/_x.py":       []byte("def a(): pass\n"),
+	}
+	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
+	got, err := json.Marshal(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(got)
+	if !strings.Contains(s, `"origin":"pkg._x"`) {
+		t.Errorf("origin missing from %s", s)
+	}
+	if strings.Count(s, `"origin"`) != 1 {
+		t.Errorf("origin must be omitted on direct definitions: %s", s)
+	}
+	for _, field := range []string{"ImportFroms", "Hidden", "Exports", "OriginName"} {
+		if strings.Contains(s, field) {
+			t.Errorf("%s reached JSON: %s", field, s)
+		}
+	}
+}
+
+func TestExtractPackage_ParsesEachFileOnce(t *testing.T) {
+	orig := extractModuleFn
+	defer func() { extractModuleFn = orig }()
+
+	for _, size := range []int{0, 8} { // Below and above parallelThreshold.
+		files := httpxShaped()
+		for i := range size {
+			files[fmt.Sprintf("httpx/_extra%d.py", i)] = []byte("from ._api import *\nfrom ._client import *\n")
+		}
+		var mu sync.Mutex
+		calls := map[string]int{}
+		extractModuleFn = func(name string, src []byte) (*model.Module, []error) {
+			mu.Lock()
+			calls[name]++
+			mu.Unlock()
+			return orig(name, src)
+		}
+		ExtractPackage(context.Background(), "httpx", files, []string{"httpx"})
+		if len(calls) != len(files) {
+			t.Errorf("size %d: parsed %d modules, want %d", size, len(calls), len(files))
+		}
+		for name, n := range calls {
+			if n != 1 {
+				t.Errorf("size %d: %s parsed %d times", size, name, n)
+			}
+		}
+	}
+}
+
+func TestExtractPackage_DepthCap(t *testing.T) {
+	build := func(hops int) map[string][]byte {
+		files := map[string][]byte{"pkg/__init__.py": []byte("from ._m0 import Y\n")}
+		for i := 0; i < hops; i++ {
+			files[fmt.Sprintf("pkg/_m%d.py", i)] = []byte(fmt.Sprintf("from ._m%d import Y\n", i+1))
+		}
+		files[fmt.Sprintf("pkg/_m%d.py", hops)] = []byte("class Y: pass\n")
+		return files
+	}
+	near := ExtractPackage(context.Background(), "pkg", build(maxImportDepth-1), []string{"pkg"})
+	if got := symbolNames(findModule(t, near, "pkg")); !slices.Equal(got, []string{"Y"}) {
+		t.Errorf("within cap: %q", got)
+	}
+	far := ExtractPackage(context.Background(), "pkg", build(maxImportDepth+1), []string{"pkg"})
+	if got := symbolNames(findModule(t, far, "pkg")); len(got) != 0 {
+		t.Errorf("past cap: %q", got)
+	}
+}
+
+func TestExtractPackage_ReexportsDeterministic(t *testing.T) {
+	files := httpxShaped()
+	for i := 0; i < 12; i++ {
+		files[fmt.Sprintf("httpx/_m%d.py", i)] = []byte(fmt.Sprintf("from ._m%d import *\ndef f%d(): pass\n", (i+1)%12, i))
+		files[fmt.Sprintf("httpx/pub%d.py", i)] = []byte(fmt.Sprintf("from ._m%d import *\n", i))
+	}
+	var first []byte
+	for run := 0; run < 20; run++ {
+		got, err := json.Marshal(ExtractPackage(context.Background(), "httpx", files, []string{"httpx"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if run == 0 {
+			first = got
+		} else if !bytes.Equal(first, got) {
+			t.Fatalf("run %d output differs from run 0", run)
+		}
 	}
 }
 
