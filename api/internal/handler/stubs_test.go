@@ -145,6 +145,38 @@ func TestBuildStubIndex(t *testing.T) {
 	}
 }
 
+func TestStubConstructorFillsSourceTypes(t *testing.T) {
+	stub := &model.Package{Modules: []*model.Module{
+		{
+			Name: "pkg.models",
+			Classes: []*model.Class{{
+				Name: "Thing",
+				Constructor: &model.Function{Name: "__init__", IsMethod: true, Parameters: []*model.Parameter{
+					{Name: "size", Type: &model.TypeExpr{Raw: "int"}},
+				}},
+			}},
+		},
+		{
+			Name:    "pkg",
+			Aliases: []*model.Alias{{Name: "Thing", Target: "pkg.models.Thing"}},
+		},
+	}}
+	idx := buildStubIndex(stub)
+
+	for _, modName := range []string{"pkg.models", "pkg"} {
+		source := &model.Class{
+			Name: "Thing",
+			Constructor: &model.Function{Name: "__init__", IsMethod: true, Parameters: []*model.Parameter{
+				{Name: "size"},
+			}},
+		}
+		sym := convertClass(source, idx, modName)
+		if len(sym.Parameters) != 1 || sym.Parameters[0].Type != "int" {
+			t.Errorf("%s: constructor parameters = %+v, want size: int", modName, sym.Parameters)
+		}
+	}
+}
+
 func TestBuildStubIndex_NilPackage(t *testing.T) {
 	idx := buildStubIndex(nil)
 	if idx == nil {
