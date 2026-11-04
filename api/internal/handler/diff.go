@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -364,18 +365,13 @@ func flattenSymbols(d DocsResponse) map[string]string {
 		for _, fn := range mod.Functions {
 			add(mod.Name+"."+fn.Name, "", fn.Signature)
 		}
-		for _, cls := range mod.Classes {
+		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
 			path := mod.Name + "." + cls.Name
 			add(path, "", cls.Signature)
 			addAttributes(path, cls.Attributes)
 			for _, m := range cls.Methods {
 				add(path, "."+m.Name, m.Signature)
 			}
-		}
-		for _, exc := range mod.Exceptions {
-			path := mod.Name + "." + exc.Name
-			add(path, "", exc.Signature)
-			addAttributes(path, exc.Attributes)
 		}
 	}
 	for _, mod := range d.Modules {

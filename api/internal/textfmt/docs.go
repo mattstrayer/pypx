@@ -2,6 +2,7 @@ package textfmt
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -181,7 +182,7 @@ func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool
 			matched = true
 		}
 
-		for _, cls := range mod.Classes {
+		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
 			path := mod.Name + "." + cls.Name
 			classMatches := matchesPrefix(path, prefix)
 			anyMethodMatches := false
@@ -209,21 +210,6 @@ func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool
 			if !classMatches && writeMatchingAttributes(b, path, cls, prefix) {
 				matched = true
 			}
-		}
-
-		for _, exc := range mod.Exceptions {
-			path := mod.Name + "." + exc.Name
-			excMatches := matchesPrefix(path, prefix)
-			if !excMatches && !anyAttributeMatches(path, exc, prefix) {
-				continue
-			}
-			writeModuleHeader()
-			if excMatches {
-				writeSymbolBlock(b, path, exc)
-			} else {
-				writeMatchingAttributes(b, path, exc, prefix)
-			}
-			matched = true
 		}
 	}
 
@@ -358,7 +344,7 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //   - Class: "module.Class"
 //   - Method: "module.Class.method"
 //   - Attribute: "module.Class.attr" or "module.ExceptionClass.attr"
-//   - Exception: "module.ExceptionClass"
+//   - Exception: "module.ExceptionClass", with methods as for a class
 //
 // A class lookup returns only the class block, not its methods. Methods are
 // addressed individually by their dotted path. A method wins over an attribute
@@ -416,8 +402,8 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 			}
 		}
 
-		// Class or class.method under this module?
-		for _, cls := range mod.Classes {
+		// Class, exception, or one of their members under this module?
+		for _, cls := range slices.Concat(mod.Classes, mod.Exceptions) {
 			if rest == cls.Name {
 				var b strings.Builder
 				writeSymbolBlock(&b, dotted, cls)
@@ -434,20 +420,6 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 					}
 				}
 				if out, ok := formatAttribute(cls, methodName, dotted); ok {
-					return out, true
-				}
-			}
-		}
-
-		// Exception or exception.attribute under this module?
-		for _, exc := range mod.Exceptions {
-			if rest == exc.Name {
-				var b strings.Builder
-				writeSymbolBlock(&b, dotted, exc)
-				return b.String(), true
-			}
-			if attr, ok := strings.CutPrefix(rest, exc.Name+"."); ok {
-				if out, ok := formatAttribute(exc, attr, dotted); ok {
 					return out, true
 				}
 			}

@@ -89,6 +89,35 @@ func TestFormatSymbolsDuplicatePaths(t *testing.T) {
 	}
 }
 
+func exceptionMethodDocs() *textfmt.DocsInput {
+	return &textfmt.DocsInput{Modules: []textfmt.DocModuleInput{{
+		Name: "p",
+		Exceptions: []textfmt.DocSymbolInput{{
+			Name: "E", Kind: "exception", Signature: "class E(Exception)",
+			Methods: []textfmt.DocSymbolInput{{Name: "retry", Kind: "method", Signature: "def retry()", Docstring: "Retry it."}},
+		}},
+	}}}
+}
+
+func TestExceptionMethods(t *testing.T) {
+	const block = "### p.E.retry — def retry()\nRetry it."
+	if got := textfmt.FormatDocs(exceptionMethodDocs(), ""); !strings.Contains(got, block) {
+		t.Errorf("FormatDocs:\n%s", got)
+	}
+	if got := textfmt.FormatDocs(exceptionMethodDocs(), "p.E.retry"); !strings.Contains(got, block) || strings.Contains(got, "class E") {
+		t.Errorf("FormatDocs with method prefix:\n%s", got)
+	}
+	if got, ok := textfmt.FormatSymbol(exceptionMethodDocs(), "p.E.retry"); !ok || !strings.Contains(got, block) {
+		t.Errorf("FormatSymbol = %q, %v", got, ok)
+	}
+	if got := textfmt.FormatSymbols(exceptionMethodDocs(), "", "", 10); !strings.Contains(got, "p.E.retry\tmethod\tdef retry()\n") {
+		t.Errorf("FormatSymbols:\n%s", got)
+	}
+	if got := textfmt.FormatSymbols(exceptionMethodDocs(), "", "method", 10); !strings.Contains(got, "p.E.retry\t") {
+		t.Errorf("FormatSymbols with kind filter:\n%s", got)
+	}
+}
+
 func TestFormatSymbolsLimit(t *testing.T) {
 	got := textfmt.FormatSymbols(fixtureDocs(), "", "", 1)
 	// 1 header line + 1 data line = 2 \n total

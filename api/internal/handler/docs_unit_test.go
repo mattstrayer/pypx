@@ -182,6 +182,16 @@ func TestFlattenSymbols_Attributes(t *testing.T) {
 	}
 }
 
+func TestFlattenSymbols_ExceptionMethods(t *testing.T) {
+	got := flattenSymbols(DocsResponse{Modules: []DocModule{{
+		Name:       "m",
+		Exceptions: []DocSymbol{{Name: "E", Signature: "class E(Exception)", Methods: []DocSymbol{{Name: "retry", Signature: "def retry()"}}}},
+	}}})
+	if got["m.E.retry"] != "def retry()" {
+		t.Errorf("m.E.retry = %q", got["m.E.retry"])
+	}
+}
+
 func TestExceptionClasses_Names(t *testing.T) {
 	for base, want := range map[string]bool{
 		"Exception":          true,
