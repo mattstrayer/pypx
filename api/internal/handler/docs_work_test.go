@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -325,6 +326,51 @@ func TestDocsWork_MissDecodesLikeAHit(t *testing.T) {
 	}
 	if rawResp.Package != "" || len(rawBytes) == 0 {
 		t.Errorf("decode=false returned resp %+v and %d bytes", rawResp, len(rawBytes))
+	}
+}
+
+func TestEncodeDocs_MatchesMarshal(t *testing.T) {
+	module := func(name string) DocModule {
+		return DocModule{
+			Name: name,
+			Functions: []DocSymbol{{
+				Name:       "f",
+				Kind:       "function",
+				Signature:  "def f(a: List[int] = <x>) -> A & B",
+				Docstring:  "Escapes <html> & \"quotes\"   and é.",
+				Parameters: []DocParam{{Name: "a", Type: "List[int]", Default: "<x>"}},
+				Returns:    &DocReturn{Type: "A & B"},
+				Raises:     []DocRaise{{Type: "ValueError", Description: "bad"}},
+				Origin:     "pkg._private",
+			}},
+			Classes:    []DocSymbol{{Name: "C", Kind: "class", Parameters: []DocParam{}, Methods: []DocSymbol{{Name: "m"}}}},
+			Exceptions: []DocSymbol{},
+			Aliases:    []DocAlias{{Name: "g", Target: "pkg.f"}},
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		mods []DocModule
+		stub string
+	}{
+		{"none", []DocModule{}, ""},
+		{"one", []DocModule{module("a")}, ""},
+		{"many with stubs", []DocModule{module("a"), module("b"), module("c")}, "pkg-stubs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := DocsResponse{Package: "p<&>", Version: "1", Available: len(tc.mods) > 0, StubPackage: tc.stub, Modules: tc.mods}
+			want, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := encodeDocs(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("encodeDocs:\n%s\njson.Marshal:\n%s", got, want)
+			}
+		})
 	}
 }
 

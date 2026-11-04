@@ -459,13 +459,51 @@ func (h *DocsHandler) extractAndCache(ctx context.Context, name, version string)
 	}
 
 	// The caller gets the bytes only, so the decoded form is not held next to them.
-	encoded, merr := json.Marshal(docsResp)
+	encoded, merr := encodeDocs(docsResp)
 	if merr != nil {
 		return nil, fmt.Errorf("encode docs: %w", merr)
 	}
 
 	h.cache.Set(DocsCacheKey(name, version), encoded, 0) //nolint:errcheck
 	return encoded, nil
+}
+
+// encodeDocs returns the same bytes as json.Marshal(resp), one module at a time.
+// json.Marshal holds the whole response and a buffer that grows by doubling, then
+// copies that buffer. For a package with 60 MiB of docs that exceeds the live
+// memory of the rest of the extraction. Here each module is released once encoded.
+func encodeDocs(resp DocsResponse) ([]byte, error) {
+	modules := resp.Modules
+	resp.Modules = []DocModule{}
+	head, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	// Modules is the last field, so head ends with its empty array and the brace.
+	head = head[:len(head)-len("]}")]
+
+	chunks := make([][]byte, len(modules))
+	size := len(head) + len(modules) + len("]}")
+	for i := range modules {
+		chunk, err := json.Marshal(&modules[i])
+		if err != nil {
+			return nil, err
+		}
+		chunks[i] = chunk
+		size += len(chunk)
+		modules[i] = DocModule{}
+	}
+
+	out := make([]byte, 0, size)
+	out = append(out, head...)
+	for i, chunk := range chunks {
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, chunk...)
+		chunks[i] = nil
+	}
+	return append(out, "]}"...), nil
 }
 
 // resolveStubs fetches and parses a stub package for the given source package.
