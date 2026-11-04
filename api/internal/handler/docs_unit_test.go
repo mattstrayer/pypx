@@ -22,6 +22,91 @@ func testClass(name string, bases ...string) *model.Class {
 	return c
 }
 
+func TestConvertClass_Attributes(t *testing.T) {
+	cls := &model.Class{
+		Name: "C",
+		Attributes: []*model.Attribute{
+			{Name: "plain", Type: &model.TypeExpr{Raw: "int"}, Value: "1"},
+			{Name: "ro", IsProperty: true, Docstring: &model.Docstring{Text: "A property."}},
+			{Name: "rw", IsProperty: true, Writable: true},
+		},
+	}
+	got := convertClass(cls, nil, "m").Attributes
+	want := []DocAttribute{
+		{Name: "plain", Type: "int", Default: "1"},
+		{Name: "ro", Description: "A property.", IsProperty: true},
+		{Name: "rw", IsProperty: true, Writable: true},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Attributes = %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("Attributes[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestDocSymbolJSON_AttributesKey(t *testing.T) {
+	pkg := &model.Package{Modules: []*model.Module{{
+		Name:      "m",
+		Functions: []*model.Function{{Name: "f"}},
+		Classes:   []*model.Class{testClass("Plain"), testClass("Bad", "ValueError")},
+	}}}
+	resp := convertToDocsResponse("p", "1", pkg, nil)
+	raw := func(sym DocSymbol) map[string]json.RawMessage {
+		data, err := json.Marshal(sym)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	dm := resp.Modules[0]
+	if _, ok := raw(dm.Functions[0])["attributes"]; ok {
+		t.Error("a function must not have attributes")
+	}
+	if got := string(raw(dm.Classes[0])["attributes"]); got != "[]" {
+		t.Errorf("class attributes = %q, want []", got)
+	}
+	if got := string(raw(dm.Exceptions[0])["attributes"]); got != "[]" {
+		t.Errorf("exception attributes = %q, want []", got)
+	}
+}
+
+func TestFlattenSymbols_Attributes(t *testing.T) {
+	sym := func(attrs ...DocAttribute) DocsResponse {
+		return DocsResponse{Modules: []DocModule{{
+			Name:       "m",
+			Classes:    []DocSymbol{{Name: "C", Signature: "class C", Attributes: attrs, Methods: []DocSymbol{{Name: "both", Signature: "def both()"}}}},
+			Exceptions: []DocSymbol{{Name: "E", Signature: "class E(Exception)", Attributes: []DocAttribute{{Name: "code", Type: "int"}}}},
+		}}}
+	}
+	got := flattenSymbols(sym(
+		DocAttribute{Name: "size", Type: "int", IsProperty: true},
+		DocAttribute{Name: "both"},
+	))
+	for path, want := range map[string]string{
+		"m.C.size": "property size: int [read-only]",
+		"m.C.both": "def both()",
+		"m.E.code": "code: int",
+	} {
+		if got[path] != want {
+			t.Errorf("%s = %q, want %q", path, got[path], want)
+		}
+	}
+	// A removed property leaves the map, and a new setter changes the signature.
+	if _, ok := flattenSymbols(sym())["m.C.size"]; ok {
+		t.Error("a removed property must not stay in the map")
+	}
+	if w := flattenSymbols(sym(DocAttribute{Name: "size", Type: "int", IsProperty: true, Writable: true})); w["m.C.size"] == got["m.C.size"] {
+		t.Error("gaining a setter must change the signature")
+	}
+}
+
 func TestExceptionClasses_Names(t *testing.T) {
 	for base, want := range map[string]bool{
 		"Exception":          true,

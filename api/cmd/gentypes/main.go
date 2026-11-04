@@ -51,6 +51,7 @@ var contract = []any{
 	pypi.TypeSupport{},
 	conda.CondaForgeInfo{},
 	handler.ExtrasResponse{},
+	handler.DocAttribute{},
 	handler.DocParam{},
 	handler.DocReturn{},
 	handler.DocRaise{},
@@ -191,7 +192,8 @@ func parseJSONTag(f reflect.StructField) (name string, omitempty bool, skip bool
 		name = f.Name
 	}
 	for _, p := range parts[1:] {
-		if p == "omitempty" {
+		// Either option can leave the field out of the JSON, so it is optional.
+		if p == "omitempty" || p == "omitzero" {
 			omitempty = true
 		}
 	}

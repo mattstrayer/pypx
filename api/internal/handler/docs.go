@@ -61,8 +61,21 @@ type DocSymbol struct {
 	Returns    *DocReturn  `json:"returns,omitempty"`
 	Raises     []DocRaise  `json:"raises,omitempty"`
 	Methods    []DocSymbol `json:"methods,omitempty"`
+	// Attributes is set on classes and exceptions, as an empty list if they have
+	// none. omitzero keeps an empty list and drops the nil list of other kinds.
+	Attributes []DocAttribute `json:"attributes,omitzero"`
 	// Origin is the dotted module that defines a re-exported symbol.
 	Origin string `json:"origin,omitempty"`
+}
+
+// DocAttribute is a class attribute or property.
+type DocAttribute struct {
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Default     string `json:"default,omitempty"`
+	Description string `json:"description"`
+	IsProperty  bool   `json:"is_property"`
+	Writable    bool   `json:"writable"`
 }
 
 // DocParam is a function parameter.
@@ -667,6 +680,21 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		}
 	}
 
+	sym.Attributes = make([]DocAttribute, 0, len(cls.Attributes))
+	for _, a := range cls.Attributes {
+		attr := DocAttribute{
+			Name:        a.Name,
+			Default:     a.Value,
+			Description: cleanDocstringText(a.Docstring),
+			IsProperty:  a.IsProperty,
+			Writable:    a.Writable,
+		}
+		if a.Type != nil {
+			attr.Type = a.Type.Raw
+		}
+		sym.Attributes = append(sym.Attributes, attr)
+	}
+
 	return sym
 }
 
@@ -1030,7 +1058,17 @@ func docSymbolFrom(s DocSymbol) textfmt.DocSymbolInput {
 	for _, m := range s.Methods {
 		out.Methods = append(out.Methods, docSymbolFrom(m))
 	}
+	for _, a := range s.Attributes {
+		out.Attributes = append(out.Attributes, attributeInputFrom(a))
+	}
 	return out
+}
+
+func attributeInputFrom(a DocAttribute) textfmt.DocAttributeInput {
+	return textfmt.DocAttributeInput{
+		Name: a.Name, Type: a.Type, Default: a.Default, Description: a.Description,
+		IsProperty: a.IsProperty, Writable: a.Writable,
+	}
 }
 
 // GetSymbol handles GET /api/packages/{name}/docs/{symbol}.txt.
