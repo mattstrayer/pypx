@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -648,13 +649,19 @@ func cleanDocstringText(ds *model.Docstring) string {
 	return strings.TrimSpace(result)
 }
 
+// sphinxFieldRe matches a Sphinx field list line such as ":param x:" or
+// ":raises ValueError:". Inline roles like ":class:`Foo`" do not match.
+var sphinxFieldRe = regexp.MustCompile(
+	`^:(param|parameter|arg|argument|key|keyword|type|returns?|rtype|raises?|except|exception|var|ivar|cvar|meta)\b[^:]*:`,
+)
+
 func isDocstringFieldLine(line string, style model.DocstringStyle) bool {
 	t := strings.TrimSpace(line)
 	switch style {
 	case model.DocstringSphinx:
-		// Matches ":word...: ..." field list lines. False-positives are possible
-		// for RST rubrics like ":Note:" embedded in prose, but these are rare.
-		return len(t) > 1 && t[0] == ':' && strings.ContainsRune(t[1:], ':')
+		// Matches known Sphinx field names only, so inline roles such as
+		// ":class:`Foo` does things" stay in the prose.
+		return sphinxFieldRe.MatchString(t)
 	case model.DocstringGoogle:
 		if line != t || !strings.HasSuffix(t, ":") {
 			return false

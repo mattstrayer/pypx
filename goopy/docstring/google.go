@@ -69,6 +69,8 @@ func parseGoogle(raw string) *model.Docstring {
 			doc.Params = parseGoogleParams(sectionLines)
 		case "Returns:", "Return:":
 			doc.Returns = parseGoogleReturn(sectionLines)
+		case "Yields:", "Yield:":
+			doc.Yields = parseGoogleReturn(sectionLines)
 		case "Raises:":
 			doc.Raises = parseGoogleRaises(sectionLines)
 		}

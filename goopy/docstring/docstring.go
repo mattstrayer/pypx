@@ -25,6 +25,7 @@ func Detect(raw string) model.DocstringStyle {
 
 // Parse detects the style and dispatches to the appropriate parser.
 func Parse(raw string) *model.Docstring {
+	raw = cleandoc(raw)
 	style := Detect(raw)
 	switch style {
 	case model.DocstringGoogle:
@@ -55,11 +56,21 @@ func containsNumpySections(raw string) bool {
 	for i := 0; i < len(lines)-1; i++ {
 		trimmed := strings.TrimSpace(lines[i])
 		nextTrimmed := strings.TrimSpace(lines[i+1])
-		if trimmed != "" && len(nextTrimmed) >= 3 && allDashes(nextTrimmed) {
+		if numpySectionNames[strings.ToLower(trimmed)] && len(nextTrimmed) >= 3 && allDashes(nextTrimmed) {
 			return true
 		}
 	}
 	return false
+}
+
+// numpySectionNames lists the section names NumPy-style detection accepts,
+// lowercased. A dashed line under any other text is a markdown rule or table.
+var numpySectionNames = map[string]bool{
+	"parameters": true, "params": true, "other parameters": true,
+	"returns": true, "return": true, "yields": true, "yield": true,
+	"receives": true, "raises": true, "raise": true, "warns": true,
+	"warnings": true, "see also": true, "notes": true, "references": true,
+	"examples": true, "attributes": true, "methods": true,
 }
 
 // googleSectionRe matches a Google-style section header at the start of a line

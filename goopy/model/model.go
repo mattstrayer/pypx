@@ -98,6 +98,7 @@ type Docstring struct {
 	Style   DocstringStyle `json:"style,omitempty"`
 	Params  []*DocParam    `json:"params,omitempty"`
 	Returns *DocReturn     `json:"returns,omitempty"`
+	Yields  *DocReturn     `json:"yields,omitempty"`
 	Raises  []*DocRaises   `json:"raises,omitempty"`
 }
 

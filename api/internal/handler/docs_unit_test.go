@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pypx/goopy/docstring"
 	"github.com/pypx/goopy/model"
 )
 
@@ -672,5 +673,26 @@ func TestDocsCache_ErrorKeyWriteByCause(t *testing.T) {
 				t.Errorf("error key written = %v, want %v", got, tc.wantWrite)
 			}
 		})
+	}
+}
+
+func TestCleanDocstringText_IndentedSourceDocstring(t *testing.T) {
+	raw := "Fetch the queryset.\n\n    Extended description here.\n\n    Args:\n        pk: Primary key\n\n    Returns:\n        QuerySet: The filtered queryset\n    "
+	got := cleanDocstringText(docstring.Parse(raw))
+	want := "Fetch the queryset.\n\nExtended description here."
+	if got != want {
+		t.Errorf("cleanDocstringText(indented) =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestCleanDocstringText_SphinxRoleLineKept(t *testing.T) {
+	ds := &model.Docstring{
+		Style: model.DocstringSphinx,
+		Text:  "Summary.\n\n:class:`Foo` does things.\n\n:param x: The input",
+	}
+	got := cleanDocstringText(ds)
+	want := "Summary.\n\n:class:`Foo` does things."
+	if got != want {
+		t.Errorf("cleanDocstringText = %q, want %q", got, want)
 	}
 }
