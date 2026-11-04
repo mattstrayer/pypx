@@ -339,29 +339,54 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 // map for all functions, classes, methods, attributes, and exceptions across all
 // modules. On dotted-path collisions across modules (rare in valid Python),
 // last-write-wins. A method beats an attribute with the same name in its class.
+//
+// An alias path counts as a path of its target, with the target's signature and
+// members. Which module holds the definition is then not part of the comparison:
+// moving a definition to a private module changes no path that stays importable.
 func flattenSymbols(d DocsResponse) map[string]string {
 	out := make(map[string]string)
+	// members maps a symbol's path to its member rows, keyed by the suffix after
+	// that path.
+	members := make(map[string]map[string]string)
+	add := func(path, suffix, sig string) {
+		out[path+suffix] = sig
+		if members[path] == nil {
+			members[path] = make(map[string]string)
+		}
+		members[path][suffix] = sig
+	}
 	addAttributes := func(path string, attrs []DocAttribute) {
 		for _, a := range attrs {
-			out[path+"."+a.Name] = attributeInputFrom(a).Signature()
+			add(path, "."+a.Name, attributeInputFrom(a).Signature())
 		}
 	}
 	for _, mod := range d.Modules {
 		for _, fn := range mod.Functions {
-			out[mod.Name+"."+fn.Name] = fn.Signature
+			add(mod.Name+"."+fn.Name, "", fn.Signature)
 		}
 		for _, cls := range mod.Classes {
 			path := mod.Name + "." + cls.Name
-			out[path] = cls.Signature
+			add(path, "", cls.Signature)
 			addAttributes(path, cls.Attributes)
 			for _, m := range cls.Methods {
-				out[path+"."+m.Name] = m.Signature
+				add(path, "."+m.Name, m.Signature)
 			}
 		}
 		for _, exc := range mod.Exceptions {
 			path := mod.Name + "." + exc.Name
-			out[path] = exc.Signature
+			add(path, "", exc.Signature)
 			addAttributes(path, exc.Attributes)
+		}
+	}
+	for _, mod := range d.Modules {
+		for _, a := range mod.Aliases {
+			path := mod.Name + "." + a.Name
+			if _, defined := members[path]; defined {
+				continue
+			}
+			for suffix, sig := range members[a.Target] {
+				out[path+suffix] = sig
+			}
 		}
 	}
 	return out

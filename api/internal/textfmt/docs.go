@@ -106,6 +106,9 @@ type DocRaiseInput struct {
 // it). Empty prefix means full dump. If prefix is non-empty and no symbol
 // matches, returns a single "# no symbols matching prefix=..." line.
 //
+// A prefix also follows aliases. The block for an alias's target shows the target's
+// path, as FormatSymbol does.
+//
 // Output structure:
 //
 //	## <module> (module)
@@ -115,6 +118,45 @@ type DocRaiseInput struct {
 //	(parameters, returns, raises blocks if present)
 func FormatDocs(in *DocsInput, prefix string) string {
 	var b strings.Builder
+	matched := writeMatchingSymbols(&b, in, prefix)
+
+	if prefix != "" {
+		direct := matched
+		seen := map[string]bool{}
+		for _, mod := range in.Modules {
+			for _, a := range mod.Aliases {
+				path := mod.Name + "." + a.Name
+				var target string
+				switch {
+				case direct && path == prefix:
+					continue // A definition beats an alias with the same path.
+				case matchesPrefix(path, prefix):
+					target = a.Target
+				case strings.HasPrefix(prefix, path+"."):
+					target = a.Target + strings.TrimPrefix(prefix, path)
+				default:
+					continue
+				}
+				if matchesPrefix(target, prefix) || seen[target] {
+					continue
+				}
+				seen[target] = true
+				if writeMatchingSymbols(&b, in, target) {
+					matched = true
+				}
+			}
+		}
+	}
+
+	if !matched && prefix != "" {
+		return fmt.Sprintf("# no symbols matching prefix=%s\n", prefix)
+	}
+	return b.String()
+}
+
+// writeMatchingSymbols writes the block of each symbol that matches prefix, under
+// its module header, and reports whether it wrote any.
+func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool {
 	matched := false
 
 	for _, mod := range in.Modules {
@@ -124,7 +166,7 @@ func FormatDocs(in *DocsInput, prefix string) string {
 				if b.Len() > 0 {
 					b.WriteByte('\n')
 				}
-				fmt.Fprintf(&b, "## %s (module)\n\n", mod.Name)
+				fmt.Fprintf(b, "## %s (module)\n\n", mod.Name)
 				modHeaderWritten = true
 			}
 		}
@@ -135,7 +177,7 @@ func FormatDocs(in *DocsInput, prefix string) string {
 				continue
 			}
 			writeModuleHeader()
-			writeSymbolBlock(&b, path, fn)
+			writeSymbolBlock(b, path, fn)
 			matched = true
 		}
 
@@ -154,17 +196,17 @@ func FormatDocs(in *DocsInput, prefix string) string {
 			}
 			writeModuleHeader()
 			if classMatches {
-				writeSymbolBlock(&b, path, cls)
+				writeSymbolBlock(b, path, cls)
 				matched = true
 			}
 			for _, m := range cls.Methods {
 				mp := path + "." + m.Name
 				if matchesPrefix(mp, prefix) {
-					writeSymbolBlock(&b, mp, m)
+					writeSymbolBlock(b, mp, m)
 					matched = true
 				}
 			}
-			if !classMatches && writeMatchingAttributes(&b, path, cls, prefix) {
+			if !classMatches && writeMatchingAttributes(b, path, cls, prefix) {
 				matched = true
 			}
 		}
@@ -177,18 +219,15 @@ func FormatDocs(in *DocsInput, prefix string) string {
 			}
 			writeModuleHeader()
 			if excMatches {
-				writeSymbolBlock(&b, path, exc)
+				writeSymbolBlock(b, path, exc)
 			} else {
-				writeMatchingAttributes(&b, path, exc, prefix)
+				writeMatchingAttributes(b, path, exc, prefix)
 			}
 			matched = true
 		}
 	}
 
-	if !matched && prefix != "" {
-		return fmt.Sprintf("# no symbols matching prefix=%s\n", prefix)
-	}
-	return b.String()
+	return matched
 }
 
 // matchesPrefix returns true if prefix is empty, equals path, or path starts
