@@ -693,3 +693,271 @@ def f(x: typing.Optional[str]) -> typing.List[int]:
 		t.Errorf("expected generic List for typing.List, got %+v", rType)
 	}
 }
+
+func TestConstructorPlain(t *testing.T) {
+	m := extract(`
+class Client:
+    def __init__(self, url: str, timeout: float = 5.0):
+        self.url = url
+`)
+	cls := m.Classes[0]
+	if cls.Constructor == nil {
+		t.Fatal("expected constructor")
+	}
+	ps := cls.Constructor.Parameters
+	if len(ps) != 2 || ps[0].Name != "url" || ps[1].Default != "5.0" {
+		t.Errorf("unexpected params: %+v", ps)
+	}
+	if len(cls.Methods) != 0 {
+		t.Errorf("__init__ must not appear in methods, got %d", len(cls.Methods))
+	}
+	if len(cls.Attributes) == 0 {
+		t.Error("expected init attributes to be kept")
+	}
+}
+
+func TestConstructorClassDocstringParams(t *testing.T) {
+	m := extract(`
+class Client:
+    """A client.
+
+    Args:
+        url: The base URL.
+        timeout: Seconds to wait.
+    """
+    def __init__(self, url, timeout=5):
+        pass
+`)
+	ps := m.Classes[0].Constructor.Parameters
+	if ps[0].DocParam == nil || ps[0].DocParam.Description != "The base URL." {
+		t.Errorf("expected class docstring merge for url, got %+v", ps[0].DocParam)
+	}
+	if ps[1].DocParam == nil || ps[1].DocParam.Description != "Seconds to wait." {
+		t.Errorf("expected class docstring merge for timeout, got %+v", ps[1].DocParam)
+	}
+}
+
+func TestConstructorInitDocstringWins(t *testing.T) {
+	m := extract(`
+class Client:
+    """A client.
+
+    Args:
+        url: From class.
+        timeout: From class.
+    """
+    def __init__(self, url, timeout=5):
+        """Init.
+
+        Args:
+            url: From init.
+        """
+`)
+	ps := m.Classes[0].Constructor.Parameters
+	if ps[0].DocParam == nil || ps[0].DocParam.Description != "From init." {
+		t.Errorf("expected __init__ docstring to win, got %+v", ps[0].DocParam)
+	}
+	if ps[1].DocParam == nil || ps[1].DocParam.Description != "From class." {
+		t.Errorf("expected class docstring fallback, got %+v", ps[1].DocParam)
+	}
+}
+
+func TestConstructorDataclass(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+@dataclass
+class Point:
+    x: float
+    y: float = 0.0
+    tags: list = field(default_factory=list)
+    count: ClassVar[int] = 0
+`)
+	c := m.Classes[0].Constructor
+	if c == nil {
+		t.Fatal("expected synthesized constructor")
+	}
+	if len(c.Parameters) != 3 {
+		t.Fatalf("expected 3 params (ClassVar excluded), got %d: %+v", len(c.Parameters), c.Parameters)
+	}
+	if c.Parameters[0].Name != "x" || c.Parameters[0].Default != "" {
+		t.Errorf("bad x: %+v", c.Parameters[0])
+	}
+	if c.Parameters[1].Default != "0.0" {
+		t.Errorf("bad y default: %q", c.Parameters[1].Default)
+	}
+	if c.Parameters[2].Default != "field(default_factory=list)" {
+		t.Errorf("bad tags default: %q", c.Parameters[2].Default)
+	}
+	for _, p := range c.Parameters {
+		if p.Kind != model.ParamPositionalOrKeyword {
+			t.Errorf("param %s kind %s", p.Name, p.Kind)
+		}
+	}
+}
+
+func TestConstructorDataclassKwOnly(t *testing.T) {
+	m := extract(`
+import dataclasses
+
+@dataclasses.dataclass(kw_only=True)
+class Opts:
+    a: int
+`)
+	c := m.Classes[0].Constructor
+	if c == nil || len(c.Parameters) != 1 || c.Parameters[0].Kind != model.ParamKeywordOnly {
+		t.Fatalf("expected one keyword-only param, got %+v", c)
+	}
+}
+
+func TestConstructorAbsent(t *testing.T) {
+	m := extract(`
+class Plain:
+    x: int = 1
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil constructor, got %+v", m.Classes[0].Constructor)
+	}
+}
+
+func dcParams(t *testing.T, src string) []*model.Parameter {
+	t.Helper()
+	m := extract(src)
+	c := m.Classes[0].Constructor
+	if c == nil {
+		t.Fatal("expected constructor")
+	}
+	return c.Parameters
+}
+
+func paramNames(ps []*model.Parameter) []string {
+	var out []string
+	for _, p := range ps {
+		out = append(out, p.Name)
+	}
+	return out
+}
+
+func TestDataclassInitFalseDecorator(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass
+
+@dataclass(init=False)
+class A:
+    x: int
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil constructor, got %+v", m.Classes[0].Constructor)
+	}
+}
+
+func TestDataclassFieldInitFalse(t *testing.T) {
+	ps := dcParams(t, `
+import dataclasses
+from dataclasses import dataclass, field
+
+@dataclass
+class A:
+    x: int
+    y: int = field(init=False)
+    z: int = dataclasses.field(init=False, default=0)
+    w: int = 1
+`)
+	got := paramNames(ps)
+	if len(got) != 2 || got[0] != "x" || got[1] != "w" {
+		t.Errorf("got %v, want [x w]", got)
+	}
+}
+
+func TestDataclassKWOnlySentinel(t *testing.T) {
+	ps := dcParams(t, `
+from dataclasses import dataclass, KW_ONLY
+
+@dataclass
+class A:
+    a: int
+    _: KW_ONLY
+    b: int
+    c: int = 2
+`)
+	got := paramNames(ps)
+	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Fatalf("got %v, want [a b c]", got)
+	}
+	if ps[0].Kind != model.ParamPositionalOrKeyword || ps[1].Kind != model.ParamKeywordOnly || ps[2].Kind != model.ParamKeywordOnly {
+		t.Errorf("bad kinds: %s %s %s", ps[0].Kind, ps[1].Kind, ps[2].Kind)
+	}
+
+	ps = dcParams(t, `
+import dataclasses
+
+@dataclasses.dataclass
+class B:
+    a: int
+    _: dataclasses.KW_ONLY
+    b: int
+`)
+	if len(ps) != 2 || ps[1].Kind != model.ParamKeywordOnly {
+		t.Errorf("dataclasses.KW_ONLY not handled: %+v", ps)
+	}
+}
+
+func TestDataclassFieldKWOnlyReordered(t *testing.T) {
+	ps := dcParams(t, `
+from dataclasses import dataclass, field
+
+@dataclass
+class A:
+    a: int
+    b: int = field(kw_only=True, default=0)
+    c: int = 3
+`)
+	got := paramNames(ps)
+	if len(got) != 3 || got[0] != "a" || got[1] != "c" || got[2] != "b" {
+		t.Fatalf("got %v, want [a c b]", got)
+	}
+	if ps[2].Kind != model.ParamKeywordOnly || ps[1].Kind != model.ParamPositionalOrKeyword {
+		t.Errorf("bad kinds: %s %s", ps[1].Kind, ps[2].Kind)
+	}
+}
+
+func TestDataclassInitVar(t *testing.T) {
+	ps := dcParams(t, `
+import dataclasses
+from dataclasses import dataclass, InitVar
+
+@dataclass
+class A:
+    x: InitVar[int]
+    y: dataclasses.InitVar[str] = "a"
+`)
+	if len(ps) != 2 {
+		t.Fatalf("got %v", paramNames(ps))
+	}
+	if ps[0].Type == nil || ps[0].Type.Raw != "int" {
+		t.Errorf("x type = %+v, want int", ps[0].Type)
+	}
+	if ps[1].Type == nil || ps[1].Type.Raw != "str" {
+		t.Errorf("y type = %+v, want str", ps[1].Type)
+	}
+}
+
+func TestDataclassInheritedBasesReturnNil(t *testing.T) {
+	m := extract(`
+from dataclasses import dataclass
+
+@dataclass
+class Child(Base):
+    x: int
+`)
+	if m.Classes[0].Constructor != nil {
+		t.Errorf("expected nil for subclass of unknown base, got %+v", m.Classes[0].Constructor)
+	}
+	for _, base := range []string{"object", "ABC", "abc.ABC", "Protocol", "typing.Protocol", "Generic[T]", "typing.Generic[T]"} {
+		m := extract("from dataclasses import dataclass\n\n@dataclass\nclass C(" + base + "):\n    x: int\n")
+		if m.Classes[0].Constructor == nil {
+			t.Errorf("base %q should keep the synthesized constructor", base)
+		}
+	}
+}

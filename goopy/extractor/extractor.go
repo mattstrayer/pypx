@@ -204,6 +204,7 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 			if s.Name == "__init__" {
 				// But extract attributes from __init__ body.
 				cls.Attributes = append(cls.Attributes, e.extractInitAttributes(s)...)
+				cls.Constructor = e.extractFunction(s, true)
 				continue
 			}
 			if strings.HasPrefix(s.Name, "_") && !strings.HasPrefix(s.Name, "__") {
@@ -245,7 +246,164 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		}
 	}
 
+	if cls.Constructor == nil {
+		cls.Constructor = dataclassConstructor(cd)
+	}
+	if cls.Constructor != nil && cls.Docstring != nil {
+		// Class docstring params fill gaps; the __init__ docstring wins.
+		for _, p := range cls.Constructor.Parameters {
+			if p.DocParam != nil {
+				continue
+			}
+			for _, dp := range cls.Docstring.Params {
+				if dp.Name == p.Name {
+					p.DocParam = dp
+					break
+				}
+			}
+		}
+	}
+
 	return cls
+}
+
+// dataclassConstructor synthesizes a constructor for a @dataclass class
+// without an explicit __init__. Returns nil for other classes.
+func dataclassConstructor(cd *ast.ClassDef) *model.Function {
+	var dec ast.Expr
+	for _, d := range cd.Decorators {
+		target := d
+		if c, ok := d.(*ast.Call); ok {
+			target = c.Func
+		}
+		switch t := target.(type) {
+		case *ast.Name:
+			if t.Name == "dataclass" {
+				dec = d
+			}
+		case *ast.Attribute:
+			if t.Attr == "dataclass" {
+				dec = d
+			}
+		}
+	}
+	if dec == nil {
+		return nil
+	}
+	// Inherited fields are part of the real signature, and this code cannot
+	// see the base class. Showing a partial signature is worse than none.
+	// Deferred follow-up: resolve inherited constructors across classes.
+	for _, b := range cd.Bases {
+		if !isInertBase(b) {
+			return nil
+		}
+	}
+	decKind := model.ParamPositionalOrKeyword
+	if c, ok := dec.(*ast.Call); ok {
+		if v := callKeyword(c, "init"); v != nil && exprToString(v) == "False" {
+			return nil
+		}
+		if v := callKeyword(c, "kw_only"); v != nil && exprToString(v) == "True" {
+			decKind = model.ParamKeywordOnly
+		}
+	}
+
+	fn := &model.Function{Name: "__init__", IsMethod: true}
+	var kwOnly []*model.Parameter
+	afterSentinel := false
+	for _, stmt := range cd.Body {
+		s, ok := stmt.(*ast.AnnAssign)
+		if !ok {
+			continue
+		}
+		n, ok := s.Target.(*ast.Name)
+		if !ok {
+			continue
+		}
+		ann := exprToString(s.Annotation)
+		if ann == "ClassVar" || strings.HasPrefix(ann, "ClassVar[") || strings.HasSuffix(ann, ".ClassVar") || strings.Contains(ann, ".ClassVar[") {
+			continue
+		}
+		if ann == "KW_ONLY" || strings.HasSuffix(ann, ".KW_ONLY") {
+			afterSentinel = true
+			continue
+		}
+
+		kind := decKind
+		if afterSentinel {
+			kind = model.ParamKeywordOnly
+		}
+		p := &model.Parameter{Name: n.Name}
+		if s.Value != nil {
+			p.Default = exprToString(s.Value)
+			if c, ok := s.Value.(*ast.Call); ok && isFieldCall(c) {
+				if v := callKeyword(c, "init"); v != nil && exprToString(v) == "False" {
+					continue
+				}
+				if v := callKeyword(c, "kw_only"); v != nil {
+					if exprToString(v) == "True" {
+						kind = model.ParamKeywordOnly
+					} else if exprToString(v) == "False" {
+						kind = model.ParamPositionalOrKeyword
+					}
+				}
+			}
+		}
+		p.Kind = kind
+
+		p.Type = exprToTypeExpr(s.Annotation)
+		if sub, ok := s.Annotation.(*ast.Subscript); ok {
+			if base := exprToString(sub.Value); base == "InitVar" || strings.HasSuffix(base, ".InitVar") {
+				p.Type = exprToTypeExpr(sub.Slice)
+			}
+		}
+
+		if kind == model.ParamKeywordOnly {
+			kwOnly = append(kwOnly, p)
+		} else {
+			fn.Parameters = append(fn.Parameters, p)
+		}
+	}
+	// Python places keyword-only fields after all others in __init__.
+	fn.Parameters = append(fn.Parameters, kwOnly...)
+	return fn
+}
+
+// callKeyword returns the value of keyword argument name in call c, or nil.
+func callKeyword(c *ast.Call, name string) ast.Expr {
+	for _, kw := range c.Keywords {
+		if kw.Arg == name {
+			return kw.Value
+		}
+	}
+	return nil
+}
+
+// isFieldCall reports whether c is field(...) or dataclasses.field(...).
+func isFieldCall(c *ast.Call) bool {
+	switch f := c.Func.(type) {
+	case *ast.Name:
+		return f.Name == "field"
+	case *ast.Attribute:
+		return f.Attr == "field"
+	}
+	return false
+}
+
+// isInertBase reports whether a base class adds no dataclass fields:
+// object, ABC, Protocol and Generic[...], with optional module prefixes.
+func isInertBase(b ast.Expr) bool {
+	s := exprToString(b)
+	if i := strings.Index(s, "["); i >= 0 {
+		s = s[:i]
+	}
+	s = strings.TrimPrefix(s, "typing.")
+	s = strings.TrimPrefix(s, "typing_extensions.")
+	switch s {
+	case "object", "ABC", "abc.ABC", "Protocol", "Generic":
+		return true
+	}
+	return false
 }
 
 // extractPropertyAttribute converts a @property-decorated method into an Attribute.

@@ -375,6 +375,13 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		Docstring: cleanDocstringText(cls.Docstring),
 	}
 
+	// Constructor parameters; empty slice (not null) so JSON matches the type.
+	sym.Parameters = make([]DocParam, 0)
+	if cls.Constructor != nil {
+		ctor := convertFunction(cls.Constructor, stubs[modName+"."+cls.Name+".__init__"])
+		sym.Parameters = ctor.Parameters
+	}
+
 	if len(cls.Methods) > 0 {
 		sym.Methods = make([]DocSymbol, 0, len(cls.Methods))
 		for _, m := range cls.Methods {

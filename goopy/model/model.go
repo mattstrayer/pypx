@@ -59,6 +59,7 @@ type Class struct {
 	Attributes  []*Attribute `json:"attributes,omitempty"`
 	Decorators  []string     `json:"decorators,omitempty"`
 	Classes     []*Class     `json:"classes,omitempty"`
+	Constructor *Function    `json:"constructor,omitempty"`
 }
 
 // Parameter represents a function parameter.

@@ -336,6 +336,36 @@ func TestConvertClass_NoMethods(t *testing.T) {
 	}
 }
 
+func TestConvertClass_ConstructorParameters(t *testing.T) {
+	cls := &model.Class{
+		Name: "Client",
+		Constructor: &model.Function{
+			Name: "__init__",
+			Parameters: []*model.Parameter{
+				{Name: "url", Kind: model.ParamPositionalOrKeyword, Type: &model.TypeExpr{Raw: "str"}, DocParam: &model.DocParam{Description: "Base URL"}},
+				{Name: "timeout", Kind: model.ParamPositionalOrKeyword, Default: "5"},
+			},
+		},
+	}
+	sym := convertClass(cls, make(stubIndex), "mymod")
+	if len(sym.Parameters) != 2 {
+		t.Fatalf("Parameters len = %d, want 2", len(sym.Parameters))
+	}
+	if sym.Parameters[0].Name != "url" || sym.Parameters[0].Type != "str" || sym.Parameters[0].Description != "Base URL" {
+		t.Errorf("unexpected param[0]: %+v", sym.Parameters[0])
+	}
+	if sym.Parameters[1].Default != "5" {
+		t.Errorf("param[1].Default = %q, want 5", sym.Parameters[1].Default)
+	}
+}
+
+func TestConvertClass_NoConstructorEmptyParameters(t *testing.T) {
+	sym := convertClass(&model.Class{Name: "Plain"}, make(stubIndex), "mymod")
+	if sym.Parameters == nil || len(sym.Parameters) != 0 {
+		t.Errorf("Parameters = %#v, want empty non-nil slice", sym.Parameters)
+	}
+}
+
 func TestConvertFunction_StubTypeBackfill(t *testing.T) {
 	// Source function has no type annotation; stub has type info.
 	src := &model.Function{
