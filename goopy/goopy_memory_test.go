@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -121,7 +122,7 @@ def g(t):
 	if err != nil {
 		t.Fatal(err)
 	}
-	flattenTypes(mod)
+	newTypeFlattener().module(mod)
 	after, err := json.Marshal(mod)
 	if err != nil {
 		t.Fatal(err)
@@ -175,11 +176,57 @@ func TestFlattenTypes_CoversStubOnly(t *testing.T) {
 	f := mod.Functions[0]
 	mod.Functions = nil
 	mod.StubOnly.Functions = []*model.Function{f}
-	flattenTypes(mod)
+	newTypeFlattener().module(mod)
 	if got := f.Parameters[0].Type; got.Raw != "List[int]" || got.Args != nil {
 		t.Errorf("parameter type = %+v, want only Kind and Raw", got)
 	}
 	if got := f.Returns; got.Raw != "Dict[str, int]" || got.Args != nil {
 		t.Errorf("return type = %+v, want only Kind and Raw", got)
+	}
+}
+
+func TestTypeFlattener_EqualTypesShareOneValue(t *testing.T) {
+	mod, errs := ExtractModule("m", []byte(`
+def f(a: List[int], b: List[int], c: List[str]) -> List[int]: ...
+class C:
+    x: List[int]
+    def m(self, d: List[int]) -> None: ...
+`))
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	tf := newTypeFlattener()
+	tf.module(mod)
+	f := mod.Functions[0]
+	li := f.Parameters[0].Type
+	if li.Raw != "List[int]" {
+		t.Fatalf("raw = %q", li.Raw)
+	}
+	cls := mod.Classes[0]
+	for name, got := range map[string]*model.TypeExpr{
+		"parameter": f.Parameters[1].Type, "return": f.Returns,
+		"attribute": cls.Attributes[0].Type, "method parameter": cls.Methods[0].Parameters[0].Type,
+	} {
+		if got != li {
+			t.Errorf("%s has its own value: %+v", name, got)
+		}
+	}
+	if f.Parameters[2].Type == li {
+		t.Error("different types share one value")
+	}
+}
+
+func TestTypeFlattener_ConcurrentModules(t *testing.T) {
+	tf := newTypeFlattener()
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			mod, _ := ExtractModule("m", []byte("def f(a: List[int]) -> Dict[str, int]: ...\n"))
+			tf.module(mod)
+		})
+	}
+	wg.Wait()
+	if len(tf.types) != 2 {
+		t.Errorf("distinct types = %d, want 2", len(tf.types))
 	}
 }

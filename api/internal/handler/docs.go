@@ -666,7 +666,10 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 	var aliases []moduleAliases
 	exceptions := exceptionClasses(pkg)
 
-	for _, mod := range pkg.Modules {
+	for i, mod := range pkg.Modules {
+		// Each module is released once converted, so the parsed package and the
+		// response do not both stay whole until the end.
+		pkg.Modules[i] = nil
 		dm := DocModule{
 			Name:       mod.Name,
 			Functions:  make([]DocSymbol, 0, len(mod.Functions)),
