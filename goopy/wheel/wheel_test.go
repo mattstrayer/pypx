@@ -332,25 +332,6 @@ func TestFetch_NoWheels(t *testing.T) {
 	}
 }
 
-func TestFetch_SdistOnly(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"urls":[{"filename":"pkg-1.0.tar.gz","url":"https://example.com/tar.gz","size":100,"packagetype":"sdist"}]}`))
-	}))
-	defer srv.Close()
-
-	src := &Source{
-		HTTPClient: srv.Client(),
-		MaxSize:    DefaultMaxSize,
-		BaseURL:    srv.URL,
-	}
-
-	_, err := src.Fetch(context.Background(), "sdistonly", "1.0")
-	if !errors.Is(err, ErrNoArtifact) {
-		t.Errorf("expected ErrNoArtifact for sdist-only release, got: %v", err)
-	}
-}
-
 func TestFetch_PyPIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -450,12 +431,15 @@ func TestFetchWheelURLs(t *testing.T) {
 		BaseURL:    srv.URL,
 	}
 
-	wheels, err := src.fetchWheelURLs(context.Background(), "pkg", "1.0")
+	wheels, sdists, _, err := src.fetchRelease(context.Background(), "pkg", "1.0")
 	if err != nil {
-		t.Fatalf("fetchWheelURLs: %v", err)
+		t.Fatalf("fetchRelease: %v", err)
+	}
+	if len(sdists) != 1 || sdists[0].Filename != "pkg-1.0.tar.gz" {
+		t.Errorf("sdists = %+v, want pkg-1.0.tar.gz", sdists)
 	}
 	if len(wheels) != 2 {
-		t.Fatalf("wheels count = %d, want 2 (sdist should be filtered)", len(wheels))
+		t.Fatalf("wheels count = %d, want 2", len(wheels))
 	}
 	if wheels[0].Filename != "pkg-1.0-py3-none-any.whl" {
 		t.Errorf("wheels[0].Filename = %q", wheels[0].Filename)
@@ -478,7 +462,7 @@ func TestFetchWheelURLs_EscapesPath(t *testing.T) {
 
 	// The error is expected (mock 404s any path); only the observed escaped
 	// path matters here.
-	_, _ = src.fetchWheelURLs(context.Background(), "testpkg", "1.0/x")
+	_, _, _, _ = src.fetchRelease(context.Background(), "testpkg", "1.0/x")
 
 	want := "/pypi/testpkg/1.0%2Fx/json"
 	if gotPath != want {
@@ -882,7 +866,7 @@ func TestRangeRealWheel(t *testing.T) {
 	}
 
 	src := &Source{HTTPClient: client, MaxSize: DefaultMaxSize, MaxRangeSize: DefaultMaxRangeSize, BaseURL: pypiBaseURL}
-	wheels, err := src.fetchWheelURLs(ctx, "torch", meta.Info.Version)
+	wheels, _, _, err := src.fetchRelease(ctx, "torch", meta.Info.Version)
 	if err != nil || len(wheels) == 0 {
 		t.Fatalf("wheel URLs: %v", err)
 	}
