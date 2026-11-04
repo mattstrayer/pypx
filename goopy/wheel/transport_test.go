@@ -131,7 +131,8 @@ func TestTransport_WithoutPingsADeadConnectionHangs(t *testing.T) {
 }
 
 func TestTransport_IsShared(t *testing.T) {
-	if Transport() != Transport() {
+	first, second := Transport(), Transport()
+	if first != second {
 		t.Error("Transport returned two transports")
 	}
 	if got := NewSource().HTTPClient.Transport; got != http.RoundTripper(Transport()) {
