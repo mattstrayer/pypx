@@ -621,30 +621,55 @@ func extractDocstring(stmt ast.Stmt) string {
 // follows the same blocks as extractStmts (try/except, if, for, with).
 // Returns nil if the module never touches __all__.
 //
-// The parser stores "__all__ += x" as a plain Assign, so "=" and "+=" look the
-// same here. Every assignment adds to the list. This also suits the branches of
-// a conditional, which all count because the condition is unknown.
+// At module level "__all__ = x" replaces the list, "+=" adds and "-=" removes.
+// Inside a block a plain assignment adds, because the condition is unknown and
+// every branch counts.
 func extractAllExports(body []ast.Stmt) *model.Exports {
 	var ex *model.Exports
-	var walk func(stmts []ast.Stmt)
+	var walk func(stmts []ast.Stmt, nested bool)
 	add := func(value ast.Expr) {
 		if ex == nil {
 			ex = &model.Exports{}
 		}
 		addExportExpr(ex, value)
 	}
-	walk = func(stmts []ast.Stmt) {
+	// assign handles a plain assignment. "__all__ = __all__ + x" keeps the old
+	// list, because addExportExpr ignores __all__ itself.
+	assign := func(value ast.Expr, nested bool) {
+		if !nested && !refersToAll(value) {
+			ex = nil
+		}
+		add(value)
+	}
+	walk = func(stmts []ast.Stmt, nested bool) {
 		for _, stmt := range stmts {
 			switch s := stmt.(type) {
 			case *ast.Assign:
 				for _, target := range s.Targets {
-					if n, ok := target.(*ast.Name); ok && n.Name == "__all__" {
+					n, ok := target.(*ast.Name)
+					if !ok || n.Name != "__all__" {
+						continue
+					}
+					switch {
+					case !s.Augmented:
+						assign(s.Value, nested)
+					case s.Op == token.PLUSEQ || s.Op == token.PIPEEQ:
 						add(s.Value)
+					case s.Op == token.MINUSEQ:
+						if ex != nil {
+							removeExportExpr(ex, s.Value)
+						}
+					default:
+						// Any other operator cannot be read statically.
+						if ex == nil {
+							ex = &model.Exports{}
+						}
+						ex.Dynamic = true
 					}
 				}
 			case *ast.AnnAssign:
 				if n, ok := s.Target.(*ast.Name); ok && n.Name == "__all__" && s.Value != nil {
-					add(s.Value)
+					assign(s.Value, nested)
 				}
 			case *ast.ExprStmt:
 				// __all__.extend(...) and __all__.append(...).
@@ -664,17 +689,63 @@ func extractAllExports(body []ast.Stmt) *model.Exports {
 					add(c.Args[0])
 				case "append":
 					add(&ast.List{Elts: c.Args})
+				case "remove":
+					if ex != nil {
+						removeExportExpr(ex, &ast.List{Elts: c.Args})
+					}
 				}
 			case *ast.If:
-				walk(s.Body)
-				walk(s.Orelse)
+				walk(s.Body, true)
+				walk(s.Orelse, true)
 			case *ast.PassThrough:
-				walk(s.Body)
+				walk(s.Body, true)
 			}
 		}
 	}
-	walk(body)
+	walk(body, false)
 	return ex
+}
+
+// refersToAll reports whether a __all__ expression reads __all__ itself.
+func refersToAll(e ast.Expr) bool {
+	switch v := e.(type) {
+	case *ast.Name:
+		return v.Name == "__all__"
+	case *ast.BinOp:
+		return refersToAll(v.Left) || refersToAll(v.Right)
+	case *ast.List:
+		return slices.ContainsFunc(v.Elts, refersToAll)
+	case *ast.Tuple:
+		return slices.ContainsFunc(v.Elts, refersToAll)
+	case *ast.Starred:
+		return refersToAll(v.Value)
+	}
+	return false
+}
+
+// removeExportExpr removes string literals from ex. Removing anything else marks
+// ex as Dynamic, because the result cannot be read statically.
+func removeExportExpr(ex *model.Exports, e ast.Expr) {
+	var elts []ast.Expr
+	switch v := e.(type) {
+	case *ast.List:
+		elts = v.Elts
+	case *ast.Tuple:
+		elts = v.Elts
+	case *ast.Set:
+		elts = v.Elts
+	default:
+		ex.Dynamic = true
+		return
+	}
+	for _, elt := range elts {
+		c, ok := elt.(*ast.Constant)
+		if !ok || c.Kind != "str" {
+			ex.Dynamic = true
+			continue
+		}
+		ex.Names = slices.DeleteFunc(ex.Names, func(n string) bool { return n == c.Value })
+	}
 }
 
 // addExportExpr adds the content of one __all__ expression to ex: string
@@ -686,6 +757,12 @@ func addExportExpr(ex *model.Exports, e ast.Expr) {
 		addExportElts(ex, v.Elts)
 	case *ast.Tuple:
 		addExportElts(ex, v.Elts)
+	case *ast.Set:
+		addExportElts(ex, v.Elts)
+	case *ast.Name:
+		if v.Name != "__all__" {
+			ex.Dynamic = true
+		}
 	case *ast.BinOp:
 		if v.Op != token.PLUS {
 			ex.Dynamic = true

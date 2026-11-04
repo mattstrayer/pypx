@@ -144,13 +144,9 @@ func ExtractPackage(ctx context.Context, name string, files map[string][]byte, t
 		parsed = append(parsed, pm)
 	}
 
-	// parsed is sorted by module name, so copies land in a stable order.
+	r.publishExports(parsed)
+
 	pkg := &model.Package{Name: name}
-	for _, pm := range parsed {
-		if pm.public {
-			r.resolve(pm)
-		}
-	}
 	for _, pm := range parsed {
 		if pm.public && hasContent(pm.mod) {
 			pm.mod.ImportFroms = nil
@@ -173,6 +169,19 @@ type definition struct {
 	cls    *model.Class
 	attr   *model.Attribute
 	alias  *model.TypeAlias
+}
+
+// name returns the definition's own name.
+func (d definition) name() string {
+	switch {
+	case d.fn != nil:
+		return d.fn.Name
+	case d.cls != nil:
+		return d.cls.Name
+	case d.attr != nil:
+		return d.attr.Name
+	}
+	return d.alias.Name
 }
 
 // parsedModule is a module plus an index of what it defines. The index never
@@ -490,37 +499,141 @@ func (r *resolver) exportList(pm *parsedModule) []string {
 	return names
 }
 
-// resolve settles which of pm's own definitions are public, then copies in the
-// definitions pm re-exports.
-func (r *resolver) resolve(pm *parsedModule) {
+// settlePublic decides which of pm's own definitions are public. It returns the
+// names pm exports.
+func (r *resolver) settlePublic(pm *parsedModule) []string {
 	names := r.exportList(pm)
+	seen := make(map[string]bool, len(names))
+	for _, n := range names {
+		seen[n] = true
+	}
 
 	// The extractor could not judge names against a __all__ with references or
 	// unreadable parts. Now the names are known.
-	if ex := pm.mod.Exports; ex != nil && (ex.Dynamic || len(ex.Refs) > 0) {
-		listed := make(map[string]bool, len(names))
-		for _, n := range names {
-			listed[n] = true
-		}
-		partial := r.isPartialAll(pm)
+	partial := r.isPartialAll(pm)
+	m := pm.mod
+	if ex := m.Exports; ex != nil && (ex.Dynamic || len(ex.Refs) > 0) {
 		keep := func(n string) bool {
-			return listed[n] || (partial && !strings.HasPrefix(n, "_"))
+			return seen[n] || (partial && !strings.HasPrefix(n, "_"))
 		}
-		m := pm.mod
 		m.Functions, m.Hidden.Functions = repartition(m.Functions, m.Hidden.Functions, func(f *model.Function) string { return f.Name }, keep)
 		m.Classes, m.Hidden.Classes = repartition(m.Classes, m.Hidden.Classes, func(c *model.Class) string { return c.Name }, keep)
 		m.Attributes, m.Hidden.Attributes = repartition(m.Attributes, m.Hidden.Attributes, func(a *model.Attribute) string { return a.Name }, keep)
 		m.TypeAliases, m.Hidden.TypeAliases = repartition(m.TypeAliases, m.Hidden.TypeAliases, func(t *model.TypeAlias) string { return t.Name }, keep)
 	}
 
-	for _, name := range names {
-		if pm.definesDirectly(name) {
+	// An attribute that shares its name with a working import is a fallback, as
+	// in "try: from ._x import Y / except ImportError: Y = None". The import wins.
+	for _, imp := range m.ImportFroms {
+		if imp.Name == "" || imp.Name == "*" {
 			continue
 		}
-		if d, ok := r.lookup(pm.mod.Name, name, map[[2]string]bool{}, 0); ok {
-			addCopy(pm.mod, name, d)
+		b := importBinding(imp)
+		if _, isAttr := pm.attrs[b]; !isAttr {
+			continue
+		}
+		d, ok := r.lookup(m.Name, b, map[[2]string]bool{}, 0)
+		if !ok || d.module == m.Name {
+			continue
+		}
+		delete(pm.attrs, b)
+		isNamedAttr := func(a *model.Attribute) bool { return a.Name == b }
+		m.Attributes = slices.DeleteFunc(m.Attributes, isNamedAttr)
+		m.Hidden.Attributes = slices.DeleteFunc(m.Hidden.Attributes, isNamedAttr)
+		if (m.Exports == nil || partial) && !strings.HasPrefix(b, "_") {
+			names = appendUnique(names, seen, b)
 		}
 	}
+	return names
+}
+
+// publishExports gives each definition one published location. A definition
+// already public in its own module stays there, and every re-export becomes an
+// alias. A private definition is copied once, into the exporting module that
+// sorts first, and its other re-exports become aliases of that copy.
+//
+// parsed must be sorted by module name.
+func (r *resolver) publishExports(parsed []*parsedModule) {
+	type export struct {
+		pm   *parsedModule
+		name string
+	}
+	type identity struct{ module, name string }
+	type group struct {
+		d       definition
+		exports []export
+	}
+
+	var names [][]string
+	var public []*parsedModule
+	for _, pm := range parsed {
+		if pm.public {
+			public = append(public, pm)
+			names = append(names, r.settlePublic(pm))
+		}
+	}
+
+	groups := map[identity]*group{}
+	var order []identity
+	for i, pm := range public {
+		for _, name := range names[i] {
+			if pm.definesDirectly(name) {
+				continue
+			}
+			d, ok := r.lookup(pm.mod.Name, name, map[[2]string]bool{}, 0)
+			if !ok {
+				continue
+			}
+			id := identity{d.module, d.name()}
+			g, ok := groups[id]
+			if !ok {
+				g = &group{d: d}
+				groups[id] = g
+				order = append(order, id)
+			}
+			g.exports = append(g.exports, export{pm, name})
+		}
+	}
+
+	for _, id := range order {
+		g := groups[id]
+		target := id.module + "." + id.name
+		copyIdx := -1
+		if src := r.modules[id.module]; !src.public || !src.isPublished(id.name) {
+			// The first export is in the module that sorts first. Inside that
+			// module, prefer the definition's own name over a rename.
+			copyIdx = 0
+			for i, e := range g.exports {
+				if e.pm != g.exports[0].pm {
+					break
+				}
+				if e.name == id.name {
+					copyIdx = i
+					break
+				}
+			}
+			e := g.exports[copyIdx]
+			addCopy(e.pm.mod, e.name, g.d)
+			target = e.pm.mod.Name + "." + e.name
+		}
+		for i, e := range g.exports {
+			if i != copyIdx {
+				e.pm.mod.Aliases = append(e.pm.mod.Aliases, &model.Alias{Name: e.name, Target: target})
+			}
+		}
+	}
+	for _, pm := range public {
+		slices.SortFunc(pm.mod.Aliases, func(a, b *model.Alias) int { return strings.Compare(a.Name, b.Name) })
+	}
+}
+
+// isPublished reports whether name is in the module's public lists.
+func (pm *parsedModule) isPublished(name string) bool {
+	m := pm.mod
+	return slices.ContainsFunc(m.Functions, func(f *model.Function) bool { return f.Name == name }) ||
+		slices.ContainsFunc(m.Classes, func(c *model.Class) bool { return c.Name == name }) ||
+		slices.ContainsFunc(m.Attributes, func(a *model.Attribute) bool { return a.Name == name }) ||
+		slices.ContainsFunc(m.TypeAliases, func(t *model.TypeAlias) bool { return t.Name == name })
 }
 
 // repartition splits public and hidden items again under a new keep rule.
@@ -676,5 +789,5 @@ func isPrivateModule(path string) bool {
 func hasContent(mod *model.Module) bool {
 	return len(mod.Functions) > 0 || len(mod.Classes) > 0 ||
 		len(mod.Attributes) > 0 || len(mod.TypeAliases) > 0 ||
-		mod.Docstring != nil || len(mod.Imports) > 0
+		mod.Docstring != nil || len(mod.Imports) > 0 || len(mod.Aliases) > 0
 }

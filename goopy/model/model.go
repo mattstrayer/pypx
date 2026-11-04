@@ -37,6 +37,9 @@ type Module struct {
 	Attributes  []*Attribute `json:"attributes,omitempty"`
 	TypeAliases []*TypeAlias `json:"type_aliases,omitempty"`
 	Imports     []*TypeRef   `json:"imports,omitempty"`
+	// Aliases lists names this module re-exports whose definition is published
+	// in another module. Each definition is published once.
+	Aliases []*Alias `json:"aliases,omitempty"`
 
 	// The fields below are resolver input. ExtractPackage reads them and then
 	// clears them. They never reach JSON.
@@ -48,6 +51,13 @@ type Module struct {
 	// Hidden holds definitions that are not public under the module's own rules.
 	// A re-export from another module can still reach them.
 	Hidden Definitions `json:"-"`
+}
+
+// Alias is a public name whose definition is published elsewhere. Target is the
+// dotted module and name of that definition.
+type Alias struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
 }
 
 // Import is one name bound by an import statement. "from .a import b as c" is

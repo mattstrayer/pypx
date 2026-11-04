@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -117,7 +118,93 @@ func TestExtractPackageReexports(t *testing.T) {
 		want map[string][]string
 		// "module.name" -> Origin.
 		origins map[string]string
+		// "module.name" -> Target. Compared exactly across all modules.
+		aliases map[string]string
 	}{
+		{
+			name: "private definition is copied once, into the first export",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import Y\nfrom ._x import Y as Z\n",
+				"pkg/sub.py":      "from ._x import Y\n",
+				"pkg/a.py":        "from ._x import Y as W\n",
+				"pkg/_x.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}, "pkg.a": nil, "pkg.sub": nil},
+			origins: map[string]string{"pkg.Y": "pkg._x"},
+			aliases: map[string]string{"pkg.Z": "pkg.Y", "pkg.a.W": "pkg.Y", "pkg.sub.Y": "pkg.Y"},
+		},
+		{
+			name: "rename copied when no export keeps the name",
+			files: map[string]string{
+				"pkg/__init__.py": "from ._x import Y as Z\n",
+				"pkg/sub.py":      "from ._x import Y\n",
+				"pkg/_x.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Z"}, "pkg.sub": nil},
+			origins: map[string]string{"pkg.Z": "pkg._x"},
+			aliases: map[string]string{"pkg.sub.Y": "pkg.Z"},
+		},
+		{
+			name: "public definition stays in place",
+			files: map[string]string{
+				"pkg/__init__.py": "from .pub import a\n__all__ = [\"a\"]\n",
+				"pkg/other.py":    "from .pub import a as b\n__all__ = [\"b\"]\n",
+				"pkg/pub.py":      "def a(): pass\n",
+			},
+			want:    map[string][]string{"pkg": nil, "pkg.other": nil, "pkg.pub": {"a"}},
+			aliases: map[string]string{"pkg.a": "pkg.pub.a", "pkg.other.b": "pkg.pub.a"},
+		},
+		{
+			name: "definition hidden in a public module is copied",
+			files: map[string]string{
+				"pkg/__init__.py": "from .pub import _a, b\n__all__ = [\"_a\", \"b\"]\n",
+				"pkg/pub.py":      "__all__ = [\"c\"]\ndef _a(): pass\ndef b(): pass\ndef c(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"_a", "b"}, "pkg.pub": {"c"}},
+			origins: map[string]string{"pkg._a": "pkg.pub", "pkg.b": "pkg.pub"},
+		},
+		{
+			name: "import wins over except fallback in a public module",
+			files: map[string]string{
+				"pkg/__init__.py": "try:\n    from ._x import Y\nexcept ImportError:\n    Y = None\n",
+				"pkg/_x.py":       "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}},
+			origins: map[string]string{"pkg.Y": "pkg._x"},
+		},
+		{
+			name: "import wins over else fallback with __all__",
+			files: map[string]string{
+				"pkg/__init__.py": "__all__ = [\"Y\"]\nif HAVE:\n    from ._x import Y\nelse:\n    Y = None\n",
+				"pkg/_x.py":       "def Y(): pass\n",
+			},
+			want:    map[string][]string{"pkg": {"Y"}},
+			origins: map[string]string{"pkg.Y": "pkg._x"},
+		},
+		{
+			name: "fallback from a public module becomes an alias",
+			files: map[string]string{
+				"pkg/__init__.py": "try:\n    from .pub import Y\nexcept ImportError:\n    Y = None\n",
+				"pkg/pub.py":      "class Y: pass\n",
+			},
+			want:    map[string][]string{"pkg": nil, "pkg.pub": {"Y"}},
+			aliases: map[string]string{"pkg.Y": "pkg.pub.Y"},
+		},
+		{
+			name: "fallback stays when the import leaves the wheel",
+			files: map[string]string{
+				"pkg/__init__.py": "try:\n    from other import Y\nexcept ImportError:\n    Y = None\n",
+			},
+			want: map[string][]string{"pkg": {"Y"}},
+		},
+		{
+			name: "reassigned __all__ drops the old names",
+			files: map[string]string{
+				"pkg/__init__.py": "__all__ = [\"a\"]\n__all__ = [\"b\"]\nfrom ._x import a, b\n",
+				"pkg/_x.py":       "def a(): pass\ndef b(): pass\n",
+			},
+			want: map[string][]string{"pkg": {"b"}},
+		},
 		{
 			name: "relative",
 			files: map[string]string{
@@ -217,13 +304,14 @@ func TestExtractPackageReexports(t *testing.T) {
 			want: map[string][]string{"pkg": {"b"}},
 		},
 		{
-			name: "__all__ copies from a public module",
+			name: "__all__ aliases a public module",
 			files: map[string]string{
 				"pkg/__init__.py": "from .pub import a\n__all__ = [\"a\"]\n",
 				"pkg/pub.py":      "def a(): pass\n",
 			},
-			want:    map[string][]string{"pkg": {"a"}, "pkg.pub": {"a"}},
-			origins: map[string]string{"pkg.a": "pkg.pub", "pkg.pub.a": ""},
+			want:    map[string][]string{"pkg": nil, "pkg.pub": {"a"}},
+			origins: map[string]string{"pkg.pub.a": ""},
+			aliases: map[string]string{"pkg.a": "pkg.pub.a"},
 		},
 		{
 			name: "no __all__ does not copy from a public module",
@@ -252,12 +340,12 @@ func TestExtractPackageReexports(t *testing.T) {
 				"attr/_make.py":     "class Factory: pass\n",
 			},
 			tops: []string{"attr", "attrs"},
-			want: map[string][]string{"attr": {"define"}, "attrs": {"Factory", "define"}},
+			want: map[string][]string{"attr": {"define"}, "attrs": {"Factory"}},
 			origins: map[string]string{
 				"attr.define":   "attr._next_gen",
-				"attrs.define":  "attr._next_gen",
 				"attrs.Factory": "attr._make",
 			},
+			aliases: map[string]string{"attrs.define": "attr.define"},
 		},
 		{
 			name: "import from another distribution finds nothing",
@@ -276,13 +364,12 @@ func TestExtractPackageReexports(t *testing.T) {
 				"pkg/_x.py":           "def a(): pass\n",
 				"pkg/sib.py":          "def b(): pass\n",
 			},
-			want: map[string][]string{"pkg.sub": {"a", "b"}, "pkg.sub.mod": {"a", "c"}, "pkg.sib": {"b"}},
+			want: map[string][]string{"pkg.sub": {"a"}, "pkg.sub.mod": {"c"}, "pkg.sib": {"b"}},
 			origins: map[string]string{
 				"pkg.sub.a":     "pkg._x",
-				"pkg.sub.b":     "pkg.sib",
-				"pkg.sub.mod.a": "pkg._x",
 				"pkg.sub.mod.c": "pkg.sub._y",
 			},
+			aliases: map[string]string{"pkg.sub.b": "pkg.sib.b", "pkg.sub.mod.a": "pkg.sub.a"},
 		},
 		{
 			name: "module __all__ references",
@@ -292,7 +379,8 @@ func TestExtractPackageReexports(t *testing.T) {
 				"pkg/_b.py":       "__all__ = [\"y\"]\ndef y(): pass\n",
 				"pkg/c.py":        "__all__ = [\"z\"]\ndef z(): pass\n",
 			},
-			want: map[string][]string{"pkg": {"x", "y", "z"}, "pkg.a": {"x"}, "pkg.c": {"z"}},
+			want:    map[string][]string{"pkg": {"y"}, "pkg.a": {"x"}, "pkg.c": {"z"}},
+			aliases: map[string]string{"pkg.x": "pkg.a.x", "pkg.z": "pkg.c.z"},
 		},
 		{
 			name: "__all__ += and local definition",
@@ -386,6 +474,17 @@ func TestExtractPackageReexports(t *testing.T) {
 					t.Errorf("%s Origin = %q (found %v), want %q", key, got, ok, want)
 				}
 			}
+			gotAliases := map[string]string{}
+			for _, m := range pkg.Modules {
+				for _, a := range m.Aliases {
+					gotAliases[m.Name+"."+a.Name] = a.Target
+				}
+			}
+			if len(gotAliases) != 0 || len(tt.aliases) != 0 {
+				if !maps.Equal(gotAliases, tt.aliases) {
+					t.Errorf("aliases = %v, want %v", gotAliases, tt.aliases)
+				}
+			}
 		})
 	}
 }
@@ -454,9 +553,12 @@ func TestExtractPackage_HTTPXShaped(t *testing.T) {
 		t.Fatalf("modules = %q", names)
 	}
 	root := pkg.Modules[0]
-	want := []string{"AsyncClient", "Client", "HTTPError", "get", "helper", "request"}
+	want := []string{"AsyncClient", "Client", "HTTPError", "get", "request"}
 	if got := symbolNames(root); !slices.Equal(got, want) {
 		t.Errorf("root names = %q, want %q", got, want)
+	}
+	if len(root.Aliases) != 1 || *root.Aliases[0] != (model.Alias{Name: "helper", Target: "httpx.sub.helper"}) {
+		t.Errorf("root aliases = %+v", root.Aliases)
 	}
 	for _, c := range root.Classes {
 		if c.Name == "Client" {
@@ -469,16 +571,12 @@ func TestExtractPackage_HTTPXShaped(t *testing.T) {
 
 func TestExtractPackage_CopyDoesNotChangeSource(t *testing.T) {
 	files := map[string][]byte{
-		"pkg/__init__.py": []byte("from .pub import a as b\n__all__ = [\"b\"]\n"),
-		"pkg/pub.py":      []byte("def a(): pass\n"),
+		"pkg/__init__.py": []byte("from .pub import _a as b\n__all__ = [\"b\"]\n"),
+		"pkg/pub.py":      []byte("def _a(): pass\ndef c(): pass\n"),
 	}
 	pkg := ExtractPackage(context.Background(), "pkg", files, []string{"pkg"})
 	copied := findModule(t, pkg, "pkg").Functions[0]
-	source := findModule(t, pkg, "pkg.pub").Functions[0]
-	if source.Name != "a" || source.Origin != "" {
-		t.Errorf("source changed: %+v", source)
-	}
-	if copied.Name != "b" || copied.Origin != "pkg.pub" || copied.OriginName != "a" {
+	if copied.Name != "b" || copied.Origin != "pkg.pub" || copied.OriginName != "_a" {
 		t.Errorf("copy = %+v", copied)
 	}
 }
