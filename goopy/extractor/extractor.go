@@ -264,21 +264,26 @@ func (e *Extractor) extractClass(cd *ast.ClassDef, moduleExports map[string]stru
 		cls.Constructor = dataclassConstructor(cd)
 	}
 	if cls.Constructor != nil && cls.Docstring != nil {
-		// Class docstring params fill gaps; the __init__ docstring wins.
-		for _, p := range cls.Constructor.Parameters {
-			if p.DocParam != nil {
-				continue
-			}
-			for _, dp := range cls.Docstring.Params {
-				if dp.Name == p.Name {
-					p.DocParam = dp
-					break
-				}
-			}
-		}
+		attachClassDocParams(cls)
 	}
 
 	return cls
+}
+
+// attachClassDocParams lets class docstring params fill gaps in the constructor's
+// parameters. The __init__ docstring wins.
+func attachClassDocParams(cls *model.Class) {
+	for _, p := range cls.Constructor.Parameters {
+		if p.DocParam != nil {
+			continue
+		}
+		for _, dp := range cls.Docstring.Params {
+			if dp.Name == p.Name {
+				p.DocParam = dp
+				break
+			}
+		}
+	}
 }
 
 // extractClassStmts walks statements of a class body, populating cls. It recurses
