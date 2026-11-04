@@ -3,6 +3,7 @@ package wheel
 import (
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,14 @@ import (
 
 const (
 	DefaultMaxSize = 50 * 1024 * 1024 // 50 MB compressed download cap
+
+	// DefaultMaxRangeSize caps the size of wheels read with range requests.
+	// Only the central directory and .py entries are transferred.
+	DefaultMaxRangeSize = 2 * 1024 * 1024 * 1024 // 2 GiB
+
+	// rangeThreshold is the wheel size above which range requests replace a
+	// whole download.
+	rangeThreshold = 8 * 1024 * 1024 // 8 MiB
 
 	pypiBaseURL = "https://pypi.org"
 
@@ -39,7 +48,7 @@ var (
 	// ErrNoArtifact means the release exists but has no extractable artifact
 	// (e.g. sdist-only release, or no files at all).
 	ErrNoArtifact = errors.New("wheel: no extractable artifact")
-	// ErrTooLarge means the selected artifact exceeds MaxSize.
+	// ErrTooLarge means the selected artifact exceeds MaxSize (or MaxRangeSize for ranged reads).
 	ErrTooLarge = errors.New("wheel: artifact exceeds size limit")
 )
 
@@ -65,15 +74,18 @@ type Fetcher interface {
 type Source struct {
 	HTTPClient *http.Client
 	MaxSize    int64
-	BaseURL    string // PyPI base URL, defaults to https://pypi.org
+	// MaxRangeSize caps wheels read by range request; 0 means DefaultMaxRangeSize.
+	MaxRangeSize int64
+	BaseURL      string // PyPI base URL, defaults to https://pypi.org
 }
 
 // NewSource creates a new wheel Source with defaults.
 func NewSource() *Source {
 	return &Source{
-		HTTPClient: &http.Client{Timeout: 60 * time.Second},
-		MaxSize:    DefaultMaxSize,
-		BaseURL:    pypiBaseURL,
+		HTTPClient:   &http.Client{Timeout: 60 * time.Second},
+		MaxSize:      DefaultMaxSize,
+		MaxRangeSize: DefaultMaxRangeSize,
+		BaseURL:      pypiBaseURL,
 	}
 }
 
@@ -90,22 +102,50 @@ func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContent
 		return nil, fmt.Errorf("%s==%s (sdist-only or no files): %w", name, version, ErrNoArtifact)
 	}
 
-	url := selectWheel(wheels)
+	return s.fetchWheel(ctx, selectWheel(wheels), name)
+}
 
-	size, err := s.headSize(ctx, url)
-	if err == nil && size > s.MaxSize {
-		return nil, fmt.Errorf("%d bytes (max %d): %w", size, s.MaxSize, ErrTooLarge)
+// fetchWheel reads one wheel. Wheels above rangeThreshold are read with HTTP
+// range requests, so only the central directory and the .py entries cross the
+// network. If the server refuses ranges, it falls back to a whole download.
+func (s *Source) fetchWheel(ctx context.Context, w WheelFile, name string) (*WheelContents, error) {
+	if w.Size <= rangeThreshold {
+		return s.fetchWhole(ctx, w, name)
 	}
+	limit := s.MaxRangeSize
+	if limit <= 0 {
+		limit = DefaultMaxRangeSize
+	}
+	if w.Size > limit {
+		return nil, fmt.Errorf("%d bytes (max %d): %w", w.Size, limit, ErrTooLarge)
+	}
+	ra, err := newHTTPReaderAt(ctx, s.HTTPClient, w.URL, w.Size)
+	if err == nil {
+		var contents *WheelContents
+		contents, err = extractPyFiles(ra, w.Size, name)
+		if err == nil {
+			return contents, nil
+		}
+	}
+	if errors.Is(err, errRangeUnsupported) {
+		return s.fetchWhole(ctx, w, name)
+	}
+	return nil, fmt.Errorf("reading wheel by range: %w", err)
+}
 
-	data, err := s.download(ctx, url)
+// fetchWhole downloads the whole wheel, which must fit within MaxSize.
+func (s *Source) fetchWhole(ctx context.Context, w WheelFile, name string) (*WheelContents, error) {
+	if w.Size > s.MaxSize {
+		return nil, fmt.Errorf("%d bytes (max %d): %w", w.Size, s.MaxSize, ErrTooLarge)
+	}
+	data, err := s.download(ctx, w.URL)
 	if err != nil {
 		return nil, fmt.Errorf("downloading wheel: %w", err)
 	}
-	if int64(len(data)) == s.MaxSize {
-		return nil, fmt.Errorf("wheel too large: exceeds %d bytes (max %d)", s.MaxSize, s.MaxSize)
+	if int64(len(data)) > s.MaxSize {
+		return nil, fmt.Errorf("download exceeds %d bytes: %w", s.MaxSize, ErrTooLarge)
 	}
-
-	return extractPyFiles(data, name)
+	return extractPyFiles(bytes.NewReader(data), int64(len(data)), name)
 }
 
 func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]WheelFile, error) {
@@ -159,14 +199,14 @@ func (s *Source) fetchWheelURLs(ctx context.Context, name, version string) ([]Wh
 // selectWheel picks one wheel deterministically: pure (none-any) wheels first,
 // then smallest size, then lexicographically smallest filename. The result is
 // independent of the order PyPI returns files in.
-func selectWheel(wheels []WheelFile) string {
+func selectWheel(wheels []WheelFile) WheelFile {
 	best := wheels[0]
 	for _, w := range wheels[1:] {
 		if wheelLess(w, best) {
 			best = w
 		}
 	}
-	return best.URL
+	return best
 }
 
 func wheelLess(a, b WheelFile) bool {
@@ -180,19 +220,6 @@ func wheelLess(a, b WheelFile) bool {
 	return a.Filename < b.Filename
 }
 
-func (s *Source) headSize(ctx context.Context, url string) (int64, error) {
-	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
-	if err != nil {
-		return 0, err
-	}
-	resp, err := s.HTTPClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	_ = resp.Body.Close()
-	return resp.ContentLength, nil
-}
-
 func (s *Source) download(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -203,11 +230,21 @@ func (s *Source) download(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return io.ReadAll(io.LimitReader(resp.Body, s.MaxSize))
+	return io.ReadAll(io.LimitReader(resp.Body, s.MaxSize+1))
 }
 
-func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
-	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+// isEntryCorrupt reports whether err means one zip entry holds bad data. Such
+// an entry is skipped. Any other error (network failure, timeout, a server
+// that stops honouring ranges) must abort extraction, or the caller would
+// cache a partial result.
+func isEntryCorrupt(err error) bool {
+	var flateErr flate.CorruptInputError
+	return errors.Is(err, zip.ErrFormat) || errors.Is(err, zip.ErrAlgorithm) ||
+		errors.Is(err, zip.ErrChecksum) || errors.As(err, &flateErr)
+}
+
+func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents, error) {
+	r, err := zip.NewReader(ra, size)
 	if err != nil {
 		return nil, fmt.Errorf("opening zip: %w", err)
 	}
@@ -232,11 +269,21 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 			// Vendored distributions (pkg/_vendor/x.dist-info/...) must not overwrite it.
 			if strings.Count(f.Name, "/") == 1 {
 				rc, err := f.Open()
-				if err == nil {
-					data, _ := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
-					_ = rc.Close()
-					declaredTopLevel = parseTopLevelTxt(string(data))
+				if err != nil {
+					if isEntryCorrupt(err) {
+						continue
+					}
+					return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 				}
+				data, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
+				_ = rc.Close()
+				if err != nil {
+					if isEntryCorrupt(err) {
+						continue
+					}
+					return nil, fmt.Errorf("reading %q: %w", f.Name, err)
+				}
+				declaredTopLevel = parseTopLevelTxt(string(data))
 			}
 			continue
 		}
@@ -244,13 +291,19 @@ func extractPyFiles(data []byte, pkgName string) (*WheelContents, error) {
 		if strings.HasSuffix(f.Name, ".py") {
 			rc, err := f.Open()
 			if err != nil {
-				continue
+				if isEntryCorrupt(err) {
+					continue
+				}
+				return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 			}
 			// Read one byte past the per-file cap to detect an over-limit entry.
 			src, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile+1))
 			_ = rc.Close()
 			if err != nil {
-				continue
+				if isEntryCorrupt(err) {
+					continue
+				}
+				return nil, fmt.Errorf("reading %q: %w", f.Name, err)
 			}
 			if int64(len(src)) > maxDecompressedFile {
 				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, maxDecompressedFile)
