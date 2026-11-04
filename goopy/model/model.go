@@ -139,6 +139,9 @@ type Attribute struct {
 	IsProperty bool       `json:"is_property"`
 	// Writable is true for a property that has a setter.
 	Writable bool `json:"writable,omitempty"`
+	// Instance is true for an attribute assigned only in __init__. Its Value is
+	// the assigned expression, not a default.
+	Instance bool `json:"instance,omitempty"`
 	// Origin is the dotted module that defines this attribute, set on a re-export.
 	Origin string `json:"origin,omitempty"`
 }

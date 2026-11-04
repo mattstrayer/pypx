@@ -1529,6 +1529,72 @@ class C:
 	}
 }
 
+func TestInstanceAttributes(t *testing.T) {
+	m := extract(`
+class C:
+    default = 1
+    typed: int
+    both: int = 2
+    def __init__(self, a, b):
+        self.a = a
+        self.b: int = b
+        self.bare: str
+        self.default = a
+        self.typed = a
+        self.both = a
+        self.twice = a
+        self.twice = b
+        self.later = a
+        self.annotated: float = a
+        self.prop = a
+        self.via_base = a
+    later = 3
+    annotated = 4
+    @property
+    def prop(self):
+        return 1
+    @Base.via_base.setter
+    def via_base(self, v):
+        pass
+`)
+	c := m.Classes[0]
+	for name, want := range map[string]struct {
+		instance bool
+		value    string
+		typ      string
+	}{
+		"a":         {true, "a", ""},
+		"b":         {true, "b", "int"},
+		"bare":      {true, "", "str"},
+		"twice":     {true, "b", ""},
+		"default":   {false, "1", ""},
+		"typed":     {false, "", "int"},
+		"both":      {false, "2", "int"},
+		"later":     {false, "3", ""},
+		"annotated": {false, "4", "float"},
+		"prop":      {false, "", ""},
+		"via_base":  {false, "", ""},
+	} {
+		a := findAttr(c, name)
+		if a == nil {
+			t.Errorf("%s is missing", name)
+			continue
+		}
+		typ := ""
+		if a.Type != nil {
+			typ = a.Type.Name
+		}
+		if a.Instance != want.instance || a.Value != want.value || typ != want.typ {
+			t.Errorf("%s = {Instance:%v Value:%q Type:%q}, want %+v", name, a.Instance, a.Value, typ, want)
+		}
+	}
+	for _, name := range []string{"prop", "via_base"} {
+		if !findAttr(c, name).IsProperty {
+			t.Errorf("%s should be a property", name)
+		}
+	}
+}
+
 func TestLambdaDefaults(t *testing.T) {
 	for src, want := range map[string]string{
 		"lambda x: x":                    "lambda x: x",

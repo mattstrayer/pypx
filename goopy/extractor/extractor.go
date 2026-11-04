@@ -372,6 +372,10 @@ func (e *Extractor) applyPropertyAccessor(cls *model.Class, fd *ast.FunctionDef,
 		if attr.Name == fd.Name {
 			attr.IsProperty = true
 			attr.Writable = attr.Writable || accessor == "setter"
+			// The accessor is a class-level definition, and __init__ only sets it.
+			if attr.Instance {
+				attr.Instance, attr.Value = false, ""
+			}
 			return
 		}
 	}
@@ -465,6 +469,8 @@ func collapseLast[T any](items []T, name func(T) string) []T {
 // collapseAttributes leaves one attribute per name. The last definition wins, but
 // definitions of a name describe one attribute: "x: int" and a later "self.x = x"
 // keep the type, and "self.x = x" does not stop a property from being a property.
+// A class-level definition beats __init__ in either source order, because its value
+// is the real default. The result is Instance only if every definition is.
 func collapseAttributes(attrs []*model.Attribute) []*model.Attribute {
 	index := make(map[string]int, len(attrs))
 	out := attrs[:0:0]
@@ -476,7 +482,7 @@ func collapseAttributes(attrs []*model.Attribute) []*model.Attribute {
 			continue
 		}
 		winner, other := a, out[i]
-		if other.IsProperty && !a.IsProperty {
+		if (other.IsProperty && !a.IsProperty) || (a.Instance && !other.Instance) {
 			winner, other = other, a
 		}
 		if winner.Type == nil {
@@ -659,8 +665,9 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 							continue
 						}
 						attrs = append(attrs, &model.Attribute{
-							Name:  a.Attr,
-							Value: exprToString(s.Value),
+							Name:     a.Attr,
+							Value:    exprToString(s.Value),
+							Instance: true,
 						})
 					}
 				}
@@ -672,8 +679,9 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 						continue
 					}
 					attr := &model.Attribute{
-						Name: a.Attr,
-						Type: exprToTypeExpr(s.Annotation),
+						Name:     a.Attr,
+						Type:     exprToTypeExpr(s.Annotation),
+						Instance: true,
 					}
 					if s.Value != nil {
 						attr.Value = exprToString(s.Value)
