@@ -80,6 +80,12 @@ func FormatSymbols(in *DocsInput, q, kind string, limit int) string {
 		for _, exc := range mod.Exceptions {
 			addClass("exception", exc)
 		}
+		for _, c := range mod.Constants {
+			path := mod.Name + "." + c.Name
+			if matchesQ(path) && matchesKind("constant") {
+				entries = append(entries, entry{path, "constant", c.Signature()})
+			}
+		}
 		for _, a := range mod.Aliases {
 			path := mod.Name + "." + a.Name
 			if matchesQ(path) && matchesKind("alias") {

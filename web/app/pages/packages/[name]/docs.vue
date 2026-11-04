@@ -39,7 +39,15 @@ const entries = computed(() => docEntries(docs.value?.modules ?? []));
 const allFunctions = computed(() => entries.value.functions);
 const allClasses = computed(() => entries.value.classes);
 const allExceptions = computed(() => entries.value.exceptions);
+const allConstants = computed(() => entries.value.constants);
 const reExports = computed(() => (docs.value?.modules ?? []).filter((m) => m.aliases?.length));
+const reExportCount = computed(() =>
+  reExports.value.reduce((n, m) => n + (m.aliases?.length ?? 0), 0),
+);
+
+// The DOM ids of the sections after the cards. Jumps use them in place of a symbol id.
+const CONSTANTS_SECTION = "constants";
+const RE_EXPORTS_SECTION = "re-exports";
 
 function symId(id: string) {
   return `sym-${encodeURIComponent(id)}`;
@@ -79,6 +87,26 @@ const paletteSections = computed(() => [
           kind: "exceptions",
           count: allExceptions.value.length,
           firstSymbol: allExceptions.value[0]?.id ?? null,
+        },
+      ]
+    : []),
+  ...(allConstants.value.length
+    ? [
+        {
+          label: "Constants",
+          kind: "constants",
+          count: allConstants.value.length,
+          firstSymbol: CONSTANTS_SECTION,
+        },
+      ]
+    : []),
+  ...(reExportCount.value
+    ? [
+        {
+          label: "Re-exports",
+          kind: "re-exports",
+          count: reExportCount.value,
+          firstSymbol: RE_EXPORTS_SECTION,
         },
       ]
     : []),
@@ -126,14 +154,39 @@ watch(
 
 const visibleSymbols = computed(() => allSymbols.value.slice(0, renderedCount.value));
 
+// The sections after the cards wait for the last card, so a deferred card never
+// renders above them.
+const cardsRendered = computed(() => renderedCount.value >= allSymbols.value.length);
+
 // ── Active symbol + scroll tracking ───────────────────────────────────────
 const activeSymbol = ref<string | null>(null);
 let observer: IntersectionObserver | null = null;
+
+// A jump scrolls past other cards and rows, and it stops with the target above the
+// band the observer watches. The target stays active until that scroll ends.
+const MAX_JUMP_SCROLL_MS = 3000;
+let jumping = false;
+let jumpTimer: ReturnType<typeof setTimeout> | undefined;
+
+function endJump() {
+  jumping = false;
+  clearTimeout(jumpTimer);
+  window.removeEventListener("scrollend", endJump);
+}
+
+function startJump() {
+  endJump();
+  jumping = true;
+  window.addEventListener("scrollend", endJump);
+  // A target already in place scrolls nothing, so no scrollend event comes.
+  jumpTimer = setTimeout(endJump, MAX_JUMP_SCROLL_MS);
+}
 
 function setupObserver() {
   observer?.disconnect();
   observer = new IntersectionObserver(
     (entries) => {
+      if (jumping) return;
       for (const entry of entries) {
         if (entry.isIntersecting) {
           activeSymbol.value = (entry.target as HTMLElement).dataset.symbol ?? null;
@@ -159,25 +212,49 @@ watch(renderedCount, (newCount, oldCount) => {
   }
 });
 
+// Constant rows take part in the scroll tracking as cards do.
+watch(
+  [cardsRendered, allConstants],
+  async ([rendered]) => {
+    if (!import.meta.client || !rendered) return;
+    await nextTick();
+    if (!observer) setupObserver();
+    for (const el of document.querySelectorAll("[data-testid='constant-row']")) {
+      observer!.observe(el);
+    }
+  },
+  { immediate: true },
+);
+
 onUnmounted(() => {
   observer?.disconnect();
   if (pendingIdle) cic(pendingIdle);
+  endJump();
 });
 
 // ── Jump to symbol ─────────────────────────────────────────────────────────
 async function jumpToSymbol(symbolId: string) {
-  const targetIndex = allSymbols.value.findIndex((s) => s.id === symbolId);
-  if (targetIndex === -1) return;
+  const isSection = symbolId === CONSTANTS_SECTION || symbolId === RE_EXPORTS_SECTION;
+  const cardIndex = allSymbols.value.findIndex((s) => s.id === symbolId);
+  if (!isSection && cardIndex === -1 && !allConstants.value.some((c) => c.id === symbolId)) return;
 
-  if (targetIndex >= renderedCount.value) {
+  // A target after the cards needs every card rendered above it.
+  const needed = cardIndex === -1 ? allSymbols.value.length : cardIndex + 1;
+  if (needed > renderedCount.value) {
     if (pendingIdle) cic(pendingIdle);
-    renderedCount.value = targetIndex + 1;
+    renderedCount.value = needed;
+    // The batches stopped above, and the cards below the target still need them.
+    if (needed < allSymbols.value.length) scheduleNextBatch();
     await nextTick();
   }
 
-  activeSymbol.value = symbolId;
-  const el = document.getElementById(symId(symbolId));
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  // A section has no row in the sidebar to mark.
+  if (!isSection) activeSymbol.value = symbolId;
+  const el = document.getElementById(isSection ? symbolId : symId(symbolId));
+  if (el) {
+    startJump();
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 // ── ⌘K / Ctrl+K global shortcut ──────────────────────────────────────────
@@ -299,6 +376,8 @@ if (pkg.value) {
             :functions="allFunctions"
             :classes="allClasses"
             :exceptions="allExceptions"
+            :constants="allConstants"
+            :re-export-count="reExportCount"
             :active-symbol="activeSymbol"
             @select="jumpToSymbol"
           />
@@ -349,11 +428,13 @@ if (pkg.value) {
               :total-count="allSymbols.length"
             />
 
-            <!-- Comes last, so a deferred card never renders above it -->
-            <DocsReExports
-              v-if="reExports.length && renderedCount >= allSymbols.length"
-              :modules="reExports"
+            <DocsConstants
+              v-if="allConstants.length && cardsRendered"
+              :constants="allConstants"
+              :active-symbol="activeSymbol"
             />
+
+            <DocsReExports v-if="reExports.length && cardsRendered" :modules="reExports" />
           </div>
         </div>
 
@@ -361,6 +442,7 @@ if (pkg.value) {
         <DocsCommandPalette
           :symbols="allSymbols"
           :aliases="entries.aliases"
+          :constants="allConstants"
           :open="paletteOpen"
           :sections="paletteSections"
           @jump="jumpToSymbol"

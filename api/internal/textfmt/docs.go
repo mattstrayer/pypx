@@ -19,9 +19,11 @@ type DocsInput struct {
 
 type DocModuleInput struct {
 	Name       string
+	Docstring  string // First paragraph of the module docstring.
 	Functions  []DocSymbolInput
 	Classes    []DocSymbolInput
 	Exceptions []DocSymbolInput
+	Constants  []DocAttributeInput
 	Aliases    []DocAliasInput
 }
 
@@ -115,6 +117,11 @@ type DocRaiseInput struct {
 //
 //	## <module> (module)
 //
+//	<first paragraph of the module docstring>
+//
+//	Constants:
+//	  <name>: <type> = <value>
+//
 //	Aliases:
 //	  <name> -> <target>
 //
@@ -157,8 +164,10 @@ func FormatDocs(in *DocsInput, prefix string) string {
 	return b.String()
 }
 
-// writeMatchingSymbols writes, under each module header, the aliases and the block
-// of each symbol that match prefix. It reports whether it wrote any symbol.
+// writeMatchingSymbols writes, under each module header, the constants, the aliases
+// and the block of each symbol that match prefix. The module docstring appears only
+// when prefix selects the whole module. It reports whether it wrote any symbol or
+// constant.
 func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool {
 	matched := false
 
@@ -172,6 +181,29 @@ func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool
 				fmt.Fprintf(b, "## %s (module)\n\n", mod.Name)
 				modHeaderWritten = true
 			}
+		}
+
+		if mod.Docstring != "" && matchesPrefix(mod.Name, prefix) {
+			writeModuleHeader()
+			b.WriteString(mod.Docstring)
+			b.WriteString("\n\n")
+		}
+
+		wroteConstants := false
+		for _, c := range mod.Constants {
+			if !matchesPrefix(mod.Name+"."+c.Name, prefix) {
+				continue
+			}
+			if !wroteConstants {
+				writeModuleHeader()
+				b.WriteString("Constants:\n")
+				wroteConstants = true
+				matched = true
+			}
+			fmt.Fprintf(b, "  %s\n", c.Signature())
+		}
+		if wroteConstants {
+			b.WriteByte('\n')
 		}
 
 		wroteAliases := false
@@ -366,6 +398,7 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 //   - Method: "module.Class.method"
 //   - Attribute: "module.Class.attr" or "module.ExceptionClass.attr"
 //   - Exception: "module.ExceptionClass", with methods as for a class
+//   - Constant: "module.CONSTANT"
 //
 // A class lookup returns only the class block, not its methods. Methods are
 // addressed individually by their dotted path. A method wins over an attribute
@@ -457,6 +490,11 @@ func formatDirectSymbol(in *DocsInput, dotted string) (string, bool) {
 					return out, true
 				}
 			}
+		}
+
+		// Constant under this module? A function or class of the same name wins.
+		if out, ok := formatAttribute(DocSymbolInput{Attributes: mod.Constants}, rest, dotted); ok {
+			return out, true
 		}
 	}
 	return "", false

@@ -196,6 +196,171 @@ describe("docs page", () => {
     });
   });
 
+  describe("constants", () => {
+    const fn = (name: string) => ({
+      name,
+      kind: "function" as const,
+      signature: `def ${name}()`,
+      docstring: "",
+      parameters: [],
+    });
+
+    it("groups rows by module after the cards and before the re-exports", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [
+          {
+            name: "pkg",
+            docstring: "The module summary.",
+            functions: [fn("f")],
+            classes: [],
+            exceptions: [{ ...fn("Fail"), kind: "exception" }],
+            constants: [{ name: "LIMIT", type: "int", default: "10" }],
+            aliases: [{ name: "add", target: "pkg.core.add" }],
+          },
+          {
+            name: "pkg.core",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            constants: [{ name: "Alias", type: "TypeAlias", default: "int" }, { name: "RAW" }],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      const section = page.find("[data-testid='constants']");
+      expect(section.find("h2").text()).toBe("Constants");
+      expect(section.findAll("h3").map((h) => h.text())).toEqual(["pkg", "pkg.core"]);
+
+      const rows = section.findAll("[data-testid='constant-row']");
+      expect(
+        rows.map((r) =>
+          r
+            .findAll("span")
+            .map((s) => s.text())
+            .join(" "),
+        ),
+      ).toEqual(["LIMIT int = 10", "Alias TypeAlias = int", "RAW"]);
+      expect(rows[0]!.attributes("id")).toBe("sym-pkg.LIMIT");
+
+      const exception = page.find("[id='sym-pkg.Fail']").element;
+      expect(exception.compareDocumentPosition(section.element)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(
+        section.element.compareDocumentPosition(page.find("[data-testid='re-exports']").element),
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+      // The module docstring goes to docs.txt only.
+      expect(page.text()).not.toContain("The module summary.");
+    });
+
+    it("has no section when the package has no constants", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [{ name: "pkg", functions: [fn("f")], classes: [], exceptions: [] }],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      expect(page.find("[data-testid='constants']").exists()).toBe(false);
+    });
+
+    it("shows the section for a package with only constants", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [
+          {
+            name: "pkg",
+            functions: [],
+            classes: [],
+            exceptions: [],
+            constants: [{ name: "LIMIT", default: "10" }],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      expect(page.find("[data-testid='constants']").text()).toContain("LIMIT");
+    });
+
+    it("gives a constant and a card with one path their own ids", async () => {
+      fetchDocs.mockResolvedValue({
+        package: "pkg",
+        version: "1.0",
+        available: true,
+        modules: [
+          {
+            name: "pkg",
+            functions: [fn("X")],
+            classes: [],
+            exceptions: [],
+            constants: [{ name: "X" }, { name: "Y" }],
+            aliases: [{ name: "Y2", target: "pkg.Y" }],
+          },
+        ],
+      });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      const ids = page.findAll("[id]").map((el) => el.attributes("id"));
+      expect(ids).toContain("sym-pkg.X");
+      expect(ids).toContain(`sym-${encodeURIComponent("pkg.X~2")}`);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  describe("jumps while cards still render", () => {
+    const cards = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        name: `f${i}`,
+        kind: "function" as const,
+        signature: `def f${i}()`,
+        docstring: "",
+        parameters: [],
+      }));
+    const modules = [
+      {
+        name: "pkg",
+        functions: cards(120),
+        classes: [],
+        exceptions: [],
+        constants: [{ name: "LIMIT", default: "10" }],
+        aliases: [{ name: "add", target: "pkg.core.add" }],
+      },
+    ];
+
+    async function jump(id: string) {
+      fetchDocs.mockResolvedValue({ package: "pkg", version: "1.0", available: true, modules });
+      const page = await mountSuspended(DocsPage);
+      await flushPromises();
+      expect(page.find("[data-testid='constants']").exists()).toBe(false);
+      page.findComponent({ name: "DocsCommandPalette" }).vm.$emit("jump", id);
+      return page;
+    }
+
+    it("renders the cards after a card target, and the sections after them", async () => {
+      const page = await jump("pkg.f50");
+      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f50']").exists()).toBe(true));
+      await vi.waitFor(() => expect(page.find("[id='sym-pkg.f119']").exists()).toBe(true), 8000);
+      await vi.waitFor(() => expect(page.find("[data-testid='re-exports']").exists()).toBe(true));
+    }, 15000);
+
+    it.each(["constants", "re-exports", "pkg.LIMIT"])("reaches %s at once", async (id) => {
+      const page = await jump(id);
+      await nextTick();
+      await nextTick();
+      expect(page.find("[id='sym-pkg.f119']").exists()).toBe(true);
+      expect(page.find("[data-testid='constants']").exists()).toBe(true);
+      expect(page.find("[data-testid='re-exports']").exists()).toBe(true);
+    });
+  });
+
   it("offers the symbol jump when docs exist", async () => {
     const available: DocsResponse = {
       package: "pkg",

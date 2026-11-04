@@ -349,9 +349,10 @@ func (h *DiffHandler) fetchAPIDiff(ctx context.Context, name, from, to string) (
 }
 
 // flattenSymbols walks a DocsResponse tree and returns a dotted-path → signature
-// map for all functions, classes, methods, attributes, and exceptions across all
-// modules. On dotted-path collisions across modules (rare in valid Python),
-// last-write-wins. A method beats an attribute with the same name in its class.
+// map for all functions, classes, methods, attributes, exceptions and constants
+// across all modules. On dotted-path collisions across modules (rare in valid
+// Python), last-write-wins. A method beats an attribute with the same name in its
+// class, and a function or class beats a constant with the same name in its module.
 //
 // An alias path counts as a path of its target, with the target's signature and
 // members. Which module holds the definition is then not part of the comparison:
@@ -372,14 +373,13 @@ func flattenSymbols(d DocsResponse) map[string]string {
 	}
 	addAttributes := func(path string, attrs []DocAttribute) {
 		for _, a := range attrs {
-			sig := attributeInputFrom(a).Signature()
-			if a.DefaultDigest != "" {
-				sig += " [default digest " + a.DefaultDigest + "]"
-			}
-			add(path, "."+a.Name, sig)
+			add(path, "."+a.Name, withDigest(attributeInputFrom(a).Signature(), a.DefaultDigest))
 		}
 	}
 	for _, mod := range d.Modules {
+		for _, c := range mod.Constants {
+			add(mod.Name+"."+c.Name, "", withDigest(constantInputFrom(c).Signature(), c.DefaultDigest))
+		}
 		for _, fn := range mod.Functions {
 			add(mod.Name+"."+fn.Name, "", fn.Signature)
 		}
@@ -411,6 +411,15 @@ func flattenSymbols(d DocsResponse) map[string]string {
 	return out
 }
 
+// withDigest adds the digest of a cut value to a signature, so that a change past
+// the cut changes the row.
+func withDigest(sig, digest string) string {
+	if digest == "" {
+		return sig
+	}
+	return sig + " [default digest " + digest + "]"
+}
+
 // aliasSignature is the signature of an alias row, as symbols.txt prints it.
 func aliasSignature(target string) string {
 	return "-> " + target
@@ -427,6 +436,9 @@ func aliasTargets(d DocsResponse) map[string]string {
 		defined := make(map[string]bool)
 		for _, sym := range slices.Concat(mod.Functions, mod.Classes, mod.Exceptions) {
 			defined[sym.Name] = true
+		}
+		for _, c := range mod.Constants {
+			defined[c.Name] = true
 		}
 		for _, a := range mod.Aliases {
 			if !defined[a.Name] {

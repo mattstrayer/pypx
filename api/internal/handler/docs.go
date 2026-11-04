@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -49,13 +50,29 @@ const (
 
 // DocModule is a Python module in the documentation.
 type DocModule struct {
-	Name       string      `json:"name"`
+	Name string `json:"name"`
+	// Docstring is the first paragraph of the module docstring.
+	Docstring  string      `json:"docstring,omitempty"`
 	Functions  []DocSymbol `json:"functions"`
 	Classes    []DocSymbol `json:"classes"`
 	Exceptions []DocSymbol `json:"exceptions"`
+	// Constants lists the module attributes that isConstant accepts and the
+	// module's "type X = ..." aliases.
+	Constants []DocConstant `json:"constants,omitempty"`
 	// Aliases lists names this module re-exports whose definition is published
 	// under another module.
 	Aliases []DocAlias `json:"aliases,omitempty"`
+}
+
+// DocConstant is a module constant or type alias. No extracted one has a docstring,
+// and it is never a property, so it has only these fields of DocAttribute.
+type DocConstant struct {
+	Name    string `json:"name"`
+	Type    string `json:"type,omitempty"`
+	Default string `json:"default,omitempty"`
+	// DefaultDigest identifies the full value when Default is truncated, so a diff
+	// sees a change past the cut.
+	DefaultDigest string `json:"default_digest,omitempty"`
 }
 
 // DocAlias is a public name that points at a definition published elsewhere.
@@ -681,9 +698,11 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 		dm := DocModule{
 			Name:       mod.Name,
+			Docstring:  firstParagraph(cleanDocstringText(mod.Docstring)),
 			Functions:  make([]DocSymbol, 0, len(mod.Functions)),
 			Classes:    make([]DocSymbol, 0),
 			Exceptions: make([]DocSymbol, 0),
+			Constants:  moduleConstants(mod),
 		}
 
 		for _, fn := range mod.Functions {
@@ -702,7 +721,9 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 			}
 		}
 
-		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 || len(mod.Aliases) > 0 {
+		// A docstring alone does not keep a module, so a package with nothing else
+		// stays unavailable.
+		if len(dm.Functions) > 0 || len(dm.Classes) > 0 || len(dm.Exceptions) > 0 || len(dm.Constants) > 0 || len(mod.Aliases) > 0 {
 			modules = append(modules, dm)
 			if len(mod.Aliases) > 0 {
 				aliases = append(aliases, moduleAliases{len(modules) - 1, mod.Aliases})
@@ -720,7 +741,7 @@ func convertToDocsResponse(name, version string, pkg *model.Package, stubs stubI
 		}
 	}
 	modules = slices.DeleteFunc(modules, func(dm DocModule) bool {
-		return len(dm.Functions) == 0 && len(dm.Classes) == 0 && len(dm.Exceptions) == 0 && len(dm.Aliases) == 0
+		return len(dm.Functions) == 0 && len(dm.Classes) == 0 && len(dm.Exceptions) == 0 && len(dm.Constants) == 0 && len(dm.Aliases) == 0
 	})
 
 	if modules == nil {
@@ -906,11 +927,7 @@ func convertClass(cls *model.Class, stubs stubIndex, modName string) DocSymbol {
 		}
 		// An __init__ assignment holds an expression, not a default.
 		if !a.Instance {
-			attr.Default = truncateDefault(a.Value)
-			if attr.Default != a.Value {
-				sum := sha256.Sum256([]byte(a.Value))
-				attr.DefaultDigest = hex.EncodeToString(sum[:8])
-			}
+			attr.Default, attr.DefaultDigest = servedDefault(a.Value)
 		}
 		if a.Type != nil {
 			attr.Type = a.Type.Raw
@@ -935,6 +952,122 @@ func truncateDefault(s string) string {
 		return s
 	}
 	return string([]rune(s)[:maxDefaultRunes-1]) + "…"
+}
+
+// servedDefault returns a value as the API serves it, with a digest of the full
+// value if it was cut.
+func servedDefault(value string) (shown, digest string) {
+	shown = truncateDefault(value)
+	if shown != value {
+		sum := sha256.Sum256([]byte(value))
+		digest = hex.EncodeToString(sum[:8])
+	}
+	return shown, digest
+}
+
+// moduleConstants lists the attributes of mod that are constants, then its
+// "type X = ..." aliases.
+func moduleConstants(mod *model.Module) []DocConstant {
+	var out []DocConstant
+	for _, a := range mod.Attributes {
+		c := DocConstant{Name: a.Name}
+		if a.Type != nil {
+			c.Type = a.Type.Raw
+		}
+		if isConstant(a.Name, c.Type, a.Value) {
+			c.Default, c.DefaultDigest = servedDefault(a.Value)
+			out = append(out, c)
+		}
+	}
+	for _, t := range mod.TypeAliases {
+		c := DocConstant{Name: t.Name, Type: "TypeAlias"}
+		if t.Value != nil {
+			c.Default, c.DefaultDigest = servedDefault(t.Value.Raw)
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// typingGenerics lists the names whose subscript makes a value a type, as in
+// Union[int, str]. A module path before the name is ignored.
+var typingGenerics = map[string]bool{
+	"Annotated": true, "AsyncIterable": true, "AsyncIterator": true, "Awaitable": true,
+	"Callable": true, "ClassVar": true, "Collection": true, "Container": true,
+	"Coroutine": true, "DefaultDict": true, "Deque": true, "Dict": true, "Final": true,
+	"FrozenSet": true, "Generator": true, "Iterable": true, "Iterator": true, "List": true,
+	"Literal": true, "Mapping": true, "MutableMapping": true, "MutableSequence": true,
+	"MutableSet": true, "Optional": true, "Sequence": true, "Set": true, "Tuple": true,
+	"Type": true, "Union": true,
+	"dict": true, "frozenset": true, "list": true, "set": true, "tuple": true, "type": true,
+}
+
+// isConstant reports whether a module attribute is API a reader can use: an
+// ALL_CAPS name, a TypeAlias annotation, or a CamelCase name for a typing generic.
+// Most other attributes count as public only because their module has no __all__.
+// Dunders and type parameters are never constants, whatever their name looks like,
+// so T = TypeVar("T") is out.
+func isConstant(name, typ, value string) bool {
+	if isDunder(name) {
+		return false
+	}
+	if callee, _, isCall := strings.Cut(value, "("); isCall {
+		switch callee[strings.LastIndex(callee, ".")+1:] {
+		case "TypeVar", "TypeVarTuple", "ParamSpec", "NewType":
+			return false
+		}
+	}
+	if name == strings.ToUpper(name) && name != strings.ToLower(name) {
+		return true
+	}
+	annotation := strings.Trim(typ, `"'`)
+	if annotation[strings.LastIndex(annotation, ".")+1:] == "TypeAlias" {
+		return true
+	}
+	first, _ := utf8.DecodeRuneInString(name)
+	if !unicode.IsUpper(first) || strings.Contains(name, "_") {
+		return false
+	}
+	head, _, isSubscript := strings.Cut(value, "[")
+	return isSubscript && typingGenerics[head[strings.LastIndex(head, ".")+1:]]
+}
+
+// firstParagraph returns the first paragraph of docstring prose. A reStructuredText
+// title or directive is not a paragraph. Many modules open with their own path and
+// an underline, or with a line like ".. currentmodule:: x", so the paragraph after
+// it is the one that says something.
+func firstParagraph(text string) string {
+	var para []string
+	inDirective := false
+	for raw := range strings.Lines(text) {
+		line := strings.TrimSpace(raw)
+		if len(para) == 0 && strings.HasPrefix(line, ".. ") {
+			inDirective = true
+			continue
+		}
+		if inDirective && (line == "" || !isFlushLeft(raw)) {
+			continue
+		}
+		inDirective = false
+		switch {
+		case line == "":
+			if len(para) > 0 {
+				return strings.Join(para, "\n")
+			}
+		case isRSTAdornment(line) && len(para) <= 1:
+			para = nil
+		default:
+			para = append(para, line)
+		}
+	}
+	return strings.Join(para, "\n")
+}
+
+// isRSTAdornment reports whether line is a reStructuredText title's overline or
+// underline: three or more of one punctuation character.
+func isRSTAdornment(line string) bool {
+	return len(line) >= 3 && strings.ContainsRune("=-~^\"'`#*+:._", rune(line[0])) &&
+		strings.Trim(line, line[:1]) == ""
 }
 
 // buildMergedSignature builds a function signature using the already-merged DocParam
@@ -1262,7 +1395,10 @@ func docsInputFrom(d DocsResponse) *textfmt.DocsInput {
 		StubPackage: d.StubPackage,
 	}
 	for _, m := range d.Modules {
-		mod := textfmt.DocModuleInput{Name: m.Name}
+		mod := textfmt.DocModuleInput{Name: m.Name, Docstring: m.Docstring}
+		for _, c := range m.Constants {
+			mod.Constants = append(mod.Constants, constantInputFrom(c))
+		}
 		for _, a := range m.Aliases {
 			mod.Aliases = append(mod.Aliases, textfmt.DocAliasInput{Name: a.Name, Target: a.Target})
 		}
@@ -1313,6 +1449,10 @@ func attributeInputFrom(a DocAttribute) textfmt.DocAttributeInput {
 		Name: a.Name, Type: a.Type, Default: a.Default, Description: a.Description,
 		IsProperty: a.IsProperty, Writable: a.Writable,
 	}
+}
+
+func constantInputFrom(c DocConstant) textfmt.DocAttributeInput {
+	return textfmt.DocAttributeInput{Name: c.Name, Type: c.Type, Default: c.Default}
 }
 
 // GetSymbol handles GET /api/packages/{name}/docs/{symbol}.txt.

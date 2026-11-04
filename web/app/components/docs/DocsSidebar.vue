@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DynamicScroller as RawDynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
-import type { DocEntry } from "~/utils/docSymbols";
+import type { DocConstantEntry, DocEntry } from "~/utils/docSymbols";
 
 // vue-virtual-scroller ships no usable slot types; declare the default scoped
 // slot explicitly so vue-tsc can resolve `#default` (it resolves `$slots` on an
@@ -17,6 +17,8 @@ const props = defineProps<{
   functions: DocEntry[];
   classes: DocEntry[];
   exceptions: DocEntry[];
+  constants?: DocConstantEntry[];
+  reExportCount?: number;
   activeSymbol: string | null;
 }>();
 
@@ -26,7 +28,8 @@ const emit = defineEmits<{
 
 type SidebarItem =
   | { id: string; type: "header"; label: string; kind: string; count: number }
-  | { id: string; type: "symbol"; symbol: DocEntry; kind: string };
+  | { id: string; type: "section-link"; label: string; target: string; count: number }
+  | { id: string; type: "symbol"; symbol: DocEntry | DocConstantEntry; kind: string };
 
 const collapsed = ref(new Set<string>());
 
@@ -77,6 +80,29 @@ const items = computed<SidebarItem[]>(() => {
       for (const s of props.exceptions)
         list.push({ id: `s-${s.id}`, type: "symbol", symbol: s, kind: s.kind });
     }
+  }
+  if (props.constants?.length) {
+    list.push({
+      id: "h-constants",
+      type: "header",
+      label: "Constants",
+      kind: "constants",
+      count: props.constants.length,
+    });
+    if (!collapsed.value.has("constants")) {
+      for (const s of props.constants)
+        list.push({ id: `s-${s.id}`, type: "symbol", symbol: s, kind: s.kind });
+    }
+  }
+  // This section has no rows, so its header jumps to it in place of folding.
+  if (props.reExportCount) {
+    list.push({
+      id: "h-re-exports",
+      type: "section-link",
+      label: "Re-exports",
+      target: "re-exports",
+      count: props.reExportCount,
+    });
   }
   return list;
 });
@@ -131,6 +157,23 @@ watch(activeIndex, (idx) => {
               </svg>
               {{ item.label }}
             </span>
+            <span
+              class="rounded-full bg-[var(--color-brand-muted)] px-1.5 py-0.5 text-[9px] text-[var(--color-brand)]"
+              >{{ item.count }}</span
+            >
+          </button>
+
+          <!-- Section with no rows -->
+          <button
+            v-else-if="item.type === 'section-link'"
+            data-testid="section-link"
+            class="flex w-full items-center justify-between px-3 hover:bg-raised/50 transition-colors cursor-pointer"
+            style="height: 36px"
+            @click="emit('select', item.target)"
+          >
+            <span class="text-[11px] font-semibold uppercase tracking-wide text-primary">{{
+              item.label
+            }}</span>
             <span
               class="rounded-full bg-[var(--color-brand-muted)] px-1.5 py-0.5 text-[9px] text-[var(--color-brand)]"
               >{{ item.count }}</span

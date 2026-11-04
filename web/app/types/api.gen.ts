@@ -195,6 +195,13 @@ export interface DocAttribute {
   writable: boolean;
 }
 
+export interface DocConstant {
+  name: string;
+  type?: string;
+  default?: string;
+  default_digest?: string;
+}
+
 export interface DocParam {
   name: string;
   type?: string;
@@ -229,9 +236,11 @@ export interface DocSymbol {
 
 export interface DocModule {
   name: string;
+  docstring?: string;
   functions: DocSymbol[];
   classes: DocSymbol[];
   exceptions: DocSymbol[];
+  constants?: DocConstant[];
   aliases?: { name: string; target: string }[];
 }
 

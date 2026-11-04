@@ -143,8 +143,8 @@ func TestConvertToDocsResponse_Aliases(t *testing.T) {
 // A package that only re-exports attributes still has names to show.
 func TestConvertToDocsResponse_OnlyAttributeAliasesAvailable(t *testing.T) {
 	pkg := &model.Package{Modules: []*model.Module{
-		{Name: "pkg", Aliases: []*model.Alias{{Name: "CONST", Target: "pkg.a.CONST"}}},
-		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "CONST"}}},
+		{Name: "pkg", Aliases: []*model.Alias{{Name: "ufunc", Target: "pkg.a.ufunc"}}},
+		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "ufunc"}}},
 	}}
 	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
 	if !resp.Available || len(resp.Modules) != 1 || resp.Modules[0].Name != "pkg" {
@@ -155,7 +155,7 @@ func TestConvertToDocsResponse_OnlyAttributeAliasesAvailable(t *testing.T) {
 func TestConvertToDocsResponse_NoNamesNotAvailable(t *testing.T) {
 	pkg := &model.Package{Modules: []*model.Module{
 		{Name: "pkg", Aliases: []*model.Alias{{Name: "ghost", Target: "pkg.a.ghost"}}},
-		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "CONST"}}},
+		{Name: "pkg.a", Attributes: []*model.Attribute{{Name: "ufunc"}}},
 	}}
 	resp := convertToDocsResponse("pkg", "1", pkg, stubIndex{})
 	if resp.Available || len(resp.Modules) != 0 {
