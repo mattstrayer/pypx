@@ -242,6 +242,14 @@ var routes = []routeDef{
 		Timeout:     "60s",
 	},
 	{
+		Path:        "/api/packages/{name}/docs/status",
+		Summary:     "Whether API documentation exists",
+		Description: "Reports whether extracted documentation is available for the latest version, without sending the documentation itself. A cold cache can start an extraction.",
+		Params:      []paramDef{nameParam},
+		ResponseRef: "DocsStatusResponse",
+		Timeout:     "60s",
+	},
+	{
 		Path:        "/api/packages/{name}/docs/{symbol}",
 		Summary:     "Documentation for a single symbol (text only)",
 		Description: "Renders one symbol's signature and docstring. Content negotiation does not apply to this route: it always returns text/plain, and a trailing \".txt\" on the symbol is stripped.",

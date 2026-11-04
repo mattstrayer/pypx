@@ -229,6 +229,10 @@ export interface DocsResponse {
   modules: DocModule[];
 }
 
+export interface DocsStatusResponse {
+  available: boolean;
+}
+
 export interface CompareInput {
   Skipped: SkippedPackage[];
   Packages: ComparePackageInput[];

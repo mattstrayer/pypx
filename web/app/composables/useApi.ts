@@ -68,6 +68,10 @@ export function useApi() {
     return request(`/packages/${name}/docs`);
   }
 
+  async function fetchDocsStatus(name: string): Promise<{ available: boolean }> {
+    return request(`/packages/${name}/docs/status`);
+  }
+
   async function fetchPopular(
     limit = 24,
   ): Promise<Array<{ name: string; summary: string; downloads: number }>> {
@@ -92,6 +96,7 @@ export function useApi() {
     fetchSecurity,
     fetchExtras,
     fetchDocs,
+    fetchDocsStatus,
     fetchPopular,
     fetchCompare,
     fetchDiff,
