@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -18,10 +19,19 @@ func TestParseDeeplyNestedDoesNotOverflow(t *testing.T) {
 	}
 }
 
+// smallStack lowers the stack limit for one test, so that unbounded recursion fails
+// fast on a small input. The depth cap needs far less stack than this.
+func smallStack(t *testing.T) {
+	t.Helper()
+	old := debug.SetMaxStack(16 << 20)
+	t.Cleanup(func() { debug.SetMaxStack(old) })
+}
+
 // Operators recurse without going through parseExpr, so they need the cap too.
 // Without it, these inputs overflow the goroutine stack, which is a fatal error.
 func TestParseDeepOperatorsDoNotOverflow(t *testing.T) {
-	const n = 8_000_000
+	smallStack(t)
+	const n = 1_000_000
 	for name, src := range map[string]string{
 		"unary": "x = " + strings.Repeat("-", n) + "a\n",
 		"not":   "x = " + strings.Repeat("not ", n) + "a\n",
@@ -35,7 +45,9 @@ func TestParseDeepOperatorsDoNotOverflow(t *testing.T) {
 
 // An elif chain has no nesting in the source, so its length must not grow the stack.
 func TestLongElifChain(t *testing.T) {
-	src := "if a:\n    pass\n" + strings.Repeat("elif a:\n    pass\n", 5_000_000) + "else:\n    def f(): pass\n"
+	smallStack(t)
+	const n = 500_000
+	src := "if a:\n    pass\n" + strings.Repeat("elif a:\n    pass\n", n) + "else:\n    def f(): pass\n"
 	mod := parse(t, src)
 	requireStmts(t, mod, 1)
 	depth := 0
@@ -48,8 +60,8 @@ func TestLongElifChain(t *testing.T) {
 		node = next
 		depth++
 	}
-	if depth != 5_000_000 {
-		t.Errorf("got %d elif branches, want 5000000", depth)
+	if depth != n {
+		t.Errorf("got %d elif branches, want %d", depth, n)
 	}
 	if fn := asFuncDef(t, node.Orelse[0]); fn.Name != "f" {
 		t.Errorf("got %q, want f", fn.Name)
