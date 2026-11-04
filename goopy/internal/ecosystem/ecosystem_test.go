@@ -206,9 +206,22 @@ func TestParity(t *testing.T) {
 	})
 }
 
+// stubCorpus adds packages with many .pyi files to TestASTConformance. Only their
+// .pyi files are compared.
+var stubCorpus = []packageEntry{
+	{Name: "numpy", Version: "2.5.4"},
+	{Name: "pandas", Version: "3.1.0"},
+	{Name: "scipy", Version: "1.18.1"},
+	{Name: "orjson", Version: "3.13.0"},
+	{Name: "bcrypt", Version: "5.0.0"},
+	{Name: "cryptography", Version: "46.0.1"},
+	{Name: "pydantic-core", Version: "2.39.0"},
+	{Name: "pillow", Version: "11.3.0"},
+}
+
 // TestASTConformance compares goopy's parser with CPython's ast module on every
-// .py file in the pinned packages. Counts may not exceed the ratchet maxima, which
-// are all zero.
+// .py and .pyi file in the pinned packages, and on the .pyi files in stubCorpus.
+// Counts may not exceed the ratchet maxima, which are all zero.
 //
 // Requires: python3 (standard library only).
 func TestASTConformance(t *testing.T) {
@@ -235,7 +248,7 @@ func TestASTConformance(t *testing.T) {
 	list := loadPackages(t)
 	var (
 		filesWithErrors, missing, extra, paramMismatches int
-		compared, downloadFailures                       int
+		compared, comparedStubs, downloadFailures        int
 	)
 	type fileStat struct {
 		path   string
@@ -245,8 +258,9 @@ func TestASTConformance(t *testing.T) {
 	var worst []fileStat
 	firstErrors := map[string]int{}
 
-	for _, pkg := range list.Packages {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	for i, pkg := range slices.Concat(list.Packages, stubCorpus) {
+		stubsOnly := i >= len(list.Packages)
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		contents, err := wheel.NewSource().Fetch(ctx, pkg.Name, pkg.Version)
 		cancel()
 		if err != nil {
@@ -257,7 +271,8 @@ func TestASTConformance(t *testing.T) {
 
 		dir := t.TempDir()
 		for rel, data := range contents.Files {
-			if !strings.HasSuffix(rel, ".py") {
+			isStub := strings.HasSuffix(rel, ".pyi")
+			if !isStub && (stubsOnly || !strings.HasSuffix(rel, ".py")) {
 				continue
 			}
 			clean := filepath.Clean(rel)
@@ -292,6 +307,9 @@ func TestASTConformance(t *testing.T) {
 				continue
 			}
 			compared++
+			if strings.HasSuffix(rel, ".pyi") {
+				comparedStubs++
+			}
 			got, errs := conformance.Parse(src)
 			st := fileStat{path: pkg.Name + "/" + rel}
 			if len(errs) > 0 {
@@ -320,8 +338,8 @@ func TestASTConformance(t *testing.T) {
 		}
 		return worst[i].path < worst[j].path
 	})
-	t.Logf("=== AST CONFORMANCE (%d packages, %d files compared, %d downloads failed) ===",
-		len(list.Packages), compared, downloadFailures)
+	t.Logf("=== AST CONFORMANCE (%d packages, %d files compared, %d of them .pyi, %d downloads failed) ===",
+		len(list.Packages)+len(stubCorpus), compared, comparedStubs, downloadFailures)
 	t.Logf("files with parse errors: %d", filesWithErrors)
 	t.Logf("missing defs:            %d", missing)
 	t.Logf("extra defs:              %d", extra)
@@ -576,7 +594,7 @@ func TestPublicAPICoverage(t *testing.T) {
 	}
 
 	// Ratchet: raise it when coverage rises. Set from the measured run.
-	const minCoveragePct = 99.0
+	const minCoveragePct = 99.9
 
 	// Name-level targets from the plan, as a minimum covered count.
 	targets := map[string]int{"httpx": 65, "h11": 23, "pluggy": 14, "yarl": 8, "attrs": 40}
@@ -704,6 +722,71 @@ func TestPublicAPICoverage(t *testing.T) {
 		covered, total, got, outside, compiled, downloadFailures)
 	if got < minCoveragePct {
 		t.Errorf("coverage %.1f%% is below ratchet %.1f%%", got, minCoveragePct)
+	}
+}
+
+// TestBundledStubs checks that .pyi files bundled in wheels supply the API of
+// compiled packages, on real wheels.
+func TestBundledStubs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping bundled stub test in short mode")
+	}
+
+	tests := []struct {
+		pkg       packageEntry
+		module    string
+		functions []string
+		classes   []string
+	}{
+		{packageEntry{Name: "orjson", Version: "3.13.0"}, "orjson", []string{"dumps", "loads"}, []string{"Fragment"}},
+		{packageEntry{Name: "bcrypt", Version: "5.0.0"}, "bcrypt", []string{"gensalt", "hashpw", "checkpw", "kdf"}, nil},
+		{packageEntry{Name: "numpy", Version: "2.5.4"}, "numpy", []string{"arange", "array"}, []string{"ndarray", "dtype"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pkg.Name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+			result, err := goopy.ExtractFromPyPI(ctx, tt.pkg.Name, tt.pkg.Version)
+			if err != nil {
+				t.Fatalf("ExtractFromPyPI: %v", err)
+			}
+
+			typedParams := 0
+			var mod *model.Module
+			for _, m := range result.Modules {
+				if m.Name == tt.module {
+					mod = m
+				}
+				for _, f := range m.Functions {
+					for _, sig := range append([]*model.Function{f}, f.Overloads...) {
+						for _, p := range sig.Parameters {
+							if p.Type != nil {
+								typedParams++
+							}
+						}
+					}
+				}
+			}
+			if mod == nil {
+				t.Fatalf("no module %s", tt.module)
+			}
+			for _, name := range tt.functions {
+				if !slices.ContainsFunc(mod.Functions, func(f *model.Function) bool { return f.Name == name }) &&
+					!slices.ContainsFunc(mod.Aliases, func(a *model.Alias) bool { return a.Name == name }) {
+					t.Errorf("%s does not expose function %s", tt.module, name)
+				}
+			}
+			for _, name := range tt.classes {
+				if !slices.ContainsFunc(mod.Classes, func(c *model.Class) bool { return c.Name == name }) &&
+					!slices.ContainsFunc(mod.Aliases, func(a *model.Alias) bool { return a.Name == name }) {
+					t.Errorf("%s does not expose class %s", tt.module, name)
+				}
+			}
+			if typedParams == 0 {
+				t.Error("no typed parameters")
+			}
+			t.Logf("%s: %d modules, %d typed parameters", tt.pkg.Name, len(result.Modules), typedParams)
+		})
 	}
 }
 

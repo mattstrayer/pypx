@@ -13,6 +13,7 @@ import (
 	"github.com/pypx/api/internal/pypi"
 	"github.com/pypx/goopy"
 	"github.com/pypx/goopy/model"
+	"github.com/pypx/goopy/wheel"
 )
 
 // stubHTTPClient is used for downloading stub wheels with an explicit timeout.
@@ -169,6 +170,7 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 
 	rawFiles := make(map[string][]byte)
 	topLevelSet := make(map[string]bool)
+	var total int64
 	for _, f := range zr.File {
 		if !strings.HasSuffix(f.Name, ".pyi") {
 			continue
@@ -182,10 +184,17 @@ func fetchStubPackage(ctx context.Context, stubPkgName string, releases map[stri
 		if err != nil {
 			continue
 		}
-		src, err := io.ReadAll(rc)
+		src, err := io.ReadAll(io.LimitReader(rc, wheel.MaxDecompressedFile+1))
 		_ = rc.Close()
 		if err != nil {
 			continue
+		}
+		if len(src) > wheel.MaxDecompressedFile {
+			return nil, fmt.Errorf("fetchStubPackage: %q exceeds per-file decompression cap (%d bytes)", f.Name, wheel.MaxDecompressedFile)
+		}
+		total += int64(len(src))
+		if total > wheel.MaxDecompressedTotal {
+			return nil, fmt.Errorf("fetchStubPackage: wheel exceeds total decompression budget (%d bytes)", wheel.MaxDecompressedTotal)
 		}
 		rawFiles[f.Name] = src
 	}

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ const (
 	DefaultMaxSize = 50 * 1024 * 1024 // 50 MB compressed download cap
 
 	// DefaultMaxRangeSize caps the size of wheels read with range requests.
-	// Only the central directory and .py entries are transferred.
+	// Only the central directory and .py and .pyi entries are transferred.
 	DefaultMaxRangeSize = 2 * 1024 * 1024 * 1024 // 2 GiB
 
 	// rangeThreshold is the wheel size above which range requests replace a
@@ -29,16 +30,19 @@ const (
 
 	pypiBaseURL = "https://pypi.org"
 
-	// maxDecompressedTotal caps the cumulative inflated size of all extracted
-	// .py sources, guarding against zip bombs. Generous vs. real packages,
-	// well under the 512 MB container.
-	maxDecompressedTotal = 200 * 1024 * 1024 // 200 MB
+	// MaxDecompressedTotal caps the cumulative inflated size of all extracted
+	// .py and .pyi sources, guarding against zip bombs. Generous vs. real
+	// packages, well under the 512 MB container.
+	MaxDecompressedTotal = 200 * 1024 * 1024 // 200 MB
 
-	// maxDecompressedFile caps a single inflated .py entry.
-	maxDecompressedFile = 32 * 1024 * 1024 // 32 MB
+	// MaxDecompressedFile caps a single inflated .py or .pyi entry.
+	MaxDecompressedFile = 32 * 1024 * 1024 // 32 MB
 
 	// maxFileCount caps the number of extracted entries.
 	maxFileCount = 50_000
+
+	// stubDirSuffix marks a PEP 561 stub directory: "foo-stubs" describes "foo".
+	stubDirSuffix = "-stubs"
 )
 
 // Sentinel errors. Callers use errors.Is to distinguish failure classes.
@@ -59,16 +63,17 @@ type WheelFile struct {
 	Size     int64
 }
 
-// WheelContents holds the extracted .py files from a wheel.
+// WheelContents holds the extracted .py and .pyi files from a wheel.
 type WheelContents struct {
-	Files        map[string][]byte // relative path -> source bytes
+	Files map[string][]byte // relative path -> source bytes
+	// TopLevelPkgs lists import names. A stub directory "foo-stubs" counts as "foo".
 	TopLevelPkgs []string
 	// Version is the release version PyPI reported. Fetch sets it, so a
 	// request for the latest release (empty version) learns the version it got.
 	Version string
 }
 
-// Fetcher downloads and extracts Python source files from a package wheel.
+// Fetcher downloads and extracts Python source and stub files from a package wheel.
 type Fetcher interface {
 	Fetch(ctx context.Context, name, version string) (*WheelContents, error)
 }
@@ -95,7 +100,7 @@ func NewSource() *Source {
 // Compile-time check that Source implements Fetcher.
 var _ Fetcher = (*Source)(nil)
 
-// Fetch downloads a wheel for the given package and version, returning .py file contents.
+// Fetch downloads a wheel for the given package and version, returning its .py and .pyi file contents.
 func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContents, error) {
 	wheels, resolved, err := s.fetchRelease(ctx, name, version)
 	if err != nil {
@@ -114,8 +119,8 @@ func (s *Source) Fetch(ctx context.Context, name, version string) (*WheelContent
 }
 
 // fetchWheel reads one wheel. Wheels above rangeThreshold are read with HTTP
-// range requests, so only the central directory and the .py entries cross the
-// network. If the server refuses ranges, it falls back to a whole download.
+// range requests, so only the central directory and the .py and .pyi entries
+// cross the network. If the server refuses ranges, it falls back to a whole download.
 func (s *Source) fetchWheel(ctx context.Context, w WheelFile, name string) (*WheelContents, error) {
 	if w.Size <= rangeThreshold {
 		return s.fetchWhole(ctx, w, name)
@@ -300,7 +305,7 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 					}
 					return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 				}
-				data, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile))
+				data, err := io.ReadAll(io.LimitReader(rc, MaxDecompressedFile))
 				_ = rc.Close()
 				if err != nil {
 					if isEntryCorrupt(err) {
@@ -313,7 +318,7 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 			continue
 		}
 
-		if strings.HasSuffix(f.Name, ".py") {
+		if strings.HasSuffix(f.Name, ".py") || strings.HasSuffix(f.Name, ".pyi") {
 			rc, err := f.Open()
 			if err != nil {
 				if isEntryCorrupt(err) {
@@ -322,7 +327,7 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 				return nil, fmt.Errorf("opening %q: %w", f.Name, err)
 			}
 			// Read one byte past the per-file cap to detect an over-limit entry.
-			src, err := io.ReadAll(io.LimitReader(rc, maxDecompressedFile+1))
+			src, err := io.ReadAll(io.LimitReader(rc, MaxDecompressedFile+1))
 			_ = rc.Close()
 			if err != nil {
 				if isEntryCorrupt(err) {
@@ -330,12 +335,12 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 				}
 				return nil, fmt.Errorf("reading %q: %w", f.Name, err)
 			}
-			if int64(len(src)) > maxDecompressedFile {
-				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, maxDecompressedFile)
+			if int64(len(src)) > MaxDecompressedFile {
+				return nil, fmt.Errorf("wheel file %q exceeds per-file decompression cap (%d bytes)", f.Name, MaxDecompressedFile)
 			}
 			totalDecompressed += int64(len(src))
-			if totalDecompressed > maxDecompressedTotal {
-				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes)", maxDecompressedTotal)
+			if totalDecompressed > MaxDecompressedTotal {
+				return nil, fmt.Errorf("wheel exceeds total decompression budget (%d bytes)", MaxDecompressedTotal)
 			}
 			contents.Files[f.Name] = src
 		}
@@ -343,11 +348,13 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 
 	// Keep only declared names that match a package directory or a module file.
 	for _, name := range declaredTopLevel {
+		name = strings.TrimSuffix(name, stubDirSuffix)
 		if hasTopLevelFiles(contents.Files, name) {
 			contents.TopLevelPkgs = append(contents.TopLevelPkgs, name)
 		}
 	}
 	sort.Strings(contents.TopLevelPkgs)
+	contents.TopLevelPkgs = slices.Compact(contents.TopLevelPkgs)
 
 	if len(contents.TopLevelPkgs) == 0 {
 		contents.TopLevelPkgs = inferTopLevel(contents.Files, pkgName)
@@ -357,12 +364,14 @@ func extractPyFiles(ra io.ReaderAt, size int64, pkgName string) (*WheelContents,
 }
 
 func hasTopLevelFiles(files map[string][]byte, name string) bool {
-	if _, ok := files[name+".py"]; ok {
-		return true
+	for _, file := range []string{name + ".py", name + ".pyi"} {
+		if _, ok := files[file]; ok {
+			return true
+		}
 	}
-	prefix := name + "/"
+	prefix, stubPrefix := name+"/", name+stubDirSuffix+"/"
 	for path := range files {
-		if strings.HasPrefix(path, prefix) {
+		if strings.HasPrefix(path, prefix) || strings.HasPrefix(path, stubPrefix) {
 			return true
 		}
 	}
@@ -387,12 +396,12 @@ func inferTopLevel(files map[string][]byte, pkgName string) []string {
 		dir := parts[0]
 		if len(parts) == 1 {
 			// Bare top-level file like "six.py" — the module name is the stem.
-			dir = strings.TrimSuffix(dir, ".py")
+			dir = strings.TrimSuffix(strings.TrimSuffix(dir, ".pyi"), ".py")
 		}
 		if strings.HasSuffix(dir, ".dist-info") || strings.HasSuffix(dir, ".data") {
 			continue
 		}
-		seen[dir] = true
+		seen[strings.TrimSuffix(dir, stubDirSuffix)] = true
 	}
 
 	if len(seen) > 0 {

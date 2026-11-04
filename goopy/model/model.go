@@ -51,6 +51,9 @@ type Module struct {
 	// Hidden holds definitions that are not public under the module's own rules.
 	// A re-export from another module can still reach them.
 	Hidden Definitions `json:"-"`
+	// StubOnly holds definitions from a .pyi for names the .py may import. The
+	// resolver adds them to the module if the import finds no definition.
+	StubOnly Definitions `json:"-"`
 }
 
 // Alias is a public name whose definition is published elsewhere. Target is the
@@ -68,6 +71,9 @@ type Import struct {
 	Level  int
 	Name   string
 	Alias  string
+	// NotExported is true for a .pyi import that does not re-export its name.
+	// __all__ can still publish the name.
+	NotExported bool
 }
 
 // Exports is the statically known content of __all__.
@@ -144,6 +150,9 @@ type Attribute struct {
 	Instance bool `json:"instance,omitempty"`
 	// Origin is the dotted module that defines this attribute, set on a re-export.
 	Origin string `json:"origin,omitempty"`
+	// StubTypeParam is true for "T = TypeVar(...)" in a .pyi. It is not API, so it
+	// is public only if a __all__ lists it.
+	StubTypeParam bool `json:"-"`
 }
 
 // TypeAlias represents a type alias (type X = ...).
