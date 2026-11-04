@@ -193,6 +193,71 @@ func TestDiffHandler_FollowsAliases(t *testing.T) {
 	})
 }
 
+func TestDiffHandler_AliasRows(t *testing.T) {
+	fn := func(name string) string {
+		return `{"name":"` + name + `","kind":"function","signature":"def ` + name + `()"}`
+	}
+	root := func(aliases string) string {
+		return `{"name":"pkg","functions":[],"classes":[],"exceptions":[],"aliases":[` + aliases + `]}`
+	}
+	alias := func(name, target string) string {
+		return `{"name":"` + name + `","target":"` + target + `"}`
+	}
+	// Both versions define foo in two modules with one signature, and neither has
+	// a symbol for the attribute targets.
+	mods := `{"name":"pkg.a","functions":[` + fn("foo") + `],"classes":[],"exceptions":[]},
+		{"name":"pkg.b","functions":[` + fn("foo") + `],"classes":[],"exceptions":[]}`
+	from := docsJSON("0.26.0", root(alias("foo", "pkg.a.foo")+","+alias("add", "pkg.attrs.add")+","+alias("sub", "pkg.attrs.sub"))+","+mods)
+
+	tests := []struct {
+		name   string
+		to     string
+		want   []string
+		reject []string
+	}{
+		{
+			name: "alias of an attribute removed",
+			to:   docsJSON("0.28.1", root(alias("foo", "pkg.a.foo")+","+alias("add", "pkg.attrs.add"))+","+mods),
+			want: []string{"- removed: pkg.sub"},
+		},
+		{
+			name: "alias of an attribute added",
+			to:   docsJSON("0.28.1", root(alias("foo", "pkg.a.foo")+","+alias("add", "pkg.attrs.add")+","+alias("sub", "pkg.attrs.sub")+","+alias("mul", "pkg.attrs.mul"))+","+mods),
+			want: []string{"+ added: pkg.mul"},
+		},
+		{
+			name: "alias of an attribute retargeted",
+			to:   docsJSON("0.28.1", root(alias("foo", "pkg.a.foo")+","+alias("add", "pkg.other.add")+","+alias("sub", "pkg.attrs.sub"))+","+mods),
+			want: []string{"~ changed: pkg.add", "-> pkg.attrs.add", "-> pkg.other.add"},
+		},
+		{
+			name: "alias retargeted to a definition with the same signature",
+			to:   docsJSON("0.28.1", root(alias("foo", "pkg.b.foo")+","+alias("add", "pkg.attrs.add")+","+alias("sub", "pkg.attrs.sub"))+","+mods),
+			want: []string{"~ changed: pkg.foo", "-> pkg.a.foo", "-> pkg.b.foo"},
+		},
+		{
+			name:   "nothing changed",
+			to:     docsJSON("0.28.1", root(alias("foo", "pkg.a.foo")+","+alias("add", "pkg.attrs.add")+","+alias("sub", "pkg.attrs.sub"))+","+mods),
+			reject: []string{"pkg.foo", "pkg.add", "pkg.sub"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := apiDiffBody(t, from, tt.to)
+			for _, want := range tt.want {
+				if !strings.Contains(body, want) {
+					t.Errorf("missing %q:\n%s", want, body)
+				}
+			}
+			for _, reject := range tt.reject {
+				if strings.Contains(body, reject) {
+					t.Errorf("unexpected %q:\n%s", reject, body)
+				}
+			}
+		})
+	}
+}
+
 func TestDiffHandler_Get_BadInputs(t *testing.T) {
 	pypiURL, pypiSrv := newDiffTestServer(t)
 	defer pypiSrv.Close()

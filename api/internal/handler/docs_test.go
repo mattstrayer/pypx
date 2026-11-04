@@ -356,8 +356,11 @@ func TestDocsHandlerAliases(t *testing.T) {
 	memCache := cache.NewMemoryCache(c, 100)
 
 	docsJSON := []byte(`{"package":"pkg","version":"1.0","available":true,"modules":[
-		{"name":"pkg","functions":[],"classes":[],"exceptions":[],"aliases":[{"name":"Frame","target":"pkg.core.frame.Frame"}]},
-		{"name":"pkg.core.frame","functions":[],"classes":[{"name":"Frame","kind":"class","signature":"class Frame","methods":[{"name":"head","kind":"method","signature":"def head(self)"}]}],"exceptions":[]}]}`)
+		{"name":"pkg","functions":[],"classes":[],"exceptions":[],"aliases":[{"name":"Frame","target":"pkg.core.frame.Frame"},{"name":"add","target":"pkg.core.add"},{"name":"both","target":"pkg.core.both"}]},
+		{"name":"pkg.core","functions":[{"name":"both","kind":"function","signature":"def both()"}],"classes":[],"exceptions":[]},
+		{"name":"pkg.core.frame","functions":[],"classes":[{"name":"Frame","kind":"class","signature":"class Frame","methods":[{"name":"head","kind":"method","signature":"def head(self)"}]}],"exceptions":[]},
+		{"name":"pkg.strings","functions":[{"name":"own","kind":"function","signature":"def own()"}],"classes":[],"exceptions":[],"aliases":[{"name":"isalnum","target":"pkg.core.isalnum"},{"name":"own2","target":"pkg.core.own2"}]},
+		{"name":"pkg.zed","functions":[{"name":"own2","kind":"function","signature":"def own2()"}],"classes":[],"exceptions":[]}]}`)
 	if err := memCache.Set(handler.DocsCacheKey("pkg", "1.0"), docsJSON, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -371,11 +374,29 @@ func TestDocsHandlerAliases(t *testing.T) {
 		"/api/packages/pkg/docs/pkg.Frame.txt":      "### pkg.core.frame.Frame",
 		"/api/packages/pkg/docs/pkg.Frame.head.txt": "### pkg.core.frame.Frame.head",
 		"/api/packages/pkg/symbols.txt":             "pkg.Frame\talias\t-> pkg.core.frame.Frame\n",
+		// An alias whose target has no block answers with its name and target.
+		"/api/packages/pkg/docs/pkg.strings.isalnum.txt": "### pkg.strings.isalnum -> pkg.core.isalnum\n",
+		"/api/packages/pkg/docs/pkg.add.txt":             "### pkg.add -> pkg.core.add\n",
+		"/api/packages/pkg/docs/isalnum.txt":             "### pkg.strings.isalnum -> pkg.core.isalnum\n",
+		// The target's block wins over its alias, and a bare name prefers a symbol
+		// with a block to an earlier alias that has none.
+		"/api/packages/pkg/docs/pkg.both.txt": "### pkg.core.both — def both()",
+		"/api/packages/pkg/docs/own2.txt":     "### pkg.zed.own2 — def own2()",
 	} {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 		if w.Code != 200 || !strings.Contains(w.Body.String(), want) {
 			t.Errorf("%s: status %d, want %q in:\n%s", path, w.Code, want, w.Body.String())
+		}
+	}
+
+	// The module holding the attribute has no name for it, and a member of such an
+	// alias does not exist.
+	for _, path := range []string{"pkg.core.isalnum", "pkg.add.real", "nope"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/api/packages/pkg/docs/"+path+".txt", nil))
+		if w.Code != 404 {
+			t.Errorf("%s: status %d, want 404:\n%s", path, w.Code, w.Body.String())
 		}
 	}
 }

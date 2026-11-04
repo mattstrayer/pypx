@@ -25,10 +25,10 @@ type DocModuleInput struct {
 	Aliases    []DocAliasInput
 }
 
-// DocAliasInput is a public name that points at a symbol documented elsewhere.
+// DocAliasInput is a public name that points at a definition published elsewhere.
 type DocAliasInput struct {
 	Name   string
-	Target string // Dotted module and name of the documented symbol.
+	Target string // Dotted module and name of the definition.
 }
 
 type DocSymbolInput struct {
@@ -41,6 +41,7 @@ type DocSymbolInput struct {
 	Raises     []DocRaiseInput
 	Methods    []DocSymbolInput
 	Attributes []DocAttributeInput
+	Origin     string // Dotted module that defines a re-exported symbol.
 }
 
 // DocAttributeInput is a class attribute or property.
@@ -114,15 +115,18 @@ type DocRaiseInput struct {
 //
 //	## <module> (module)
 //
+//	Aliases:
+//	  <name> -> <target>
+//
 //	### <module>.<symbol> — <signature>
+//	Defined in: <origin>
 //	<docstring>
 //	(parameters, returns, raises blocks if present)
 func FormatDocs(in *DocsInput, prefix string) string {
 	var b strings.Builder
-	matched := writeMatchingSymbols(&b, in, prefix)
+	direct := writeMatchingSymbols(&b, in, prefix)
 
 	if prefix != "" {
-		direct := matched
 		seen := map[string]bool{}
 		for _, mod := range in.Modules {
 			for _, a := range mod.Aliases {
@@ -142,21 +146,19 @@ func FormatDocs(in *DocsInput, prefix string) string {
 					continue
 				}
 				seen[target] = true
-				if writeMatchingSymbols(&b, in, target) {
-					matched = true
-				}
+				writeMatchingSymbols(&b, in, target)
 			}
 		}
 	}
 
-	if !matched && prefix != "" {
+	if b.Len() == 0 && prefix != "" {
 		return fmt.Sprintf("# no symbols matching prefix=%s\n", prefix)
 	}
 	return b.String()
 }
 
-// writeMatchingSymbols writes the block of each symbol that matches prefix, under
-// its module header, and reports whether it wrote any.
+// writeMatchingSymbols writes, under each module header, the aliases and the block
+// of each symbol that match prefix. It reports whether it wrote any symbol.
 func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool {
 	matched := false
 
@@ -170,6 +172,22 @@ func writeMatchingSymbols(b *strings.Builder, in *DocsInput, prefix string) bool
 				fmt.Fprintf(b, "## %s (module)\n\n", mod.Name)
 				modHeaderWritten = true
 			}
+		}
+
+		wroteAliases := false
+		for _, a := range mod.Aliases {
+			if !matchesPrefix(mod.Name+"."+a.Name, prefix) {
+				continue
+			}
+			if !wroteAliases {
+				writeModuleHeader()
+				b.WriteString("Aliases:\n")
+				wroteAliases = true
+			}
+			fmt.Fprintf(b, "  %s -> %s\n", a.Name, a.Target)
+		}
+		if wroteAliases {
+			b.WriteByte('\n')
 		}
 
 		for _, fn := range mod.Functions {
@@ -267,6 +285,9 @@ func writeSymbolBlock(b *strings.Builder, dottedPath string, sym DocSymbolInput)
 	} else {
 		fmt.Fprintf(b, "### %s\n", dottedPath)
 	}
+	if sym.Origin != "" {
+		fmt.Fprintf(b, "Defined in: %s\n", sym.Origin)
+	}
 	if sym.Docstring != "" {
 		b.WriteString(sym.Docstring)
 		b.WriteByte('\n')
@@ -363,6 +384,19 @@ func FormatSymbol(in *DocsInput, dotted string) (string, bool) {
 				if out, ok := formatDirectSymbol(in, a.Target+strings.TrimPrefix(dotted, path)); ok {
 					return out, true
 				}
+			}
+		}
+	}
+	return "", false
+}
+
+// FormatAlias renders the alias at the dotted path as its name and target. It is
+// the answer for an alias whose target has no block for FormatSymbol to return.
+func FormatAlias(in *DocsInput, dotted string) (string, bool) {
+	for _, mod := range in.Modules {
+		for _, a := range mod.Aliases {
+			if mod.Name+"."+a.Name == dotted {
+				return fmt.Sprintf("### %s -> %s\n\n", dotted, a.Target), true
 			}
 		}
 	}
