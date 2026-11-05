@@ -284,6 +284,36 @@ func TestRender_SubstitutionJavascriptBlocked(t *testing.T) {
 	}
 }
 
+// ── URL scheme allowlist (data:/file:/etc. rejected) ──────────────────────────
+
+func TestRender_EmbeddedHyperlinkDataBlocked(t *testing.T) {
+	got, _ := rst.Render("Click `x <data:text/html,<script>alert(1)</script>>`_.\n")
+	if strings.Contains(got, "data:") {
+		t.Errorf("data: URL should be blocked, got %q", got)
+	}
+}
+
+func TestRender_ImageDataBlocked(t *testing.T) {
+	got, _ := rst.Render(".. image:: data:image/svg+xml;base64,AAAA\n")
+	if strings.Contains(got, "data:") {
+		t.Errorf("data: image URL should be blocked, got %q", got)
+	}
+}
+
+func TestRender_EmbeddedHyperlinkHTTPSAllowed(t *testing.T) {
+	got, _ := rst.Render("See `Site <https://example.com>`_.\n")
+	if !strings.Contains(got, `<a href="https://example.com"`) {
+		t.Errorf("https URL should render a link, got %q", got)
+	}
+}
+
+func TestRender_EmbeddedHyperlinkRelativeAllowed(t *testing.T) {
+	got, _ := rst.Render("See `docs <docs/index.html>`_.\n")
+	if !strings.Contains(got, `<a href="docs/index.html"`) {
+		t.Errorf("relative URL should render a link, got %q", got)
+	}
+}
+
 // ── Real-world package patterns ───────────────────────────────────────────────
 
 // TestRender_SetuptoolsStyle tests the badge-heavy pattern used by setuptools,

@@ -70,6 +70,13 @@ func TestExtractPlatformCoverage(t *testing.T) {
 			want: enrichment.PlatformCoverage{MacOSX86: true, MacOSARM64: true},
 		},
 		{
+			name: "macos fat wheel dotted tag",
+			files: []pypi.ReleaseFile{
+				{Filename: "numpy-2.3.0-cp312-cp312-macosx_10_9_x86_64.macosx_11_0_arm64.whl", PackageType: "bdist_wheel"},
+			},
+			want: enrichment.PlatformCoverage{MacOSX86: true, MacOSARM64: true},
+		},
+		{
 			name: "sdist only returns empty",
 			files: []pypi.ReleaseFile{
 				{Filename: "mypackage-1.0.0.tar.gz", PackageType: "sdist"},
