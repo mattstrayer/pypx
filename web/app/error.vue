@@ -6,7 +6,7 @@ const props = defineProps<{ error: NuxtError }>();
 const status = computed(() => props.error.status ?? props.error.statusCode ?? 500);
 const heading = computed(() => (status.value === 404 ? "Page not found" : "Something went wrong"));
 
-useSeoMeta({ title: heading });
+useSeoMeta({ title: heading, titleTemplate: "%s | pypx" });
 
 function goHome() {
   clearError({ redirect: "/" });
