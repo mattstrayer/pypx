@@ -51,8 +51,8 @@ const {
 );
 
 const pageTitle = computed(() => {
-  if (!committedQuery.value) return `${name.value} — Version Diff — pypx`;
-  return `${name.value} ${committedQuery.value.from} → ${committedQuery.value.to} — pypx`;
+  if (!committedQuery.value) return `${name.value} — Version Diff`;
+  return `${name.value} ${committedQuery.value.from} → ${committedQuery.value.to}`;
 });
 
 useSeoMeta({
@@ -60,7 +60,7 @@ useSeoMeta({
   description: computed(
     () => `Version diff for ${name.value}: API changes, dependency changes, and changelog.`,
   ),
-  ogTitle: pageTitle,
+  ogTitle: () => `${pageTitle.value} | pypx`,
 });
 </script>
 

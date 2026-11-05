@@ -77,14 +77,14 @@ const skipped = computed(() => compareData.value?.Skipped ?? []);
 
 const pkgTitle = computed(() => {
   const names = packages.value.map((p) => p.Name);
-  if (!names.length) return "Compare packages — pypx";
-  return `Compare ${names.join(" vs ")} — pypx`;
+  if (!names.length) return "Compare packages";
+  return `Compare ${names.join(" vs ")}`;
 });
 
 useSeoMeta({
   title: pkgTitle,
   description: "Compare Python packages side by side — versions, downloads, deps, and more.",
-  ogTitle: pkgTitle,
+  ogTitle: () => `${pkgTitle.value} | pypx`,
 });
 </script>
 

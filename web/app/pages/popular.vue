@@ -2,11 +2,10 @@
 const api = useApi();
 const { data: packages, status } = await useAsyncData("popular-full", () => api.fetchPopular(50));
 
-useHead({ titleTemplate: "%s" });
 useSeoMeta({
-  title: "Popular Python Packages — pypx",
+  title: "Popular Python Packages",
   description: "The most-downloaded Python packages on PyPI, with download trends and summaries.",
-  ogTitle: "Popular Python Packages — pypx",
+  ogTitle: "Popular Python Packages | pypx",
   ogDescription: "The most-downloaded Python packages on PyPI, with download trends and summaries.",
 });
 
