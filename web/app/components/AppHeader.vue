@@ -67,6 +67,13 @@ onUnmounted(() => {
               type="text"
               placeholder="Search packages..."
               aria-label="Search Python packages"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="header-search-listbox"
+              :aria-expanded="isOpen"
+              :aria-activedescendant="
+                selectedIndex >= 0 ? `header-search-listbox-opt-${selectedIndex}` : undefined
+              "
               class="w-full rounded-md border border-subtle bg-surface py-1.5 pl-8 pr-12 text-sm text-primary placeholder-muted outline-none focus:border-[var(--color-brand-light)] focus:ring-1 focus:ring-[var(--color-brand-border)]"
               @keydown="onKeydown"
               @focus="query.trim() && (isOpen = true)"
@@ -86,6 +93,7 @@ onUnmounted(() => {
             :selected-index="selectedIndex"
             :loading="isLoading"
             :has-query="!!query.trim()"
+            listbox-id="header-search-listbox"
             @select="navigateToResult"
             @hover="(i) => (selectedIndex = i)"
           />
