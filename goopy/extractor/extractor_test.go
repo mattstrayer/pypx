@@ -679,7 +679,6 @@ func TestExtractAllTuple(t *testing.T) {
 	}
 }
 
-
 func TestExtractMangledPrivateMethodInClass(t *testing.T) {
 	m := extract(`
 class C:
