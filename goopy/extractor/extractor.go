@@ -359,7 +359,7 @@ func (e *Extractor) extractClassStmts(stmts []ast.Stmt, cls *model.Class, module
 
 		case *ast.ClassDef:
 			// Nested class (e.g. Django `class Meta`, pydantic v1 `class Config`).
-			// Same privacy rule as methods: skip _Name but keep dunder-style names.
+			// Same privacy rule as methods.
 			if isPrivateMember(s.Name) {
 				continue
 			}
@@ -375,10 +375,12 @@ func (e *Extractor) extractClassStmts(stmts []ast.Stmt, cls *model.Class, module
 	}
 }
 
-// isPrivateMember reports whether a class member is private: _name, but not a
-// dunder-style name.
+// isPrivateMember reports whether a class member is private: _name or the
+// name-mangled __name, but not a dunder such as __len__. Python mangles a name
+// that starts with two underscores unless it also ends with two.
 func isPrivateMember(name string) bool {
-	return strings.HasPrefix(name, "_") && !strings.HasPrefix(name, "__")
+	isDunder := strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__")
+	return strings.HasPrefix(name, "_") && !isDunder
 }
 
 // propertyDecorators lists the decorators that turn a method into an attribute.
@@ -698,7 +700,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 			for _, target := range s.Targets {
 				if a, ok := target.(*ast.Attribute); ok {
 					if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-						if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+						if isPrivateMember(a.Attr) {
 							continue
 						}
 						attrs = append(attrs, &model.Attribute{
@@ -712,7 +714,7 @@ func (e *Extractor) extractInitAttributes(fd *ast.FunctionDef) []*model.Attribut
 		case *ast.AnnAssign:
 			if a, ok := s.Target.(*ast.Attribute); ok {
 				if selfName, ok := a.Value.(*ast.Name); ok && selfName.Name == "self" {
-					if strings.HasPrefix(a.Attr, "_") && !strings.HasPrefix(a.Attr, "__") {
+					if isPrivateMember(a.Attr) {
 						continue
 					}
 					attr := &model.Attribute{
