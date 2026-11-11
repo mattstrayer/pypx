@@ -3,6 +3,6 @@
   "private": true,
   "description": "Pins the pnpm that web/Dockerfile installs with npm ci. Keep the version equal to pnpm/action-setup in .github/workflows/ci.yml.",
   "dependencies": {
-    "pnpm": "12.16.1"
+    "pnpm": "12.18.0"
   }
 }
