@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/pypx/goopy v0.0.0
 	github.com/yuin/goldmark-highlighting/v3 v3.1.1
-	github.com/yuin/goldmark/v2 v2.1.15
+	github.com/yuin/goldmark/v2 v2.1.16
 	golang.org/x/sync v0.25.0
 	golang.org/x/time v0.16.0
 	modernc.org/sqlite v1.62.0
