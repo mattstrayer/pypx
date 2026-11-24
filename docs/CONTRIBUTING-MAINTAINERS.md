@@ -69,6 +69,7 @@ Rules:
     - `Security / govulncheck (api)`
     - `Security / govulncheck (goopy)`
     - `Security / osv-scanner`
+    - `Security / pnpm audit`
     - `Security / dependency-review`
     - `Analyze (actions)`
     - `Analyze (go)`
