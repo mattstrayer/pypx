@@ -7,6 +7,13 @@ on:
     - cron: '30 6 * * 1'
   push:
     branches: [main]
+  # Run the action on PRs that change this workflow, so a broken action
+  # release (ossf/scorecard-action#1752) fails in the PR, not on main.
+  # Scorecard calls this trigger experimental. Results are not published or
+  # uploaded from PRs.
+  pull_request:
+    paths:
+      - .github/workflows/scorecard.yml
   workflow_dispatch:
 
 permissions: read-all
@@ -29,14 +36,15 @@ jobs:
           persist-credentials: false
 
       - name: Run Scorecard analysis
-        uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
         with:
           results_file: results.sarif
           results_format: sarif
           # Publish results to OpenSSF API so the README badge works.
-          publish_results: true
+          publish_results: ${{ github.event_name != 'pull_request' }}
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 # Renovate will pin to SHA on first scan
         with:
           name: scorecard-results
@@ -44,6 +52,7 @@ jobs:
           retention-days: 5
 
       - name: Upload SARIF results to code scanning
+        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5 # Renovate will pin to SHA on first scan
         with:
           sarif_file: results.sarif
