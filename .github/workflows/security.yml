@@ -56,11 +56,35 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # pnpm-lock.yaml is checked by the pnpm-audit job instead. GitHub's OSV
+      # export cannot express an upper bound on an advisory range that has
+      # no fixed version, so it emits an open range and osv-scanner flags
+      # patched releases (four Nuxt advisories in 2026:
+      # github/advisory-database#470). pnpm audit reads GitHub's ranges
+      # directly. Every other lockfile, including ones added later, stays here.
       - uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         with:
           scan-args: |-
             --recursive
+            --x-disable-plugins=javascript/pnpmlock
             ./
+
+  pnpm-audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12.22.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.13.1'
+      # Reads pnpm-lock.yaml; no install needed.
+      - name: Run pnpm audit
+        run: pnpm audit
 
   dependency-review:
     name: dependency-review
