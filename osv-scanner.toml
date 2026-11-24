@@ -1,21 +1,27 @@
-[[IgnoredVulns]]
-id = "GHSA-vjh5-4x84-xrqp"
-ignoreUntil = 2026-12-31
-reason = """
-False positive for nuxt / @nuxt/nitro-server 4.6.2 and later (4.6.2 is the \
-patched version). \
-GitHub's advisory bounds its 3.x range at <4.0.0, but the OSV copy drops \
-that upper bound, so every version >=3.0.0 matches. Remove once the OSV \
-record is corrected.
-"""
+# Nuxt false positives. GitHub's advisories bound the unpatched 3.x range at
+# <4.0.0, but GitHub's OSV export cannot express an upper bound with no fixed
+# version. It emits an open range (introduced: 3.0.0) and moves "< 4.0.0" to
+# database_specific.last_known_affected_version_range, which osv-scanner
+# ignores. So every version >= 3.0.0 matches, including the patched 4.x
+# release. Upstream: github/advisory-database#470, google/osv.dev#474.
+# Remove each entry once its OSV record carries last_affected for 3.x.
 
 [[IgnoredVulns]]
-id = "GHSA-gcqx-w48m-w2h4"
-ignoreUntil = 2026-12-31
-reason = """
-deepmerge@4.3.1 (transitive via nitropack -> @rollup/plugin-node-resolve, \
-build time only). The advisory is prototype poisoning through mergeObject() \
-on untrusted input. The plugin only calls deepMerge({}, defaults) on its own \
-constant defaults. No fixed version published upstream as of 2026-11-03. \
-Re-check on expiry and remove once a patched release exists.
-"""
+id = "GHSA-vjh5-4x84-xrqp"
+effectiveUntil = 2026-12-31
+reason = "Nuxt OSV range bug (see top of file). Patched in nuxt / @nuxt/nitro-server 4.6.2."
+
+[[IgnoredVulns]]
+id = "GHSA-f3x9-2chm-73c8"
+effectiveUntil = 2026-12-31
+reason = "Nuxt OSV range bug (see top of file). Patched in nuxt / @nuxt/nitro-server / @nuxt/vite-server 4.6.4."
+
+[[IgnoredVulns]]
+id = "GHSA-hf59-9xwc-2g4p"
+effectiveUntil = 2026-12-31
+reason = "Nuxt OSV range bug (see top of file). Patched in nuxt / @nuxt/nitro-server 4.6.4."
+
+[[IgnoredVulns]]
+id = "GHSA-96x6-fvhx-49hg"
+effectiveUntil = 2026-12-31
+reason = "Nuxt OSV range bug (see top of file). Patched in nuxt 4.6.4."

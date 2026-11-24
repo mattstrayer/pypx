@@ -258,12 +258,8 @@ useSeoMeta({
               <span class="font-semibold text-primary">{{ change.Path }}</span>
             </div>
             <div class="mt-1 ml-4 text-muted">
-              <div>
-                was: <span class="text-primary">{{ change.FromSig }}</span>
-              </div>
-              <div>
-                now: <span class="text-primary">{{ change.ToSig }}</span>
-              </div>
+              <div>was: <span class="text-primary">{{ change.FromSig }}</span></div>
+              <div>now: <span class="text-primary">{{ change.ToSig }}</span></div>
             </div>
           </div>
           <div v-if="(diffData.APIChanges?.ChangedTruncated ?? 0) > 0" class="px-4 py-2 text-muted">

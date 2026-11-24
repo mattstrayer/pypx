@@ -159,6 +159,15 @@
       "groupName": "go toolchain"
     },
     {
+      "description": "Bump the api module's go directive with each Go release. Renovate leaves go directives alone by default and only bumps toolchain lines, but the golang image sets GOTOOLCHAIN=local, which ignores toolchain lines. The go directive is what makes a stale builder image fail, and what setup-go reads in CI. goopy is a library, so its go directive stays a minimum and its toolchain line tracks releases.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang"],
+      "matchFileNames": ["api/go.mod"],
+      "rangeStrategy": "bump",
+      "groupName": "go toolchain"
+    },
+    {
       "description": "pnpm moves atomically: the action-setup version in CI + the deploy/pnpm lockfile that web/Dockerfile installs (must come after the npm catch-all and the actions rule to pull pnpm out of those groups). No automerge, as before deploy/pnpm joined the npm catch-all.",
       "matchDepNames": ["pnpm"],
       "groupName": "pnpm",

@@ -63,8 +63,7 @@ const shownAliases = computed(() =>
     >
       Also importable as
       <template v-for="(path, i) in shownAliases" :key="path">
-        <span class="font-mono">{{ path }}</span
-        >{{ i < shownAliases.length - 1 ? ", " : "" }}
+        <span class="font-mono">{{ path }}</span>{{ i < shownAliases.length - 1 ? ", " : "" }}
       </template>
       <button
         v-if="hiddenAliasCount > 0"
