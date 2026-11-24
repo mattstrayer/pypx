@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     permissions:
-      contents: write # git push of the release tag, gh release create
+      contents: write # git push of the version tag, gh release create
       packages: write # image push to GHCR
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,6 +50,18 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev=v$LATEST" >> "$GITHUB_OUTPUT"
           echo "Deploying v$VERSION (${{ inputs.bump }} bump from v$LATEST)"
+
+      # Push the tag before anything changes. GitHub refuses a new tag from
+      # GITHUB_TOKEN when the tagged commit's .github/workflows differs from
+      # main (for example, a workflow change merged while this run waited for
+      # approval). Failing here leaves production untouched; dispatch again
+      # from main. The tag also reserves the version: if a later step fails,
+      # the next run takes the next number, so image tags are never reused.
+      - name: Reserve version tag
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
 
       - name: Log in to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -124,17 +136,15 @@ jobs:
       - name: Install git-cliff
         uses: kenji-miyake/setup-git-cliff@2778609c643a39a2576c4bae2e493b855eb4aee8 # v2.0.1
 
-      - name: Tag and release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v${{ steps.version.outputs.version }}"
 
-          git tag "$VERSION"
-          git push origin "$VERSION"
-
           NOTES=$(git-cliff --latest --strip header)
 
           gh release create "$VERSION" \
+            --verify-tag \
             --title "$VERSION" \
             --notes "$NOTES"
